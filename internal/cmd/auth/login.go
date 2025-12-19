@@ -29,6 +29,7 @@ var (
 	loginNoBrowser    bool
 	loginCallbackPort int
 	loginTimeout      int
+	loginReuse        bool
 )
 
 func init() {
@@ -37,6 +38,7 @@ func init() {
 	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Don't open browser, just print URL")
 	loginCmd.Flags().IntVar(&loginCallbackPort, "callback-port", 0, "Fixed port for callback server")
 	loginCmd.Flags().IntVar(&loginTimeout, "timeout", 0, "Timeout in seconds (default: 120)")
+	loginCmd.Flags().BoolVarP(&loginReuse, "reuse", "r", false, "Reuse previous login settings (method, space, domain) without prompts")
 }
 
 var loginCmd = &cobra.Command{
@@ -55,7 +57,10 @@ For API Key authentication, you will be prompted to enter your API Key.
 You can obtain your API Key from your Backlog personal settings page.
 
 On first login, you will be prompted to select a domain and enter your
-space name. These settings will be saved to your profile.`,
+space name. These settings will be saved to your profile.
+
+Use --reuse (-r) flag to skip prompts and reuse previous login settings
+(authentication method, space, and domain).`,
 	RunE: runLogin,
 }
 
@@ -75,14 +80,46 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	// 認証方式の決定
 	var authMethod string
-	if relayServer == "" {
-		// リレーサーバーが設定されていない場合はAPI Key認証のみ
-		authMethod = authMethodAPIKey
+
+	// --reuse オプションが指定された場合
+	if loginReuse {
+		// 既存のクレデンシャルを取得
+		resolved := cfg.Resolved()
+		cred := resolved.GetActiveCredential()
+		if cred == nil {
+			return fmt.Errorf("no previous login found. Please run 'backlog auth login' without --reuse flag first")
+		}
+
+		// 既存のspace/domainを確認
+		if profile == nil || profile.Space == "" || profile.Domain == "" {
+			return fmt.Errorf("no previous space/domain settings found. Please run 'backlog auth login' without --reuse flag first")
+		}
+
+		// 以前の認証方式を使用
+		switch cred.GetAuthType() {
+		case config.AuthTypeOAuth:
+			if relayServer == "" {
+				return fmt.Errorf("OAuth authentication requires a relay server, but none is configured")
+			}
+			authMethod = authMethodOAuth
+		case config.AuthTypeAPIKey:
+			authMethod = authMethodAPIKey
+		default:
+			return fmt.Errorf("unknown authentication type in previous credentials")
+		}
+
+		fmt.Printf("Reusing previous login settings: %s with %s.%s\n", authMethod, profile.Space, profile.Domain)
 	} else {
-		// リレーサーバーが設定されている場合は選択
-		authMethod, err = ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
-		if err != nil {
-			return err
+		// 通常の認証方式選択
+		if relayServer == "" {
+			// リレーサーバーが設定されていない場合はAPI Key認証のみ
+			authMethod = authMethodAPIKey
+		} else {
+			// リレーサーバーが設定されている場合は選択
+			authMethod, err = ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -109,17 +146,20 @@ func runAPIKeyLogin(cfg *config.Store) error {
 		configChanged = true
 	}
 
-	// 既存設定があり、コマンドライン引数で指定されていない場合
-	if !configChanged && opts.space != "" && opts.domain != "" {
-		fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
-		changeSettings, err := ui.Confirm("Change space/domain settings?", false)
-		if err != nil {
-			return err
-		}
-		if changeSettings {
-			configChanged = true
-			opts.space = ""
-			opts.domain = ""
+	// --reuse オプションが指定されていない場合のみ確認ダイアログを表示
+	if !opts.reuse {
+		// 既存設定があり、コマンドライン引数で指定されていない場合
+		if !configChanged && opts.space != "" && opts.domain != "" {
+			fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
+			changeSettings, err := ui.Confirm("Change space/domain settings?", false)
+			if err != nil {
+				return err
+			}
+			if changeSettings {
+				configChanged = true
+				opts.space = ""
+				opts.domain = ""
+			}
 		}
 	}
 
@@ -245,18 +285,21 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 		configChanged = true
 	}
 
-	// 既存設定があり、コマンドライン引数で指定されていない場合
-	if !configChanged && opts.space != "" && opts.domain != "" {
-		fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
-		changeSettings, err := ui.Confirm("Change space/domain settings?", false)
-		if err != nil {
-			return err
-		}
-		if changeSettings {
-			configChanged = true
-			// 設定変更モードなのでリセット
-			opts.space = ""
-			opts.domain = ""
+	// --reuse オプションが指定されていない場合のみ確認ダイアログを表示
+	if !opts.reuse {
+		// 既存設定があり、コマンドライン引数で指定されていない場合
+		if !configChanged && opts.space != "" && opts.domain != "" {
+			fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
+			changeSettings, err := ui.Confirm("Change space/domain settings?", false)
+			if err != nil {
+				return err
+			}
+			if changeSettings {
+				configChanged = true
+				// 設定変更モードなのでリセット
+				opts.space = ""
+				opts.domain = ""
+			}
 		}
 	}
 
@@ -419,6 +462,7 @@ type loginOptions struct {
 	noBrowser    bool
 	callbackPort int
 	timeout      int
+	reuse        bool
 }
 
 func mergeLoginOptions(cfg *config.Store) loginOptions {
@@ -428,6 +472,7 @@ func mergeLoginOptions(cfg *config.Store) loginOptions {
 		noBrowser:    loginNoBrowser,
 		callbackPort: loginCallbackPort,
 		timeout:      loginTimeout,
+		reuse:        loginReuse,
 	}
 
 	// 設定ファイルからの補完

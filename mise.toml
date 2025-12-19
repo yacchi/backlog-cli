@@ -1,5 +1,6 @@
 [tools]
 go-sdk = "1.25.5"
+golangci-lint = "latest"
 
 [env]
 GOBIN = "{{env.HOME}}/.local/bin"
