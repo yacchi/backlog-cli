@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'version.txt'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from version.txt
+        id: version
+        run: |
+          VERSION=$(cat version.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} already exists. Skipping release."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} does not exist. Creating release."
+          fi
+
+      - name: Read Go version from mise.toml
+        if: steps.check_tag.outputs.exists == 'false'
+        id: go_version
+        run: |
+          GO_VERSION=$(grep 'go-sdk' mise.toml | sed 's/.*= *"\([0-9]*\.[0-9]*\).*/\1/')
+          echo "version=$GO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go_version.outputs.version }}
+
+      - name: Run tests
+        if: steps.check_tag.outputs.exists == 'false'
+        run: make test
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Generate GitHub App token
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - name: Run GoReleaser
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

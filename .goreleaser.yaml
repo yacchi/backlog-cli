@@ -44,15 +44,14 @@ changelog:
       - '^test:'
       - '^chore:'
 
-# Uncomment and configure when ready for Homebrew distribution
-# brews:
-#   - name: backlog-cli
-#     repository:
-#       owner: yacchi
-#       name: homebrew-tap
-#     homepage: "https://github.com/yacchi/backlog-cli"
-#     description: "CLI for Backlog project management"
-#     install: |
-#       bin.install "backlog"
-#     test: |
-#       system "#{bin}/backlog", "version"
+brews:
+  - name: backlog-cli
+    repository:
+      owner: yacchi
+      name: homebrew-tap
+    homepage: "https://github.com/yacchi/backlog-cli"
+    description: "CLI for Backlog project management"
+    install: |
+      bin.install "backlog"
+    test: |
+      system "#{bin}/backlog", "version"
