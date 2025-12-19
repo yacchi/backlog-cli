@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -37,9 +38,24 @@ func NewFileCache(dir string) (*FileCache, error) {
 }
 
 func (c *FileCache) getFilePath(key string) string {
-	hash := sha256.Sum256([]byte(key))
-	filename := hex.EncodeToString(hash[:]) + ".json"
-	return filepath.Join(c.dir, filename)
+	// キーの形式: "type:domain:extra..."
+	// 例: "issue:backlog.jp:PROJ-1" -> "issue_backlog.jp_PROJ-1.json"
+	
+	// ファイル名に使用できない文字を置換
+	safe := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' {
+			return r
+		}
+		return '_'
+	}, key)
+
+	// 長すぎる場合（一覧取得のオプションなど）は末尾をハッシュ化
+	if len(safe) > 64 {
+		hash := sha256.Sum256([]byte(key))
+		safe = safe[:32] + "_" + hex.EncodeToString(hash[:])[:16]
+	}
+
+	return filepath.Join(c.dir, safe+".json")
 }
 
 // Get はキャッシュを取得する
