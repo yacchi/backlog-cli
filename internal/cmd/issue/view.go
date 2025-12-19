@@ -168,6 +168,11 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 		}
 	}
 
+	// API上限(100)を超えないように制限
+	if fetchCount > 100 {
+		fetchCount = 100
+	}
+
 	// コメント取得
 	var comments []api.Comment
 	if fetchCount > 0 {

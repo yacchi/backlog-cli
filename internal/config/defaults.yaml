@@ -180,7 +180,7 @@ display:
   summary_max_length: 50
 
   # 要約に使用するコメント数 (0で無効)
-  summary_comment_count: 20
+  summary_comment_count: 100
 
   # コメント表示数のデフォルト
   default_comment_count: 10
