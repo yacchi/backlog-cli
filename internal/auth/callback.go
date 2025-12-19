@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/yacchi/backlog-cli/internal/debug"
 )
 
 // CallbackResult はコールバックの結果
@@ -41,6 +43,8 @@ func NewCallbackServer(port int) (*CallbackServer, error) {
 		listener: listener,
 	}
 
+	debug.Log("callback server created", "port", actualPort, "address", addr)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", cs.handleCallback)
 
@@ -58,6 +62,7 @@ func (cs *CallbackServer) Port() int {
 
 // Start はサーバーを起動する
 func (cs *CallbackServer) Start() error {
+	debug.Log("callback server starting", "port", cs.port)
 	return cs.server.Serve(cs.listener)
 }
 
@@ -72,20 +77,25 @@ func (cs *CallbackServer) Shutdown(ctx context.Context) error {
 }
 
 func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request) {
+	debug.Log("callback received", "method", r.Method, "path", r.URL.Path, "query", r.URL.RawQuery)
+
 	cs.once.Do(func() {
 		code := r.URL.Query().Get("code")
 		errorParam := r.URL.Query().Get("error")
 
 		if errorParam != "" {
 			errorDesc := r.URL.Query().Get("error_description")
+			debug.Log("callback error received", "error", errorParam, "description", errorDesc)
 			cs.result <- CallbackResult{
 				Error: fmt.Errorf("%s: %s", errorParam, errorDesc),
 			}
 		} else if code == "" {
+			debug.Log("callback received without code")
 			cs.result <- CallbackResult{
 				Error: fmt.Errorf("no code received"),
 			}
 		} else {
+			debug.Log("callback code received", "code_length", len(code))
 			cs.result <- CallbackResult{Code: code}
 		}
 	})

@@ -134,6 +134,11 @@ type ResolvedServer struct {
 	Port    int    `json:"port" jubako:"/server/port,env:SERVER_PORT"`
 	BaseURL string `json:"base_url" jubako:"/server/base_url,env:SERVER_BASE_URL"`
 
+	// 許可するホストパターン（セミコロン区切り、ワイルドカード対応）
+	// BaseURL未設定時のHostヘッダー検証に使用
+	// 例: "*.lambda-url.*.on.aws;*.run.app"
+	AllowedHostPatterns string `json:"allowed_host_patterns" jubako:"/server/allowed_host_patterns,env:ALLOWED_HOST_PATTERNS"`
+
 	// HTTP設定 (server.http.*)
 	HTTPReadTimeout  int `json:"http_read_timeout" jubako:"/server/http/read_timeout,env:HTTP_READ_TIMEOUT"`
 	HTTPWriteTimeout int `json:"http_write_timeout" jubako:"/server/http/write_timeout,env:HTTP_WRITE_TIMEOUT"`

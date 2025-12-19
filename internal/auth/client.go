@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/yacchi/backlog-cli/internal/debug"
 )
 
 // Client は認証クライアント
@@ -17,7 +20,8 @@ type Client struct {
 // NewClient は新しい認証クライアントを作成する
 func NewClient(relayServer string) *Client {
 	return &Client{
-		relayServer: relayServer,
+		// 末尾スラッシュを除去してパス連結時のダブルスラッシュを防止
+		relayServer: strings.TrimRight(relayServer, "/"),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -66,6 +70,8 @@ func (c *Client) StartAuth(domain, space string, port int, project string) (*Aut
 		reqURL += "&project=" + project
 	}
 
+	debug.Log("starting auth request", "url", reqURL)
+
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -74,9 +80,12 @@ func (c *Client) StartAuth(domain, space string, port int, project string) (*Aut
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		debug.Log("auth start request failed", "error", err)
 		return nil, fmt.Errorf("failed to start auth: %w", err)
 	}
 	defer resp.Body.Close()
+
+	debug.Log("auth start response received", "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp struct {
@@ -92,6 +101,7 @@ func (c *Client) StartAuth(domain, space string, port int, project string) (*Aut
 		return nil, fmt.Errorf("failed to parse auth start response: %w", err)
 	}
 
+	debug.Log("auth start successful", "auth_url_length", len(result.AuthURL))
 	return &result, nil
 }
 
@@ -134,15 +144,21 @@ func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 		return nil, err
 	}
 
+	tokenURL := c.relayServer + "/auth/token"
+	debug.Log("sending token request", "url", tokenURL, "grant_type", req.GrantType)
+
 	resp, err := c.httpClient.Post(
-		c.relayServer+"/auth/token",
+		tokenURL,
 		"application/json",
 		bytes.NewReader(body),
 	)
 	if err != nil {
+		debug.Log("token request failed", "error", err)
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	debug.Log("token response received", "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp struct {
@@ -150,6 +166,7 @@ func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 			Description string `json:"error_description"`
 		}
 		json.NewDecoder(resp.Body).Decode(&errResp)
+		debug.Log("token request error", "error", errResp.Error, "description", errResp.Description)
 		return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.Description)
 	}
 
@@ -158,5 +175,6 @@ func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
 	}
 
+	debug.Log("token received", "token_type", result.TokenType, "expires_in", result.ExpiresIn)
 	return &result, nil
 }

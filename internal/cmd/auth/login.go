@@ -13,6 +13,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/api"
 	"github.com/yacchi/backlog-cli/internal/auth"
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/debug"
 	"github.com/yacchi/backlog-cli/internal/ui"
 )
 
@@ -212,8 +213,11 @@ func runAPIKeyLogin(cfg *config.Store) error {
 
 // runOAuthLogin はOAuth認証を実行する
 func runOAuthLogin(cfg *config.Store, relayServer string) error {
+	debug.Log("starting OAuth login", "relay_server", relayServer)
+
 	// オプションのマージ
 	opts := mergeLoginOptions(cfg)
+	debug.Log("login options merged", "domain", opts.domain, "space", opts.space, "callback_port", opts.callbackPort, "timeout", opts.timeout)
 
 	// 認証クライアント作成
 	client := auth.NewClient(relayServer)
@@ -286,10 +290,12 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	fmt.Printf("\nAuthenticating with %s.%s...\n", opts.space, opts.domain)
 
 	// 4. コールバックサーバー起動
+	debug.Log("creating callback server", "requested_port", opts.callbackPort)
 	callbackServer, err := auth.NewCallbackServer(opts.callbackPort)
 	if err != nil {
 		return fmt.Errorf("failed to start callback server: %w", err)
 	}
+	debug.Log("callback server ready", "actual_port", callbackServer.Port())
 
 	go callbackServer.Start()
 	defer func() {
@@ -324,6 +330,7 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	}
 
 	// 7. コールバック待機
+	debug.Log("waiting for callback", "timeout_seconds", opts.timeout)
 	resultCh := make(chan auth.CallbackResult, 1)
 	go func() {
 		resultCh <- callbackServer.Wait()
@@ -332,7 +339,9 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	var result auth.CallbackResult
 	select {
 	case result = <-resultCh:
+		debug.Log("callback result received", "has_error", result.Error != nil)
 	case <-time.After(time.Duration(opts.timeout) * time.Second):
+		debug.Log("callback timeout")
 		return fmt.Errorf("authentication timed out after %d seconds", opts.timeout)
 	}
 
@@ -341,6 +350,7 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	}
 
 	// 8. トークン交換（stateでセッション追跡）
+	debug.Log("exchanging authorization code", "code_length", len(result.Code))
 	fmt.Println("Exchanging authorization code...")
 	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
 		GrantType: "authorization_code",
@@ -352,6 +362,7 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	if err != nil {
 		return fmt.Errorf("failed to exchange token: %w", err)
 	}
+	debug.Log("token exchange successful", "expires_in", tokenResp.ExpiresIn)
 
 	// 9. ユーザー情報取得
 	apiClient := api.NewClient(opts.space, opts.domain, tokenResp.AccessToken)

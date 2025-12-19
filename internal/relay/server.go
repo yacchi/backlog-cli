@@ -64,8 +64,8 @@ func NewServer(cfg *config.Store) (*Server, error) {
 	}, nil
 }
 
-// Start はサーバーを起動する
-func (s *Server) Start() error {
+// Handler はHTTPハンドラーを返す（Lambda等のサーバーレス環境用）
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// エンドポイント登録
@@ -76,13 +76,19 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /auth/token", s.handleAuthToken)
 
 	// ミドルウェアチェーン
-	handler := Chain(
+	// Note: Lambda環境ではレートリミッターは無効化される（インメモリのため）
+	return Chain(
 		mux,
 		RecoveryMiddleware,
 		LoggingMiddleware,
 		s.ipRestriction.Middleware,
 		s.rateLimiter.Middleware,
 	)
+}
+
+// Start はサーバーを起動する
+func (s *Server) Start() error {
+	handler := s.Handler()
 
 	server := s.cfg.Server()
 	addr := fmt.Sprintf("%s:%d", server.Host, server.Port)

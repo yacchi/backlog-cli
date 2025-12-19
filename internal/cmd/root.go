@@ -10,6 +10,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/cmd/serve"
 	"github.com/yacchi/backlog-cli/internal/cmd/wiki"
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/debug"
 	"github.com/yacchi/jubako"
 )
 
@@ -28,6 +29,11 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// デバッグモードの有効化
+		if debugFlag, _ := cmd.Flags().GetBool("debug"); debugFlag {
+			debug.Enable()
+		}
+
 		ctx := cmd.Context()
 		cfg, err := config.Load(ctx)
 		if err != nil {
@@ -71,6 +77,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Backlog project key")
 	rootCmd.PersistentFlags().StringP("output", "o", "", "Output format (table, json)")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
+	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
 
 	// サブコマンド登録
 	rootCmd.AddCommand(auth.AuthCmd)

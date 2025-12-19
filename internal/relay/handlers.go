@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/yacchi/backlog-cli/internal/api"
 	"github.com/yacchi/backlog-cli/internal/config"
@@ -143,7 +146,7 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Backlog認可URLを構築（stateにJWTトークンを含める）
-	redirectURI := s.buildCallbackURL()
+	redirectURI := s.buildCallbackURL(r)
 	authURL := fmt.Sprintf("https://%s.%s/OAuth2AccessRequest.action?response_type=code&client_id=%s&redirect_uri=%s&state=%s",
 		space,
 		domain,
@@ -264,7 +267,7 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, http.StatusBadRequest, "invalid_request", "code is required for authorization_code grant")
 			return
 		}
-		tokenResp, err = s.exchangeCode(backlogCfg, req.Space, req.Code)
+		tokenResp, err = s.exchangeCode(r, backlogCfg, req.Space, req.Code)
 
 	case "refresh_token":
 		auditAction = AuditActionTokenRefresh
@@ -328,13 +331,76 @@ func (s *Server) findBacklogConfig(domain string) *config.ResolvedBacklogApp {
 	return s.cfg.BacklogApp(domain)
 }
 
-func (s *Server) buildCallbackURL() string {
+func (s *Server) buildCallbackURL(r *http.Request) string {
 	server := s.cfg.Server()
 	if server.BaseURL != "" {
 		return server.BaseURL + "/auth/callback"
 	}
-	// デフォルト（開発用）
+
+	// BaseURL が未設定の場合、リクエストヘッダーから URL を構築
+	// Lambda Function URL や CloudRun など、リバースプロキシ環境で有用
+	if r != nil {
+		scheme := "https" // デフォルトは HTTPS
+		host := r.Host
+
+		// X-Forwarded-Proto ヘッダーがあれば使用
+		if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		}
+
+		// X-Forwarded-Host ヘッダーがあれば使用（プロキシ経由の場合）
+		if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
+			host = fwdHost
+		}
+
+		if host != "" {
+			// ホストパターン検証
+			if !s.isHostAllowed(host) {
+				slog.Warn("host not allowed", "host", host, "patterns", server.AllowedHostPatterns)
+				// 検証失敗時はローカルホストにフォールバック
+				return fmt.Sprintf("http://localhost:%d/auth/callback", server.Port)
+			}
+			return fmt.Sprintf("%s://%s/auth/callback", scheme, host)
+		}
+	}
+
+	// デフォルト（ローカル開発用）
 	return fmt.Sprintf("http://localhost:%d/auth/callback", server.Port)
+}
+
+// isHostAllowed はホストが許可パターンにマッチするかを検証する
+// パターンが未設定の場合は全て許可（開発用）
+func (s *Server) isHostAllowed(host string) bool {
+	patterns := s.cfg.Server().AllowedHostPatterns
+	if patterns == "" {
+		// パターン未設定は全て許可（開発用）
+		return true
+	}
+
+	// ポート番号を除去（host:port 形式の場合）
+	hostOnly := host
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		// IPv6 アドレスでないことを確認
+		if !strings.Contains(host[idx:], "]") {
+			hostOnly = host[:idx]
+		}
+	}
+
+	// セミコロン区切りでパターンを分割
+	for _, pattern := range strings.Split(patterns, ";") {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+
+		// path.Match でワイルドカードマッチング
+		// * は任意の文字列にマッチ（/ を含まない）
+		if matched, _ := path.Match(pattern, hostOnly); matched {
+			return true
+		}
+	}
+
+	return false
 }
 
 func generateState() (string, error) {
@@ -359,11 +425,11 @@ func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 </html>`, title, title, message)
 }
 
-func (s *Server) exchangeCode(cfg *config.ResolvedBacklogApp, space, code string) (*TokenResponse, error) {
+func (s *Server) exchangeCode(r *http.Request, cfg *config.ResolvedBacklogApp, space, code string) (*TokenResponse, error) {
 	return s.requestToken(cfg, space, url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
-		"redirect_uri":  {s.buildCallbackURL()},
+		"redirect_uri":  {s.buildCallbackURL(r)},
 		"client_id":     {cfg.ClientID()},
 		"client_secret": {cfg.ClientSecret()},
 	})

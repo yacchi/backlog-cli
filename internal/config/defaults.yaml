@@ -89,6 +89,13 @@ server:
   # 例: https://relay.example.com
   base_url: ""
 
+  # 許可するホストパターン（セミコロン区切り、ワイルドカード対応）
+  # 環境変数: BACKLOG_ALLOWED_HOST_PATTERNS
+  # base_url未設定時、Hostヘッダーからコールバック URL を構築する際の検証に使用
+  # 空の場合は全てのホストを許可（開発用）
+  # 例: "*.lambda-url.*.on.aws;*.run.app"
+  allowed_host_patterns: ""
+
   # HTTPサーバータイムアウト設定
   http:
     # 読み取りタイムアウト (秒)

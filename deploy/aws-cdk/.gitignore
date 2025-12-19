@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.js
+*.d.ts
+
+# CDK
+cdk.out/
+
+# User config (contains secrets)
+config.ts
+
+# Lambda build artifacts
+lambda/bootstrap
