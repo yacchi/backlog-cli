@@ -32,16 +32,18 @@ Examples:
 }
 
 var (
-	viewComments        bool
-	viewWeb             bool
-	viewSummary         bool
-	viewSummaryComments int
+	viewComments            bool
+	viewWeb                 bool
+	viewSummary             bool
+	viewSummaryWithComments bool
+	viewSummaryComments     int
 )
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "Show comments")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary")
+	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Show AI summary including comments")
 	viewCmd.Flags().IntVar(&viewSummaryComments, "summary-comments", -1, "Number of comments to include in summary")
 }
 
@@ -81,6 +83,11 @@ func runView(c *cobra.Command, args []string) error {
 }
 
 func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {
+	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
+	if viewSummaryWithComments {
+		viewSummary = true
+	}
+
 	// ハイパーリンク設定
 	ui.SetHyperlinkEnabled(display.Hyperlink)
 
