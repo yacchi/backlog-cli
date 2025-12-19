@@ -318,6 +318,11 @@ func (s *Store) GetCredentialsPath() string {
 	return s.credentialsPath
 }
 
+// GetCacheDir returns the cache directory path.
+func (s *Store) GetCacheDir() (string, error) {
+	return s.Resolved().Cache.GetCacheDir()
+}
+
 // GetProjectRoot はプロジェクトルートディレクトリを返す
 // プロジェクト設定ファイルのパスからディレクトリを取得し、
 // 見つからない場合は .git を検索する

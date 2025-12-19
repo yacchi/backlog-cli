@@ -30,5 +30,10 @@ func runPath(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("Project:     %s\n", projectPath)
 	}
 
+	// キャッシュディレクトリ
+	if cacheDir, err := cfg.GetCacheDir(); err == nil {
+		fmt.Printf("Cache:       %s\n", cacheDir)
+	}
+
 	return nil
 }
