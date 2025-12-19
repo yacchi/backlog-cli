@@ -32,15 +32,17 @@ Examples:
 }
 
 var (
-	viewComments bool
-	viewWeb      bool
-	viewSummary  bool
+	viewComments        bool
+	viewWeb             bool
+	viewSummary         bool
+	viewSummaryComments int
 )
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "Show comments")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary")
+	viewCmd.Flags().IntVar(&viewSummaryComments, "summary-comments", -1, "Number of comments to include in summary")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -147,16 +149,35 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 		fmt.Printf("Milestone:  %s\n", strings.Join(milestones, ", "))
 	}
 
-	// コメント取得（要約または表示のため）
+	// コメント取得条件の決定
+	summaryCommentCount := display.SummaryCommentCount
+	if viewSummaryComments >= 0 {
+		summaryCommentCount = viewSummaryComments
+	}
+
+	fetchCount := 0
+	if viewComments {
+		fetchCount = display.DefaultCommentCount
+		if fetchCount == 0 {
+			fetchCount = 10 // fallback
+		}
+	}
+	if viewSummary && summaryCommentCount > 0 {
+		if summaryCommentCount > fetchCount {
+			fetchCount = summaryCommentCount
+		}
+	}
+
+	// コメント取得
 	var comments []api.Comment
-	if viewComments || viewSummary {
+	if fetchCount > 0 {
 		var err error
 		comments, err = client.GetComments(key, &api.CommentListOptions{
-			Count: 20, // 要約のため少し多めに取得
+			Count: fetchCount,
 			Order: "desc",
 		})
 		if err != nil {
-			// コメント取得失敗は致命的ではないとするが、警告は出してもいいかも
+			// コメント取得失敗は致命的ではないとする
 		}
 	}
 
@@ -170,11 +191,16 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 		if issue.Description.IsSet() {
 			fullText += issue.Description.Value + "\n"
 		}
-		// コメントは新しい順に取得しているはずなので、古い順にするか、そのままつなげるか。
-		// 会話の流れを考慮するなら古い順が良いが、LexRankは順序関係なく重要文を抽出する。
-		// ただし文脈としては古い順がつながりやすい。
-		// GetComments(Order: "desc") なので、逆順にする。
+
+		// 要約に使用するコメントを抽出
+		// APIからは新しい順(desc)で取得している
+		// 古い順に結合したいので逆順にループ
 		for i := len(comments) - 1; i >= 0; i-- {
+			// summaryCommentCount の制限チェック
+			if i >= summaryCommentCount {
+				continue
+			}
+
 			if comments[i].Content != "" {
 				fullText += comments[i].Content + "\n"
 			}

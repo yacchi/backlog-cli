@@ -176,6 +176,7 @@ func (b *ResolvedBacklogApp) ClientSecret() string {
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedDisplay struct {
 	SummaryMaxLength    int                            `json:"summary_max_length" jubako:"/display/summary_max_length,env:DISPLAY_SUMMARY_MAX_LENGTH"`
+	SummaryCommentCount int                            `json:"summary_comment_count" jubako:"/display/summary_comment_count,env:DISPLAY_SUMMARY_COMMENT_COUNT"`
 	DefaultCommentCount int                            `json:"default_comment_count" jubako:"/display/default_comment_count,env:DISPLAY_DEFAULT_COMMENT_COUNT"`
 	DefaultIssueLimit   int                            `json:"default_issue_limit" jubako:"/display/default_issue_limit,env:DISPLAY_DEFAULT_ISSUE_LIMIT"`
 	Timezone            string                         `json:"timezone" jubako:"/display/timezone,env:DISPLAY_TIMEZONE"`

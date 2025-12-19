@@ -62,8 +62,14 @@ func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client 
 		space:       space,
 		domain:      domain,
 		accessToken: accessToken,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+	}
+
+	// RetryTransportを設定したHTTPクライアントを作成
+	c.httpClient = &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &RetryTransport{
+			Base:       http.DefaultTransport,
+			MaxRetries: 5, // リトライ回数（必要に応じて設定可能にしてもよい）
 		},
 	}
 
@@ -72,7 +78,8 @@ func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client 
 	}
 
 	// ogen クライアントの初期化
-	bc, err := backlog.NewClient(c.baseURL(), c)
+	// カスタムHTTPクライアントを使用するように設定
+	bc, err := backlog.NewClient(c.baseURL(), c, backlog.WithClient(c.httpClient))
 	if err != nil {
 		panic(fmt.Sprintf("failed to create backlog client: %v", err))
 	}

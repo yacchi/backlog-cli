@@ -179,6 +179,9 @@ display:
   # テーブル表示時のサマリ最大文字数
   summary_max_length: 50
 
+  # 要約に使用するコメント数 (0で無効)
+  summary_comment_count: 20
+
   # コメント表示数のデフォルト
   default_comment_count: 10
 
