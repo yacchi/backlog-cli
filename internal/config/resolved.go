@@ -31,6 +31,18 @@ type ResolvedConfig struct {
 
 	// 認証設定
 	Auth ResolvedAuth `json:"auth"`
+
+	// キャッシュ設定
+	Cache ResolvedCache `json:"cache"`
+}
+
+// ResolvedCache はマージ済みのキャッシュ設定
+// jubako tagでcache.*からマッピング
+// env: ディレクティブで環境変数からの自動マッピングを定義
+type ResolvedCache struct {
+	Enabled bool   `json:"enabled" jubako:"/cache/enabled,env:CACHE_ENABLED"`
+	Dir     string `json:"dir" jubako:"/cache/dir,env:CACHE_DIR"`
+	TTL     int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
 }
 
 // envShortcuts はプロファイル設定の環境変数ショートカットマッピング

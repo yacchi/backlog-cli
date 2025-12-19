@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/yacchi/backlog-cli/internal/backlog"
 )
@@ -203,9 +204,27 @@ func (c *Client) GetIssuesCount(opts *IssueListOptions) (int, error) {
 
 // GetIssue は課題を取得する
 func (c *Client) GetIssue(issueIDOrKey string) (*backlog.Issue, error) {
-	return c.backlogClient.GetIssue(context.TODO(), backlog.GetIssueParams{
+	if c.cache != nil {
+		var issue backlog.Issue
+		key := fmt.Sprintf("issue:%s:%s", c.domain, issueIDOrKey)
+		if ok, _ := c.cache.Get(key, &issue); ok {
+			return &issue, nil
+		}
+	}
+
+	issue, err := c.backlogClient.GetIssue(context.TODO(), backlog.GetIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if c.cache != nil {
+		key := fmt.Sprintf("issue:%s:%s", c.domain, issueIDOrKey)
+		_ = c.cache.Set(key, issue, c.cacheTTL)
+	}
+
+	return issue, nil
 }
 
 // CreateIssueInput は課題作成の入力

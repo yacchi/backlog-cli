@@ -13,6 +13,7 @@ import (
 
 	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/yacchi/backlog-cli/internal/backlog"
+	"github.com/yacchi/backlog-cli/internal/cache"
 	"github.com/yacchi/backlog-cli/internal/config"
 )
 
@@ -33,10 +34,22 @@ type Client struct {
 	expiresAt     time.Time
 	relayServer   string
 	onTokenUpdate func(accessToken, refreshToken string, expiresAt time.Time)
+
+	// キャッシュ
+	cache    cache.Cache
+	cacheTTL time.Duration
 }
 
 // ClientOption はクライアントオプション
 type ClientOption func(*Client)
+
+// WithCache はキャッシュを設定する
+func WithCache(c cache.Cache, ttl time.Duration) ClientOption {
+	return func(client *Client) {
+		client.cache = c
+		client.cacheTTL = ttl
+	}
+}
 
 // WithTokenRefresh はトークン自動更新を有効にする（OAuth用）
 func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, callback func(string, string, time.Time)) ClientOption {
@@ -136,6 +149,17 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 		}
 	}
 
+	// キャッシュ設定
+	var c cache.Cache
+	if resolved.Cache.Enabled {
+		var err error
+		c, err = cache.NewFileCache(resolved.Cache.Dir)
+		if err != nil {
+			// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
+		}
+	}
+	ttl := time.Duration(resolved.Cache.TTL) * time.Second
+
 	// 認証タイプに応じてクライアントを作成
 	switch cred.GetAuthType() {
 	case config.AuthTypeAPIKey:
@@ -145,6 +169,7 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 			domain,
 			"", // accessToken不要
 			WithAPIKey(cred.APIKey),
+			WithCache(c, ttl),
 		)
 		return client, nil
 
@@ -173,6 +198,7 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 					cfg.Save(ctx)
 				},
 			),
+			WithCache(c, ttl),
 		)
 		return client, nil
 	}

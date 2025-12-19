@@ -67,6 +67,14 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 		query = opts.ToQuery()
 	}
 
+	if c.cache != nil {
+		var comments []Comment
+		key := fmt.Sprintf("comments:%s:%s:%s", c.domain, issueIDOrKey, query.Encode())
+		if ok, _ := c.cache.Get(key, &comments); ok {
+			return comments, nil
+		}
+	}
+
 	resp, err := c.Get(fmt.Sprintf("/issues/%s/comments", issueIDOrKey), query)
 	if err != nil {
 		return nil, err
@@ -76,6 +84,11 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 	var comments []Comment
 	if err := DecodeResponse(resp, &comments); err != nil {
 		return nil, err
+	}
+
+	if c.cache != nil {
+		key := fmt.Sprintf("comments:%s:%s:%s", c.domain, issueIDOrKey, query.Encode())
+		_ = c.cache.Set(key, comments, c.cacheTTL)
 	}
 
 	return comments, nil
