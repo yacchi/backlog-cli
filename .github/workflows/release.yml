@@ -72,7 +72,7 @@ jobs:
         if: steps.check_tag.outputs.exists == 'false'
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
