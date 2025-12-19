@@ -43,6 +43,15 @@ func credentialsPath() (string, error) {
 	return filepath.Join(dir, "credentials.yaml"), nil
 }
 
+// defaultCacheDir returns the default cache directory path
+func defaultCacheDir() (string, error) {
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(userCacheDir, AppName), nil
+}
+
 // DotToPointer converts a dot-separated path to a JSON Pointer.
 // Example: "profile.default.space" -> "/profile/default/space"
 func DotToPointer(dotPath string) string {

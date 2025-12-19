@@ -152,10 +152,12 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 	// キャッシュ設定
 	var c cache.Cache
 	if resolved.Cache.Enabled {
-		var err error
-		c, err = cache.NewFileCache(resolved.Cache.Dir)
-		if err != nil {
-			// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
+		cacheDir, err := resolved.Cache.GetCacheDir()
+		if err == nil {
+			c, err = cache.NewFileCache(cacheDir)
+			if err != nil {
+				// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
+			}
 		}
 	}
 	ttl := time.Duration(resolved.Cache.TTL) * time.Second

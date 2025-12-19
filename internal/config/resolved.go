@@ -45,6 +45,15 @@ type ResolvedCache struct {
 	TTL     int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
 }
 
+// GetCacheDir returns the cache directory.
+// If Dir is not specified, it returns the default cache directory.
+func (c *ResolvedCache) GetCacheDir() (string, error) {
+	if c.Dir != "" {
+		return c.Dir, nil
+	}
+	return defaultCacheDir()
+}
+
 // envShortcuts はプロファイル設定の環境変数ショートカットマッピング
 // BACKLOG_SPACE などの省略形を BACKLOG_PROFILE_default_SPACE の完全形式に展開する
 var envShortcuts = map[string]string{

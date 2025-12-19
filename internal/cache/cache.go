@@ -28,16 +28,7 @@ type cacheItem struct {
 }
 
 // NewFileCache は新しいFileCacheを作成する
-// dirが空の場合はユーザーのキャッシュディレクトリを使用する
 func NewFileCache(dir string) (*FileCache, error) {
-	if dir == "" {
-		userCacheDir, err := os.UserCacheDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user cache dir: %w", err)
-		}
-		dir = filepath.Join(userCacheDir, "backlog-cli")
-	}
-
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create cache dir: %w", err)
 	}
