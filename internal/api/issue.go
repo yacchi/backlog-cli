@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/yacchi/backlog-cli/internal/backlog"
@@ -116,14 +115,7 @@ type IssueListOptions struct {
 
 // GetIssues は課題一覧を取得する
 func (c *Client) GetIssues(opts *IssueListOptions) ([]backlog.Issue, error) {
-	if c.cache != nil {
-		var issues []backlog.Issue
-		optsBytes, _ := json.Marshal(opts)
-		key := fmt.Sprintf("issues:%s:%s", c.domain, string(optsBytes))
-		if ok, _ := c.cache.Get(key, &issues); ok {
-			return issues, nil
-		}
-	}
+	// リスト自体のキャッシュは行わない
 
 	params := backlog.GetIssuesParams{}
 	if opts != nil {
@@ -196,16 +188,11 @@ func (c *Client) GetIssues(opts *IssueListOptions) ([]backlog.Issue, error) {
 	}
 
 	if c.cache != nil {
-		// リスト全体をキャッシュ
-		optsBytes, _ := json.Marshal(opts)
-		key := fmt.Sprintf("issues:%s:%s", c.domain, string(optsBytes))
-		_ = c.cache.Set(key, res, c.cacheTTL)
-
 		// 個別の課題をキャッシュ（Item-level caching）
 		for _, issue := range res {
 			if issue.IssueKey.IsSet() {
 				issueKey := issue.IssueKey.Value
-				k := fmt.Sprintf("issue:%s:%s", c.domain, issueKey)
+				k := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueKey)
 				_ = c.cache.Set(k, issue, c.cacheTTL)
 			}
 		}
@@ -237,7 +224,7 @@ func (c *Client) GetIssuesCount(opts *IssueListOptions) (int, error) {
 func (c *Client) GetIssue(issueIDOrKey string) (*backlog.Issue, error) {
 	if c.cache != nil {
 		var issue backlog.Issue
-		key := fmt.Sprintf("issue:%s:%s", c.domain, issueIDOrKey)
+		key := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueIDOrKey)
 		if ok, _ := c.cache.Get(key, &issue); ok {
 			return &issue, nil
 		}
@@ -251,7 +238,7 @@ func (c *Client) GetIssue(issueIDOrKey string) (*backlog.Issue, error) {
 	}
 
 	if c.cache != nil {
-		key := fmt.Sprintf("issue:%s:%s", c.domain, issueIDOrKey)
+		key := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueIDOrKey)
 		_ = c.cache.Set(key, issue, c.cacheTTL)
 	}
 

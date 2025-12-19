@@ -69,7 +69,7 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 
 	if c.cache != nil {
 		var comments []Comment
-		key := fmt.Sprintf("comments:%s:%s:%s", c.domain, issueIDOrKey, query.Encode())
+		key := fmt.Sprintf("comments:%s.%s:%s:%s", c.space, c.domain, issueIDOrKey, query.Encode())
 		if ok, _ := c.cache.Get(key, &comments); ok {
 			return comments, nil
 		}
@@ -87,7 +87,7 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 	}
 
 	if c.cache != nil {
-		key := fmt.Sprintf("comments:%s:%s:%s", c.domain, issueIDOrKey, query.Encode())
+		key := fmt.Sprintf("comments:%s.%s:%s:%s", c.space, c.domain, issueIDOrKey, query.Encode())
 		_ = c.cache.Set(key, comments, c.cacheTTL)
 	}
 
