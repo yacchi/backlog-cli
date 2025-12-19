@@ -9,7 +9,7 @@
 // @grant        window.close
 // @grant        unsafeWindow
 // @run-at       document-start
-// @license      MIT
+// @license      Apache-2.0
 // @homepageURL  https://github.com/yacchi/backlog-cli
 // @supportURL   https://github.com/yacchi/backlog-cli/issues
 // ==/UserScript==
