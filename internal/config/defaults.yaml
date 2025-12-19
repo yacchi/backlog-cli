@@ -1,0 +1,300 @@
+# ================================================
+# Backlog CLI Configuration Defaults
+# ================================================
+# このファイルには全ての設定項目のデフォルト値が含まれます。
+# コード内での定数定義は原則禁止とし、このファイルでデフォルト値を管理します。
+
+# ================================================
+# プロファイル設定
+# ================================================
+# プロファイルは複数の環境設定を切り替えるために使用します。
+# デフォルトプロファイル以外のプロファイルで未設定の項目はdefaultから継承されます。
+profile:
+  default:
+    # 中継サーバーのURL (OAuth認証に使用)
+    # 環境変数: BACKLOG_RELAY_SERVER
+    relay_server: ""
+
+    # Backlogスペース名 (例: mycompany)
+    # 環境変数: BACKLOG_SPACE
+    space: ""
+
+    # Backlogドメイン (backlog.jp または backlog.com)
+    # 環境変数: BACKLOG_DOMAIN
+    domain: "backlog.jp"
+
+    # デフォルトのプロジェクトキー (例: PROJ)
+    # 環境変数: BACKLOG_PROJECT
+    project: ""
+
+    # 出力形式 (table, json)
+    # 環境変数: BACKLOG_OUTPUT
+    output: "table"
+
+    # カラー出力 (auto, always, never)
+    # 環境変数: BACKLOG_COLOR
+    color: "auto"
+
+    # 使用するエディタ (未設定時は$EDITORまたはvi)
+    # 環境変数: BACKLOG_EDITOR
+    editor: ""
+
+    # 使用するブラウザ (未設定時はシステムデフォルト)
+    # 環境変数: BACKLOG_BROWSER
+    browser: ""
+
+    # OAuth認証コールバック用ポート (0 = 自動選択)
+    # 環境変数: BACKLOG_CALLBACK_PORT
+    auth_callback_port: 0
+
+    # 認証タイムアウト (秒)
+    # 環境変数: BACKLOG_AUTH_TIMEOUT
+    auth_timeout: 120
+
+    # ブラウザを自動で開かない
+    # 環境変数: BACKLOG_NO_BROWSER
+    auth_no_browser: false
+
+    # HTTPリクエストタイムアウト (秒)
+    http_timeout: 30
+
+    # トークン更新のマージン (秒)
+    # 有効期限のこの秒数前に自動更新する
+    http_token_refresh_margin: 300
+
+# ================================================
+# プロジェクト設定 (.backlog.yamlの代替)
+# ================================================
+# この設定はリポジトリルートの .backlog.yaml で上書きできます。
+project:
+  # 使用するプロファイル名 (未設定時は"default")
+  profile: ""
+  # プロジェクトキー
+  name: ""
+
+# ================================================
+# サーバー設定 (中継サーバー用)
+# ================================================
+server:
+  # バインドするホスト
+  # 環境変数: BACKLOG_SERVER_HOST
+  host: "0.0.0.0"
+
+  # リッスンするポート
+  # 環境変数: BACKLOG_SERVER_PORT
+  port: 8080
+
+  # 外部からアクセス可能なベースURL (リダイレクトURIに使用)
+  # 環境変数: BACKLOG_SERVER_BASE_URL
+  # 例: https://relay.example.com
+  base_url: ""
+
+  # HTTPサーバータイムアウト設定
+  http:
+    # 読み取りタイムアウト (秒)
+    read_timeout: 10
+    # 書き込みタイムアウト (秒)
+    write_timeout: 30
+    # アイドルタイムアウト (秒)
+    idle_timeout: 60
+
+  # Cookie設定
+  cookie:
+    # Cookie署名用シークレット (必須、環境変数で設定推奨)
+    # 環境変数: BACKLOG_COOKIE_SECRET
+    secret: ""
+    # Cookie有効期限 (秒)
+    max_age: 300
+
+  # Backlogアプリケーション設定 (OAuth Client ID/Secret)
+  # キーは識別子（環境変数のキーにドットや大文字小文字混在を避けるため）
+  backlog:
+    jp:
+      domain: "backlog.jp"
+      client_id: ""      # 環境変数: BACKLOG_CLIENT_ID_JP
+      client_secret: ""  # 環境変数: BACKLOG_CLIENT_SECRET_JP
+    com:
+      domain: "backlog.com"
+      client_id: ""      # 環境変数: BACKLOG_CLIENT_ID_COM
+      client_secret: ""  # 環境変数: BACKLOG_CLIENT_SECRET_COM
+
+  # アクセス制御
+  access_control:
+    # 許可するスペース (空 = 全て許可)
+    # 環境変数: BACKLOG_ALLOWED_SPACES (カンマ区切り)
+    allowed_spaces: []
+
+    # 許可するプロジェクト (空 = 全て許可)
+    # 環境変数: BACKLOG_ALLOWED_PROJECTS (カンマ区切り)
+    allowed_projects: []
+
+    # 許可するIP/CIDRレンジ (空 = 全て許可)
+    # 環境変数: BACKLOG_ALLOWED_CIDRS (カンマ区切り)
+    # 例: ["192.168.0.0/16", "10.0.0.0/8"]
+    allowed_cidrs: []
+
+  # レートリミット設定
+  rate_limit:
+    # レートリミットを有効化
+    enabled: false
+    # 1分あたりのリクエスト上限
+    requests_per_minute: 60
+    # バースト許容数
+    burst: 10
+    # クリーンアップ間隔 (分)
+    cleanup_interval: 5
+    # エントリ有効期限 (分)
+    entry_ttl: 10
+
+  # 監査ログ設定
+  audit:
+    # 監査ログを有効化
+    # 環境変数: BACKLOG_AUDIT_ENABLED
+    enabled: true
+
+    # 出力先 (stdout, stderr, file, webhook)
+    # 環境変数: BACKLOG_AUDIT_OUTPUT
+    output: "stdout"
+
+    # ファイル出力時のパス
+    # 環境変数: BACKLOG_AUDIT_FILE_PATH
+    file_path: ""
+
+    # Webhook URL (Slack互換形式)
+    # 環境変数: BACKLOG_AUDIT_WEBHOOK_URL
+    webhook_url: ""
+
+    # Webhookタイムアウト (秒)
+    webhook_timeout: 10
+
+  # JWT設定
+  jwt:
+    # JWTトークン有効期限 (秒)
+    expiry: 300
+
+# ================================================
+# 表示設定
+# ================================================
+display:
+  # テーブル表示時のサマリ最大文字数
+  summary_max_length: 50
+
+  # コメント表示数のデフォルト
+  default_comment_count: 10
+
+  # 課題一覧のデフォルト表示件数
+  default_issue_limit: 20
+
+  # 表示用タイムゾーン (IANAタイムゾーン名)
+  # 例: "Asia/Tokyo", "America/New_York", "UTC"
+  # 空の場合はシステムのローカルタイムゾーンを使用
+  timezone: ""
+
+  # 日付フォーマット (Goのtime.Format形式)
+  # 例: "2006-01-02", "2006/01/02", "Jan 02, 2006"
+  date_format: "2006-01-02"
+
+  # 日時フォーマット (Goのtime.Format形式)
+  # 例: "2006-01-02 15:04:05", "Jan 02, 2006 15:04"
+  datetime_format: "2006-01-02 15:04"
+
+  # ターミナルハイパーリンク (OSC 8)
+  # true の場合、課題キーやPR番号をクリック可能なリンクとして表示
+  # 対応ターミナル: iTerm2, Windows Terminal, GNOME Terminal (3.26+), Konsole (18.07+), foot など
+  hyperlink: true
+
+  # 課題一覧の表示フィールド
+  # 利用可能: key, status, priority, assignee, summary, type, created, updated,
+  #          created_user, due_date, start_date, category, milestone, version, url
+  issue_list_fields:
+    - key
+    - status
+    - priority
+    - assignee
+    - due_date
+    - summary
+
+  # 課題一覧のフィールド設定
+  # header: ヘッダー表示名
+  # max_width: 最大表示幅（0 = 無制限、truncateに使用）
+  issue_field_config:
+    key:
+      header: "KEY"
+    status:
+      header: "STATUS"
+    priority:
+      header: "PRIORITY"
+    assignee:
+      header: "ASSIGNEE"
+      max_width: 20
+    summary:
+      header: "SUMMARY"
+      max_width: 50
+    type:
+      header: "TYPE"
+    created:
+      header: "CREATED"
+    updated:
+      header: "UPDATED"
+    created_user:
+      header: "CREATED BY"
+      max_width: 20
+    due_date:
+      header: "DUE DATE"
+    start_date:
+      header: "START DATE"
+    category:
+      header: "CATEGORY"
+      max_width: 30
+    milestone:
+      header: "MILESTONE"
+      max_width: 30
+    version:
+      header: "VERSION"
+      max_width: 20
+    url:
+      header: "URL"
+
+  # PR一覧の表示フィールド
+  # 利用可能: number, status, author, branch, summary, base, created, updated, url
+  pr_list_fields:
+    - number
+    - status
+    - author
+    - branch
+    - summary
+
+  # PR一覧のフィールド設定
+  # header: ヘッダー表示名
+  # max_width: 最大表示幅（0 = 無制限、truncateに使用）
+  pr_field_config:
+    number:
+      header: "#"
+    status:
+      header: "STATUS"
+    author:
+      header: "AUTHOR"
+      max_width: 20
+    branch:
+      header: "BRANCH"
+      max_width: 30
+    summary:
+      header: "SUMMARY"
+      max_width: 40
+    base:
+      header: "BASE"
+      max_width: 30
+    created:
+      header: "CREATED"
+    updated:
+      header: "UPDATED"
+    url:
+      header: "URL"
+
+# ================================================
+# 認証ポート設定
+# ================================================
+auth:
+  # コールバックサーバーの許可ポート範囲
+  min_callback_port: 1024
+  max_callback_port: 65535

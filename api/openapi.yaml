@@ -1,0 +1,1390 @@
+openapi: 3.0.3
+info:
+  title: Backlog API
+  version: 2.0.0
+  description: Backlog API specification for backlog-cli
+servers:
+  - url: https://{space}.{domain}/api/v2
+    variables:
+      space:
+        default: example
+        description: Space Key
+      domain:
+        default: backlog.com
+        description: Domain (backlog.com or backlog.jp)
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://example.com/OAuth2AccessRequest.action
+          tokenUrl: https://example.com/api/v2/oauth2/token
+          scopes: {}
+    ApiKey:
+      type: apiKey
+      in: query
+      name: apiKey
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        roleType:
+          type: integer
+        lang:
+          type: string
+        mailAddress:
+          type: string
+        nulabAccount:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/NulabAccount'
+        lastLoginTime:
+          type: string
+
+    NulabAccount:
+      type: object
+      properties:
+        nulabId:
+          type: string
+        name:
+          type: string
+        uniqueId:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectKey:
+          type: string
+        name:
+          type: string
+        chartEnabled:
+          type: boolean
+        useResolvedForChart:
+          type: boolean
+        subtaskingEnabled:
+          type: boolean
+        projectLeaderCanEditProjectLeader:
+          type: boolean
+        useWiki:
+          type: boolean
+        useFileSharing:
+          type: boolean
+        useWikiTreeView:
+          type: boolean
+        useOriginalImageSizeAtWiki:
+          type: boolean
+        textFormattingRule:
+          type: string
+        archived:
+          type: boolean
+        displayOrder:
+          type: integer
+        useDevAttributes:
+          type: boolean
+
+    IssueType:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        displayOrder:
+          type: integer
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+
+    Version:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          nullable: true
+        releaseDueDate:
+          type: string
+          nullable: true
+        archived:
+          type: boolean
+        displayOrder:
+          type: integer
+
+    Status:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        displayOrder:
+          type: integer
+
+    Priority:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Resolution:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        size:
+          type: integer
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+
+    SharedFile:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        dir:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+
+    Star:
+      type: object
+      properties:
+        id:
+          type: integer
+        comment:
+          type: string
+          nullable: true
+        url:
+          type: string
+        title:
+          type: string
+        presenter:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+
+    Issue:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        issueKey:
+          type: string
+        keyId:
+          type: integer
+        issueType:
+          $ref: '#/components/schemas/IssueType'
+        summary:
+          type: string
+        description:
+          type: string
+        resolution:
+          allOf:
+            - $ref: '#/components/schemas/Resolution'
+          nullable: true
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/Status'
+        assignee:
+          allOf:
+            - $ref: '#/components/schemas/User'
+          nullable: true
+        category:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Version'
+        milestone:
+          type: array
+          items:
+            $ref: '#/components/schemas/Version'
+        startDate:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        estimatedHours:
+          type: number
+          nullable: true
+        actualHours:
+          type: number
+          nullable: true
+        parentIssueId:
+          type: integer
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        sharedFiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedFile'
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        changeLog:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeLog'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updated:
+          type: string
+          nullable: true
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+
+    ChangeLog:
+      type: object
+      properties:
+        field:
+          type: string
+        newValue:
+          type: string
+          nullable: true
+        originalValue:
+          type: string
+          nullable: true
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        alreadyRead:
+          type: boolean
+        reason:
+          type: integer
+        user:
+          $ref: '#/components/schemas/User'
+        resourceAlreadyRead:
+          type: boolean
+
+    Wiki:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/WikiTag'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        sharedFiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedFile'
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+
+    WikiTag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Repository:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        hookUrl:
+          type: string
+          nullable: true
+        httpUrl:
+          type: string
+        sshUrl:
+          type: string
+        displayOrder:
+          type: integer
+        pushedAt:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+
+    PullRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        repositoryId:
+          type: integer
+        number:
+          type: integer
+        summary:
+          type: string
+        description:
+          type: string
+        base:
+          type: string
+        branch:
+          type: string
+        status:
+          $ref: '#/components/schemas/PRStatus'
+        assignee:
+          $ref: '#/components/schemas/User'
+        issue:
+          $ref: '#/components/schemas/Issue'
+        baseCommit:
+          type: string
+        branchCommit:
+          type: string
+        closeAt:
+          type: string
+          nullable: true
+        mergeAt:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+
+    PRStatus:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+security:
+  - OAuth2: []
+  - ApiKey: []
+
+paths:
+  /users/myself:
+    get:
+      operationId: getCurrentUser
+      summary: Get current user
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: Get user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /projects:
+    get:
+      operationId: getProjects
+      summary: Get projects
+      parameters:
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+
+  /projects/{projectIdOrKey}:
+    get:
+      operationId: getProject
+      summary: Get project
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /projects/{projectIdOrKey}/issueTypes:
+    get:
+      operationId: getIssueTypes
+      summary: Get issue types
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IssueType'
+
+  /projects/{projectIdOrKey}/categories:
+    get:
+      operationId: getCategories
+      summary: Get categories
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /projects/{projectIdOrKey}/versions:
+    get:
+      operationId: getVersions
+      summary: Get versions
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Version'
+
+  /projects/{projectIdOrKey}/statuses:
+    get:
+      operationId: getStatuses
+      summary: Get statuses
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Status'
+
+  /projects/{projectIdOrKey}/users:
+    get:
+      operationId: getProjectUsers
+      summary: Get project users
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /projects/{projectIdOrKey}/git/repositories:
+    get:
+      operationId: getRepositories
+      summary: Get git repositories
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Repository'
+  
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests:
+    get:
+      operationId: getPullRequests
+      summary: Get pull requests
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repoIdOrName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: statusId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: assigneeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: issueId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: createdUserId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PullRequest'
+
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count:
+    get:
+      operationId: getPullRequestsCount
+      summary: Get pull requests count
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repoIdOrName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: statusId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}:
+    get:
+      operationId: getPullRequest
+      summary: Get pull request
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repoIdOrName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullRequest'
+
+  /issues:
+    get:
+      operationId: getIssues
+      summary: Get issues
+      parameters:
+        - name: projectId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: issueTypeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: categoryId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: versionId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: milestoneId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: statusId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: priorityId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: assigneeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: createdUserId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: resolutionId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: parentChild
+          in: query
+          schema:
+            type: integer
+        - name: attachment
+          in: query
+          schema:
+            type: boolean
+        - name: sharedFile
+          in: query
+          schema:
+            type: boolean
+        - name: sort
+          in: query
+          schema:
+            type: string
+        - name: order
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: createdSince
+          in: query
+          schema:
+            type: string
+        - name: createdUntil
+          in: query
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+        - name: updatedUntil
+          in: query
+          schema:
+            type: string
+        - name: startDateSince
+          in: query
+          schema:
+            type: string
+        - name: startDateUntil
+          in: query
+          schema:
+            type: string
+        - name: dueDateSince
+          in: query
+          schema:
+            type: string
+        - name: dueDateUntil
+          in: query
+          schema:
+            type: string
+        - name: id[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: parentIssueId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Issue'
+    post:
+      operationId: createIssue
+      summary: Create issue
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - projectId
+                - summary
+                - issueTypeId
+                - priorityId
+              properties:
+                projectId:
+                  type: integer
+                summary:
+                  type: string
+                issueTypeId:
+                  type: integer
+                priorityId:
+                  type: integer
+                description:
+                  type: string
+                startDate:
+                  type: string
+                dueDate:
+                  type: string
+                estimatedHours:
+                  type: number
+                actualHours:
+                  type: number
+                categoryId:
+                  type: array
+                  items:
+                    type: integer
+                versionId:
+                  type: array
+                  items:
+                    type: integer
+                milestoneId:
+                  type: array
+                  items:
+                    type: integer
+                assigneeId:
+                  type: integer
+                parentIssueId:
+                  type: integer
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+
+  /issues/count:
+    get:
+      operationId: getIssuesCount
+      summary: Get issues count
+      parameters:
+        - name: projectId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: statusId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /issues/{issueIdOrKey}:
+    get:
+      operationId: getIssue
+      summary: Get issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+    patch:
+      operationId: updateIssue
+      summary: Update issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                summary:
+                  type: string
+                description:
+                  type: string
+                statusId:
+                  type: integer
+                resolutionId:
+                  type: integer
+                priorityId:
+                  type: integer
+                issueTypeId:
+                  type: integer
+                startDate:
+                  type: string
+                dueDate:
+                  type: string
+                estimatedHours:
+                  type: number
+                actualHours:
+                  type: number
+                assigneeId:
+                  type: integer
+                categoryId:
+                  type: array
+                  items:
+                    type: integer
+                versionId:
+                  type: array
+                  items:
+                    type: integer
+                milestoneId:
+                  type: array
+                  items:
+                    type: integer
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+    delete:
+      operationId: deleteIssue
+      summary: Delete issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+
+  /issues/{issueIdOrKey}/comments:
+    get:
+      operationId: getComments
+      summary: Get comments
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: minId
+          in: query
+          schema:
+            type: integer
+        - name: maxId
+          in: query
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+        - name: order
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+    post:
+      operationId: addComment
+      summary: Add comment
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                notifiedUserId:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+
+  /issues/{issueIdOrKey}/comments/count:
+    get:
+      operationId: getCommentsCount
+      summary: Get comments count
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /issues/{issueIdOrKey}/comments/{commentId}:
+    get:
+      operationId: getComment
+      summary: Get comment
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+    patch:
+      operationId: updateComment
+      summary: Update comment
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+
+  /wikis:
+    get:
+      operationId: getWikis
+      summary: Get wikis
+      parameters:
+        - name: projectIdOrKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wiki'
+    post:
+      operationId: createWiki
+      summary: Create wiki
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - projectId
+                - name
+                - content
+              properties:
+                projectId:
+                  type: integer
+                name:
+                  type: string
+                content:
+                  type: string
+                mailNotify:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+
+  /wikis/count:
+    get:
+      operationId: getWikisCount
+      summary: Get wikis count
+      parameters:
+        - name: projectIdOrKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /wikis/{wikiId}:
+    get:
+      operationId: getWiki
+      summary: Get wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+    patch:
+      operationId: updateWiki
+      summary: Update wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                content:
+                  type: string
+                mailNotify:
+                  type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+    delete:
+      operationId: deleteWiki
+      summary: Delete wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'

@@ -1,0 +1,58 @@
+version: 2
+
+project_name: backlog-cli
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: backlog
+    main: ./cmd/backlog
+    binary: backlog
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/yacchi/backlog-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/yacchi/backlog-cli/internal/cmd.Commit={{.Commit}}
+      - -X github.com/yacchi/backlog-cli/internal/cmd.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+# Uncomment and configure when ready for Homebrew distribution
+# brews:
+#   - name: backlog-cli
+#     repository:
+#       owner: yacchi
+#       name: homebrew-tap
+#     homepage: "https://github.com/yacchi/backlog-cli"
+#     description: "CLI for Backlog project management"
+#     install: |
+#       bin.install "backlog"
+#     test: |
+#       system "#{bin}/backlog", "version"

@@ -1,0 +1,28 @@
+# Binaries
+/build/
+/backlog
+*.exe
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# Config (ローカルテスト用)
+config.yaml
+.env
+.backlog.yaml
+.backlog.yml
+verification_targets.txt

@@ -1,0 +1,7 @@
+[tools]
+go-sdk = "1.25.5"
+
+[env]
+GOBIN = "{{env.HOME}}/.local/bin"
+CGO_ENABLED = "0"
+_.file = ".env"

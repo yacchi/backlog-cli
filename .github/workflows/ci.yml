@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Go version from mise.toml
+        id: go_version
+        run: |
+          GO_VERSION=$(grep 'go-sdk' mise.toml | sed 's/.*= *"\([0-9]*\.[0-9]*\).*/\1/')
+          echo "version=$GO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go_version.outputs.version }}
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from version.txt
+        id: version
+        run: |
+          VERSION=$(cat version.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read Go version from mise.toml
+        if: steps.check_tag.outputs.exists == 'false'
+        id: go_version
+        run: |
+          GO_VERSION=$(grep 'go-sdk' mise.toml | sed 's/.*= *"\([0-9]*\.[0-9]*\).*/\1/')
+          echo "version=$GO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go_version.outputs.version }}
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Run GoReleaser
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
