@@ -9,6 +9,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/ogen-go/ogen v1.18.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
+	github.com/ramenjuniti/lexrankmmr v0.0.0-20190322132754-572a7e47c7a5
 	github.com/spf13/cobra v1.10.2
 	github.com/yacchi/jubako v0.3.0
 	github.com/yacchi/jubako/format/yaml v0.3.0
@@ -16,19 +17,21 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
 	golang.org/x/term v0.38.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dcadenas/pagerank v0.0.0-20231224215204-32a14b9c24a7 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/gaspiman/cosine_similarity v0.0.0-20150401203709-3a4668276fe3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/ikawaha/kagome v1.11.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -48,6 +51,7 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 tool github.com/ogen-go/ogen/cmd/ogen

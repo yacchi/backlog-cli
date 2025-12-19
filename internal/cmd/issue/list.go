@@ -12,6 +12,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/backlog"
 	"github.com/yacchi/backlog-cli/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/summary"
 	"github.com/yacchi/backlog-cli/internal/ui"
 )
 
@@ -24,7 +25,8 @@ Examples:
   backlog issue list
   backlog issue list --mine
   backlog issue list --assignee @me --status 1,2
-  backlog issue list --keyword "search term"`,
+  backlog issue list --keyword "search term"
+  backlog issue list --summary`,
 	RunE: runList,
 }
 
@@ -34,6 +36,7 @@ var (
 	listLimit    int
 	listKeyword  string
 	listMine     bool
+	listSummary  bool
 )
 
 func init() {
@@ -42,6 +45,7 @@ func init() {
 	listCmd.Flags().IntVarP(&listLimit, "limit", "l", 20, "Maximum number of issues to show")
 	listCmd.Flags().StringVarP(&listKeyword, "keyword", "k", "", "Search keyword")
 	listCmd.Flags().BoolVar(&listMine, "mine", false, "Show only my issues")
+	listCmd.Flags().BoolVar(&listSummary, "summary", false, "Show AI summary column")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -124,7 +128,14 @@ func runList(c *cobra.Command, args []string) error {
 }
 
 func outputTable(issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
-	fields := display.IssueListFields
+	// フィールドリストをコピーして操作
+	fields := make([]string, len(display.IssueListFields))
+	copy(fields, display.IssueListFields)
+
+	if listSummary {
+		fields = append(fields, "ai_summary")
+	}
+
 	fieldConfig := display.IssueFieldConfig
 
 	// ハイパーリンク設定
@@ -133,6 +144,10 @@ func outputTable(issues []backlog.Issue, profile *config.ResolvedProfile, displa
 	// ヘッダー生成
 	headers := make([]string, len(fields))
 	for i, f := range fields {
+		if f == "ai_summary" {
+			headers[i] = "AI SUMMARY"
+			continue
+		}
 		if cfg, ok := fieldConfig[f]; ok && cfg.Header != "" {
 			headers[i] = cfg.Header
 		} else {
@@ -182,6 +197,22 @@ func getIssueFieldValue(issue backlog.Issue, field string, f *ui.FieldFormatter,
 		return "-"
 	case "summary":
 		return f.FormatString(issue.Summary.Value, field)
+	case "ai_summary":
+		if issue.Description.IsSet() {
+			s, err := summary.Summarize(issue.Description.Value, 1)
+			if err != nil {
+				return ""
+			}
+			// 改行を除去
+			s = strings.ReplaceAll(s, "\n", " ")
+			// 長すぎる場合は省略（テーブル表示のため）
+			runes := []rune(s)
+			if len(runes) > 50 {
+				return string(runes[:50]) + "..."
+			}
+			return s
+		}
+		return "-"
 	case "type":
 		if issue.IssueType.IsSet() && issue.IssueType.Value.Name.IsSet() {
 			return issue.IssueType.Value.Name.Value

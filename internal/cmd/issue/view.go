@@ -10,6 +10,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/backlog"
 	"github.com/yacchi/backlog-cli/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/summary"
 	"github.com/yacchi/backlog-cli/internal/ui"
 )
 
@@ -24,7 +25,8 @@ If project is configured, you can omit the project prefix:
 Examples:
   backlog issue view PROJ-123
   backlog issue view 123       # uses configured project
-  backlog issue view PROJ-123 --comments`,
+  backlog issue view PROJ-123 --comments
+  backlog issue view PROJ-123 --summary`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
 }
@@ -32,11 +34,13 @@ Examples:
 var (
 	viewComments bool
 	viewWeb      bool
+	viewSummary  bool
 )
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "Show comments")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
+	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -143,6 +147,49 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 		fmt.Printf("Milestone:  %s\n", strings.Join(milestones, ", "))
 	}
 
+	// コメント取得（要約または表示のため）
+	var comments []api.Comment
+	if viewComments || viewSummary {
+		var err error
+		comments, err = client.GetComments(key, &api.CommentListOptions{
+			Count: 20, // 要約のため少し多めに取得
+			Order: "desc",
+		})
+		if err != nil {
+			// コメント取得失敗は致命的ではないとするが、警告は出してもいいかも
+		}
+	}
+
+	// AI要約
+	if viewSummary {
+		fmt.Println()
+		fmt.Println(ui.Bold("AI Summary"))
+		fmt.Println(strings.Repeat("─", 60))
+
+		fullText := ""
+		if issue.Description.IsSet() {
+			fullText += issue.Description.Value + "\n"
+		}
+		// コメントは新しい順に取得しているはずなので、古い順にするか、そのままつなげるか。
+		// 会話の流れを考慮するなら古い順が良いが、LexRankは順序関係なく重要文を抽出する。
+		// ただし文脈としては古い順がつながりやすい。
+		// GetComments(Order: "desc") なので、逆順にする。
+		for i := len(comments) - 1; i >= 0; i-- {
+			if comments[i].Content != "" {
+				fullText += comments[i].Content + "\n"
+			}
+		}
+
+		s, err := summary.Summarize(fullText, 3)
+		if err != nil {
+			fmt.Printf("Failed to generate summary: %v\n", err)
+		} else if s != "" {
+			fmt.Println(s)
+		} else {
+			fmt.Println(ui.Gray("(No summary available)"))
+		}
+	}
+
 	// 説明
 	if issue.Description.IsSet() && issue.Description.Value != "" {
 		fmt.Println()
@@ -156,20 +203,16 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 	fmt.Printf("URL: %s\n", ui.Hyperlink(issueURL, ui.Cyan(issueURL)))
 
 	// コメント
-	if viewComments {
-		comments, err := client.GetComments(key, &api.CommentListOptions{
-			Count: 10,
-			Order: "desc",
-		})
-		if err == nil && len(comments) > 0 {
-			fmt.Println()
-			fmt.Println(ui.Bold("Recent Comments"))
-			fmt.Println(strings.Repeat("─", 60))
+	if viewComments && len(comments) > 0 {
+		fmt.Println()
+		fmt.Println(ui.Bold("Recent Comments"))
+		fmt.Println(strings.Repeat("─", 60))
 
-			for _, comment := range comments {
-				fmt.Printf("\n%s %s\n", ui.Bold(comment.CreatedUser.Name), ui.Gray(formatter.FormatDateTime(comment.Created, "created")))
-				fmt.Println(comment.Content)
-			}
+		// 表示件数はオプションで制御されていないが、APIで20件取ってきているのでそれを表示
+		// 元のコードは10件固定だったが、要約のために20件にしたので、表示も20件になる
+		for _, comment := range comments {
+			fmt.Printf("\n%s %s\n", ui.Bold(comment.CreatedUser.Name), ui.Gray(formatter.FormatDateTime(comment.Created, "created")))
+			fmt.Println(comment.Content)
 		}
 	}
 
