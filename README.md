@@ -78,6 +78,12 @@ backlog issue close ISSUE-123
 | `auth status` | 認証状態を表示 |
 | `auth setup` | 中継サーバーの設定 |
 
+#### 認証完了ページの自動クローズ（オプション）
+
+OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Tampermonkey 等のユーザースクリプトマネージャーをインストールした上で、以下のリンクからユーザースクリプトをインストールしてください：
+
+**[Backlog CLI Auto Close をインストール](https://github.com/yacchi/backlog-cli/raw/master/scripts/backlog-cli-auto-close.user.js)**
+
 ### 課題 (`issue`)
 
 | コマンド | 説明 |
@@ -179,7 +185,7 @@ backlog completion fish > ~/.config/fish/completions/backlog.fish
 
 ## ライセンス
 
-MIT License
+Apache License 2.0
 
 ## 関連リンク
 
