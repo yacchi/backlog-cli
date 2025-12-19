@@ -1,6 +1,7 @@
 package summary
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -53,14 +54,38 @@ func TestSummarize(t *testing.T) {
 				if summary == "" {
 					t.Error("expected non-empty summary")
 				}
-				// 句点で分割して文数をカウント
-				// summaryには「。」が含まれているはず
-				// ただし、最後の「。」があるとは限らないが、splitSentenceで分割されたものを結合しているので、
-				// 元の文にあった「。」は含まれる。
-				// 単純なカウントは難しいが、長さが元のテキストより短いことは確認できる。
-				if len(summary) >= len("吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。吾輩はここで始めて人間というものを見た。しかもあとで聞くとそれは書生という人間中で一番獰悪な種族であったそうだ。この書生というのは時々我々を捕えて煮て食うという話である。") {
-					// 改行除去後の長さと比較すべきだが、目安として。
-					// 2文抽出なら確実に短くなっているはず。
+			},
+		},
+		{
+			name: "markdown text",
+			text: `
+**目的**
+* パフォーマンス改善
+* バグ修正
+
+## 詳細
+これは詳細です。
+https://example.com
+----
+`,
+			sentenceCount: 1,
+			wantErr:       false,
+			check: func(t *testing.T, summary string) {
+				if strings.Contains(summary, "**") {
+					t.Error("summary should not contain markdown bold syntax")
+				}
+				if strings.Contains(summary, "##") {
+					t.Error("summary should not contain markdown header syntax")
+				}
+				if strings.Contains(summary, "----") {
+					t.Error("summary should not contain separator")
+				}
+				if summary == "" {
+					// 短い文ばかりで除外されて空になる可能性もあるが、
+					// "パフォーマンス改善" (9文字) などは残るはず
+					t.Log("summary became empty due to filtering")
+				} else {
+					t.Logf("Markdown summary: %s", summary)
 				}
 			},
 		},
