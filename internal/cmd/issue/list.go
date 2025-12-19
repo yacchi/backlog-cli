@@ -31,12 +31,14 @@ Examples:
 }
 
 var (
-	listAssignee string
-	listStatus   string
-	listLimit    int
-	listKeyword  string
-	listMine     bool
-	listSummary  bool
+	listAssignee            string
+	listStatus              string
+	listLimit               int
+	listKeyword             string
+	listMine                bool
+	listSummary             bool
+	listSummaryWithComments bool
+	listSummaryCommentCount int
 )
 
 func init() {
@@ -45,7 +47,9 @@ func init() {
 	listCmd.Flags().IntVarP(&listLimit, "limit", "l", 20, "Maximum number of issues to show")
 	listCmd.Flags().StringVarP(&listKeyword, "keyword", "k", "", "Search keyword")
 	listCmd.Flags().BoolVar(&listMine, "mine", false, "Show only my issues")
-	listCmd.Flags().BoolVar(&listSummary, "summary", false, "Show AI summary column")
+	listCmd.Flags().BoolVar(&listSummary, "summary", false, "Show AI summary column (description only)")
+	listCmd.Flags().BoolVar(&listSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
+	listCmd.Flags().IntVar(&listSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -122,12 +126,22 @@ func runList(c *cobra.Command, args []string) error {
 	case "json":
 		return outputJSON(issues)
 	default:
-		outputTable(issues, profile, display)
+		outputTable(client, issues, profile, display)
 		return nil
 	}
 }
 
-func outputTable(issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
+func outputTable(client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
+	// フラグ調整
+	if listSummaryWithComments {
+		listSummary = true
+	}
+
+	summaryCommentCount := display.SummaryCommentCount
+	if listSummaryCommentCount >= 0 {
+		summaryCommentCount = listSummaryCommentCount
+	}
+
 	// フィールドリストをコピーして操作
 	fields := make([]string, len(display.IssueListFields))
 	copy(fields, display.IssueListFields)
@@ -166,7 +180,7 @@ func outputTable(issues []backlog.Issue, profile *config.ResolvedProfile, displa
 	for _, issue := range issues {
 		row := make([]string, len(fields))
 		for i, f := range fields {
-			row[i] = getIssueFieldValue(issue, f, formatter, baseURL)
+			row[i] = getIssueFieldValue(client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments)
 		}
 		table.AddRow(row...)
 	}
@@ -174,7 +188,7 @@ func outputTable(issues []backlog.Issue, profile *config.ResolvedProfile, displa
 	table.RenderWithColor(os.Stdout, ui.IsColorEnabled())
 }
 
-func getIssueFieldValue(issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string) string {
+func getIssueFieldValue(client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool) string {
 	switch field {
 	case "key":
 		key := issue.IssueKey.Value
@@ -198,21 +212,45 @@ func getIssueFieldValue(issue backlog.Issue, field string, f *ui.FieldFormatter,
 	case "summary":
 		return f.FormatString(issue.Summary.Value, field)
 	case "ai_summary":
+		fullText := ""
 		if issue.Description.IsSet() {
-			s, err := summary.Summarize(issue.Description.Value, 1)
-			if err != nil {
-				return ""
-			}
-			// 改行を除去
-			s = strings.ReplaceAll(s, "\n", " ")
-			// 長すぎる場合は省略（テーブル表示のため）
-			runes := []rune(s)
-			if len(runes) > 50 {
-				return string(runes[:50]) + "..."
-			}
-			return s
+			fullText = issue.Description.Value
 		}
-		return "-"
+
+		if withComments && summaryCommentCount > 0 {
+			fetchCount := summaryCommentCount
+			if fetchCount > 100 {
+				fetchCount = 100
+			}
+			comments, err := client.GetComments(issue.IssueKey.Value, &api.CommentListOptions{
+				Count: fetchCount,
+				Order: "desc",
+			})
+			if err == nil {
+				for i := len(comments) - 1; i >= 0; i-- {
+					if comments[i].Content != "" {
+						fullText += "\n" + comments[i].Content
+					}
+				}
+			}
+		}
+
+		if strings.TrimSpace(fullText) == "" {
+			return "-"
+		}
+
+		s, err := summary.Summarize(fullText, 1)
+		if err != nil {
+			return ""
+		}
+		// 改行を除去
+		s = strings.ReplaceAll(s, "\n", " ")
+		// 長すぎる場合は省略（テーブル表示のため）
+		runes := []rune(s)
+		if len(runes) > 50 {
+			return string(runes[:50]) + "..."
+		}
+		return s
 	case "type":
 		if issue.IssueType.IsSet() && issue.IssueType.Value.Name.IsSet() {
 			return issue.IssueType.Value.Name.Value

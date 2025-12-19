@@ -36,15 +36,15 @@ var (
 	viewWeb                 bool
 	viewSummary             bool
 	viewSummaryWithComments bool
-	viewSummaryComments     int
+	viewSummaryCommentCount int
 )
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "Show comments")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
-	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary")
-	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Show AI summary including comments")
-	viewCmd.Flags().IntVar(&viewSummaryComments, "summary-comments", -1, "Number of comments to include in summary")
+	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary (description only)")
+	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
+	viewCmd.Flags().IntVar(&viewSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -158,8 +158,8 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 
 	// コメント取得条件の決定
 	summaryCommentCount := display.SummaryCommentCount
-	if viewSummaryComments >= 0 {
-		summaryCommentCount = viewSummaryComments
+	if viewSummaryCommentCount >= 0 {
+		summaryCommentCount = viewSummaryCommentCount
 	}
 
 	fetchCount := 0
@@ -169,7 +169,8 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 			fetchCount = 10 // fallback
 		}
 	}
-	if viewSummary && summaryCommentCount > 0 {
+	// viewSummaryWithComments が有効な場合のみ、要約用のコメント取得を考慮する
+	if viewSummaryWithComments && summaryCommentCount > 0 {
 		if summaryCommentCount > fetchCount {
 			fetchCount = summaryCommentCount
 		}
@@ -205,16 +206,19 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 		}
 
 		// 要約に使用するコメントを抽出
-		// APIからは新しい順(desc)で取得している
-		// 古い順に結合したいので逆順にループ
-		for i := len(comments) - 1; i >= 0; i-- {
-			// summaryCommentCount の制限チェック
-			if i >= summaryCommentCount {
-				continue
-			}
+		// viewSummaryWithComments が有効な場合のみコメントを含める
+		if viewSummaryWithComments {
+			// APIからは新しい順(desc)で取得している
+			// 古い順に結合したいので逆順にループ
+			for i := len(comments) - 1; i >= 0; i-- {
+				// summaryCommentCount の制限チェック
+				if i >= summaryCommentCount {
+					continue
+				}
 
-			if comments[i].Content != "" {
-				fullText += comments[i].Content + "\n"
+				if comments[i].Content != "" {
+					fullText += comments[i].Content + "\n"
+				}
 			}
 		}
 
