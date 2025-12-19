@@ -41,7 +41,7 @@ func (c *Client) FetchWellKnown() (*WellKnownResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch well-known: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("well-known returned status %d", resp.StatusCode)
@@ -83,7 +83,7 @@ func (c *Client) StartAuth(domain, space string, port int, project string) (*Aut
 		debug.Log("auth start request failed", "error", err)
 		return nil, fmt.Errorf("failed to start auth: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	debug.Log("auth start response received", "status", resp.StatusCode)
 
@@ -92,7 +92,7 @@ func (c *Client) StartAuth(domain, space string, port int, project string) (*Aut
 			Error       string `json:"error"`
 			Description string `json:"error_description"`
 		}
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.Description)
 	}
 
@@ -156,7 +156,7 @@ func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 		debug.Log("token request failed", "error", err)
 		return nil, fmt.Errorf("token request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	debug.Log("token response received", "status", resp.StatusCode)
 
@@ -165,7 +165,7 @@ func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 			Error       string `json:"error"`
 			Description string `json:"error_description"`
 		}
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		debug.Log("token request error", "error", errResp.Error, "description", errResp.Description)
 		return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.Description)
 	}

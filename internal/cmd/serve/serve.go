@@ -43,8 +43,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// ポートのオーバーライド（コマンドライン引数）
 	if port > 0 {
-		cfg.SetToLayer(config.LayerArgs, "server.port", port)
-		cfg.Reload(ctx)
+		_ = cfg.SetToLayer(config.LayerArgs, "server.port", port)
+		_ = cfg.Reload(ctx)
 	}
 
 	// サーバー作成

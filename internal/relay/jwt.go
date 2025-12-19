@@ -17,11 +17,6 @@ type OAuthSessionClaims struct {
 	jwt.RegisteredClaims
 }
 
-const (
-	cookieName   = "oauth_session"
-	cookieMaxAge = 5 * 60 // 5分
-)
-
 // createSessionToken はセッショントークンを作成する
 func (s *Server) createSessionToken(port int, state, domain, space, project string) (string, error) {
 	server := s.cfg.Server()

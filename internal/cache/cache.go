@@ -71,7 +71,7 @@ func (c *FileCache) Get(key string, v interface{}) (bool, error) {
 		}
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// 期限切れチェックのため、まずはエンベロープだけデコードしたいが、
 	// Dataの型がわからないとデコードできないため、一旦 json.RawMessage で受ける手もある。
@@ -120,7 +120,7 @@ func (c *FileCache) Set(key string, v interface{}, ttl time.Duration) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return json.NewEncoder(f).Encode(item)
 }

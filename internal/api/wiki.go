@@ -37,7 +37,7 @@ func (c *Client) GetWikis(projectIDOrKey string) ([]Wiki, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var wikis []Wiki
 	if err := DecodeResponse(resp, &wikis); err != nil {
@@ -53,7 +53,7 @@ func (c *Client) GetWiki(wikiID int) (*Wiki, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var wiki Wiki
 	if err := DecodeResponse(resp, &wiki); err != nil {
@@ -72,7 +72,7 @@ func (c *Client) GetWikisCount(projectIDOrKey string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Count int `json:"count"`
@@ -106,7 +106,7 @@ func (c *Client) CreateWiki(input *CreateWikiInput) (*Wiki, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var wiki Wiki
 	if err := DecodeResponse(resp, &wiki); err != nil {
@@ -140,7 +140,7 @@ func (c *Client) UpdateWiki(wikiID int, input *UpdateWikiInput) (*Wiki, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var wiki Wiki
 	if err := DecodeResponse(resp, &wiki); err != nil {
@@ -156,7 +156,7 @@ func (c *Client) DeleteWiki(wikiID int) (*Wiki, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var wiki Wiki
 	if err := DecodeResponse(resp, &wiki); err != nil {

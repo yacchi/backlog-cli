@@ -15,6 +15,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/backlog"
 	"github.com/yacchi/backlog-cli/internal/cache"
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/debug"
 )
 
 // Client は Backlog API クライアント
@@ -154,10 +155,8 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 	if resolved.Cache.Enabled {
 		cacheDir, err := resolved.Cache.GetCacheDir()
 		if err == nil {
-			c, err = cache.NewFileCache(cacheDir)
-			if err != nil {
-				// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
-			}
+			c, _ = cache.NewFileCache(cacheDir)
+			// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
 		}
 	}
 	ttl := time.Duration(resolved.Cache.TTL) * time.Second
@@ -189,15 +188,20 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 				func(accessToken, refreshToken string, expiresAt time.Time) {
 					// 設定ファイルを更新（プロファイルに紐づける）
 					ctx := context.Background()
-					cfg.SetCredential(profileName, &config.Credential{
+
+					if err := cfg.SetCredential(profileName, &config.Credential{
 						AuthType:     config.AuthTypeOAuth,
 						AccessToken:  accessToken,
 						RefreshToken: refreshToken,
 						ExpiresAt:    expiresAt,
 						UserID:       cred.UserID,
 						UserName:     cred.UserName,
-					})
-					cfg.Save(ctx)
+					}); err != nil {
+						debug.Log("failed to set credential after token refresh", "error", err)
+					}
+					if err := cfg.Save(ctx); err != nil {
+						debug.Log("failed to save config after token refresh", "error", err)
+					}
 				},
 			),
 			WithCache(c, ttl),
@@ -242,7 +246,7 @@ func (c *Client) doRefreshToken() error {
 	if err != nil {
 		return fmt.Errorf("token refresh request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("token refresh failed with status %d", resp.StatusCode)

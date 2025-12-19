@@ -131,8 +131,8 @@ func (al *AuditLogger) logToFile(event AuditEvent) {
 	defer al.mu.Unlock()
 
 	data, _ := json.Marshal(event)
-	al.file.Write(data)
-	al.file.WriteString("\n")
+	_, _ = al.file.Write(data)
+	_, _ = al.file.WriteString("\n")
 }
 
 func (al *AuditLogger) logToWebhook(event AuditEvent) {
@@ -149,7 +149,7 @@ func (al *AuditLogger) logToWebhook(event AuditEvent) {
 		slog.Error("failed to send audit log to webhook", "error", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)

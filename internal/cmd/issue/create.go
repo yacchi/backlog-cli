@@ -207,12 +207,12 @@ func openEditor(initial string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer os.Remove(tmpfile.Name())
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
 
 	if initial != "" {
-		tmpfile.WriteString(initial)
+		_, _ = tmpfile.WriteString(initial)
 	}
-	tmpfile.Close()
+	_ = tmpfile.Close()
 
 	// エディタ起動
 	editorCmd := exec.Command(editor, tmpfile.Name())

@@ -117,7 +117,7 @@ func (s *Server) Start() error {
 // Shutdown はサーバーを停止する
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.auditLogger != nil {
-		s.auditLogger.Close()
+		_ = s.auditLogger.Close()
 	}
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
@@ -128,5 +128,5 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // handleHealth はヘルスチェック
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }

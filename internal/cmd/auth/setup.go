@@ -61,7 +61,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	if profileName == "" {
 		profileName = config.DefaultProfile
 	}
-	cfg.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer)
+	if err := cfg.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer); err != nil {
+		return fmt.Errorf("failed to set profile value: %w", err)
+	}
 
 	if err := cfg.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)

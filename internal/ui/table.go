@@ -38,14 +38,14 @@ func (t *Table) Render(w io.Writer) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 
 	// ヘッダー
-	fmt.Fprintln(tw, strings.Join(t.headers, "\t"))
+	_, _ = fmt.Fprintln(tw, strings.Join(t.headers, "\t"))
 
 	// 行
 	for _, row := range t.rows {
-		fmt.Fprintln(tw, strings.Join(row, "\t"))
+		_, _ = fmt.Fprintln(tw, strings.Join(row, "\t"))
 	}
 
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // RenderWithColor は色付きでテーブルを出力する
@@ -66,25 +66,25 @@ func (t *Table) RenderWithColor(w io.Writer, colorEnabled bool) {
 	// ヘッダー出力（太字）
 	for i, h := range t.headers {
 		if i > 0 {
-			fmt.Fprint(w, "  ")
+			_, _ = fmt.Fprint(w, "  ")
 		}
-		fmt.Fprint(w, padRight(Bold(h), colWidths[i], displayWidth(h)))
+		_, _ = fmt.Fprint(w, padRight(Bold(h), colWidths[i], displayWidth(h)))
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	// 行出力
 	for _, row := range t.rows {
 		for i, cell := range row {
 			if i > 0 {
-				fmt.Fprint(w, "  ")
+				_, _ = fmt.Fprint(w, "  ")
 			}
 			if i < len(colWidths) {
-				fmt.Fprint(w, padRight(cell, colWidths[i], displayWidth(cell)))
+				_, _ = fmt.Fprint(w, padRight(cell, colWidths[i], displayWidth(cell)))
 			} else {
-				fmt.Fprint(w, cell)
+				_, _ = fmt.Fprint(w, cell)
 			}
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 }
 

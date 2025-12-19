@@ -50,16 +50,25 @@ func TestStoreProjectConfigPath(t *testing.T) {
 	// テスト用ディレクトリ作成
 	tmpDir := t.TempDir()
 	subDir := filepath.Join(tmpDir, "sub", "dir")
-	os.MkdirAll(subDir, 0755)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
 
 	// .backlog.yaml作成（新形式）
 	configPath := filepath.Join(tmpDir, ".backlog.yaml")
-	os.WriteFile(configPath, []byte("project:\n  name: TEST-PROJ\n"), 0644)
+	if err := os.WriteFile(configPath, []byte("project:\n  name: TEST-PROJ\n"), 0644); err != nil {
+		t.Fatalf("failed to write test config file: %v", err)
+	}
 
 	// サブディレクトリに移動
-	oldDir, _ := os.Getwd()
-	os.Chdir(subDir)
-	defer os.Chdir(oldDir)
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(subDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldDir) }() // cleanup: エラーは無視して良い
 
 	// グローバルストアをリセット
 	ResetConfig()
@@ -79,8 +88,14 @@ func TestStoreProjectConfigPath(t *testing.T) {
 
 	// macOSでは /var が /private/var へのシンボリックリンクのため、
 	// EvalSymlinks で実パスを解決して比較
-	expectedPath, _ := filepath.EvalSymlinks(configPath)
-	actualPath, _ := filepath.EvalSymlinks(projectPath)
+	expectedPath, err := filepath.EvalSymlinks(configPath)
+	if err != nil {
+		t.Fatalf("failed to resolve expected path: %v", err)
+	}
+	actualPath, err := filepath.EvalSymlinks(projectPath)
+	if err != nil {
+		t.Fatalf("failed to resolve actual path: %v", err)
+	}
 	if actualPath != expectedPath {
 		t.Errorf("Path = %v, want %v", actualPath, expectedPath)
 	}

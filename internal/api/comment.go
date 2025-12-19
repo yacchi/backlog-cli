@@ -79,7 +79,7 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var comments []Comment
 	if err := DecodeResponse(resp, &comments); err != nil {
@@ -100,7 +100,7 @@ func (c *Client) GetCommentsCount(issueIDOrKey string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Count int `json:"count"`
@@ -118,7 +118,7 @@ func (c *Client) GetComment(issueIDOrKey string, commentID int) (*Comment, error
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var comment Comment
 	if err := DecodeResponse(resp, &comment); err != nil {
@@ -140,7 +140,7 @@ func (c *Client) AddComment(issueIDOrKey string, content string, notifiedUserIDs
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var comment Comment
 	if err := DecodeResponse(resp, &comment); err != nil {
@@ -159,7 +159,7 @@ func (c *Client) UpdateComment(issueIDOrKey string, commentID int, content strin
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var comment Comment
 	if err := DecodeResponse(resp, &comment); err != nil {

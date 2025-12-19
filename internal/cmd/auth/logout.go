@@ -42,7 +42,9 @@ func runLogout(cmd *cobra.Command, args []string) error {
 
 	if logoutAll {
 		for profileName := range credentials {
-			cfg.DeleteCredential(profileName)
+			if err := cfg.DeleteCredential(profileName); err != nil {
+				return fmt.Errorf("failed to delete credential for %s: %w", profileName, err)
+			}
 		}
 		if err := cfg.Save(ctx); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
@@ -87,7 +89,9 @@ func runLogout(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cfg.DeleteCredential(selectedProfile)
+	if err := cfg.DeleteCredential(selectedProfile); err != nil {
+		return fmt.Errorf("failed to delete credential: %w", err)
+	}
 
 	if err := cfg.Save(ctx); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)

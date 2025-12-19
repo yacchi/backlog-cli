@@ -50,7 +50,7 @@ type AuthStartResponse struct {
 func (s *Server) writeError(w http.ResponseWriter, status int, err, desc string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	_ = json.NewEncoder(w).Encode(ErrorResponse{
 		Error:       err,
 		Description: desc,
 	})
@@ -157,7 +157,7 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	// JSON APIとしてauth_urlとstateを返す
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(AuthStartResponse{
+	_ = json.NewEncoder(w).Encode(AuthStartResponse{
 		AuthURL: authURL,
 		State:   state, // CLIが/auth/tokenに送信するセッションID用
 	})
@@ -324,7 +324,7 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tokenResp)
+	_ = json.NewEncoder(w).Encode(tokenResp)
 }
 
 func (s *Server) findBacklogConfig(domain string) *config.ResolvedBacklogApp {
@@ -414,7 +414,7 @@ func generateState() (string, error) {
 func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusBadRequest)
-	fmt.Fprintf(w, `<!DOCTYPE html>
+	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>%s</title></head>
 <body>
@@ -451,7 +451,7 @@ func (s *Server) requestToken(cfg *config.ResolvedBacklogApp, space string, para
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

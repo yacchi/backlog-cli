@@ -38,7 +38,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 
 		// レスポンスボディを閉じておく（リトライするため）
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		// 待機時間を決定
 		waitDuration := t.getWaitDuration(resp)
@@ -71,7 +71,7 @@ func (t *RetryTransport) getWaitDuration(resp *http.Response) time.Duration {
 	reset := resp.Header.Get("X-RateLimit-Reset")
 	if reset != "" {
 		if resetTime, err := strconv.ParseInt(reset, 10, 64); err == nil {
-			wait := time.Unix(resetTime, 0).Sub(time.Now())
+			wait := time.Until(time.Unix(resetTime, 0))
 			if wait > 0 {
 				return wait
 			}

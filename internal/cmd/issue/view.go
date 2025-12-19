@@ -184,14 +184,11 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 	// コメント取得
 	var comments []api.Comment
 	if fetchCount > 0 {
-		var err error
-		comments, err = client.GetComments(key, &api.CommentListOptions{
+		comments, _ = client.GetComments(key, &api.CommentListOptions{
 			Count: fetchCount,
 			Order: "desc",
 		})
-		if err != nil {
-			// コメント取得失敗は致命的ではないとする
-		}
+		// コメント取得失敗は致命的ではないとする
 	}
 
 	// AI要約

@@ -106,9 +106,9 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 	// 成功ページを表示
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if isJapanese {
-		fmt.Fprint(w, successPageJa)
+		_, _ = fmt.Fprint(w, successPageJa)
 	} else {
-		fmt.Fprint(w, successPageEn)
+		_, _ = fmt.Fprint(w, successPageEn)
 	}
 }
 
@@ -353,6 +353,6 @@ func FindFreePort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	return listener.Addr().(*net.TCPAddr).Port, nil
 }

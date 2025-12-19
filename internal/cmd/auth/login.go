@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -230,12 +231,12 @@ func runAPIKeyLogin(cfg *config.Store) error {
 		UserID:   user.UserId.Value,
 		UserName: user.Name.Value,
 	}
-	cfg.SetCredential(profileName, cred)
+	_ = cfg.SetCredential(profileName, cred)
 
 	// 設定が変更された場合はプロファイルに保存
 	if configChanged {
-		cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
-		cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
+		_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
+		_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
 
 		if err := cfg.Reload(ctx); err != nil {
 			return fmt.Errorf("failed to reload config: %w", err)
@@ -340,11 +341,17 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 	}
 	debug.Log("callback server ready", "actual_port", callbackServer.Port())
 
-	go callbackServer.Start()
+	go func() {
+		if err := callbackServer.Start(); err != nil && err != http.ErrServerClosed {
+			debug.Log("callback server error", "error", err)
+		}
+	}()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		callbackServer.Shutdown(ctx)
+		if err := callbackServer.Shutdown(ctx); err != nil {
+			debug.Log("callback server shutdown error", "error", err)
+		}
 	}()
 
 	// 5. 認証開始（auth_urlを取得、Cookieがクライアントに保存される）
@@ -434,12 +441,12 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 		cred.UserID = user.UserId.Value
 		cred.UserName = user.Name.Value
 	}
-	cfg.SetCredential(profileName, cred)
+	_ = cfg.SetCredential(profileName, cred)
 
 	// 11. 設定が変更された場合はプロファイルに保存
 	if configChanged {
-		cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
-		cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
+		_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
+		_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
 
 		if err := cfg.Reload(ctx); err != nil {
 			return fmt.Errorf("failed to reload config: %w", err)

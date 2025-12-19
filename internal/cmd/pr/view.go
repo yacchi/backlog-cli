@@ -35,7 +35,7 @@ var (
 func init() {
 	viewCmd.Flags().StringVarP(&viewRepo, "repo", "r", "", "Repository name (required)")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
-	viewCmd.MarkFlagRequired("repo")
+	_ = viewCmd.MarkFlagRequired("repo")
 }
 
 func runView(c *cobra.Command, args []string) error {

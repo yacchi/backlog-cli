@@ -58,7 +58,7 @@ func (c *Client) GetRepositories(projectIDOrKey string) ([]Repository, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var repos []Repository
 	if err := DecodeResponse(resp, &repos); err != nil {
@@ -113,7 +113,7 @@ func (c *Client) GetPullRequests(projectIDOrKey, repoIDOrName string, opts *PRLi
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var prs []PullRequest
 	if err := DecodeResponse(resp, &prs); err != nil {
@@ -129,7 +129,7 @@ func (c *Client) GetPullRequest(projectIDOrKey, repoIDOrName string, number int)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var pr PullRequest
 	if err := DecodeResponse(resp, &pr); err != nil {
@@ -150,7 +150,7 @@ func (c *Client) GetPullRequestsCount(projectIDOrKey, repoIDOrName string, opts 
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Count int `json:"count"`

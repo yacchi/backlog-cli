@@ -33,7 +33,7 @@ func (c *Client) GetProjects() ([]Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var projects []Project
 	if err := DecodeResponse(resp, &projects); err != nil {
@@ -49,7 +49,7 @@ func (c *Client) GetProject(projectIDOrKey string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var project Project
 	if err := DecodeResponse(resp, &project); err != nil {
@@ -74,7 +74,7 @@ func (c *Client) GetIssueTypes(projectIDOrKey string) ([]IssueType, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var issueTypes []IssueType
 	if err := DecodeResponse(resp, &issueTypes); err != nil {
@@ -97,7 +97,7 @@ func (c *Client) GetCategories(projectIDOrKey string) ([]Category, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var categories []Category
 	if err := DecodeResponse(resp, &categories); err != nil {
@@ -125,7 +125,7 @@ func (c *Client) GetVersions(projectIDOrKey string) ([]Version, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var versions []Version
 	if err := DecodeResponse(resp, &versions); err != nil {
@@ -150,7 +150,7 @@ func (c *Client) GetStatuses(projectIDOrKey string) ([]Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var statuses []Status
 	if err := DecodeResponse(resp, &statuses); err != nil {
@@ -166,7 +166,7 @@ func (c *Client) GetProjectUsers(projectIDOrKey string) ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var users []User
 	if err := DecodeResponse(resp, &users); err != nil {

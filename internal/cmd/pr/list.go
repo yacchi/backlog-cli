@@ -34,7 +34,7 @@ func init() {
 	listCmd.Flags().StringVarP(&listRepo, "repo", "r", "", "Repository name (required)")
 	listCmd.Flags().IntVar(&listStatus, "status", 0, "Filter by status (1=Open, 2=Closed, 3=Merged)")
 	listCmd.Flags().IntVarP(&listLimit, "limit", "l", 20, "Maximum number to show")
-	listCmd.MarkFlagRequired("repo")
+	_ = listCmd.MarkFlagRequired("repo")
 }
 
 func runList(c *cobra.Command, args []string) error {
