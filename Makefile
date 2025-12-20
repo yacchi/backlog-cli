@@ -68,7 +68,7 @@ clean:
 
 # フロントエンドビルド
 build-web:
-	cd web && pnpm install && pnpm build
+	cd web && pnpm install --frozen-lockfile && pnpm build
 	rm -rf internal/ui/dist
 	cp -r web/dist internal/ui/dist
 
