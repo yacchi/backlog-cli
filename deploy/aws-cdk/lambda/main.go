@@ -10,11 +10,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/yacchi/backlog-cli/internal/relay"
 	"github.com/yacchi/lambda-http-adaptor"
 	_ "github.com/yacchi/lambda-http-adaptor/all"
 
-	backlogConfig "github.com/yacchi/backlog-cli/internal/config"
+	backlog "github.com/yacchi/backlog-cli"
 )
 
 func main() {
@@ -71,7 +70,7 @@ func buildHandler() (http.Handler, error) {
 	normalizeBacklogEnvVars()
 
 	// 設定をロード（環境変数から）
-	cfg, err := backlogConfig.Load(ctx)
+	cfg, err := backlog.LoadConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -80,12 +79,12 @@ func buildHandler() (http.Handler, error) {
 	logConfig(cfg)
 
 	// リレーサーバーのハンドラーを作成
-	server, err := relay.NewServer(cfg)
+	handler, err := backlog.AuthRelayHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create relay server: %w", err)
 	}
 
-	return server.Handler(), nil
+	return handler, nil
 }
 
 // normalizeBacklogEnvVars は Lambda 固有の環境変数を jubako が期待する形式に変換する
@@ -179,12 +178,12 @@ func boolPtr(b bool) *bool {
 
 // logConfig は設定をINFOログに出力する（センシティブ値はマスクされる）
 // デフォルトレイヤーの設定は除外し、実際に設定された値のみ出力する
-func logConfig(cfg *backlogConfig.Store) {
+func logConfig(cfg *backlog.Config) {
 	configMap := make(map[string]any)
 
 	cfg.Walk(func(path string, value any, layerName string) bool {
 		// デフォルトレイヤーは除外
-		if layerName == backlogConfig.LayerDefaults {
+		if layerName == "defaults" {
 			return true
 		}
 		configMap[path] = map[string]any{

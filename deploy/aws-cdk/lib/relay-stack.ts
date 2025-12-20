@@ -92,7 +92,7 @@ export class RelayStack extends cdk.Stack {
 
     // GOWORK=off でビルド（go.work がある場合の対応）
     execSync(
-      `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 GOWORK=off go build -ldflags="-s -w" -o ${outputPath} .`,
+      `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ${outputPath} .`,
       {
         cwd: lambdaDir,
         stdio: "inherit",
