@@ -1,14 +1,16 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 
 type Status = 'connecting' | 'connected' | 'success' | 'error' | 'closed'
 
-interface UseWebSocketResult {
+type WebSocketContextValue = {
   status: Status
   error: string | null
   disconnect: () => void
 }
 
-export function useWebSocket(): UseWebSocketResult {
+const WebSocketContext = createContext<WebSocketContextValue | null>(null)
+
+export function WebSocketProvider({children}: {children: React.ReactNode}) {
   const [status, setStatus] = useState<Status>('connecting')
   const [error, setError] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -65,9 +67,15 @@ export function useWebSocket(): UseWebSocketResult {
     wsRef.current?.close()
   }, [])
 
-  return {
-    status,
-    error,
-    disconnect,
+  const value = useMemo(() => ({status, error, disconnect}), [status, error, disconnect])
+
+  return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>
+}
+
+export function useWebSocketContext() {
+  const ctx = useContext(WebSocketContext)
+  if (!ctx) {
+    throw new Error('WebSocketContext is not available')
   }
+  return ctx
 }

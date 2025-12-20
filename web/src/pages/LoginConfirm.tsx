@@ -6,12 +6,12 @@ import InfoBox from '../components/InfoBox'
 import ResultView, {ResultType} from '../components/ResultView'
 import StatusIndicator from '../components/StatusIndicator'
 import {useAuthContext} from '../context/AuthContext'
-import {useWebSocket} from '../hooks/useWebSocket'
+import {useWebSocketContext} from '../context/WebSocketContext'
 
 export default function LoginConfirm() {
   const navigate = useNavigate()
   const {loading, error, data} = useAuthContext()
-  const {status, error: wsError, disconnect} = useWebSocket()
+  const {status, error: wsError, disconnect} = useWebSocketContext()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [popupMessage, setPopupMessage] = useState<string | null>(null)
   const [forcedResult, setForcedResult] = useState<ResultType | null>(null)
@@ -149,7 +149,6 @@ export default function LoginConfirm() {
               variant="secondary"
               type="button"
               onClick={() => {
-                disconnect()
                 navigate('/auth/setup')
               }}
             >

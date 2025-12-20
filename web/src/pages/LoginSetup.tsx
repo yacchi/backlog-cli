@@ -7,12 +7,12 @@ import ResultView from '../components/ResultView'
 import StatusIndicator from '../components/StatusIndicator'
 import WarningBox from '../components/WarningBox'
 import {useAuthContext} from '../context/AuthContext'
-import {useWebSocket} from '../hooks/useWebSocket'
+import {useWebSocketContext} from '../context/WebSocketContext'
 
 export default function LoginSetup() {
   const navigate = useNavigate()
   const {loading, error, data, refresh} = useAuthContext()
-  const {status, error: wsError} = useWebSocket()
+  const {status, error: wsError} = useWebSocketContext()
   const [spaceHost, setSpaceHost] = useState('')
   const [relayServer, setRelayServer] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
