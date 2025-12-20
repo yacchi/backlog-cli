@@ -187,17 +187,6 @@ func (c *Client) GetIssues(ctx context.Context, opts *IssueListOptions) ([]backl
 		return nil, err
 	}
 
-	if c.cache != nil {
-		// 個別の課題をキャッシュ（Item-level caching）
-		for _, issue := range res {
-			if issue.IssueKey.IsSet() {
-				issueKey := issue.IssueKey.Value
-				k := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueKey)
-				_ = c.cache.Set(k, issue, c.cacheTTL)
-			}
-		}
-	}
-
 	return res, nil
 }
 
