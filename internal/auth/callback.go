@@ -18,6 +18,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/yacchi/backlog-cli/internal/config"
 	"github.com/yacchi/backlog-cli/internal/debug"
+	"github.com/yacchi/backlog-cli/internal/ui"
 )
 
 // セッションCookie名
@@ -121,19 +122,37 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 
 	debug.Log("callback server created", "port", actualPort, "address", addr)
 
+	cs.server = &http.Server{
+		Handler: cs.setupRoutes(),
+	}
+
+	return cs, nil
+}
+
+func (cs *CallbackServer) setupRoutes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/start", cs.handleAuthStart)
-	mux.HandleFunc("/auth/setup", cs.handleSetup)
 	mux.HandleFunc("/auth/configure", cs.handleConfigure)
+	mux.HandleFunc("/auth/context", cs.handleAuthContext)
 	mux.HandleFunc("/auth/ws", cs.handleWebSocket)
 	mux.HandleFunc("/auth/popup", cs.handlePopup)
 	mux.HandleFunc("/callback", cs.handleCallback)
 
-	cs.server = &http.Server{
-		Handler: mux,
+	assets, err := ui.Assets()
+	if err != nil {
+		debug.Log("ui assets unavailable, falling back to legacy templates", "error", err)
+		mux.HandleFunc("/auth/start", cs.handleAuthStart)
+		mux.HandleFunc("/auth/setup", cs.handleSetup)
+		mux.HandleFunc("/", cs.handleAuthStart)
+		return mux
 	}
 
-	return cs, nil
+	spaHandler := ui.SPAHandler(assets)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Ensure a session cookie exists before the SPA boots and opens WebSocket.
+		_ = cs.ensureSession(w, r)
+		spaHandler.ServeHTTP(w, r)
+	}))
+	return mux
 }
 
 // generateSessionID はセッションIDを生成する
@@ -426,6 +445,48 @@ func (cs *CallbackServer) handleSetup(w http.ResponseWriter, r *http.Request) {
 		SpaceHost:   spaceHost,
 		RelayServer: profile.RelayServer,
 	})
+}
+
+type AuthContextResponse struct {
+	Space       string `json:"space"`
+	Domain      string `json:"domain"`
+	RelayServer string `json:"relayServer"`
+	SpaceHost   string `json:"spaceHost"`
+	Configured  bool   `json:"configured"`
+}
+
+func (cs *CallbackServer) handleAuthContext(w http.ResponseWriter, r *http.Request) {
+	debug.Log("auth/context accessed", "method", r.Method)
+
+	if r.Method != http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	session := cs.ensureSession(w, r)
+	if session == nil {
+		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	profile := cs.configStore.CurrentProfile()
+	spaceHost := ""
+	if profile.Space != "" && profile.Domain != "" {
+		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
+	}
+
+	payload := AuthContextResponse{
+		Space:       profile.Space,
+		Domain:      profile.Domain,
+		RelayServer: profile.RelayServer,
+		SpaceHost:   spaceHost,
+		Configured:  profile.Space != "" && profile.Domain != "" && profile.RelayServer != "",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 // ConfigureResponse は設定保存の JSON レスポンス

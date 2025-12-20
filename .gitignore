@@ -28,3 +28,8 @@ config.yaml
 .backlog.yaml
 .backlog.yml
 verification_targets.txt
+
+# Frontend
+web/node_modules/
+internal/ui/dist/
+web/.vite/

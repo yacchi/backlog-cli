@@ -1,4 +1,4 @@
-.PHONY: build test lint clean run serve install
+.PHONY: build test lint clean run serve install build-web dev-web
 
 # バージョン情報
 VERSION ?= $(shell cat version.txt 2>/dev/null | tr -d '[:space:]' || echo "dev")
@@ -19,7 +19,7 @@ BINARY := backlog
 all: build
 
 # ビルド
-build:
+build: build-web
 	@mkdir -p $(BUILD_DIR)
 	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/backlog
 
@@ -64,6 +64,16 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
+	rm -rf internal/ui/dist web/node_modules/.vite
+
+# フロントエンドビルド
+build-web:
+	# cd web && pnpm install --frozen-lockfile && pnpm build
+	cd web && pnpm install && pnpm build
+
+# フロントエンド開発サーバー
+dev-web:
+	cd web && pnpm dev
 
 # 中継サーバー起動（開発用、go run使用）
 serve:
