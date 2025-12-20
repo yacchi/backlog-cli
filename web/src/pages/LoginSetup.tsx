@@ -1,93 +1,95 @@
-import {type FormEvent, useEffect, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
-import Button from '../components/Button'
-import Container from '../components/Container'
-import Input from '../components/Input'
-import ResultView from '../components/ResultView'
-import StatusIndicator from '../components/StatusIndicator'
-import WarningBox from '../components/WarningBox'
-import {useAuthContext} from '../context/AuthContext'
-import {useWebSocketContext} from '../context/WebSocketContext'
+import { type FormEvent, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Button from "../components/Button";
+import Container from "../components/Container";
+import Input from "../components/Input";
+import ResultView from "../components/ResultView";
+import StatusIndicator from "../components/StatusIndicator";
+import WarningBox from "../components/WarningBox";
+import { useAuthContext } from "../context/AuthContext";
+import { useWebSocketContext } from "../context/WebSocketContext";
 
 export default function LoginSetup() {
-  const navigate = useNavigate()
-  const {loading, error, data, refresh} = useAuthContext()
-  const {status, error: wsError} = useWebSocketContext()
-  const [spaceHost, setSpaceHost] = useState('')
-  const [relayServer, setRelayServer] = useState('')
-  const [formError, setFormError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [dirty, setDirty] = useState(false)
+  const navigate = useNavigate();
+  const { loading, error, data, refresh } = useAuthContext();
+  const { status, error: wsError } = useWebSocketContext();
+  const [spaceHost, setSpaceHost] = useState("");
+  const [relayServer, setRelayServer] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (!data || dirty) return
-    setSpaceHost(data.spaceHost || '')
-    setRelayServer(data.relayServer || '')
-  }, [data, dirty])
+    if (!data || dirty) return;
+    setSpaceHost(data.spaceHost || "");
+    setRelayServer(data.relayServer || "");
+  }, [data, dirty]);
 
-  if (status === 'success') {
+  if (status === "success") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="success" />
         </Container>
       </main>
-    )
+    );
   }
 
-  if (status === 'error') {
+  if (status === "error") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="error" message={wsError || undefined} />
         </Container>
       </main>
-    )
+    );
   }
 
-  if (status === 'closed') {
+  if (status === "closed") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="closed" />
         </Container>
       </main>
-    )
+    );
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setSubmitting(true)
-    setFormError(null)
+    event.preventDefault();
+    setSubmitting(true);
+    setFormError(null);
 
-    const formData = new FormData()
-    formData.append('space_host', spaceHost)
-    formData.append('relay_server', relayServer)
+    const formData = new FormData();
+    formData.append("space_host", spaceHost);
+    formData.append("relay_server", relayServer);
 
     try {
-      const response = await fetch('/auth/configure', {
-        method: 'POST',
+      const response = await fetch("/auth/configure", {
+        method: "POST",
         headers: {
-          Accept: 'application/json',
+          Accept: "application/json",
         },
         body: formData,
-        credentials: 'same-origin',
-      })
+        credentials: "same-origin",
+      });
 
-      const payload = (await response.json()) as {error?: string}
+      const payload = (await response.json()) as { error?: string };
       if (!response.ok || payload.error) {
-        setFormError(payload.error || '設定の保存に失敗しました')
-        setSubmitting(false)
-        return
+        setFormError(payload.error || "設定の保存に失敗しました");
+        setSubmitting(false);
+        return;
       }
 
-      await refresh()
-      navigate('/auth/start')
+      await refresh();
+      navigate("/auth/start");
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : '不明なエラーが発生しました')
-      setSubmitting(false)
+      setFormError(
+        err instanceof Error ? err.message : "不明なエラーが発生しました",
+      );
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -121,8 +123,8 @@ export default function LoginSetup() {
               placeholder="yourspace.backlog.jp"
               value={spaceHost}
               onChange={(event) => {
-                setSpaceHost(event.target.value)
-                setDirty(true)
+                setSpaceHost(event.target.value);
+                setDirty(true);
               }}
               required
               disabled={loading}
@@ -133,8 +135,8 @@ export default function LoginSetup() {
               placeholder="https://relay.example.com"
               value={relayServer}
               onChange={(event) => {
-                setRelayServer(event.target.value)
-                setDirty(true)
+                setRelayServer(event.target.value);
+                setDirty(true);
               }}
               helper="OAuth 認証を中継するサーバーの URL"
               required
@@ -142,7 +144,8 @@ export default function LoginSetup() {
             />
 
             <WarningBox title="セキュリティに関する注意">
-              リレーサーバーは OAuth 認証を中継し、アクセストークンを取り扱います。信頼できる
+              リレーサーバーは OAuth
+              認証を中継し、アクセストークンを取り扱います。信頼できる
               サーバーのみを指定してください。不明な場合は、組織の管理者にご確認ください。
             </WarningBox>
 
@@ -150,7 +153,7 @@ export default function LoginSetup() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/auth/start')}
+                onClick={() => navigate("/auth/start")}
                 disabled={submitting}
               >
                 キャンセル
@@ -161,9 +164,11 @@ export default function LoginSetup() {
             </div>
           </form>
 
-          {submitting ? <StatusIndicator message="設定を保存しています..." /> : null}
+          {submitting ? (
+            <StatusIndicator message="設定を保存しています..." />
+          ) : null}
         </div>
       </Container>
     </main>
-  )
+  );
 }

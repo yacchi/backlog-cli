@@ -4,11 +4,11 @@ import "testing"
 
 func TestParseIssueKey(t *testing.T) {
 	tests := []struct {
-		name             string
-		issueKey         string
-		wantProjectKey   string
-		wantIssueNumber  string
-		wantHasProject   bool
+		name            string
+		issueKey        string
+		wantProjectKey  string
+		wantIssueNumber string
+		wantHasProject  bool
 	}{
 		{
 			name:            "full key",

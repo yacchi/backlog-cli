@@ -1,0 +1,16 @@
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    go-fmt:
+      glob: "*.go"
+      run: gofmt -w {staged_files} && git add {staged_files}
+    web-prettier:
+      root: "web/"
+      glob: "*.{ts,tsx,js,jsx,css,md,json}"
+      run: pnpm exec prettier --write {staged_files} && git add {staged_files}
+    cdk-prettier:
+      root: "deploy/aws-cdk/"
+      glob: "*.{ts,js,json}"
+      run: pnpm exec prettier --write {staged_files} && git add {staged_files}

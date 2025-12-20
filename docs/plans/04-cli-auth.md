@@ -2,12 +2,29 @@
 
 ## 目標
 
-- `backlog auth login` - OAuth2.0 ログイン
-- `backlog auth logout` - ログアウト
-- `backlog auth status` - 認証状態確認
-- `backlog auth setup` - 中継サーバー設定
-- 対話的UI（ドメイン選択、スペース入力、プロジェクト選択）
-- ブラウザが開けない場合のフォールバック
+- 対話的UIヘルパー
+- ローカルHTTPサーバー（認証フロー開始点）
+- 認証クライアント
+- `backlog auth login/logout/status/setup` コマンド
+
+## 設計変更のポイント
+
+新しい認証フローでは、CLIがフローの開始点となります。
+
+```
+ブラウザ → localhost/auth/start → 中継サーバー → Backlog → 中継サーバー → localhost/callback → CLI
+```
+
+### CLIローカルサーバーの役割
+
+1. `/auth/start` - state生成、中継サーバーへリダイレクト
+2. `/callback` - state検証、認可コード受信
+
+### メリット
+
+- state管理がCLI側で完結
+- Cookie不要（ブラウザ制限の影響なし）
+- 将来的なPKCE実装が容易
 
 ## 1. 対話的UIヘルパー
 
@@ -33,29 +50,29 @@ func Select(message string, options []string) (string, error) {
 	return result, nil
 }
 
-// SelectWithDescription は説明付きの選択肢から1つを選ばせる
+// SelectOption は値と説明を持つ選択肢
 type SelectOption struct {
 	Value       string
 	Description string
 }
 
+// SelectWithDesc は説明付き選択肢から1つを選ばせる
 func SelectWithDesc(message string, options []SelectOption) (string, error) {
-	labels := make([]string, len(options))
+	opts := make([]string, len(options))
 	valueMap := make(map[string]string)
-	
 	for i, opt := range options {
+		display := opt.Value
 		if opt.Description != "" {
-			labels[i] = opt.Value + " - " + opt.Description
-		} else {
-			labels[i] = opt.Value
+			display = opt.Value + " - " + opt.Description
 		}
-		valueMap[labels[i]] = opt.Value
+		opts[i] = display
+		valueMap[display] = opt.Value
 	}
 	
 	var result string
 	prompt := &survey.Select{
 		Message: message,
-		Options: labels,
+		Options: opts,
 	}
 	if err := survey.AskOne(prompt, &result); err != nil {
 		return "", err
@@ -76,7 +93,7 @@ func Input(message string, defaultValue string) (string, error) {
 	return result, nil
 }
 
-// Confirm は確認プロンプトを表示する
+// Confirm は確認を求める
 func Confirm(message string, defaultValue bool) (bool, error) {
 	var result bool
 	prompt := &survey.Confirm{
@@ -85,6 +102,18 @@ func Confirm(message string, defaultValue bool) (bool, error) {
 	}
 	if err := survey.AskOne(prompt, &result); err != nil {
 		return false, err
+	}
+	return result, nil
+}
+
+// Password はパスワード入力を受け付ける
+func Password(message string) (string, error) {
+	var result string
+	prompt := &survey.Password{
+		Message: message,
+	}
+	if err := survey.AskOne(prompt, &result); err != nil {
+		return "", err
 	}
 	return result, nil
 }
@@ -98,16 +127,15 @@ func Confirm(message string, defaultValue bool) (bool, error) {
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
-	"net/url"
+	"strings"
 	"time"
 )
 
-// Client は認証クライアント
+// Client は中継サーバーとの通信を行うクライアント
 type Client struct {
 	relayServer string
 	httpClient  *http.Client
@@ -116,35 +144,35 @@ type Client struct {
 // NewClient は新しい認証クライアントを作成する
 func NewClient(relayServer string) *Client {
 	return &Client{
-		relayServer: relayServer,
+		relayServer: strings.TrimSuffix(relayServer, "/"),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
 }
 
-// WellKnownResponse は well-known のレスポンス
+// WellKnownResponse は /.well-known/bl-relay のレスポンス
 type WellKnownResponse struct {
 	Version          string   `json:"version"`
 	Name             string   `json:"name,omitempty"`
 	SupportedDomains []string `json:"supported_domains"`
 }
 
-// FetchWellKnown は中継サーバーのメタ情報を取得する
+// FetchWellKnown は中継サーバーの情報を取得する
 func (c *Client) FetchWellKnown() (*WellKnownResponse, error) {
-	resp, err := c.httpClient.Get(c.relayServer + "/.well-known/backlog-oauth-relay")
+	resp, err := c.httpClient.Get(c.relayServer + "/.well-known/bl-relay")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch well-known: %w", err)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("well-known returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 	
 	var result WellKnownResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse well-known: %w", err)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 	
 	return &result, nil
@@ -167,52 +195,73 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// ExchangeToken は認可コードをトークンに交換する
-func (c *Client) ExchangeToken(req TokenRequest) (*TokenResponse, error) {
-	return c.requestToken(req)
+// ErrorResponse はエラーレスポンス
+type ErrorResponse struct {
+	Error       string `json:"error"`
+	Description string `json:"error_description,omitempty"`
 }
 
-// RefreshToken はリフレッシュトークンでアクセストークンを更新する
-func (c *Client) RefreshToken(domain, space, refreshToken string) (*TokenResponse, error) {
+// ExchangeToken は認可コードをトークンに交換する
+func (c *Client) ExchangeToken(code, space, domain string) (*TokenResponse, error) {
+	return c.requestToken(TokenRequest{
+		GrantType: "authorization_code",
+		Code:      code,
+		Space:     space,
+		Domain:    domain,
+	})
+}
+
+// RefreshToken はトークンを更新する
+func (c *Client) RefreshToken(refreshToken, space, domain string) (*TokenResponse, error) {
 	return c.requestToken(TokenRequest{
 		GrantType:    "refresh_token",
 		RefreshToken: refreshToken,
-		Domain:       domain,
 		Space:        space,
+		Domain:       domain,
 	})
 }
 
 func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 	
 	resp, err := c.httpClient.Post(
 		c.relayServer+"/auth/token",
 		"application/json",
-		bytes.NewReader(body),
+		strings.NewReader(string(body)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("token request failed: %w", err)
+		return nil, fmt.Errorf("failed to request token: %w", err)
 	}
 	defer resp.Body.Close()
 	
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	
 	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error       string `json:"error"`
-			Description string `json:"error_description"`
+		var errResp ErrorResponse
+		if err := json.Unmarshal(respBody, &errResp); err != nil {
+			return nil, fmt.Errorf("token request failed: %s", string(respBody))
 		}
-		json.NewDecoder(resp.Body).Decode(&errResp)
 		return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.Description)
 	}
 	
-	var result TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(respBody, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 	
-	return &result, nil
+	return &tokenResp, nil
+}
+
+// BuildAuthStartURL は認証開始URLを構築する（中継サーバー用）
+func (c *Client) BuildAuthStartURL(port int, state, space, domain string) string {
+	return fmt.Sprintf("%s/auth/start?port=%d&state=%s&space=%s&domain=%s",
+		c.relayServer, port, state, space, domain)
 }
 ```
 
@@ -225,95 +274,130 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
+	"time"
 )
 
 // CallbackResult はコールバックの結果
 type CallbackResult struct {
 	Code  string
-	Error error
+	State string
+	Error string
 }
 
-// CallbackServer はCLIのローカルコールバックサーバー
+// CallbackServer はOAuth認証のコールバックを受け取るローカルサーバー
 type CallbackServer struct {
-	port     int
-	server   *http.Server
-	result   chan CallbackResult
-	listener net.Listener
-	once     sync.Once
+	port        int
+	state       string
+	relayServer string
+	space       string
+	domain      string
+	resultChan  chan CallbackResult
+	server      *http.Server
 }
 
 // NewCallbackServer は新しいコールバックサーバーを作成する
-func NewCallbackServer(port int) (*CallbackServer, error) {
-	// ポートが0の場合は空きポートを探す
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	listener, err := net.Listen("tcp", addr)
+func NewCallbackServer(relayServer, space, domain string) (*CallbackServer, error) {
+	port, err := FindFreePort()
 	if err != nil {
-		return nil, fmt.Errorf("failed to listen on %s: %w", addr, err)
+		return nil, fmt.Errorf("failed to find free port: %w", err)
 	}
 	
-	// 実際のポートを取得
-	actualPort := listener.Addr().(*net.TCPAddr).Port
-	
-	cs := &CallbackServer{
-		port:     actualPort,
-		result:   make(chan CallbackResult, 1),
-		listener: listener,
+	state, err := generateState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate state: %w", err)
 	}
 	
-	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", cs.handleCallback)
-	
-	cs.server = &http.Server{
-		Handler: mux,
-	}
-	
-	return cs, nil
+	return &CallbackServer{
+		port:        port,
+		state:       state,
+		relayServer: relayServer,
+		space:       space,
+		domain:      domain,
+		resultChan:  make(chan CallbackResult, 1),
+	}, nil
 }
 
-// Port は実際のポート番号を返す
-func (cs *CallbackServer) Port() int {
-	return cs.port
+// Port はサーバーのポート番号を返す
+func (s *CallbackServer) Port() int {
+	return s.port
+}
+
+// State はCSRF保護用のstateを返す
+func (s *CallbackServer) State() string {
+	return s.state
 }
 
 // Start はサーバーを起動する
-func (cs *CallbackServer) Start() error {
-	return cs.server.Serve(cs.listener)
-}
-
-// Wait はコールバックを待機する
-func (cs *CallbackServer) Wait() CallbackResult {
-	return <-cs.result
-}
-
-// Shutdown はサーバーを停止する
-func (cs *CallbackServer) Shutdown(ctx context.Context) error {
-	return cs.server.Shutdown(ctx)
-}
-
-func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request) {
-	cs.once.Do(func() {
-		code := r.URL.Query().Get("code")
-		errorParam := r.URL.Query().Get("error")
-		
-		if errorParam != "" {
-			errorDesc := r.URL.Query().Get("error_description")
-			cs.result <- CallbackResult{
-				Error: fmt.Errorf("%s: %s", errorParam, errorDesc),
-			}
-		} else if code == "" {
-			cs.result <- CallbackResult{
-				Error: fmt.Errorf("no code received"),
-			}
-		} else {
-			cs.result <- CallbackResult{Code: code}
-		}
-	})
+func (s *CallbackServer) Start() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/start", s.handleAuthStart)
+	mux.HandleFunc("/callback", s.handleCallback)
 	
-	// 成功ページを表示
+	s.server = &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", s.port),
+		Handler: mux,
+	}
+	
+	// エラーが発生した場合のみ返す（正常終了時はShutdownで止まる）
+	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+// handleAuthStart は認証フローを開始する（中継サーバーへリダイレクト）
+func (s *CallbackServer) handleAuthStart(w http.ResponseWriter, r *http.Request) {
+	// 中継サーバーの /auth/start へリダイレクト
+	redirectURL := fmt.Sprintf("%s/auth/start?port=%d&state=%s&space=%s&domain=%s",
+		s.relayServer, s.port, s.state, s.space, s.domain)
+	
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+// handleCallback は認可コールバックを処理する
+func (s *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+	errorParam := r.URL.Query().Get("error")
+	
+	result := CallbackResult{
+		Code:  code,
+		State: state,
+		Error: errorParam,
+	}
+	
+	// state検証
+	if state != s.state {
+		result.Error = "state_mismatch"
+		s.resultChan <- result
+		s.renderErrorPage(w, "Security Error", "State mismatch detected. Please try again.")
+		return
+	}
+	
+	if errorParam != "" {
+		s.resultChan <- result
+		errorDesc := r.URL.Query().Get("error_description")
+		s.renderErrorPage(w, "Authorization Failed", errorDesc)
+		return
+	}
+	
+	if code == "" {
+		result.Error = "missing_code"
+		s.resultChan <- result
+		s.renderErrorPage(w, "Error", "No authorization code received")
+		return
+	}
+	
+	s.resultChan <- result
+	s.renderSuccessPage(w)
+}
+
+func (s *CallbackServer) renderSuccessPage(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, `<!DOCTYPE html>
 <html>
@@ -326,14 +410,63 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 </html>`)
 }
 
-// FindFreePort は空いているポートを探す
+func (s *CallbackServer) renderErrorPage(w http.ResponseWriter, title, message string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusBadRequest)
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head><title>%s</title></head>
+<body>
+<h1>%s</h1>
+<p>%s</p>
+<p>You can close this window.</p>
+</body>
+</html>`, title, title, message)
+}
+
+// WaitForCallback はコールバックを待機する
+func (s *CallbackServer) WaitForCallback(timeout time.Duration) (*CallbackResult, error) {
+	select {
+	case result := <-s.resultChan:
+		return &result, nil
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timeout waiting for callback")
+	}
+}
+
+// Shutdown はサーバーを停止する
+func (s *CallbackServer) Shutdown() error {
+	if s.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return s.server.Shutdown(ctx)
+	}
+	return nil
+}
+
+// AuthStartURL は認証開始URLを返す（ブラウザで開くURL）
+func (s *CallbackServer) AuthStartURL() string {
+	return fmt.Sprintf("http://localhost:%d/auth/start", s.port)
+}
+
+// FindFreePort は空いているポートを見つける
 func FindFreePort() (int, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
 	}
 	defer listener.Close()
-	return listener.Addr().(*net.TCPAddr).Port, nil
+	
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
+
+func generateState() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 ```
 
@@ -345,16 +478,13 @@ func FindFreePort() (int, error) {
 package auth
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"slices"
 	"time"
 
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/yourorg/backlog-cli/internal/api"
-	"github.com/yourorg/backlog-cli/internal/auth"
+	authpkg "github.com/yourorg/backlog-cli/internal/auth"
 	"github.com/yourorg/backlog-cli/internal/config"
 	"github.com/yourorg/backlog-cli/internal/ui"
 )
@@ -364,27 +494,22 @@ var loginCmd = &cobra.Command{
 	Short: "Log in to Backlog",
 	Long: `Authenticate with Backlog using OAuth 2.0.
 
-This command opens a browser window for authentication. If the browser
-cannot be opened, a URL will be displayed for manual access.`,
+This command will:
+1. Start a local server for OAuth callback
+2. Open your browser for authentication  
+3. Exchange the authorization code for tokens
+4. Save the tokens locally`,
 	RunE: runLogin,
 }
 
 var (
-	loginDomain       string
-	loginSpace        string
-	loginProject      string
-	loginNoBrowser    bool
-	loginCallbackPort int
-	loginTimeout      int
+	loginSpace  string
+	loginDomain string
 )
 
 func init() {
-	loginCmd.Flags().StringVar(&loginDomain, "domain", "", "Backlog domain (backlog.jp or backlog.com)")
 	loginCmd.Flags().StringVar(&loginSpace, "space", "", "Backlog space name")
-	loginCmd.Flags().StringVar(&loginProject, "project", "", "Default project key")
-	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Don't open browser, just print URL")
-	loginCmd.Flags().IntVar(&loginCallbackPort, "callback-port", 0, "Fixed port for callback server")
-	loginCmd.Flags().IntVar(&loginTimeout, "timeout", 0, "Timeout in seconds (default: 120)")
+	loginCmd.Flags().StringVar(&loginDomain, "domain", "", "Backlog domain (backlog.jp or backlog.com)")
 }
 
 func runLogin(cmd *cobra.Command, args []string) error {
@@ -400,238 +525,149 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("relay server is not configured\nRun 'backlog auth setup <relay-server-url>' first")
 	}
 	
-	// オプションのマージ
-	opts := mergeLoginOptions(cfg)
-	
-	// 認証クライアント作成
-	client := auth.NewClient(relayServer)
-	
-	// 1. well-known からメタ情報取得
-	fmt.Println("Fetching relay server information...")
-	meta, err := client.FetchWellKnown()
+	// 中継サーバーの情報を取得
+	authClient := authpkg.NewClient(relayServer)
+	wellKnown, err := authClient.FetchWellKnown()
 	if err != nil {
 		return fmt.Errorf("failed to connect to relay server: %w", err)
 	}
 	
-	if len(meta.SupportedDomains) == 0 {
-		return fmt.Errorf("relay server has no supported domains configured")
+	// ドメイン選択
+	domain := loginDomain
+	if domain == "" {
+		domain = cfg.Client.Default.Domain
 	}
-	
-	// 2. ドメイン選択
-	if opts.domain == "" {
-		if len(meta.SupportedDomains) == 1 {
-			opts.domain = meta.SupportedDomains[0]
+	if domain == "" {
+		if len(wellKnown.SupportedDomains) == 1 {
+			domain = wellKnown.SupportedDomains[0]
 		} else {
-			opts.domain, err = ui.Select("Select Backlog domain:", meta.SupportedDomains)
+			domain, err = ui.Select("Select Backlog domain:", wellKnown.SupportedDomains)
 			if err != nil {
 				return err
 			}
 		}
-	} else if !slices.Contains(meta.SupportedDomains, opts.domain) {
-		return fmt.Errorf("domain '%s' is not supported by this relay server\nSupported: %v", opts.domain, meta.SupportedDomains)
 	}
 	
-	// 3. スペース入力
-	if opts.space == "" {
-		opts.space, err = ui.Input("Enter space name:", "")
+	// ドメインがサポートされているか確認
+	domainSupported := false
+	for _, d := range wellKnown.SupportedDomains {
+		if d == domain {
+			domainSupported = true
+			break
+		}
+	}
+	if !domainSupported {
+		return fmt.Errorf("domain '%s' is not supported by the relay server", domain)
+	}
+	
+	// スペース入力
+	space := loginSpace
+	if space == "" {
+		space = cfg.Client.Default.Space
+	}
+	if space == "" {
+		space, err = ui.Input("Enter your Backlog space name:", "")
 		if err != nil {
 			return err
 		}
-		if opts.space == "" {
-			return fmt.Errorf("space name is required")
-		}
+	}
+	if space == "" {
+		return fmt.Errorf("space name is required")
 	}
 	
-	fmt.Printf("\nAuthenticating with %s.%s...\n", opts.space, opts.domain)
-	
-	// 4. コールバックサーバー起動
-	callbackServer, err := auth.NewCallbackServer(opts.callbackPort)
+	// コールバックサーバー起動
+	callbackServer, err := authpkg.NewCallbackServer(relayServer, space, domain)
 	if err != nil {
-		return fmt.Errorf("failed to start callback server: %w", err)
+		return fmt.Errorf("failed to create callback server: %w", err)
 	}
 	
-	go callbackServer.Start()
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		callbackServer.Shutdown(ctx)
+	// サーバーをバックグラウンドで起動
+	serverErrCh := make(chan error, 1)
+	go func() {
+		serverErrCh <- callbackServer.Start()
 	}()
 	
-	// 5. 認可URL生成
-	authURL := fmt.Sprintf("%s/auth/start?domain=%s&space=%s&port=%d",
-		relayServer,
-		opts.domain,
-		opts.space,
-		callbackServer.Port(),
-	)
-	if opts.project != "" {
-		authURL += "&project=" + opts.project
-	}
+	// クリーンアップ
+	defer callbackServer.Shutdown()
 	
-	// 6. URL表示 & ブラウザ起動
-	fmt.Println()
-	fmt.Println("If browser doesn't open automatically, visit this URL:")
-	fmt.Println()
-	fmt.Printf("  %s\n", authURL)
-	fmt.Println()
-	fmt.Printf("Waiting for authentication... (timeout: %ds)\n", opts.timeout)
+	// ブラウザを開く
+	authURL := callbackServer.AuthStartURL()
+	fmt.Printf("Opening browser for authentication...\n")
+	fmt.Printf("If browser doesn't open, visit: %s\n\n", authURL)
 	
-	if !opts.noBrowser {
+	if !cfg.Client.Auth.NoBrowser {
 		if err := browser.OpenURL(authURL); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
+			fmt.Printf("Failed to open browser: %v\n", err)
+			fmt.Printf("Please open the URL manually: %s\n", authURL)
 		}
 	}
 	
-	// 7. コールバック待機
-	resultCh := make(chan auth.CallbackResult, 1)
-	go func() {
-		resultCh <- callbackServer.Wait()
-	}()
-	
-	var result auth.CallbackResult
-	select {
-	case result = <-resultCh:
-	case <-time.After(time.Duration(opts.timeout) * time.Second):
-		return fmt.Errorf("authentication timed out after %d seconds", opts.timeout)
+	// コールバック待機
+	timeout := time.Duration(cfg.Client.Auth.Timeout) * time.Second
+	if timeout == 0 {
+		timeout = 120 * time.Second
 	}
 	
-	if result.Error != nil {
-		return fmt.Errorf("authentication failed: %w", result.Error)
+	fmt.Println("Waiting for authentication...")
+	
+	result, err := callbackServer.WaitForCallback(timeout)
+	if err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
 	}
 	
-	// 8. トークン交換
-	fmt.Println("Exchanging authorization code...")
-	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
-		GrantType: "authorization_code",
-		Code:      result.Code,
-		Domain:    opts.domain,
-		Space:     opts.space,
-	})
+	if result.Error != "" {
+		return fmt.Errorf("authentication failed: %s", result.Error)
+	}
+	
+	// トークン交換
+	fmt.Println("Exchanging authorization code for tokens...")
+	
+	tokenResp, err := authClient.ExchangeToken(result.Code, space, domain)
 	if err != nil {
 		return fmt.Errorf("failed to exchange token: %w", err)
 	}
 	
-	// 9. ユーザー情報取得
-	apiClient := api.NewClient(opts.space, opts.domain, tokenResp.AccessToken)
+	// ユーザー情報取得（確認用）
+	apiClient := api.NewClient(space, domain, tokenResp.AccessToken)
 	user, err := apiClient.GetCurrentUser()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
-	} else {
-		fmt.Printf("✓ Authenticated as %s", user.Name)
-		if user.MailAddress != "" {
-			fmt.Printf(" (%s)", user.MailAddress)
-		}
-		fmt.Println()
+		return fmt.Errorf("failed to get user info: %w", err)
 	}
 	
-	// 10. デフォルトプロジェクト選択（初回のみ）
-	host := opts.space + "." + opts.domain
-	if opts.project == "" && cfg.Client.Credentials[host].AccessToken == "" {
-		projects, err := apiClient.GetProjects()
-		if err == nil && len(projects) > 0 {
-			projectOpts := make([]ui.SelectOption, len(projects)+1)
-			for i, p := range projects {
-				projectOpts[i] = ui.SelectOption{
-					Value:       p.ProjectKey,
-					Description: p.Name,
-				}
-			}
-			projectOpts[len(projects)] = ui.SelectOption{Value: "(Skip)"}
-			
-			selected, err := ui.SelectWithDesc("Select default project:", projectOpts)
-			if err == nil && selected != "(Skip)" {
-				opts.project = selected
-			}
-		}
-	}
-	
-	// 11. 認証情報保存
+	// 認証情報を保存
+	host := space + "." + domain
 	if cfg.Client.Credentials == nil {
 		cfg.Client.Credentials = make(map[string]config.Credential)
 	}
-	
 	cfg.Client.Credentials[host] = config.Credential{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
-		UserID:       "",
-		UserName:     "",
-	}
-	if user != nil {
-		cfg.Client.Credentials[host] = config.Credential{
-			AccessToken:  tokenResp.AccessToken,
-			RefreshToken: tokenResp.RefreshToken,
-			ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
-			UserID:       fmt.Sprintf("%d", user.ID),
-			UserName:     user.Name,
-		}
+		UserID:       user.UserID,
+		UserName:     user.Name,
 	}
 	
-	// デフォルト設定の更新
+	// デフォルト設定を更新
 	if cfg.Client.Default.Space == "" {
-		cfg.Client.Default.Space = opts.space
+		cfg.Client.Default.Space = space
 	}
 	if cfg.Client.Default.Domain == "" {
-		cfg.Client.Default.Domain = opts.domain
-	}
-	if opts.project != "" && cfg.Client.Default.Project == "" {
-		cfg.Client.Default.Project = opts.project
+		cfg.Client.Default.Domain = domain
 	}
 	
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	
-	fmt.Printf("✓ Logged in to %s.%s\n", opts.space, opts.domain)
-	if opts.project != "" {
-		fmt.Printf("✓ Default project: %s\n", opts.project)
+	fmt.Printf("\n✓ Logged in as %s (%s)\n", user.Name, user.MailAddress)
+	fmt.Printf("  Space: %s.%s\n", space, domain)
+	
+	// プロジェクト選択を促す
+	if cfg.Client.Default.Project == "" {
+		fmt.Println("\nTip: Run 'backlog project init' to set a default project")
 	}
 	
 	return nil
-}
-
-type loginOptions struct {
-	domain       string
-	space        string
-	project      string
-	noBrowser    bool
-	callbackPort int
-	timeout      int
-}
-
-func mergeLoginOptions(cfg *config.Config) loginOptions {
-	opts := loginOptions{
-		domain:       loginDomain,
-		space:        loginSpace,
-		project:      loginProject,
-		noBrowser:    loginNoBrowser,
-		callbackPort: loginCallbackPort,
-		timeout:      loginTimeout,
-	}
-	
-	// 設定ファイルからの補完
-	if opts.domain == "" {
-		opts.domain = cfg.Client.Default.Domain
-	}
-	if opts.space == "" {
-		opts.space = cfg.Client.Default.Space
-	}
-	if opts.callbackPort == 0 {
-		opts.callbackPort = cfg.Client.Auth.CallbackPort
-	}
-	if opts.timeout == 0 {
-		opts.timeout = cfg.Client.Auth.Timeout
-	}
-	if !opts.noBrowser {
-		opts.noBrowser = cfg.Client.Auth.NoBrowser
-	}
-	
-	// デフォルト値
-	if opts.timeout == 0 {
-		opts.timeout = 120
-	}
-	
-	return opts
 }
 ```
 
@@ -653,7 +689,7 @@ import (
 var logoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Log out from Backlog",
-	Long:  "Remove stored authentication credentials.",
+	Long:  "Remove saved authentication tokens.",
 	RunE:  runLogout,
 }
 
@@ -675,11 +711,15 @@ func runLogout(cmd *cobra.Command, args []string) error {
 	}
 	
 	if logoutAll {
+		// 全アカウントからログアウト
+		count := len(cfg.Client.Credentials)
 		cfg.Client.Credentials = make(map[string]config.Credential)
+		
 		if err := config.Save(cfg); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
-		fmt.Println("✓ Logged out from all accounts")
+		
+		fmt.Printf("✓ Logged out from %d account(s)\n", count)
 		return nil
 	}
 	
@@ -689,23 +729,23 @@ func runLogout(cmd *cobra.Command, args []string) error {
 		hosts = append(hosts, host)
 	}
 	
-	var host string
+	var hostToRemove string
 	if len(hosts) == 1 {
-		host = hosts[0]
+		hostToRemove = hosts[0]
 	} else {
-		host, err = ui.Select("Select account to log out:", hosts)
+		hostToRemove, err = ui.Select("Select account to log out:", hosts)
 		if err != nil {
 			return err
 		}
 	}
 	
-	delete(cfg.Client.Credentials, host)
+	delete(cfg.Client.Credentials, hostToRemove)
 	
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	
-	fmt.Printf("✓ Logged out from %s\n", host)
+	fmt.Printf("✓ Logged out from %s\n", hostToRemove)
 	return nil
 }
 ```
@@ -719,10 +759,12 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yourorg/backlog-cli/internal/config"
+	"github.com/yourorg/backlog-cli/internal/ui"
 )
 
 var statusCmd = &cobra.Command{
@@ -738,31 +780,32 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 	
 	if len(cfg.Client.Credentials) == 0 {
-		fmt.Println("Not logged in to any account")
-		fmt.Println()
-		fmt.Println("Run 'backlog auth login' to authenticate")
+		fmt.Println("Not logged in")
+		fmt.Println("\nRun 'backlog auth login' to authenticate")
 		return nil
 	}
 	
-	fmt.Println("Authenticated accounts:")
-	fmt.Println()
+	table := ui.NewTable("HOST", "USER", "STATUS", "EXPIRES")
 	
 	for host, cred := range cfg.Client.Credentials {
-		fmt.Printf("  %s\n", host)
-		if cred.UserName != "" {
-			fmt.Printf("    User: %s\n", cred.UserName)
+		status := "Active"
+		expires := cred.ExpiresAt.Format("2006-01-02 15:04")
+		
+		if time.Now().After(cred.ExpiresAt) {
+			status = "Expired"
+		} else if time.Until(cred.ExpiresAt) < 10*time.Minute {
+			status = "Expiring soon"
 		}
 		
-		if cred.ExpiresAt.IsZero() {
-			fmt.Println("    Token: valid")
-		} else if time.Now().After(cred.ExpiresAt) {
-			fmt.Println("    Token: expired (will refresh on next request)")
-		} else {
-			remaining := time.Until(cred.ExpiresAt).Round(time.Minute)
-			fmt.Printf("    Token: valid (expires in %s)\n", remaining)
+		user := cred.UserName
+		if user == "" {
+			user = cred.UserID
 		}
-		fmt.Println()
+		
+		table.AddRow(host, user, status, expires)
 	}
+	
+	table.Render(os.Stdout)
 	
 	return nil
 }
@@ -779,7 +822,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/yourorg/backlog-cli/internal/auth"
+	authpkg "github.com/yourorg/backlog-cli/internal/auth"
 	"github.com/yourorg/backlog-cli/internal/config"
 )
 
@@ -788,8 +831,8 @@ var setupCmd = &cobra.Command{
 	Short: "Configure relay server",
 	Long: `Configure the OAuth relay server URL.
 
-The relay server handles OAuth authentication, keeping the client_id
-and client_secret secure on the server side.
+The relay server handles OAuth authentication, keeping your
+client_id and client_secret secure.
 
 Example:
   backlog auth setup https://relay.example.com`,
@@ -800,23 +843,14 @@ Example:
 func runSetup(cmd *cobra.Command, args []string) error {
 	relayServer := args[0]
 	
-	// well-known を取得して確認
-	fmt.Printf("Fetching relay server information from %s...\n", relayServer)
-	
-	client := auth.NewClient(relayServer)
-	meta, err := client.FetchWellKnown()
+	// 中継サーバーの確認
+	client := authpkg.NewClient(relayServer)
+	wellKnown, err := client.FetchWellKnown()
 	if err != nil {
-		return fmt.Errorf("failed to connect to relay server: %w", err)
+		return fmt.Errorf("failed to connect to relay server: %w\nMake sure the URL is correct and the server is running", err)
 	}
 	
-	fmt.Println()
-	fmt.Printf("✓ Relay server: %s\n", relayServer)
-	if meta.Name != "" {
-		fmt.Printf("✓ Name: %s\n", meta.Name)
-	}
-	fmt.Printf("✓ Supported domains: %v\n", meta.SupportedDomains)
-	
-	// 設定に保存
+	// 設定を保存
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -828,18 +862,42 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	
-	fmt.Println()
-	fmt.Println("✓ Configuration saved")
-	fmt.Println()
-	fmt.Println("Run 'backlog auth login' to authenticate")
+	fmt.Printf("✓ Relay server configured: %s\n", relayServer)
+	fmt.Printf("  Supported domains: %v\n", wellKnown.SupportedDomains)
+	fmt.Println("\nRun 'backlog auth login' to authenticate")
 	
 	return nil
 }
 ```
 
-## 8. 最小限のAPIクライアント
+## 8. サブコマンド登録
 
-### internal/api/client.go (一部)
+### internal/cmd/auth/auth.go (更新)
+
+```go
+package auth
+
+import (
+	"github.com/spf13/cobra"
+)
+
+var AuthCmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Authenticate with Backlog",
+	Long:  "Manage authentication state for Backlog CLI.",
+}
+
+func init() {
+	AuthCmd.AddCommand(loginCmd)
+	AuthCmd.AddCommand(logoutCmd)
+	AuthCmd.AddCommand(statusCmd)
+	AuthCmd.AddCommand(setupCmd)
+}
+```
+
+## 9. 最小限のAPIクライアント（確認用）
+
+### internal/api/client.go (最小版)
 
 ```go
 package api
@@ -853,38 +911,9 @@ import (
 
 // Client は Backlog API クライアント
 type Client struct {
-	space       string
-	domain      string
+	baseURL     string
 	accessToken string
 	httpClient  *http.Client
-}
-
-// NewClient は新しいクライアントを作成する
-func NewClient(space, domain, accessToken string) *Client {
-	return &Client{
-		space:       space,
-		domain:      domain,
-		accessToken: accessToken,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
-}
-
-func (c *Client) baseURL() string {
-	return fmt.Sprintf("https://%s.%s/api/v2", c.space, c.domain)
-}
-
-func (c *Client) doRequest(method, path string, body interface{}) (*http.Response, error) {
-	req, err := http.NewRequest(method, c.baseURL()+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	
-	req.Header.Set("Authorization", "Bearer "+c.accessToken)
-	req.Header.Set("Content-Type", "application/json")
-	
-	return c.httpClient.Do(req)
 }
 
 // User はユーザー情報
@@ -892,21 +921,38 @@ type User struct {
 	ID          int    `json:"id"`
 	UserID      string `json:"userId"`
 	Name        string `json:"name"`
-	RoleType    int    `json:"roleType"`
-	Lang        string `json:"lang"`
 	MailAddress string `json:"mailAddress"`
+	RoleType    int    `json:"roleType"`
 }
 
-// GetCurrentUser は認証ユーザーの情報を取得する
+// NewClient は新しいAPIクライアントを作成する
+func NewClient(space, domain, accessToken string) *Client {
+	return &Client{
+		baseURL:     fmt.Sprintf("https://%s.%s/api/v2", space, domain),
+		accessToken: accessToken,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// GetCurrentUser は現在のユーザー情報を取得する
 func (c *Client) GetCurrentUser() (*User, error) {
-	resp, err := c.doRequest("GET", "/users/myself", nil)
+	req, err := http.NewRequest("GET", c.baseURL+"/users/myself", nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 	
 	var user User
@@ -916,45 +962,19 @@ func (c *Client) GetCurrentUser() (*User, error) {
 	
 	return &user, nil
 }
-
-// Project はプロジェクト情報
-type Project struct {
-	ID         int    `json:"id"`
-	ProjectKey string `json:"projectKey"`
-	Name       string `json:"name"`
-}
-
-// GetProjects はプロジェクト一覧を取得する
-func (c *Client) GetProjects() ([]Project, error) {
-	resp, err := c.doRequest("GET", "/projects", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-	
-	var projects []Project
-	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
-		return nil, err
-	}
-	
-	return projects, nil
-}
 ```
 
 ## 完了条件
 
-- [ ] `backlog auth setup <url>` で中継サーバーが設定できる
-- [ ] `backlog auth login` でブラウザが開き、認証できる
-- [ ] `--no-browser` オプションでURLのみ表示できる
-- [ ] `--callback-port` でポートを固定できる
-- [ ] 対話的にドメイン選択、スペース入力ができる
-- [ ] 初回ログイン時にプロジェクト選択ができる
+- [ ] `backlog auth setup <url>` で中継サーバーを設定できる
+- [ ] `backlog auth login` で対話的にログインできる
+- [ ] ブラウザが自動で開く
+- [ ] ローカルサーバーが `/auth/start` で中継サーバーへリダイレクトする
+- [ ] `/callback` でstate検証が行われる
+- [ ] トークンが設定ファイルに保存される
 - [ ] `backlog auth status` で認証状態が表示される
 - [ ] `backlog auth logout` でログアウトできる
+- [ ] Cookie を一切使用していない
 
 ## 次のステップ
 

@@ -3,11 +3,28 @@
 ## 目標
 
 - 中継サーバーの基本構造
-- JWT Cookie による状態管理
+- 署名付きstate による状態管理（Cookie不使用）
 - `/auth/start` - 認可開始
 - `/auth/callback` - コールバック受信
 - `/auth/token` - トークン取得・更新
-- `/.well-known/backlog-oauth-relay` - メタ情報
+- `/.well-known/bl-relay` - メタ情報
+
+## 設計変更のポイント
+
+従来のCookie方式から、署名付きstate方式に変更しました。
+
+| 項目 | 旧方式 | 新方式 |
+|------|--------|--------|
+| state管理 | Cookie | 署名付きstate |
+| state生成 | 中継サーバー | CLI（ローカルサーバー） |
+| state検証 | 中継サーバー | CLI（ローカルサーバー） |
+| 中継サーバーの状態 | Cookie依存 | 完全ステートレス |
+
+### メリット
+
+- サードパーティCookie制限の影響を受けない
+- 中継サーバーが完全にステートレスになる
+- 将来のPKCE実装が容易
 
 ## 1. サーバー構造
 
@@ -30,18 +47,21 @@ import (
 type Server struct {
 	cfg          *config.ServerConfig
 	httpServer   *http.Server
-	cookieSecret []byte
+	stateSecret  []byte
 }
 
 // NewServer は新しいサーバーを作成する
 func NewServer(cfg *config.ServerConfig) (*Server, error) {
 	if cfg.Cookie.Secret == "" {
-		return nil, fmt.Errorf("cookie secret is required")
+		return nil, fmt.Errorf("state signing secret is required")
+	}
+	if len(cfg.Cookie.Secret) < 32 {
+		return nil, fmt.Errorf("state signing secret must be at least 32 bytes")
 	}
 	
 	return &Server{
-		cfg:          cfg,
-		cookieSecret: []byte(cfg.Cookie.Secret),
+		cfg:         cfg,
+		stateSecret: []byte(cfg.Cookie.Secret),
 	}, nil
 }
 
@@ -51,7 +71,7 @@ func (s *Server) Start() error {
 	
 	// エンドポイント登録
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.HandleFunc("GET /.well-known/backlog-oauth-relay", s.handleWellKnown)
+	mux.HandleFunc("GET /.well-known/bl-relay", s.handleWellKnown)
 	mux.HandleFunc("GET /auth/start", s.handleAuthStart)
 	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	mux.HandleFunc("POST /auth/token", s.handleAuthToken)
@@ -85,71 +105,105 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-## 2. JWT Cookie
+## 2. 署名付きstate
 
-### internal/relay/jwt.go
+### internal/relay/state.go
 
 ```go
 package relay
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// OAuthSessionClaims はOAuthセッションのJWTクレーム
-type OAuthSessionClaims struct {
-	Port    int    `json:"port"`
-	State   string `json:"state"`
-	Domain  string `json:"domain"`
-	Space   string `json:"space"`
-	Project string `json:"project,omitempty"`
-	jwt.RegisteredClaims
+// StatePayload は署名付きstateのペイロード
+type StatePayload struct {
+	Port     int    `json:"port"`
+	CLIState string `json:"cli_state"`
+	Space    string `json:"space"`
+	Domain   string `json:"domain"`
+	Exp      int64  `json:"exp"`
 }
 
 const (
-	cookieName   = "oauth_session"
-	cookieMaxAge = 5 * 60 // 5分
+	stateMaxAge = 5 * 60 // 5分
 )
 
-// createSessionToken はセッショントークンを作成する
-func (s *Server) createSessionToken(port int, state, domain, space, project string) (string, error) {
-	claims := OAuthSessionClaims{
-		Port:    port,
-		State:   state,
-		Domain:  domain,
-		Space:   space,
-		Project: project,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.cfg.Cookie.MaxAge) * time.Second)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
+// createSignedState は署名付きstateを作成する
+func (s *Server) createSignedState(port int, cliState, space, domain string) (string, error) {
+	payload := StatePayload{
+		Port:     port,
+		CLIState: cliState,
+		Space:    space,
+		Domain:   domain,
+		Exp:      time.Now().Add(time.Duration(stateMaxAge) * time.Second).Unix(),
 	}
 	
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(s.cookieSecret)
+	// ペイロードをJSON化
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	
+	// Base64エンコード
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	
+	// HMAC署名
+	mac := hmac.New(sha256.New, s.stateSecret)
+	mac.Write([]byte(payloadB64))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	
+	// "payload.signature" 形式で返す
+	return payloadB64 + "." + signature, nil
 }
 
-// parseSessionToken はセッショントークンを検証・パースする
-func (s *Server) parseSessionToken(tokenString string) (*OAuthSessionClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &OAuthSessionClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+// parseSignedState は署名付きstateを検証・パースする
+func (s *Server) parseSignedState(signedState string) (*StatePayload, error) {
+	// "payload.signature" を分離
+	var payloadB64, signature string
+	for i := len(signedState) - 1; i >= 0; i-- {
+		if signedState[i] == '.' {
+			payloadB64 = signedState[:i]
+			signature = signedState[i+1:]
+			break
 		}
-		return s.cookieSecret, nil
-	})
+	}
 	
+	if payloadB64 == "" || signature == "" {
+		return nil, fmt.Errorf("invalid state format")
+	}
+	
+	// 署名検証
+	mac := hmac.New(sha256.New, s.stateSecret)
+	mac.Write([]byte(payloadB64))
+	expectedSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	
+	if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+		return nil, fmt.Errorf("invalid signature")
+	}
+	
+	// ペイロードをデコード
+	payloadJSON, err := base64.RawURLEncoding.DecodeString(payloadB64)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode payload: %w", err)
 	}
 	
-	if claims, ok := token.Claims.(*OAuthSessionClaims); ok && token.Valid {
-		return claims, nil
+	var payload StatePayload
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 	
-	return nil, fmt.Errorf("invalid token")
+	// 有効期限チェック
+	if time.Now().Unix() > payload.Exp {
+		return nil, fmt.Errorf("state expired")
+	}
+	
+	return &payload, nil
 }
 ```
 
@@ -165,7 +219,7 @@ import (
 	"net/http"
 )
 
-// WellKnownResponse は /.well-known/backlog-oauth-relay のレスポンス
+// WellKnownResponse は /.well-known/bl-relay のレスポンス
 type WellKnownResponse struct {
 	Version          string   `json:"version"`
 	Name             string   `json:"name,omitempty"`
@@ -199,13 +253,13 @@ func (s *Server) handleWellKnown(w http.ResponseWriter, r *http.Request) {
 package relay
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/yourorg/backlog-cli/internal/config"
 )
 
 // ErrorResponse はエラーレスポンス
@@ -224,15 +278,15 @@ func (s *Server) writeError(w http.ResponseWriter, status int, err, desc string)
 }
 
 func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
-	// パラメータ取得
+	// パラメータ取得（CLIローカルサーバーから送られてくる）
 	domain := r.URL.Query().Get("domain")
 	space := r.URL.Query().Get("space")
 	portStr := r.URL.Query().Get("port")
-	project := r.URL.Query().Get("project")
+	cliState := r.URL.Query().Get("state") // CLIが生成したstate
 	
 	// バリデーション
-	if domain == "" || space == "" || portStr == "" {
-		s.writeError(w, http.StatusBadRequest, "invalid_request", "domain, space, and port are required")
+	if domain == "" || space == "" || portStr == "" || cliState == "" {
+		s.writeError(w, http.StatusBadRequest, "invalid_request", "domain, space, port, and state are required")
 		return
 	}
 	
@@ -249,30 +303,12 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// state生成
-	state, err := generateState()
+	// 署名付きstateを生成（port, cliState, space, domainを含む）
+	signedState, err := s.createSignedState(port, cliState, space, domain)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to generate state")
+		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to create state")
 		return
 	}
-	
-	// JWTトークン作成
-	token, err := s.createSessionToken(port, state, domain, space, project)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to create session")
-		return
-	}
-	
-	// Cookie設定
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    token,
-		Path:     "/auth",
-		MaxAge:   s.cfg.Cookie.MaxAge,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	})
 	
 	// Backlog認可URLを構築
 	redirectURI := s.buildCallbackURL()
@@ -281,10 +317,10 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		domain,
 		url.QueryEscape(backlogCfg.ClientID),
 		url.QueryEscape(redirectURI),
-		url.QueryEscape(state),
+		url.QueryEscape(signedState),
 	)
 	
-	// リダイレクト
+	// Backlogへリダイレクト
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
@@ -304,14 +340,6 @@ func (s *Server) buildCallbackURL() string {
 	// デフォルト（開発用）
 	return fmt.Sprintf("http://localhost:%d/auth/callback", s.cfg.Port)
 }
-
-func generateState() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
 ```
 
 ## 5. コールバック (/auth/callback)
@@ -322,7 +350,7 @@ func generateState() (string, error) {
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// パラメータ取得
 	code := r.URL.Query().Get("code")
-	state := r.URL.Query().Get("state")
+	signedState := r.URL.Query().Get("state")
 	errorParam := r.URL.Query().Get("error")
 	
 	// Backlogからのエラー
@@ -332,44 +360,28 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	if code == "" || state == "" {
+	if code == "" || signedState == "" {
 		s.renderErrorPage(w, "Invalid Request", "Missing code or state parameter")
 		return
 	}
 	
-	// Cookie取得
-	cookie, err := r.Cookie(cookieName)
+	// 署名付きstateを検証・パース
+	payload, err := s.parseSignedState(signedState)
 	if err != nil {
-		s.renderErrorPage(w, "Session Expired", "Please try logging in again")
+		if err.Error() == "state expired" {
+			s.renderErrorPage(w, "Session Expired", "Please try logging in again")
+		} else {
+			s.renderErrorPage(w, "Security Error", "Invalid state parameter")
+		}
 		return
 	}
 	
-	// JWT検証
-	claims, err := s.parseSessionToken(cookie.Value)
-	if err != nil {
-		s.renderErrorPage(w, "Session Invalid", "Please try logging in again")
-		return
-	}
-	
-	// state検証
-	if claims.State != state {
-		s.renderErrorPage(w, "Security Error", "State mismatch detected")
-		return
-	}
-	
-	// Cookie削除
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/auth",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	
-	// CLIローカルサーバーへリダイレクト
-	localURL := fmt.Sprintf("http://localhost:%d/callback?code=%s", claims.Port, url.QueryEscape(code))
+	// CLIローカルサーバーへリダイレクト（元のcliStateを返す）
+	localURL := fmt.Sprintf("http://localhost:%d/callback?code=%s&state=%s",
+		payload.Port,
+		url.QueryEscape(code),
+		url.QueryEscape(payload.CLIState),
+	)
 	http.Redirect(w, r, localURL, http.StatusFound)
 }
 
@@ -394,7 +406,6 @@ func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 
 ```go
 import (
-	"bytes"
 	"io"
 )
 
@@ -526,6 +537,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yourorg/backlog-cli/internal/config"
@@ -538,7 +550,10 @@ var ServeCmd = &cobra.Command{
 	Long: `Start the OAuth relay server for Backlog CLI authentication.
 
 The relay server handles OAuth 2.0 authentication flow, keeping the
-client_id and client_secret secure on the server side.`,
+client_id and client_secret secure on the server side.
+
+This server is completely stateless - it does not use cookies or
+store any session data.`,
 	RunE: runServe,
 }
 
@@ -598,19 +613,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 }
 ```
 
-### internal/cmd/root.go に追加
-
-```go
-import (
-	"github.com/yourorg/backlog-cli/internal/cmd/serve"
-)
-
-func init() {
-	// ...
-	rootCmd.AddCommand(serve.ServeCmd)
-}
-```
-
 ## 8. 動作確認手順
 
 ### 設定ファイル準備 (テスト用)
@@ -621,7 +623,7 @@ server:
   port: 8080
   base_url: "http://localhost:8080"
   cookie:
-    secret: "your-32-byte-secret-key-here!!"
+    secret: "your-32-byte-secret-key-here!!"  # 署名用シークレット
   backlog:
     - domain: "backlog.jp"
       client_id: "YOUR_CLIENT_ID"
@@ -642,21 +644,21 @@ make dev
 curl http://localhost:8080/health
 
 # Well-known
-curl http://localhost:8080/.well-known/backlog-oauth-relay
+curl http://localhost:8080/.well-known/bl-relay
 
-# 認可開始（ブラウザで開く）
-# http://localhost:8080/auth/start?domain=backlog.jp&space=your-space&port=12345
+# 認可開始（CLIローカルサーバーからリダイレクトされる想定）
+# http://localhost:8080/auth/start?domain=backlog.jp&space=your-space&port=12345&state=random-state
 ```
 
 ## 完了条件
 
 - [ ] `backlog serve` でサーバーが起動する
 - [ ] `/health` が 200 OK を返す
-- [ ] `/.well-known/backlog-oauth-relay` がサポートドメインを返す
-- [ ] `/auth/start` が Backlog 認可画面にリダイレクトする
-- [ ] `/auth/callback` が state 検証後、CLI にリダイレクトする
+- [ ] `/.well-known/bl-relay` がサポートドメインを返す
+- [ ] `/auth/start` が署名付きstateを生成し、Backlog認可画面にリダイレクトする
+- [ ] `/auth/callback` が署名を検証し、CLIローカルサーバーにリダイレクトする
 - [ ] `/auth/token` がトークン交換・更新できる
-- [ ] Cookie が JWT 形式で署名されている
+- [ ] Cookieを一切使用していない（ステートレス）
 
 ## 次のステップ
 

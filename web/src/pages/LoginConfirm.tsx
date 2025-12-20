@@ -1,34 +1,39 @@
-import {useEffect, useRef, useState} from 'react'
-import {Navigate, useNavigate} from 'react-router-dom'
-import Button from '../components/Button'
-import Container from '../components/Container'
-import InfoBox from '../components/InfoBox'
-import ResultView, {type ResultType} from '../components/ResultView'
-import StatusIndicator from '../components/StatusIndicator'
-import {useAuthContext} from '../context/AuthContext'
-import {useWebSocketContext} from '../context/WebSocketContext'
-import {openPopupCentered} from '../utils/popup'
+import { useEffect, useRef, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import Button from "../components/Button";
+import Container from "../components/Container";
+import InfoBox from "../components/InfoBox";
+import ResultView, { type ResultType } from "../components/ResultView";
+import StatusIndicator from "../components/StatusIndicator";
+import { useAuthContext } from "../context/AuthContext";
+import { useWebSocketContext } from "../context/WebSocketContext";
+import { openPopupCentered } from "../utils/popup";
 
 export default function LoginConfirm() {
-  const navigate = useNavigate()
-  const {loading, error, data} = useAuthContext()
-  const {status, error: wsError, disconnect} = useWebSocketContext()
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
-  const [popupMessage, setPopupMessage] = useState<string | null>(null)
-  const [forcedResult, setForcedResult] = useState<ResultType | null>(null)
-  const popupCheckRef = useRef<number | null>(null)
+  const navigate = useNavigate();
+  const { loading, error, data } = useAuthContext();
+  const { status, error: wsError, disconnect } = useWebSocketContext();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const [forcedResult, setForcedResult] = useState<ResultType | null>(null);
+  const popupCheckRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (status === 'success' || status === 'error' || status === 'closed' || forcedResult) {
+    if (
+      status === "success" ||
+      status === "error" ||
+      status === "closed" ||
+      forcedResult
+    ) {
       if (popupCheckRef.current) {
-        window.clearInterval(popupCheckRef.current)
-        popupCheckRef.current = null
+        window.clearInterval(popupCheckRef.current);
+        popupCheckRef.current = null;
       }
     }
-  }, [status, forcedResult])
+  }, [status, forcedResult]);
 
   if (!loading && data && !data.configured) {
-    return <Navigate to="/auth/setup" replace />
+    return <Navigate to="/auth/setup" replace />;
   }
 
   if (forcedResult) {
@@ -38,73 +43,77 @@ export default function LoginConfirm() {
           <ResultView type={forcedResult} message={popupMessage || undefined} />
         </Container>
       </main>
-    )
+    );
   }
 
-  if (status === 'success') {
+  if (status === "success") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="success" />
         </Container>
       </main>
-    )
+    );
   }
 
-  if (status === 'error') {
+  if (status === "error") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="error" message={wsError || undefined} />
         </Container>
       </main>
-    )
+    );
   }
 
-  if (status === 'closed') {
+  if (status === "closed") {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
           <ResultView type="closed" />
         </Container>
       </main>
-    )
+    );
   }
 
   const handleLogin = () => {
-    setPopupMessage(null)
-    setIsLoggingIn(true)
+    setPopupMessage(null);
+    setIsLoggingIn(true);
 
-    const popup = openPopupCentered('/auth/popup', 'backlog_auth', 600, 700)
+    const popup = openPopupCentered("/auth/popup", "backlog_auth", 600, 700);
 
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      setPopupMessage('ポップアップがブロックされました。ポップアップを許可してください。')
-      setIsLoggingIn(false)
-      return
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      setPopupMessage(
+        "ポップアップがブロックされました。ポップアップを許可してください。",
+      );
+      setIsLoggingIn(false);
+      return;
     }
 
-    setPopupMessage('ポップアップで認証を進めてください...')
+    setPopupMessage("ポップアップで認証を進めてください...");
 
     popupCheckRef.current = window.setInterval(() => {
-      if (status !== 'connecting' && status !== 'connected') {
+      if (status !== "connecting" && status !== "connected") {
         if (popupCheckRef.current) {
-          window.clearInterval(popupCheckRef.current)
-          popupCheckRef.current = null
+          window.clearInterval(popupCheckRef.current);
+          popupCheckRef.current = null;
         }
-        return
+        return;
       }
 
       if (popup.closed) {
         if (popupCheckRef.current) {
-          window.clearInterval(popupCheckRef.current)
-          popupCheckRef.current = null
+          window.clearInterval(popupCheckRef.current);
+          popupCheckRef.current = null;
         }
-        disconnect()
-        setForcedResult('error')
-        setPopupMessage('認証がキャンセルされました。ポップアップが閉じられました。')
+        disconnect();
+        setForcedResult("error");
+        setPopupMessage(
+          "認証がキャンセルされました。ポップアップが閉じられました。",
+        );
       }
-    }, 1000)
-  }
+    }, 1000);
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
@@ -116,7 +125,8 @@ export default function LoginConfirm() {
             </p>
             <h1 className="text-3xl font-semibold text-ink">ログイン</h1>
             <p className="text-sm text-ink/70">
-              Backlog CLI がターミナルからの操作で Backlog API にアクセスするための認証を行います。
+              Backlog CLI がターミナルからの操作で Backlog API
+              にアクセスするための認証を行います。
             </p>
           </header>
 
@@ -135,11 +145,11 @@ export default function LoginConfirm() {
           <div className="space-y-3">
             <InfoBox
               label="スペース"
-              value={data ? `${data.space}.${data.domain}` : '読み込み中...'}
+              value={data ? `${data.space}.${data.domain}` : "読み込み中..."}
             />
             <InfoBox
               label="リレーサーバー"
-              value={data ? data.relayServer : '読み込み中...'}
+              value={data ? data.relayServer : "読み込み中..."}
             />
           </div>
 
@@ -148,21 +158,27 @@ export default function LoginConfirm() {
               variant="secondary"
               type="button"
               onClick={() => {
-                navigate('/auth/setup')
+                navigate("/auth/setup");
               }}
             >
               設定を変更
             </Button>
-            <Button type="button" onClick={handleLogin} disabled={isLoggingIn || loading}>
+            <Button
+              type="button"
+              onClick={handleLogin}
+              disabled={isLoggingIn || loading}
+            >
               ログインする
             </Button>
           </div>
 
           {isLoggingIn ? (
-            <StatusIndicator message={popupMessage || 'ログイン画面を開いています...'} />
+            <StatusIndicator
+              message={popupMessage || "ログイン画面を開いています..."}
+            />
           ) : null}
         </div>
       </Container>
     </main>
-  )
+  );
 }

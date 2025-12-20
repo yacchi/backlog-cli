@@ -641,7 +641,7 @@ func (s *Server) Start() error {
 	
 	// エンドポイント登録
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.HandleFunc("GET /.well-known/backlog-oauth-relay", s.handleWellKnown)
+	mux.HandleFunc("GET /.well-known/bl-relay", s.handleWellKnown)
 	mux.HandleFunc("GET /auth/start", s.handleAuthStart)
 	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	mux.HandleFunc("POST /auth/token", s.handleAuthToken)

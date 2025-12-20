@@ -1,0 +1,11 @@
+[copy]
+    include = docs/**
+    include = **/.env
+    include = .backlog.yaml
+    include = go.work*
+    include = verification_targets.txt
+    include = deploy/aws-cdk/config.ts
+    include = .claude/settings.local.json
+
+[worktrees]
+    dir = .worktrees

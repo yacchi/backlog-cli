@@ -8,10 +8,10 @@ import (
 
 // EncodedStateClaims はエンコードされた state の構造
 type EncodedStateClaims struct {
-	Port     int    `json:"p"`          // CLI のローカルサーバーポート
-	CLIState string `json:"s"`          // CLI が生成した state
-	Space    string `json:"sp"`         // Backlog スペース名
-	Domain   string `json:"d"`          // Backlog ドメイン
+	Port     int    `json:"p"`            // CLI のローカルサーバーポート
+	CLIState string `json:"s"`            // CLI が生成した state
+	Space    string `json:"sp"`           // Backlog スペース名
+	Domain   string `json:"d"`            // Backlog ドメイン
 	Project  string `json:"pr,omitempty"` // プロジェクト（オプション）
 }
 

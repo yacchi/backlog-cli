@@ -1,8 +1,8 @@
-import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom'
-import {AuthProvider} from './context/AuthContext'
-import {WebSocketProvider} from './context/WebSocketContext'
-import LoginConfirm from './pages/LoginConfirm'
-import LoginSetup from './pages/LoginSetup'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import { WebSocketProvider } from "./context/WebSocketContext";
+import LoginConfirm from "./pages/LoginConfirm";
+import LoginSetup from "./pages/LoginSetup";
 
 export default function App() {
   return (
@@ -17,5 +17,5 @@ export default function App() {
         </BrowserRouter>
       </WebSocketProvider>
     </AuthProvider>
-  )
+  );
 }

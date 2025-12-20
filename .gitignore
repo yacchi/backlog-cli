@@ -29,6 +29,8 @@ config.yaml
 .backlog.yml
 verification_targets.txt
 
+/.worktrees/
+
 # Frontend
 web/node_modules/
 internal/ui/dist/

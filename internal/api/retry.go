@@ -42,7 +42,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// 待機時間を決定
 		waitDuration := t.getWaitDuration(resp)
-		
+
 		// 待機してリトライ
 		select {
 		case <-req.Context().Done():

@@ -2,12 +2,10 @@
 
 ## 目標
 
-- レイヤードアーキテクチャによる設定管理
-- 複数プロファイルのサポート
+- 統一設定ファイルの構造定義
 - embed によるデフォルト値
 - ファイル、環境変数からの読み込み
 - プロジェクトローカル設定 (.backlog.yaml) のサポート
-- 認証情報の別ファイル管理
 - 設定のマージと解決
 
 ## 1. 設定ファイル構造
@@ -15,8 +13,7 @@
 ### ~/.config/backlog/config.yaml
 
 ```yaml
-# プロファイル設定（複数定義可能）
-profile:
+client:
   default:
     relay_server: ""
     space: ""
@@ -26,333 +23,186 @@ profile:
     color: "auto"
     editor: ""
     browser: ""
-    auth_callback_port: 0
-    auth_timeout: 120
-    auth_no_browser: false
-    http_timeout: 30
-    http_token_refresh_margin: 300
+  
+  auth:
+    callback_port: 0
+    timeout: 120
+    no_browser: false
+  
+  projects: {}
+  
+  credentials: {}
 
-  # 追加プロファイル例
-  work:
-    relay_server: "https://relay.company.com"
-    space: "mycompany"
-    domain: "backlog.jp"
-
-# サーバー設定（中継サーバー用）
 server:
   host: "0.0.0.0"
   port: 8080
   base_url: ""
-  http:
-    read_timeout: 10
-    write_timeout: 30
-    idle_timeout: 60
+  
   cookie:
     secret: ""
     max_age: 300
-  jwt:
-    expiry: 3600
-  rate_limit:
-    enabled: false
-    requests_per_minute: 60
-    burst: 10
-    cleanup_interval: 300
-    entry_ttl: 600
+  
+  backlog: []
+  
+  access_control:
+    allowed_projects: []
+    allowed_spaces: []
+    allowed_cidrs: []
+  
   audit:
-    enabled: false
+    enabled: true
     output: "stdout"
     file_path: ""
     webhook_url: ""
-    webhook_timeout: 10
-  access_control:
-    allowed_spaces: []
-    allowed_projects: []
-    allowed_cidrs: []
-  backlog:
-    - domain: "backlog.jp"
-      client_id: ""
-      client_secret: ""
-
-# 表示設定
-display:
-  summary_max_length: 50
-  default_comment_count: 10
-  default_issue_limit: 20
-  timezone: ""
-  date_format: "2006-01-02"
-  datetime_format: "2006-01-02 15:04"
-  hyperlink: true
-  issue_list_fields:
-    - key
-    - status
-    - priority
-    - assignee
-    - summary
-  pr_list_fields:
-    - number
-    - status
-    - author
-    - branch
-    - summary
 ```
 
-### ~/.config/backlog/credentials/{profile}.yaml
-
-認証情報はプロファイルごとに別ファイルで管理：
-
-```yaml
-auth_type: oauth  # oauth または apikey
-access_token: "..."
-refresh_token: "..."
-expires_at: "2025-01-01T00:00:00Z"
-user_id: "123"
-user_name: "John Doe"
-
-# API Key認証の場合
-# auth_type: apikey
-# api_key: "..."
-```
-
-## 2. レイヤードアーキテクチャ
-
-設定は以下の優先順位でマージされる（低→高）：
-
-1. **LayerDefaults** - 内蔵デフォルト値（embed）
-2. **LayerUser** - ~/.config/backlog/config.yaml
-3. **LayerProject** - .backlog.yaml（カレントディレクトリから上位を検索）
-4. **LayerEnv** - 環境変数（BACKLOG_*）
-5. **LayerCredentials** - ~/.config/backlog/credentials/{profile}.yaml
-6. **LayerArgs** - コマンドライン引数（最優先）
-
-## 3. 設定構造体
+## 2. 設定構造体
 
 ### internal/config/config.go
 
 ```go
 package config
 
-import "time"
-
-// DefaultProfile はデフォルトのプロファイル名
-const DefaultProfile = "default"
-
-// ConfigKey は設定のキー名
-type ConfigKey string
-
-// 設定キー定数
-const (
-	KeyRelayServer            ConfigKey = "profile.default.relay_server"
-	KeySpace                  ConfigKey = "profile.default.space"
-	KeyDomain                 ConfigKey = "profile.default.domain"
-	KeyProject                ConfigKey = "profile.default.project"
-	KeyOutput                 ConfigKey = "profile.default.output"
-	KeyColor                  ConfigKey = "profile.default.color"
-	KeyEditor                 ConfigKey = "profile.default.editor"
-	KeyBrowser                ConfigKey = "profile.default.browser"
-	KeyAuthCallbackPort       ConfigKey = "profile.default.auth_callback_port"
-	KeyAuthTimeout            ConfigKey = "profile.default.auth_timeout"
-	KeyAuthNoBrowser          ConfigKey = "profile.default.auth_no_browser"
-	KeyHTTPTimeout            ConfigKey = "profile.default.http_timeout"
-	KeyHTTPTokenRefreshMargin ConfigKey = "profile.default.http_token_refresh_margin"
-	// ... 他のキー
+import (
+	"time"
 )
 
-// 環境変数キー定数
-const (
-	EnvBacklogProfile     = "BACKLOG_PROFILE"
-	EnvBacklogRelayServer = "BACKLOG_RELAY_SERVER"
-	EnvBacklogSpace       = "BACKLOG_SPACE"
-	EnvBacklogDomain      = "BACKLOG_DOMAIN"
-	EnvBacklogProject     = "BACKLOG_PROJECT"
-	// ... 他の環境変数
-)
-
-// Profile はプロファイル設定
-type Profile struct {
-	RelayServer            string `yaml:"relay_server,omitempty"`
-	Space                  string `yaml:"space,omitempty"`
-	Domain                 string `yaml:"domain,omitempty"`
-	Project                string `yaml:"project,omitempty"`
-	Output                 string `yaml:"output,omitempty"`
-	Color                  string `yaml:"color,omitempty"`
-	Editor                 string `yaml:"editor,omitempty"`
-	Browser                string `yaml:"browser,omitempty"`
-	AuthCallbackPort       int    `yaml:"auth_callback_port,omitempty"`
-	AuthTimeout            int    `yaml:"auth_timeout,omitempty"`
-	AuthNoBrowser          bool   `yaml:"auth_no_browser,omitempty"`
-	HTTPTimeout            int    `yaml:"http_timeout,omitempty"`
-	HTTPTokenRefreshMargin int    `yaml:"http_token_refresh_margin,omitempty"`
-}
-
-// AuthType は認証タイプ
-type AuthType string
-
-const (
-	AuthTypeOAuth  AuthType = "oauth"
-	AuthTypeAPIKey AuthType = "apikey"
-)
-
-// Credential は認証情報（別ファイル管理）
-type Credential struct {
-	AuthType     AuthType  `yaml:"auth_type,omitempty"`
-	AccessToken  string    `yaml:"access_token,omitempty"`
-	RefreshToken string    `yaml:"refresh_token,omitempty"`
-	ExpiresAt    time.Time `yaml:"expires_at,omitempty"`
-	APIKey       string    `yaml:"api_key,omitempty"`
-	UserID       string    `yaml:"user_id,omitempty"`
-	UserName     string    `yaml:"user_name,omitempty"`
-}
-
-// BacklogAppConfig はBacklogアプリケーション設定
-type BacklogAppConfig struct {
-	domain       string
-	clientID     string
-	clientSecret string
-}
-
-// FieldConfig はテーブル表示時のフィールド設定
-type FieldConfig struct {
-	header     string
-	maxWidth   int
-	timeFormat string
-}
-```
-
-### internal/config/store.go
-
-```go
-package config
-
-// LayerName はレイヤーの名前
-type LayerName string
-
-const (
-	LayerDefaults    LayerName = "defaults"
-	LayerUser        LayerName = "user"
-	LayerProject     LayerName = "project"
-	LayerEnv         LayerName = "env"
-	LayerCredentials LayerName = "credentials"
-	LayerArgs        LayerName = "args"
-)
-
-// Config は設定のレイヤー管理を行う
+// Config はアプリケーション全体の設定
 type Config struct {
-	layers            map[LayerName]map[string]any
-	layerOrder        []LayerName
-	data              *configData
-	projectConfigPath string
-	activeProfile     string
+	Client ClientConfig `yaml:"client"`
+	Server ServerConfig `yaml:"server"`
 }
 
-// NewConfig は新しいConfigを作成する
-func NewConfig() *Config {
-	return &Config{
-		layers: map[LayerName]map[string]any{
-			LayerDefaults:    make(map[string]any),
-			LayerUser:        make(map[string]any),
-			LayerProject:     make(map[string]any),
-			LayerEnv:         make(map[string]any),
-			LayerCredentials: make(map[string]any),
-			LayerArgs:        make(map[string]any),
-		},
-		layerOrder:    []LayerName{LayerDefaults, LayerUser, LayerProject, LayerEnv, LayerCredentials, LayerArgs},
-		activeProfile: DefaultProfile,
-	}
+// ClientConfig はCLIクライアントの設定
+type ClientConfig struct {
+	Default     ClientDefaultConfig            `yaml:"default"`
+	Auth        ClientAuthConfig               `yaml:"auth"`
+	Projects    map[string]ProjectOverride     `yaml:"projects"`
+	Credentials map[string]Credential          `yaml:"credentials"`
 }
 
-// LoadAll は全レイヤーを読み込む
-func (s *Config) LoadAll() error {
-	// 1. デフォルト値（embed）
-	// 2. ユーザー設定（~/.config/backlog/config.yaml）
-	// 3. プロジェクト設定（.backlog.yaml）
-	// 4. 環境変数
-	// 5. クレデンシャル（別ファイル）
-	// 6. 設定をマージしてmaterialize
-	return nil
+// ClientDefaultConfig はクライアントのデフォルト設定
+type ClientDefaultConfig struct {
+	RelayServer string `yaml:"relay_server" env:"BACKLOG_RELAY_SERVER"`
+	Space       string `yaml:"space" env:"BACKLOG_SPACE"`
+	Domain      string `yaml:"domain" env:"BACKLOG_DOMAIN"`
+	Project     string `yaml:"project" env:"BACKLOG_PROJECT"`
+	Output      string `yaml:"output" env:"BACKLOG_OUTPUT"`
+	Color       string `yaml:"color" env:"BACKLOG_COLOR"`
+	Editor      string `yaml:"editor" env:"BACKLOG_EDITOR"`
+	Browser     string `yaml:"browser" env:"BACKLOG_BROWSER"`
+}
+
+// ClientAuthConfig は認証関連の設定
+type ClientAuthConfig struct {
+	CallbackPort int           `yaml:"callback_port" env:"BACKLOG_CALLBACK_PORT"`
+	Timeout      int           `yaml:"timeout" env:"BACKLOG_AUTH_TIMEOUT"`
+	NoBrowser    bool          `yaml:"no_browser" env:"BACKLOG_NO_BROWSER"`
+}
+
+// ProjectOverride はプロジェクト固有の設定オーバーライド
+type ProjectOverride struct {
+	RelayServer string `yaml:"relay_server,omitempty"`
+	Space       string `yaml:"space,omitempty"`
+	Domain      string `yaml:"domain,omitempty"`
+}
+
+// Credential は認証情報
+type Credential struct {
+	AccessToken  string    `yaml:"access_token"`
+	RefreshToken string    `yaml:"refresh_token"`
+	ExpiresAt    time.Time `yaml:"expires_at"`
+	UserID       string    `yaml:"user_id"`
+	UserName     string    `yaml:"user_name"`
+}
+
+// ServerConfig は中継サーバーの設定
+type ServerConfig struct {
+	Host    string             `yaml:"host" env:"BACKLOG_SERVER_HOST"`
+	Port    int                `yaml:"port" env:"BACKLOG_SERVER_PORT"`
+	BaseURL string             `yaml:"base_url" env:"BACKLOG_SERVER_BASE_URL"`
+	Cookie  CookieConfig       `yaml:"cookie"`
+	Backlog []BacklogAppConfig `yaml:"backlog"`
+	Access  AccessControl      `yaml:"access_control"`
+	Audit   AuditConfig        `yaml:"audit"`
+}
+
+// CookieConfig はCookie設定
+type CookieConfig struct {
+	Secret string `yaml:"secret" env:"BACKLOG_COOKIE_SECRET"`
+	MaxAge int    `yaml:"max_age"`
+}
+
+// BacklogAppConfig はBacklogアプリケーションの設定
+type BacklogAppConfig struct {
+	Domain       string `yaml:"domain"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+}
+
+// AccessControl はアクセス制御設定
+type AccessControl struct {
+	AllowedProjects []string `yaml:"allowed_projects" env:"BACKLOG_ALLOWED_PROJECTS"`
+	AllowedSpaces   []string `yaml:"allowed_spaces" env:"BACKLOG_ALLOWED_SPACES"`
+	AllowedCIDRs    []string `yaml:"allowed_cidrs" env:"BACKLOG_ALLOWED_CIDRS"`
+}
+
+// AuditConfig は監査ログ設定
+type AuditConfig struct {
+	Enabled    bool   `yaml:"enabled" env:"BACKLOG_AUDIT_ENABLED"`
+	Output     string `yaml:"output" env:"BACKLOG_AUDIT_OUTPUT"`
+	FilePath   string `yaml:"file_path" env:"BACKLOG_AUDIT_FILE_PATH"`
+	WebhookURL string `yaml:"webhook_url" env:"BACKLOG_AUDIT_WEBHOOK_URL"`
 }
 ```
 
-## 4. プロジェクトローカル設定
+## 3. プロジェクトローカル設定
 
 ### internal/config/project.go
 
 ```go
 package config
 
-// ProjectSetting はプロジェクト設定
-type ProjectSetting struct {
-	profile string // 使用するプロファイル名
-	name    string // プロジェクトキー
+// ProjectConfig はプロジェクトローカル設定 (.backlog.yaml)
+type ProjectConfig struct {
+	Project     string `yaml:"project"`
+	Space       string `yaml:"space,omitempty"`
+	Domain      string `yaml:"domain,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 }
 
 // ProjectConfigFiles は検索するファイル名の優先順
 var ProjectConfigFiles = []string{
 	".backlog.yaml",
 	".backlog.yml",
+	".backlog-project.yaml",
+	".backlog-project.yml",
 }
 ```
 
-## 5. デフォルト値 (embed)
+## 4. デフォルト値 (embed)
 
 ### internal/config/defaults.yaml
 
 ```yaml
-profile:
+client:
   default:
     domain: "backlog.jp"
     output: "table"
     color: "auto"
-    auth_callback_port: 0
-    auth_timeout: 120
-    auth_no_browser: false
-    http_timeout: 30
-    http_token_refresh_margin: 300
+  auth:
+    callback_port: 0
+    timeout: 120
+    no_browser: false
 
 server:
   host: "0.0.0.0"
   port: 8080
-  http:
-    read_timeout: 10
-    write_timeout: 30
-    idle_timeout: 60
   cookie:
     max_age: 300
-  jwt:
-    expiry: 3600
-  rate_limit:
-    enabled: false
-    requests_per_minute: 60
-    burst: 10
-    cleanup_interval: 300
-    entry_ttl: 600
   audit:
-    enabled: false
+    enabled: true
     output: "stdout"
-    webhook_timeout: 10
-
-display:
-  summary_max_length: 50
-  default_comment_count: 10
-  default_issue_limit: 20
-  date_format: "2006-01-02"
-  datetime_format: "2006-01-02 15:04"
-  hyperlink: true
-  issue_list_fields:
-    - key
-    - status
-    - priority
-    - assignee
-    - summary
-  pr_list_fields:
-    - number
-    - status
-    - author
-    - branch
-    - summary
-
-auth:
-  min_callback_port: 49152
-  max_callback_port: 65535
 ```
 
 ### internal/config/defaults.go
@@ -362,13 +212,24 @@ package config
 
 import (
 	_ "embed"
+
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed defaults.yaml
 var defaultConfigYAML []byte
+
+// DefaultConfig はデフォルト設定を返す
+func DefaultConfig() (*Config, error) {
+	var cfg Config
+	if err := yaml.Unmarshal(defaultConfigYAML, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
 ```
 
-## 6. 設定ローダー
+## 5. 設定ローダー
 
 ### internal/config/loader.go
 
@@ -378,14 +239,17 @@ package config
 import (
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ConfigDir は設定ディレクトリのパスを返す
 func ConfigDir() (string, error) {
+	// XDG_CONFIG_HOME を優先
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "backlog"), nil
 	}
-
+	
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -402,123 +266,173 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "config.yaml"), nil
 }
 
-// CredentialsDir はクレデンシャルディレクトリのパスを返す
-func CredentialsDir() (string, error) {
-	dir, err := ConfigDir()
+// Load は設定ファイルを読み込む
+func Load() (*Config, error) {
+	// 1. デフォルト値を読み込み
+	cfg, err := DefaultConfig()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return filepath.Join(dir, "credentials"), nil
+	
+	// 2. 設定ファイルを読み込み、マージ
+	path, err := ConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	
+	if _, err := os.Stat(path); err == nil {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, err
+		}
+	}
+	
+	// 3. 環境変数でオーバーライド
+	applyEnvOverrides(cfg)
+	
+	return cfg, nil
 }
 
-// findProjectConfigPath はプロジェクト設定ファイルを検索する
-func findProjectConfigPath() (string, error) {
-	dir, err := os.Getwd()
+// LoadFromFile は指定したファイルから設定を読み込む
+func LoadFromFile(path string) (*Config, error) {
+	cfg, err := DefaultConfig()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	for {
-		for _, name := range ProjectConfigFiles {
-			path := filepath.Join(dir, name)
-			if _, err := os.Stat(path); err == nil {
-				return path, nil
-			}
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", nil // 見つからず
-		}
-		dir = parent
+	
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
+	
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, err
+	}
+	
+	applyEnvOverrides(cfg)
+	
+	return cfg, nil
+}
+
+// Save は設定をファイルに保存する
+func Save(cfg *Config) error {
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+	
+	// ディレクトリ作成
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	
+	return os.WriteFile(path, data, 0600)
 }
 ```
 
-## 7. 設定リゾルバー
+## 6. 環境変数オーバーライド
 
-### internal/config/resolver.go
+### internal/config/env.go
 
 ```go
 package config
 
-// ResolvedConfig は解決済みの設定（実行時に使用）
-type ResolvedConfig struct {
-	Profile     string
-	RelayServer string
-	Space       string
-	Domain      string
-	Project     string
-	Output      string
-	Color       string
-	Editor      string
-	Browser     string
+import (
+	"os"
+	"strconv"
+	"strings"
+)
 
-	// 認証設定
-	CallbackPort int
-	Timeout      int
-	NoBrowser    bool
-
-	// HTTP設定
-	HTTPTimeout            int
-	HTTPTokenRefreshMargin int
-
-	// 認証情報
-	Credential *Credential
+func applyEnvOverrides(cfg *Config) {
+	// Client settings
+	if v := os.Getenv("BACKLOG_RELAY_SERVER"); v != "" {
+		cfg.Client.Default.RelayServer = v
+	}
+	if v := os.Getenv("BACKLOG_SPACE"); v != "" {
+		cfg.Client.Default.Space = v
+	}
+	if v := os.Getenv("BACKLOG_DOMAIN"); v != "" {
+		cfg.Client.Default.Domain = v
+	}
+	if v := os.Getenv("BACKLOG_PROJECT"); v != "" {
+		cfg.Client.Default.Project = v
+	}
+	if v := os.Getenv("BACKLOG_OUTPUT"); v != "" {
+		cfg.Client.Default.Output = v
+	}
+	if v := os.Getenv("BACKLOG_NO_BROWSER"); v != "" {
+		cfg.Client.Auth.NoBrowser = v == "true" || v == "1"
+	}
+	if v := os.Getenv("BACKLOG_CALLBACK_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Client.Auth.CallbackPort = port
+		}
+	}
+	
+	// Server settings
+	if v := os.Getenv("BACKLOG_SERVER_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Server.Port = port
+		}
+	}
+	if v := os.Getenv("BACKLOG_COOKIE_SECRET"); v != "" {
+		cfg.Server.Cookie.Secret = v
+	}
+	
+	// Backlog JP credentials
+	if clientID := os.Getenv("BACKLOG_JP_CLIENT_ID"); clientID != "" {
+		clientSecret := os.Getenv("BACKLOG_JP_CLIENT_SECRET")
+		cfg.Server.Backlog = upsertBacklogConfig(cfg.Server.Backlog, "backlog.jp", clientID, clientSecret)
+	}
+	
+	// Backlog COM credentials
+	if clientID := os.Getenv("BACKLOG_COM_CLIENT_ID"); clientID != "" {
+		clientSecret := os.Getenv("BACKLOG_COM_CLIENT_SECRET")
+		cfg.Server.Backlog = upsertBacklogConfig(cfg.Server.Backlog, "backlog.com", clientID, clientSecret)
+	}
+	
+	// Access control
+	if v := os.Getenv("BACKLOG_ALLOWED_PROJECTS"); v != "" {
+		cfg.Server.Access.AllowedProjects = strings.Split(v, ",")
+	}
+	if v := os.Getenv("BACKLOG_ALLOWED_SPACES"); v != "" {
+		cfg.Server.Access.AllowedSpaces = strings.Split(v, ",")
+	}
+	
+	// Audit
+	if v := os.Getenv("BACKLOG_AUDIT_WEBHOOK_URL"); v != "" {
+		cfg.Server.Audit.WebhookURL = v
+	}
 }
 
-// CLIFlags はCLIから渡されるフラグ
-type CLIFlags struct {
-	Profile string
-	Project string
-	Space   string
-	Domain  string
-	Output  string
-	Color   string
-}
-
-// CreateResolver はResolverを作成する
-func (s *Config) CreateResolver(flags CLIFlags) (*ResolvedConfig, error) {
-	// アクティブプロファイルを決定
-	profileName := s.activeProfile
-	if flags.Profile != "" {
-		profileName = flags.Profile
+func upsertBacklogConfig(configs []BacklogAppConfig, domain, clientID, clientSecret string) []BacklogAppConfig {
+	for i, c := range configs {
+		if c.Domain == domain {
+			configs[i].ClientID = clientID
+			configs[i].ClientSecret = clientSecret
+			return configs
+		}
 	}
-
-	// フラグをArgsレイヤーに設定
-	if flags.Project != "" {
-		s.Set(LayerArgs, KeyProjectName.String(), flags.Project)
-	}
-	// ...他のフラグも同様
-
-	// 設定を再マテリアライズ
-	s.materialize()
-
-	// ResolvedConfigを構築
-	profile := s.GetProfile(profileName)
-	return &ResolvedConfig{
-		Profile:                profileName,
-		RelayServer:            profile.RelayServer,
-		Space:                  profile.Space,
-		Domain:                 profile.Domain,
-		Project:                s.data.Project.Name(),
-		Output:                 profile.Output,
-		Color:                  profile.Color,
-		Editor:                 profile.Editor,
-		Browser:                profile.Browser,
-		CallbackPort:           profile.AuthCallbackPort,
-		Timeout:                profile.AuthTimeout,
-		NoBrowser:              profile.AuthNoBrowser,
-		HTTPTimeout:            profile.HTTPTimeout,
-		HTTPTokenRefreshMargin: profile.HTTPTokenRefreshMargin,
-		Credential:             s.GetCredential(profileName),
-	}, nil
+	return append(configs, BacklogAppConfig{
+		Domain:       domain,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	})
 }
 ```
 
-## 8. クレデンシャル管理
+## 7. プロジェクトローカル設定の検索
 
-### internal/config/credentials.go
+### internal/config/project.go (追加)
 
 ```go
 package config
@@ -530,141 +444,257 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// loadCredentials はクレデンシャルファイルを読み込む
-func (s *Config) loadCredentials() error {
-	dir, err := CredentialsDir()
+// FindProjectConfig はカレントディレクトリから上に向かって
+// .backlog.yaml を検索する
+func FindProjectConfig() (*ProjectConfig, string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, "", err
+	}
+	
+	for {
+		for _, name := range ProjectConfigFiles {
+			path := filepath.Join(dir, name)
+			if _, err := os.Stat(path); err == nil {
+				cfg, err := loadProjectConfig(path)
+				if err != nil {
+					return nil, "", err
+				}
+				return cfg, path, nil
+			}
+		}
+		
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// ルートに到達、見つからず
+			return nil, "", nil
+		}
+		dir = parent
+	}
+}
+
+func loadProjectConfig(path string) (*ProjectConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	
+	var cfg ProjectConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	
+	return &cfg, nil
+}
+
+// CreateProjectConfig はプロジェクト設定ファイルを作成する
+func CreateProjectConfig(projectKey string) error {
+	cfg := ProjectConfig{
+		Project: projectKey,
+	}
+	
+	data, err := yaml.Marshal(&cfg)
 	if err != nil {
 		return err
 	}
-
-	// credentials/{profile}.yaml を読み込む
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		ext := filepath.Ext(name)
-		if ext != ".yaml" && ext != ".yml" {
-			continue
-		}
-
-		profileName := name[:len(name)-len(ext)]
-		path := filepath.Join(dir, name)
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-
-		var cred Credential
-		if err := yaml.Unmarshal(data, &cred); err != nil {
-			continue
-		}
-
-		s.data.Credentials[profileName] = &cred
-	}
-
-	return nil
-}
-
-// SaveCredentials はクレデンシャルを保存する
-func (s *Config) SaveCredentials() error {
-	dir, err := CredentialsDir()
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-
-	for profileName, cred := range s.data.Credentials {
-		path := filepath.Join(dir, profileName+".yaml")
-		data, err := yaml.Marshal(cred)
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, data, 0600); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// SetCredential はクレデンシャルを設定する
-func (s *Config) SetCredential(profileName string, cred Credential) {
-	s.data.Credentials[profileName] = &cred
-}
-
-// GetCredential はクレデンシャルを取得する
-func (s *Config) GetCredential(profileName string) *Credential {
-	return s.data.Credentials[profileName]
+	
+	return os.WriteFile(".backlog.yaml", data, 0644)
 }
 ```
 
-## 9. アクセサー
+## 8. 設定リゾルバー
 
-### internal/config/accessor.go
+### internal/config/resolver.go
 
 ```go
 package config
 
-// GetProfile はプロファイルを取得する
-func (s *Config) GetProfile(name string) *Profile {
-	if profile, ok := s.data.Profiles[name]; ok {
-		return profile
-	}
-	// デフォルトプロファイルを返す
-	return s.data.Profiles[DefaultProfile]
+// ResolvedConfig は解決済みの設定（実行時に使用）
+type ResolvedConfig struct {
+	RelayServer string
+	Space       string
+	Domain      string
+	Project     string
+	Output      string
+	Color       string
+	
+	// 認証設定
+	CallbackPort int
+	Timeout      int
+	NoBrowser    bool
+	
+	// 認証情報
+	Credential *Credential
 }
 
-// GetBacklogApp はドメインに対応するBacklog設定を取得する
-func (s *Config) GetBacklogApp(domain string) *BacklogAppConfig {
-	for _, app := range s.data.ServerBacklog {
-		if app.Domain() == domain {
-			return &app
+// ResolveOptions は設定解決時のオプション
+type ResolveOptions struct {
+	// コマンドライン引数
+	Project     string
+	Space       string
+	Domain      string
+	RelayServer string
+	Output      string
+}
+
+// Resolve は優先順位に従って設定を解決する
+func Resolve(cfg *Config, opts ResolveOptions) (*ResolvedConfig, error) {
+	resolved := &ResolvedConfig{
+		// デフォルト値
+		RelayServer:  cfg.Client.Default.RelayServer,
+		Space:        cfg.Client.Default.Space,
+		Domain:       cfg.Client.Default.Domain,
+		Project:      cfg.Client.Default.Project,
+		Output:       cfg.Client.Default.Output,
+		Color:        cfg.Client.Default.Color,
+		CallbackPort: cfg.Client.Auth.CallbackPort,
+		Timeout:      cfg.Client.Auth.Timeout,
+		NoBrowser:    cfg.Client.Auth.NoBrowser,
+	}
+	
+	// プロジェクトローカル設定 (.backlog.yaml)
+	if projectCfg, _, err := FindProjectConfig(); err == nil && projectCfg != nil {
+		if projectCfg.Project != "" {
+			resolved.Project = projectCfg.Project
+		}
+		if projectCfg.Space != "" {
+			resolved.Space = projectCfg.Space
+		}
+		if projectCfg.Domain != "" {
+			resolved.Domain = projectCfg.Domain
+		}
+		if projectCfg.RelayServer != "" {
+			resolved.RelayServer = projectCfg.RelayServer
 		}
 	}
-	return nil
+	
+	// プロジェクト固有設定 (config.yaml内)
+	if resolved.Project != "" {
+		if override, ok := cfg.Client.Projects[resolved.Project]; ok {
+			if override.Space != "" {
+				resolved.Space = override.Space
+			}
+			if override.Domain != "" {
+				resolved.Domain = override.Domain
+			}
+			if override.RelayServer != "" {
+				resolved.RelayServer = override.RelayServer
+			}
+		}
+	}
+	
+	// コマンドライン引数（最優先）
+	if opts.Project != "" {
+		resolved.Project = opts.Project
+	}
+	if opts.Space != "" {
+		resolved.Space = opts.Space
+	}
+	if opts.Domain != "" {
+		resolved.Domain = opts.Domain
+	}
+	if opts.RelayServer != "" {
+		resolved.RelayServer = opts.RelayServer
+	}
+	if opts.Output != "" {
+		resolved.Output = opts.Output
+	}
+	
+	// 認証情報の解決
+	if resolved.Space != "" && resolved.Domain != "" {
+		host := resolved.Space + "." + resolved.Domain
+		if cred, ok := cfg.Client.Credentials[host]; ok {
+			resolved.Credential = &cred
+		}
+	}
+	
+	return resolved, nil
 }
-
-// ServerPort はサーバーポートを返す
-func (s *Config) ServerPort() int {
-	return s.data.ServerPort
-}
-
-// ServerHost はサーバーホストを返す
-func (s *Config) ServerHost() string {
-	return s.data.ServerHost
-}
-
-// CookieSecret はCookie署名シークレットを返す
-func (s *Config) CookieSecret() string {
-	return s.data.ServerCookieSecret
-}
-
-// ... 他のアクセサー
 ```
 
-## 10. 完了条件
+## 9. テスト
 
-- [x] レイヤードアーキテクチャによる設定管理
-- [x] 複数プロファイルのサポート
-- [x] embed によるデフォルト値
-- [x] ファイル、環境変数からの読み込み
-- [x] プロジェクトローカル設定のサポート
-- [x] 認証情報の別ファイル管理
-- [x] 設定のマージと解決
+### internal/config/config_test.go
+
+```go
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestDefaultConfig(t *testing.T) {
+	cfg, err := DefaultConfig()
+	if err != nil {
+		t.Fatalf("DefaultConfig() error = %v", err)
+	}
+	
+	if cfg.Client.Default.Domain != "backlog.jp" {
+		t.Errorf("Domain = %v, want %v", cfg.Client.Default.Domain, "backlog.jp")
+	}
+	
+	if cfg.Client.Default.Output != "table" {
+		t.Errorf("Output = %v, want %v", cfg.Client.Default.Output, "table")
+	}
+}
+
+func TestEnvOverrides(t *testing.T) {
+	os.Setenv("BACKLOG_SPACE", "test-space")
+	defer os.Unsetenv("BACKLOG_SPACE")
+	
+	cfg, _ := DefaultConfig()
+	applyEnvOverrides(cfg)
+	
+	if cfg.Client.Default.Space != "test-space" {
+		t.Errorf("Space = %v, want %v", cfg.Client.Default.Space, "test-space")
+	}
+}
+
+func TestFindProjectConfig(t *testing.T) {
+	// テスト用ディレクトリ作成
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "sub", "dir")
+	os.MkdirAll(subDir, 0755)
+	
+	// .backlog.yaml作成
+	configPath := filepath.Join(tmpDir, ".backlog.yaml")
+	os.WriteFile(configPath, []byte("project: TEST-PROJ\n"), 0644)
+	
+	// サブディレクトリに移動
+	oldDir, _ := os.Getwd()
+	os.Chdir(subDir)
+	defer os.Chdir(oldDir)
+	
+	// 検索
+	cfg, path, err := FindProjectConfig()
+	if err != nil {
+		t.Fatalf("FindProjectConfig() error = %v", err)
+	}
+	
+	if cfg == nil {
+		t.Fatal("FindProjectConfig() returned nil")
+	}
+	
+	if cfg.Project != "TEST-PROJ" {
+		t.Errorf("Project = %v, want %v", cfg.Project, "TEST-PROJ")
+	}
+	
+	if path != configPath {
+		t.Errorf("Path = %v, want %v", path, configPath)
+	}
+}
+```
+
+## 完了条件
+
+- [ ] `config.Load()` でデフォルト設定が読み込める
+- [ ] 設定ファイルがある場合、マージされる
+- [ ] 環境変数でオーバーライドできる
+- [ ] `.backlog.yaml` が検索できる
+- [ ] `Resolve()` で優先順位に従った設定が取得できる
+- [ ] テストが通る
 
 ## 次のステップ
 

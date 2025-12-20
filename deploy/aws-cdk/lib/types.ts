@@ -17,7 +17,7 @@ export interface AuditConfig {
  * インライン設定（設定値を直接指定）
  */
 export interface InlineConfig {
-  source: 'inline';
+  source: "inline";
 
   /** Cookie/JWT 署名用シークレット（32文字以上） */
   cookieSecret: string;
@@ -48,7 +48,7 @@ export interface InlineConfig {
  * Parameter Store 参照設定
  */
 export interface ParameterStoreConfig {
-  source: 'parameter-store';
+  source: "parameter-store";
 
   /** SSM Parameter Store のパラメーター名 */
   parameterName: string;
@@ -84,12 +84,14 @@ export type RelayConfig = InlineConfig | ParameterStoreConfig;
  * 設定がインライン設定かどうかを判定
  */
 export function isInlineConfig(config: RelayConfig): config is InlineConfig {
-  return config.source === 'inline';
+  return config.source === "inline";
 }
 
 /**
  * 設定が Parameter Store 参照かどうかを判定
  */
-export function isParameterStoreConfig(config: RelayConfig): config is ParameterStoreConfig {
-  return config.source === 'parameter-store';
+export function isParameterStoreConfig(
+  config: RelayConfig,
+): config is ParameterStoreConfig {
+  return config.source === "parameter-store";
 }

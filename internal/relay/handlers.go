@@ -39,7 +39,6 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-
 func (s *Server) writeError(w http.ResponseWriter, status int, err, desc string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -395,7 +394,6 @@ func (s *Server) isHostAllowed(host string) bool {
 
 	return false
 }
-
 
 func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

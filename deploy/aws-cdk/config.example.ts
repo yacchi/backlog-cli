@@ -7,23 +7,23 @@
  * config.ts は .gitignore に含まれているため、
  * シークレットを含んでもリポジトリにコミットされません。
  */
-import { RelayConfig } from './lib/types';
+import { RelayConfig } from "./lib/types";
 
 // ============================================================
 // 方法1: インライン設定（シンプル）
 // ============================================================
 export const config: RelayConfig = {
-  source: 'inline',
+  source: "inline",
 
   // Cookie/JWT 署名用シークレット（32文字以上）
   // 例: openssl rand -base64 32
-  cookieSecret: 'your-32-character-secret-here!!!',
+  cookieSecret: "your-32-character-secret-here!!!",
 
   backlog: {
     // backlog.jp 用の OAuth アプリ設定
     jp: {
-      clientId: 'your-client-id',
-      clientSecret: 'your-client-secret',
+      clientId: "your-client-id",
+      clientSecret: "your-client-secret",
     },
 
     // backlog.com 用の OAuth アプリ設定（オプション）

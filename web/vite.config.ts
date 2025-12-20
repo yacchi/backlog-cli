@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -9,32 +9,32 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // 認証関連エンドポイントをGoサーバーへプロキシ
-      '/auth/ws': {
-        target: 'http://localhost:52847',
+      "/auth/ws": {
+        target: "http://localhost:52847",
         changeOrigin: true,
         ws: true, // WebSocket対応
       },
-      '/auth/config': {
-        target: 'http://localhost:52847',
+      "/auth/config": {
+        target: "http://localhost:52847",
         changeOrigin: true,
       },
-      '/auth/configure': {
-        target: 'http://localhost:52847',
+      "/auth/configure": {
+        target: "http://localhost:52847",
         changeOrigin: true,
       },
-      '/auth/popup': {
-        target: 'http://localhost:52847',
+      "/auth/popup": {
+        target: "http://localhost:52847",
         changeOrigin: true,
       },
-      '/callback': {
-        target: 'http://localhost:52847',
+      "/callback": {
+        target: "http://localhost:52847",
         changeOrigin: true,
       },
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: "dist",
     emptyOutDir: true,
     sourcemap: false,
   },
-})
+});

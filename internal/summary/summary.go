@@ -123,5 +123,5 @@ func normalizeText(text string) string {
 	}
 
 	// LexRankMMRへ渡すために「。」で結合し、末尾にも「。」をつける。
-	return strings.Join(validLines, "。" ) + "。"
+	return strings.Join(validLines, "。") + "。"
 }

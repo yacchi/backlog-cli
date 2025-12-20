@@ -387,7 +387,6 @@ func (cs *CallbackServer) ensureSession(w http.ResponseWriter, r *http.Request) 
 	return session
 }
 
-
 // AuthConfigResponse は設定取得のJSONレスポンス
 type AuthConfigResponse struct {
 	Space       string `json:"space"`

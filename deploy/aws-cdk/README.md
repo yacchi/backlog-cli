@@ -67,12 +67,12 @@ backlog config set relay_server https://xxx.lambda-url.ap-northeast-1.on.aws
 
 ```typescript
 export const config: RelayConfig = {
-  source: 'inline',
-  cookieSecret: 'your-32-character-secret-here!!!',
+  source: "inline",
+  cookieSecret: "your-32-character-secret-here!!!",
   backlog: {
     jp: {
-      clientId: 'your-client-id',
-      clientSecret: 'your-client-secret',
+      clientId: "your-client-id",
+      clientSecret: "your-client-secret",
     },
   },
 };
@@ -91,8 +91,8 @@ aws ssm put-parameter \
 
 ```typescript
 export const config: RelayConfig = {
-  source: 'parameter-store',
-  parameterName: '/backlog-relay/config',
+  source: "parameter-store",
+  parameterName: "/backlog-relay/config",
 };
 ```
 
@@ -100,15 +100,15 @@ export const config: RelayConfig = {
 
 ```typescript
 export const config: RelayConfig = {
-  source: 'parameter-store',
-  parameterName: '/backlog-relay/config',
+  source: "parameter-store",
+  parameterName: "/backlog-relay/config",
   createParameter: true,
   parameterValue: {
-    cookieSecret: 'your-32-character-secret-here!!!',
+    cookieSecret: "your-32-character-secret-here!!!",
     backlog: {
       jp: {
-        clientId: 'your-client-id',
-        clientSecret: 'your-client-secret',
+        clientId: "your-client-id",
+        clientSecret: "your-client-secret",
       },
     },
   },
@@ -138,18 +138,18 @@ pnpm destroy
 
 ### 必須設定
 
-| フィールド | 説明 |
-|-----------|------|
-| `cookieSecret` | Cookie/JWT 署名用シークレット（32文字以上） |
-| `backlog.jp` または `backlog.com` | 少なくとも1つの OAuth アプリ設定 |
+| フィールド                        | 説明                                        |
+| --------------------------------- | ------------------------------------------- |
+| `cookieSecret`                    | Cookie/JWT 署名用シークレット（32文字以上） |
+| `backlog.jp` または `backlog.com` | 少なくとも1つの OAuth アプリ設定            |
 
 ### オプション設定
 
-| フィールド | デフォルト | 説明 |
-|-----------|-----------|------|
-| `allowedSpaces` | `[]`（全て許可） | 許可するスペース名のリスト |
+| フィールド        | デフォルト       | 説明                             |
+| ----------------- | ---------------- | -------------------------------- |
+| `allowedSpaces`   | `[]`（全て許可） | 許可するスペース名のリスト       |
 | `allowedProjects` | `[]`（全て許可） | 許可するプロジェクトキーのリスト |
-| `audit.enabled` | `true` | 監査ログの有効化 |
+| `audit.enabled`   | `true`           | 監査ログの有効化                 |
 
 ## アーキテクチャ
 
@@ -187,6 +187,7 @@ pnpm destroy
 ### 認証コールバックが失敗する
 
 Backlog のリダイレクト URI が正確に一致していることを確認：
+
 ```
 https://xxx.lambda-url.REGION.on.aws/auth/callback
 ```

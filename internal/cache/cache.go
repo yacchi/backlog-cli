@@ -42,7 +42,7 @@ func NewFileCache(dir string) (*FileCache, error) {
 func (c *FileCache) getFilePath(key string) string {
 	// キーの形式: "type:domain:extra..."
 	// 例: "issue:backlog.jp:PROJ-1" -> "issue_backlog.jp_PROJ-1.json"
-	
+
 	// ファイル名に使用できない文字を置換
 	safe := strings.Map(func(r rune) rune {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' {

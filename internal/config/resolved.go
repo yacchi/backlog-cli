@@ -97,20 +97,20 @@ func expandEnvShortcuts() []string {
 // ショートカット環境変数（BACKLOG_SPACE など）は expandEnvShortcuts で
 // 完全形式に展開されてからマッピングされる
 type ResolvedProfile struct {
-	RelayServer             string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
-	Space                   string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
-	Domain                  string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
-	Project                 string `json:"project" jubako:",env:PROFILE_{key}_PROJECT"`
-	Output                  string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
-	Color                   string `json:"color" jubako:",env:PROFILE_{key}_COLOR"`
-	Editor                  string `json:"editor" jubako:",env:PROFILE_{key}_EDITOR"`
-	Browser                 string `json:"browser" jubako:",env:PROFILE_{key}_BROWSER"`
-	AuthCallbackPort        int    `json:"auth_callback_port" jubako:",env:PROFILE_{key}_CALLBACK_PORT"`
-	AuthTimeout             int    `json:"auth_timeout" jubako:",env:PROFILE_{key}_AUTH_TIMEOUT"`
-	AuthNoBrowser           bool   `json:"auth_no_browser" jubako:",env:PROFILE_{key}_NO_BROWSER"`
-	AuthSkipConfirmation    bool   `json:"auth_skip_confirmation" jubako:",env:PROFILE_{key}_SKIP_CONFIRMATION"`
-	HTTPTimeout             int    `json:"http_timeout"`
-	HTTPTokenRefreshMargin  int    `json:"http_token_refresh_margin"`
+	RelayServer            string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
+	Space                  string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
+	Domain                 string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
+	Project                string `json:"project" jubako:",env:PROFILE_{key}_PROJECT"`
+	Output                 string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
+	Color                  string `json:"color" jubako:",env:PROFILE_{key}_COLOR"`
+	Editor                 string `json:"editor" jubako:",env:PROFILE_{key}_EDITOR"`
+	Browser                string `json:"browser" jubako:",env:PROFILE_{key}_BROWSER"`
+	AuthCallbackPort       int    `json:"auth_callback_port" jubako:",env:PROFILE_{key}_CALLBACK_PORT"`
+	AuthTimeout            int    `json:"auth_timeout" jubako:",env:PROFILE_{key}_AUTH_TIMEOUT"`
+	AuthNoBrowser          bool   `json:"auth_no_browser" jubako:",env:PROFILE_{key}_NO_BROWSER"`
+	AuthSkipConfirmation   bool   `json:"auth_skip_confirmation" jubako:",env:PROFILE_{key}_SKIP_CONFIRMATION"`
+	HTTPTimeout            int    `json:"http_timeout"`
+	HTTPTokenRefreshMargin int    `json:"http_token_refresh_margin"`
 }
 
 // ResolvedProject はマージ済みのプロジェクト設定
@@ -252,10 +252,10 @@ func (s *ResolvedAuthSession) TimeoutDuration() time.Duration {
 
 // ResolvedAuthWebSocket はWebSocket設定
 type ResolvedAuthWebSocket struct {
-	PingInterval           int `json:"ping_interval" jubako:"/auth/websocket/ping_interval"`
-	PingTimeout            int `json:"ping_timeout" jubako:"/auth/websocket/ping_timeout"`
-	ConnectTimeout         int `json:"connect_timeout" jubako:"/auth/websocket/connect_timeout"`
-	DisconnectGracePeriod  int `json:"disconnect_grace_period" jubako:"/auth/websocket/disconnect_grace_period"`
+	PingInterval          int `json:"ping_interval" jubako:"/auth/websocket/ping_interval"`
+	PingTimeout           int `json:"ping_timeout" jubako:"/auth/websocket/ping_timeout"`
+	ConnectTimeout        int `json:"connect_timeout" jubako:"/auth/websocket/connect_timeout"`
+	DisconnectGracePeriod int `json:"disconnect_grace_period" jubako:"/auth/websocket/disconnect_grace_period"`
 }
 
 // PingIntervalDuration はping間隔をtime.Durationで返す

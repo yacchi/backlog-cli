@@ -3,8 +3,7 @@
 ## 目標
 
 - Backlog API v2 クライアントの実装
-- OAuth認証とAPI Key認証の両対応
-- 自動トークン更新（OAuth）
+- 自動トークン更新
 - エラーハンドリング
 - ページネーション対応
 
@@ -22,10 +21,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
-	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yourorg/backlog-cli/internal/config"
 )
 
 // Client は Backlog API クライアント
@@ -34,35 +32,24 @@ type Client struct {
 	domain      string
 	accessToken string
 	httpClient  *http.Client
-
-	// API Key認証用
-	apiKey string
-
-	// トークン更新用（OAuth）
-	refreshToken  string
-	expiresAt     time.Time
-	relayServer   string
+	
+	// トークン更新用
+	refreshToken string
+	expiresAt    time.Time
+	relayServer  string
 	onTokenUpdate func(accessToken, refreshToken string, expiresAt time.Time)
 }
 
 // ClientOption はクライアントオプション
 type ClientOption func(*Client)
 
-// WithTokenRefresh はトークン自動更新を有効にする（OAuth用）
+// WithTokenRefresh はトークン自動更新を有効にする
 func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, callback func(string, string, time.Time)) ClientOption {
 	return func(c *Client) {
 		c.refreshToken = refreshToken
 		c.relayServer = relayServer
 		c.expiresAt = expiresAt
 		c.onTokenUpdate = callback
-	}
-}
-
-// WithAPIKey はAPI Key認証を設定する
-func WithAPIKey(apiKey string) ClientOption {
-	return func(c *Client) {
-		c.apiKey = apiKey
-		c.accessToken = "" // API Key使用時はAccessTokenは不要
 	}
 }
 
@@ -76,11 +63,11 @@ func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client 
 			Timeout: 30 * time.Second,
 		},
 	}
-
+	
 	for _, opt := range opts {
 		opt(c)
 	}
-
+	
 	return c
 }
 
@@ -89,47 +76,36 @@ func NewClientFromConfig(cfg *config.Config, resolved *config.ResolvedConfig) (*
 	if resolved.Credential == nil {
 		return nil, fmt.Errorf("not authenticated")
 	}
-
+	
 	cred := resolved.Credential
-
-	// 認証タイプに応じてクライアントを作成
-	switch cred.GetAuthType() {
-	case config.AuthTypeAPIKey:
-		// API Key認証
-		client := NewClient(
-			resolved.Space,
-			resolved.Domain,
-			"", // accessToken不要
-			WithAPIKey(cred.APIKey),
-		)
-		return client, nil
-
-	default:
-		// OAuth認証（デフォルト）
-		profileName := resolved.Profile
-		client := NewClient(
-			resolved.Space,
-			resolved.Domain,
-			cred.AccessToken,
-			WithTokenRefresh(
-				cred.RefreshToken,
-				resolved.RelayServer,
-				cred.ExpiresAt,
-				func(accessToken, refreshToken string, expiresAt time.Time) {
-					// 設定ファイルを更新（プロファイルに紐づける）
-					cfg.SetCredential(profileName, config.Credential{
-						AuthType:     config.AuthTypeOAuth,
-						AccessToken:  accessToken,
-						RefreshToken: refreshToken,
-						ExpiresAt:    expiresAt,
-						UserName:     cred.UserName,
-					})
-					cfg.SaveCredentials()
-				},
-			),
-		)
-		return client, nil
-	}
+	
+	client := NewClient(
+		resolved.Space,
+		resolved.Domain,
+		cred.AccessToken,
+		WithTokenRefresh(
+			cred.RefreshToken,
+			resolved.RelayServer,
+			cred.ExpiresAt,
+			func(accessToken, refreshToken string, expiresAt time.Time) {
+				// 設定ファイルを更新
+				host := resolved.Space + "." + resolved.Domain
+				if cfg.Client.Credentials == nil {
+					cfg.Client.Credentials = make(map[string]config.Credential)
+				}
+				cfg.Client.Credentials[host] = config.Credential{
+					AccessToken:  accessToken,
+					RefreshToken: refreshToken,
+					ExpiresAt:    expiresAt,
+					UserID:       cred.UserID,
+					UserName:     cred.UserName,
+				}
+				config.Save(cfg)
+			},
+		),
+	)
+	
+	return client, nil
 }
 
 func (c *Client) baseURL() string {
@@ -198,27 +174,15 @@ func (c *Client) doRefreshToken() error {
 
 // Request はAPIリクエストを実行する
 func (c *Client) Request(method, path string, query url.Values, body interface{}) (*http.Response, error) {
-	// OAuthの場合はトークン更新チェック
-	if c.apiKey == "" {
-		if err := c.ensureValidToken(); err != nil {
-			return nil, fmt.Errorf("token refresh failed: %w", err)
-		}
+	if err := c.ensureValidToken(); err != nil {
+		return nil, fmt.Errorf("token refresh failed: %w", err)
 	}
-
+	
 	u := c.baseURL() + path
-
-	// API Key認証の場合はクエリパラメータに追加
-	if c.apiKey != "" {
-		if query == nil {
-			query = url.Values{}
-		}
-		query.Set("apiKey", c.apiKey)
-	}
-
 	if query != nil && len(query) > 0 {
 		u += "?" + query.Encode()
 	}
-
+	
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -227,20 +191,17 @@ func (c *Client) Request(method, path string, query url.Values, body interface{}
 		}
 		reqBody = bytes.NewReader(data)
 	}
-
+	
 	req, err := http.NewRequest(method, u, reqBody)
 	if err != nil {
 		return nil, err
 	}
-
-	// OAuth認証の場合はBearerトークンをヘッダーに追加
-	if c.apiKey == "" && c.accessToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.accessToken)
-	}
+	
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-
+	
 	return c.httpClient.Do(req)
 }
 

@@ -25,10 +25,10 @@ func TestSummarize(t *testing.T) {
 			},
 		},
 		{
-			name: "short text",
-			text: "これは短い文章です。",
+			name:          "short text",
+			text:          "これは短い文章です。",
 			sentenceCount: 3,
-			wantErr: false,
+			wantErr:       false,
 			check: func(t *testing.T, summary string) {
 				// 短い場合は要約されない（そのまま返ってくるか、MMRの閾値による）
 				// LexRankMMRの挙動として、入力文が少なければそのまま返るはず
