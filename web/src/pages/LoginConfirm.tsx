@@ -126,6 +126,12 @@ export default function LoginConfirm() {
             </div>
           ) : null}
 
+          {popupMessage && !isLoggingIn ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              {popupMessage}
+            </div>
+          ) : null}
+
           <div className="space-y-3">
             <InfoBox
               label="スペース"

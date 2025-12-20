@@ -140,7 +140,9 @@ func (cs *CallbackServer) setupRoutes() http.Handler {
 	assets, err := ui.Assets()
 	if err != nil {
 		debug.Log("ui assets unavailable", "error", err)
-		http.Error(nil, "SPA assets not available", http.StatusInternalServerError)
+		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "SPA assets not available", http.StatusInternalServerError)
+		}))
 		return mux
 	}
 
