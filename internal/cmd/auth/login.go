@@ -74,10 +74,6 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	// 中継サーバーの確認
 	profile := cfg.CurrentProfile()
-	relayServer := ""
-	if profile != nil {
-		relayServer = profile.RelayServer
-	}
 
 	// 認証方式の決定
 	var authMethod string
@@ -91,36 +87,29 @@ func runLogin(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("no previous login found. Please run 'backlog auth login' without --reuse flag first")
 		}
 
-		// 既存のspace/domainを確認
-		if profile == nil || profile.Space == "" || profile.Domain == "" {
-			return fmt.Errorf("no previous space/domain settings found. Please run 'backlog auth login' without --reuse flag first")
-		}
-
 		// 以前の認証方式を使用
 		switch cred.GetAuthType() {
 		case config.AuthTypeOAuth:
-			if relayServer == "" {
+			// OAuthの場合、relay_serverの設定がなくても--reuseならスキップできる
+			if profile != nil && profile.RelayServer != "" {
+				authMethod = authMethodOAuth
+			} else {
 				return fmt.Errorf("OAuth authentication requires a relay server, but none is configured")
 			}
-			authMethod = authMethodOAuth
 		case config.AuthTypeAPIKey:
 			authMethod = authMethodAPIKey
 		default:
 			return fmt.Errorf("unknown authentication type in previous credentials")
 		}
 
-		fmt.Printf("Reusing previous login settings: %s with %s.%s\n", authMethod, profile.Space, profile.Domain)
+		if authMethod == authMethodOAuth && profile != nil && profile.Space != "" && profile.Domain != "" {
+			fmt.Printf("Reusing previous login settings: %s with %s.%s\n", authMethod, profile.Space, profile.Domain)
+		}
 	} else {
-		// 通常の認証方式選択
-		if relayServer == "" {
-			// リレーサーバーが設定されていない場合はAPI Key認証のみ
-			authMethod = authMethodAPIKey
-		} else {
-			// リレーサーバーが設定されている場合は選択
-			authMethod, err = ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
-			if err != nil {
-				return err
-			}
+		// 通常の認証方式選択（OAuth は常に選択可能）
+		authMethod, err = ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
+		if err != nil {
+			return err
 		}
 	}
 
@@ -129,7 +118,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	if authMethod == authMethodAPIKey {
 		return runAPIKeyLogin(ctx, cfg)
 	}
-	return runOAuthLogin(ctx, cfg, relayServer)
+	return runOAuthLogin(ctx, cfg)
 }
 
 // runAPIKeyLogin はAPI Key認証を実行する
@@ -252,89 +241,30 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 }
 
 // runOAuthLogin はOAuth認証を実行する
-func runOAuthLogin(ctx context.Context, cfg *config.Store, relayServer string) error {
-	debug.Log("starting OAuth login", "relay_server", relayServer)
+// ブラウザベースの設定UIを使用する新フロー
+func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
+	debug.Log("starting OAuth login")
 
 	// オプションのマージ
 	opts := mergeLoginOptions(cfg)
-	debug.Log("login options merged", "domain", opts.domain, "space", opts.space, "callback_port", opts.callbackPort, "timeout", opts.timeout)
+	debug.Log("login options merged", "callback_port", opts.callbackPort, "timeout", opts.timeout, "reuse", opts.reuse)
 
-	// 認証クライアント作成
-	client := auth.NewClient(relayServer)
-
-	// 1. well-known からメタ情報取得
-	fmt.Println("Fetching relay server information...")
-	meta, err := client.FetchWellKnown()
+	// 1. state 生成
+	state, err := auth.GenerateState()
 	if err != nil {
-		return fmt.Errorf("failed to connect to relay server: %w", err)
+		return fmt.Errorf("failed to generate state: %w", err)
 	}
+	debug.Log("state generated", "state_length", len(state))
 
-	if len(meta.SupportedDomains) == 0 {
-		return fmt.Errorf("relay server has no supported domains configured")
-	}
-
-	// 2. 設定変更の確認フロー
-	// コマンドライン引数で明示的に指定されている場合はその値を使う
-	configChanged := false
-	if loginSpace != "" {
-		opts.space = loginSpace
-		configChanged = true
-	}
-	if loginDomain != "" {
-		opts.domain = loginDomain
-		configChanged = true
-	}
-
-	// --reuse オプションが指定されていない場合のみ確認ダイアログを表示
-	if !opts.reuse {
-		// 既存設定があり、コマンドライン引数で指定されていない場合
-		if !configChanged && opts.space != "" && opts.domain != "" {
-			fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
-			changeSettings, err := ui.Confirm("Change space/domain settings?", false)
-			if err != nil {
-				return err
-			}
-			if changeSettings {
-				configChanged = true
-				// 設定変更モードなのでリセット
-				opts.space = ""
-				opts.domain = ""
-			}
-		}
-	}
-
-	// 3. ドメイン選択（未設定または変更モードの場合）
-	if opts.domain == "" {
-		if len(meta.SupportedDomains) == 1 {
-			opts.domain = meta.SupportedDomains[0]
-		} else {
-			opts.domain, err = ui.Select("Select Backlog domain:", meta.SupportedDomains)
-			if err != nil {
-				return err
-			}
-		}
-		configChanged = true
-	} else if !slices.Contains(meta.SupportedDomains, opts.domain) {
-		return fmt.Errorf("domain '%s' is not supported by this relay server\nSupported: %v", opts.domain, meta.SupportedDomains)
-	}
-
-	// 4. スペース入力（未設定または変更モードの場合）
-	if opts.space == "" {
-		opts.space, err = ui.Input("Enter space name:", "")
-		if err != nil {
-			return err
-		}
-		if opts.space == "" {
-			return fmt.Errorf("space name is required")
-		}
-		configChanged = true
-	}
-
-	fmt.Printf("\nAuthenticating with %s.%s...\n", opts.space, opts.domain)
-
-	// 4. コールバックサーバー起動
+	// 2. コールバックサーバー起動（設定UIハンドラー付き）
 	debug.Log("creating callback server", "requested_port", opts.callbackPort)
-	callbackServer, err := auth.NewCallbackServer(opts.callbackPort)
+	callbackServer, err := auth.NewCallbackServer(auth.CallbackServerOptions{
+		Port:        opts.callbackPort,
+		State:       state,
+		ConfigStore: cfg,
+		Reuse:       opts.reuse,
+		Ctx:         ctx,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to start callback server: %w", err)
 	}
@@ -353,68 +283,62 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store, relayServer string) e
 		}
 	}()
 
-	// 5. 認証開始（auth_urlを取得、Cookieがクライアントに保存される）
-	profile := cfg.CurrentProfile()
-	project := ""
-	if profile != nil {
-		project = profile.Project
-	}
-	authResp, err := client.StartAuth(opts.domain, opts.space, callbackServer.Port(), project)
-	if err != nil {
-		return fmt.Errorf("failed to start authentication: %w", err)
-	}
+	// 3. ローカルサーバーの /auth/start を開く
+	localAuthURL := fmt.Sprintf("http://localhost:%d/auth/start", callbackServer.Port())
 
-	// 6. URL表示 & ブラウザ起動
 	fmt.Println()
-	fmt.Println("If browser doesn't open automatically, visit this URL:")
+	fmt.Println("Open this URL in your browser to log in:")
 	fmt.Println()
-	fmt.Printf("  %s\n", authResp.AuthURL)
+	fmt.Printf("  %s\n", localAuthURL)
 	fmt.Println()
-	fmt.Printf("Waiting for authentication... (timeout: %ds)\n", opts.timeout)
+	fmt.Println("Waiting for authentication... (press Ctrl+C to cancel)")
 
 	if !opts.noBrowser {
-		if err := browser.OpenURL(authResp.AuthURL); err != nil {
+		if err := browser.OpenURL(localAuthURL); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
 		}
 	}
 
-	// 7. コールバック待機
-	debug.Log("waiting for callback", "timeout_seconds", opts.timeout)
-	resultCh := make(chan auth.CallbackResult, 1)
-	go func() {
-		resultCh <- callbackServer.Wait()
-	}()
-
-	var result auth.CallbackResult
-	select {
-	case result = <-resultCh:
-		debug.Log("callback result received", "has_error", result.Error != nil)
-	case <-time.After(time.Duration(opts.timeout) * time.Second):
-		debug.Log("callback timeout")
-		return fmt.Errorf("authentication timed out after %d seconds", opts.timeout)
-	}
+	// 4. コールバック待機（タイムアウトなし - ロングポーリングベースのフローに対応）
+	debug.Log("waiting for callback (no timeout)")
+	result := callbackServer.Wait()
 
 	if result.Error != nil {
 		return fmt.Errorf("authentication failed: %w", result.Error)
 	}
 
-	// 8. トークン交換（stateでセッション追跡）
+	// 5. 設定を再読み込み（ブラウザで設定が保存された後）
+	if err := cfg.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	// 設定から space/domain/relayServer を取得
+	profile := cfg.CurrentProfile()
+	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
+		return fmt.Errorf("configuration incomplete after authentication")
+	}
+	space := profile.Space
+	domain := profile.Domain
+	currentRelayServer := profile.RelayServer
+
+	// 6. トークン交換
 	debug.Log("exchanging authorization code", "code_length", len(result.Code))
 	fmt.Println("Exchanging authorization code...")
+	client := auth.NewClient(currentRelayServer)
 	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
 		GrantType: "authorization_code",
 		Code:      result.Code,
-		Domain:    opts.domain,
-		Space:     opts.space,
-		State:     authResp.State,
+		Domain:    domain,
+		Space:     space,
+		State:     state, // CLI が生成した state を渡す
 	})
 	if err != nil {
 		return fmt.Errorf("failed to exchange token: %w", err)
 	}
 	debug.Log("token exchange successful", "expires_in", tokenResp.ExpiresIn)
 
-	// 9. ユーザー情報取得
-	apiClient := api.NewClient(opts.space, opts.domain, tokenResp.AccessToken)
+	// 7. ユーザー情報取得
+	apiClient := api.NewClient(space, domain, tokenResp.AccessToken)
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
@@ -426,7 +350,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store, relayServer string) e
 		fmt.Println()
 	}
 
-	// 10. 認証情報保存（プロファイルに紐づける）
+	// 8. 認証情報保存（プロファイルに紐づける）
 	profileName := cfg.GetActiveProfile()
 	cred := &config.Credential{
 		AuthType:     config.AuthTypeOAuth,
@@ -440,22 +364,12 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store, relayServer string) e
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
-	// 11. 設定が変更された場合はプロファイルに保存
-	if configChanged {
-		_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
-		_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
-
-		if err := cfg.Reload(ctx); err != nil {
-			return fmt.Errorf("failed to reload config: %w", err)
-		}
-	}
-
-	// 設定を保存（クレデンシャルと設定変更）
+	// 設定を保存
 	if err := cfg.Save(ctx); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Logged in to %s.%s\n", opts.space, opts.domain)
+	fmt.Printf("Logged in to %s.%s\n", space, domain)
 
 	return nil
 }

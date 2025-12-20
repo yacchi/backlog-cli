@@ -14,6 +14,5 @@ func init() {
 	AuthCmd.AddCommand(loginCmd)
 	AuthCmd.AddCommand(logoutCmd)
 	AuthCmd.AddCommand(statusCmd)
-	AuthCmd.AddCommand(setupCmd)
 	AuthCmd.AddCommand(meCmd)
 }

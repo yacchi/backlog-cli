@@ -55,56 +55,6 @@ func (c *Client) FetchWellKnown() (*WellKnownResponse, error) {
 	return &result, nil
 }
 
-// AuthStartResponse は認証開始レスポンス
-type AuthStartResponse struct {
-	AuthURL string `json:"auth_url"`
-	State   string `json:"state"` // セッション追跡用（ExchangeTokenに渡す）
-}
-
-// StartAuth は認証を開始し、認可URLとstateを取得する
-// 取得したstateはExchangeTokenに渡してセッション追跡に使用する
-func (c *Client) StartAuth(domain, space string, port int, project string) (*AuthStartResponse, error) {
-	reqURL := fmt.Sprintf("%s/auth/start?domain=%s&space=%s&port=%d",
-		c.relayServer, domain, space, port)
-	if project != "" {
-		reqURL += "&project=" + project
-	}
-
-	debug.Log("starting auth request", "url", reqURL)
-
-	req, err := http.NewRequest("GET", reqURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		debug.Log("auth start request failed", "error", err)
-		return nil, fmt.Errorf("failed to start auth: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	debug.Log("auth start response received", "status", resp.StatusCode)
-
-	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error       string `json:"error"`
-			Description string `json:"error_description"`
-		}
-		_ = json.NewDecoder(resp.Body).Decode(&errResp)
-		return nil, fmt.Errorf("%s: %s", errResp.Error, errResp.Description)
-	}
-
-	var result AuthStartResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse auth start response: %w", err)
-	}
-
-	debug.Log("auth start successful", "auth_url_length", len(result.AuthURL))
-	return &result, nil
-}
-
 // TokenRequest はトークンリクエスト
 type TokenRequest struct {
 	GrantType    string `json:"grant_type"`

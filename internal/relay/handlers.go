@@ -1,8 +1,6 @@
 package relay
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,11 +39,6 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// AuthStartResponse は認証開始レスポンス
-type AuthStartResponse struct {
-	AuthURL string `json:"auth_url"`
-	State   string `json:"state"` // セッション追跡用（CLIが/auth/tokenに送信）
-}
 
 func (s *Server) writeError(w http.ResponseWriter, status int, err, desc string) {
 	w.Header().Set("Content-Type", "application/json")
@@ -61,6 +54,7 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	domain := r.URL.Query().Get("domain")
 	space := r.URL.Query().Get("space")
 	portStr := r.URL.Query().Get("port")
+	cliState := r.URL.Query().Get("state") // CLI が生成した state
 	project := r.URL.Query().Get("project")
 
 	clientIP := ""
@@ -69,8 +63,8 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// バリデーション
-	if domain == "" || space == "" || portStr == "" {
-		s.writeError(w, http.StatusBadRequest, "invalid_request", "domain, space, and port are required")
+	if domain == "" || space == "" || portStr == "" || cliState == "" {
+		s.writeError(w, http.StatusBadRequest, "invalid_request", "domain, space, port, and state are required")
 		return
 	}
 
@@ -119,23 +113,22 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// state生成
-	state, err := generateState()
+	// エンコード state 作成（署名なし）
+	encodedState, err := encodeState(EncodedStateClaims{
+		Port:     port,
+		CLIState: cliState,
+		Space:    space,
+		Domain:   domain,
+		Project:  project,
+	})
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to generate state")
-		return
-	}
-
-	// JWTトークン作成（/auth/callbackでブラウザに設定するCookie用）
-	token, err := s.createSessionToken(port, state, domain, space, project)
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to create session")
+		s.writeError(w, http.StatusInternalServerError, "server_error", "failed to encode state")
 		return
 	}
 
 	// 監査ログ
 	s.auditLogger.Log(AuditEvent{
-		SessionID: ExtractSessionID(state),
+		SessionID: ExtractSessionID(cliState),
 		Action:    AuditActionAuthStart,
 		Space:     space,
 		Domain:    domain,
@@ -145,28 +138,24 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		Result:    "success",
 	})
 
-	// Backlog認可URLを構築（stateにJWTトークンを含める）
+	// Backlog認可URLを構築
 	redirectURI := s.buildCallbackURL(r)
 	authURL := fmt.Sprintf("https://%s.%s/OAuth2AccessRequest.action?response_type=code&client_id=%s&redirect_uri=%s&state=%s",
 		space,
 		domain,
 		url.QueryEscape(backlogCfg.ClientID()),
 		url.QueryEscape(redirectURI),
-		url.QueryEscape(token), // stateとしてJWTトークンを使用
+		url.QueryEscape(encodedState),
 	)
 
-	// JSON APIとしてauth_urlとstateを返す
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(AuthStartResponse{
-		AuthURL: authURL,
-		State:   state, // CLIが/auth/tokenに送信するセッションID用
-	})
+	// HTTP 302 リダイレクト
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// パラメータ取得
 	code := r.URL.Query().Get("code")
-	stateToken := r.URL.Query().Get("state") // JWTトークンが入っている
+	encodedState := r.URL.Query().Get("state") // エンコードされた state
 	errorParam := r.URL.Query().Get("error")
 
 	clientIP := ""
@@ -188,7 +177,7 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if code == "" || stateToken == "" {
+	if code == "" || encodedState == "" {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionAuthCallback,
 			ClientIP:  clientIP,
@@ -200,15 +189,15 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// stateパラメータはJWTトークンなのでパースする
-	claims, err := s.parseSessionToken(stateToken)
+	// エンコードされた state をデコード
+	claims, err := decodeState(encodedState)
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionAuthCallback,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
-			Error:     "invalid state token: " + err.Error(),
+			Error:     "invalid state: " + err.Error(),
 		})
 		s.renderErrorPage(w, "Session Invalid", "Please try logging in again")
 		return
@@ -216,7 +205,7 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	// 監査ログ（成功）
 	s.auditLogger.Log(AuditEvent{
-		SessionID: ExtractSessionID(claims.State),
+		SessionID: ExtractSessionID(claims.CLIState),
 		Action:    AuditActionAuthCallback,
 		Space:     claims.Space,
 		Domain:    claims.Domain,
@@ -226,8 +215,12 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Result:    "success",
 	})
 
-	// CLIローカルサーバーへリダイレクト
-	localURL := fmt.Sprintf("http://localhost:%d/callback?code=%s", claims.Port, url.QueryEscape(code))
+	// CLIローカルサーバーへリダイレクト（cli_state を返す）
+	localURL := fmt.Sprintf("http://localhost:%d/callback?code=%s&state=%s",
+		claims.Port,
+		url.QueryEscape(code),
+		url.QueryEscape(claims.CLIState),
+	)
 	http.Redirect(w, r, localURL, http.StatusFound)
 }
 
@@ -403,13 +396,6 @@ func (s *Server) isHostAllowed(host string) bool {
 	return false
 }
 
-func generateState() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
-}
 
 func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

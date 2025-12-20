@@ -57,17 +57,18 @@ func (c *ResolvedCache) GetCacheDir() (string, error) {
 // envShortcuts はプロファイル設定の環境変数ショートカットマッピング
 // BACKLOG_SPACE などの省略形を BACKLOG_PROFILE_default_SPACE の完全形式に展開する
 var envShortcuts = map[string]string{
-	"BACKLOG_RELAY_SERVER":  "BACKLOG_PROFILE_default_RELAY_SERVER",
-	"BACKLOG_SPACE":         "BACKLOG_PROFILE_default_SPACE",
-	"BACKLOG_DOMAIN":        "BACKLOG_PROFILE_default_DOMAIN",
-	"BACKLOG_PROJECT":       "BACKLOG_PROFILE_default_PROJECT",
-	"BACKLOG_OUTPUT":        "BACKLOG_PROFILE_default_OUTPUT",
-	"BACKLOG_COLOR":         "BACKLOG_PROFILE_default_COLOR",
-	"BACKLOG_EDITOR":        "BACKLOG_PROFILE_default_EDITOR",
-	"BACKLOG_BROWSER":       "BACKLOG_PROFILE_default_BROWSER",
-	"BACKLOG_CALLBACK_PORT": "BACKLOG_PROFILE_default_CALLBACK_PORT",
-	"BACKLOG_AUTH_TIMEOUT":  "BACKLOG_PROFILE_default_AUTH_TIMEOUT",
-	"BACKLOG_NO_BROWSER":    "BACKLOG_PROFILE_default_NO_BROWSER",
+	"BACKLOG_RELAY_SERVER":      "BACKLOG_PROFILE_default_RELAY_SERVER",
+	"BACKLOG_SPACE":             "BACKLOG_PROFILE_default_SPACE",
+	"BACKLOG_DOMAIN":            "BACKLOG_PROFILE_default_DOMAIN",
+	"BACKLOG_PROJECT":           "BACKLOG_PROFILE_default_PROJECT",
+	"BACKLOG_OUTPUT":            "BACKLOG_PROFILE_default_OUTPUT",
+	"BACKLOG_COLOR":             "BACKLOG_PROFILE_default_COLOR",
+	"BACKLOG_EDITOR":            "BACKLOG_PROFILE_default_EDITOR",
+	"BACKLOG_BROWSER":           "BACKLOG_PROFILE_default_BROWSER",
+	"BACKLOG_CALLBACK_PORT":     "BACKLOG_PROFILE_default_CALLBACK_PORT",
+	"BACKLOG_AUTH_TIMEOUT":      "BACKLOG_PROFILE_default_AUTH_TIMEOUT",
+	"BACKLOG_NO_BROWSER":        "BACKLOG_PROFILE_default_NO_BROWSER",
+	"BACKLOG_SKIP_CONFIRMATION": "BACKLOG_PROFILE_default_SKIP_CONFIRMATION",
 }
 
 // expandEnvShortcuts は環境変数のショートカットを展開した環境変数リストを返す
@@ -96,19 +97,20 @@ func expandEnvShortcuts() []string {
 // ショートカット環境変数（BACKLOG_SPACE など）は expandEnvShortcuts で
 // 完全形式に展開されてからマッピングされる
 type ResolvedProfile struct {
-	RelayServer            string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
-	Space                  string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
-	Domain                 string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
-	Project                string `json:"project" jubako:",env:PROFILE_{key}_PROJECT"`
-	Output                 string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
-	Color                  string `json:"color" jubako:",env:PROFILE_{key}_COLOR"`
-	Editor                 string `json:"editor" jubako:",env:PROFILE_{key}_EDITOR"`
-	Browser                string `json:"browser" jubako:",env:PROFILE_{key}_BROWSER"`
-	AuthCallbackPort       int    `json:"auth_callback_port" jubako:",env:PROFILE_{key}_CALLBACK_PORT"`
-	AuthTimeout            int    `json:"auth_timeout" jubako:",env:PROFILE_{key}_AUTH_TIMEOUT"`
-	AuthNoBrowser          bool   `json:"auth_no_browser" jubako:",env:PROFILE_{key}_NO_BROWSER"`
-	HTTPTimeout            int    `json:"http_timeout"`
-	HTTPTokenRefreshMargin int    `json:"http_token_refresh_margin"`
+	RelayServer             string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
+	Space                   string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
+	Domain                  string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
+	Project                 string `json:"project" jubako:",env:PROFILE_{key}_PROJECT"`
+	Output                  string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
+	Color                   string `json:"color" jubako:",env:PROFILE_{key}_COLOR"`
+	Editor                  string `json:"editor" jubako:",env:PROFILE_{key}_EDITOR"`
+	Browser                 string `json:"browser" jubako:",env:PROFILE_{key}_BROWSER"`
+	AuthCallbackPort        int    `json:"auth_callback_port" jubako:",env:PROFILE_{key}_CALLBACK_PORT"`
+	AuthTimeout             int    `json:"auth_timeout" jubako:",env:PROFILE_{key}_AUTH_TIMEOUT"`
+	AuthNoBrowser           bool   `json:"auth_no_browser" jubako:",env:PROFILE_{key}_NO_BROWSER"`
+	AuthSkipConfirmation    bool   `json:"auth_skip_confirmation" jubako:",env:PROFILE_{key}_SKIP_CONFIRMATION"`
+	HTTPTimeout             int    `json:"http_timeout"`
+	HTTPTokenRefreshMargin  int    `json:"http_token_refresh_margin"`
 }
 
 // ResolvedProject はマージ済みのプロジェクト設定
@@ -226,8 +228,54 @@ type ResolvedFieldConfig struct {
 // jubako tagでauth.*からマッピング
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedAuth struct {
-	MinCallbackPort int `json:"min_callback_port" jubako:"/auth/min_callback_port,env:AUTH_MIN_CALLBACK_PORT"`
-	MaxCallbackPort int `json:"max_callback_port" jubako:"/auth/max_callback_port,env:AUTH_MAX_CALLBACK_PORT"`
+	MinCallbackPort int                   `json:"min_callback_port" jubako:"/auth/min_callback_port,env:AUTH_MIN_CALLBACK_PORT"`
+	MaxCallbackPort int                   `json:"max_callback_port" jubako:"/auth/max_callback_port,env:AUTH_MAX_CALLBACK_PORT"`
+	Session         ResolvedAuthSession   `json:"session" jubako:"/auth/session"`
+	WebSocket       ResolvedAuthWebSocket `json:"websocket" jubako:"/auth/websocket"`
+}
+
+// ResolvedAuthSession はセッション設定
+type ResolvedAuthSession struct {
+	CheckInterval int `json:"check_interval" jubako:"/auth/session/check_interval"`
+	Timeout       int `json:"timeout" jubako:"/auth/session/timeout"`
+}
+
+// CheckIntervalDuration はチェック間隔をtime.Durationで返す
+func (s *ResolvedAuthSession) CheckIntervalDuration() time.Duration {
+	return time.Duration(s.CheckInterval) * time.Second
+}
+
+// TimeoutDuration はタイムアウトをtime.Durationで返す
+func (s *ResolvedAuthSession) TimeoutDuration() time.Duration {
+	return time.Duration(s.Timeout) * time.Second
+}
+
+// ResolvedAuthWebSocket はWebSocket設定
+type ResolvedAuthWebSocket struct {
+	PingInterval           int `json:"ping_interval" jubako:"/auth/websocket/ping_interval"`
+	PingTimeout            int `json:"ping_timeout" jubako:"/auth/websocket/ping_timeout"`
+	ConnectTimeout         int `json:"connect_timeout" jubako:"/auth/websocket/connect_timeout"`
+	DisconnectGracePeriod  int `json:"disconnect_grace_period" jubako:"/auth/websocket/disconnect_grace_period"`
+}
+
+// PingIntervalDuration はping間隔をtime.Durationで返す
+func (ws *ResolvedAuthWebSocket) PingIntervalDuration() time.Duration {
+	return time.Duration(ws.PingInterval) * time.Second
+}
+
+// PingTimeoutDuration はpingタイムアウトをtime.Durationで返す
+func (ws *ResolvedAuthWebSocket) PingTimeoutDuration() time.Duration {
+	return time.Duration(ws.PingTimeout) * time.Second
+}
+
+// ConnectTimeoutDuration は接続タイムアウトをtime.Durationで返す
+func (ws *ResolvedAuthWebSocket) ConnectTimeoutDuration() time.Duration {
+	return time.Duration(ws.ConnectTimeout) * time.Second
+}
+
+// DisconnectGracePeriodDuration は切断猶予期間をtime.Durationで返す
+func (ws *ResolvedAuthWebSocket) DisconnectGracePeriodDuration() time.Duration {
+	return time.Duration(ws.DisconnectGracePeriod) * time.Second
 }
 
 // NewResolvedConfig は空のResolvedConfigを作成する
