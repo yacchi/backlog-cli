@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -61,7 +62,7 @@ func (o *CommentListOptions) ToQuery() url.Values {
 }
 
 // GetComments は課題のコメント一覧を取得する
-func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]Comment, error) {
+func (c *Client) GetComments(ctx context.Context, issueIDOrKey string, opts *CommentListOptions) ([]Comment, error) {
 	var query url.Values
 	if opts != nil {
 		query = opts.ToQuery()
@@ -75,7 +76,7 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 		}
 	}
 
-	resp, err := c.Get(fmt.Sprintf("/issues/%s/comments", issueIDOrKey), query)
+	resp, err := c.Get(ctx, fmt.Sprintf("/issues/%s/comments", issueIDOrKey), query)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +96,8 @@ func (c *Client) GetComments(issueIDOrKey string, opts *CommentListOptions) ([]C
 }
 
 // GetCommentsCount は課題のコメント数を取得する
-func (c *Client) GetCommentsCount(issueIDOrKey string) (int, error) {
-	resp, err := c.Get(fmt.Sprintf("/issues/%s/comments/count", issueIDOrKey), nil)
+func (c *Client) GetCommentsCount(ctx context.Context, issueIDOrKey string) (int, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/issues/%s/comments/count", issueIDOrKey), nil)
 	if err != nil {
 		return 0, err
 	}
@@ -113,8 +114,8 @@ func (c *Client) GetCommentsCount(issueIDOrKey string) (int, error) {
 }
 
 // GetComment は課題のコメントを取得する
-func (c *Client) GetComment(issueIDOrKey string, commentID int) (*Comment, error) {
-	resp, err := c.Get(fmt.Sprintf("/issues/%s/comments/%d", issueIDOrKey, commentID), nil)
+func (c *Client) GetComment(ctx context.Context, issueIDOrKey string, commentID int) (*Comment, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/issues/%s/comments/%d", issueIDOrKey, commentID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -129,14 +130,14 @@ func (c *Client) GetComment(issueIDOrKey string, commentID int) (*Comment, error
 }
 
 // AddComment は課題にコメントを追加する
-func (c *Client) AddComment(issueIDOrKey string, content string, notifiedUserIDs []int) (*Comment, error) {
+func (c *Client) AddComment(ctx context.Context, issueIDOrKey string, content string, notifiedUserIDs []int) (*Comment, error) {
 	data := url.Values{}
 	data.Set("content", content)
 	for _, id := range notifiedUserIDs {
 		data.Add("notifiedUserId[]", strconv.Itoa(id))
 	}
 
-	resp, err := c.PostForm(fmt.Sprintf("/issues/%s/comments", issueIDOrKey), data)
+	resp, err := c.PostForm(ctx, fmt.Sprintf("/issues/%s/comments", issueIDOrKey), data)
 	if err != nil {
 		return nil, err
 	}
@@ -151,11 +152,11 @@ func (c *Client) AddComment(issueIDOrKey string, content string, notifiedUserIDs
 }
 
 // UpdateComment は課題のコメントを更新する
-func (c *Client) UpdateComment(issueIDOrKey string, commentID int, content string) (*Comment, error) {
+func (c *Client) UpdateComment(ctx context.Context, issueIDOrKey string, commentID int, content string) (*Comment, error) {
 	data := url.Values{}
 	data.Set("content", content)
 
-	resp, err := c.PatchForm(fmt.Sprintf("/issues/%s/comments/%d", issueIDOrKey, commentID), data)
+	resp, err := c.PatchForm(ctx, fmt.Sprintf("/issues/%s/comments/%d", issueIDOrKey, commentID), data)
 	if err != nil {
 		return nil, err
 	}

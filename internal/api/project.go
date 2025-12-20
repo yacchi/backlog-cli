@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 )
@@ -25,11 +26,11 @@ type Project struct {
 }
 
 // GetProjects はプロジェクト一覧を取得する
-func (c *Client) GetProjects() ([]Project, error) {
+func (c *Client) GetProjects(ctx context.Context) ([]Project, error) {
 	query := url.Values{}
 	query.Set("archived", "false")
 
-	resp, err := c.Get("/projects", query)
+	resp, err := c.Get(ctx, "/projects", query)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +45,8 @@ func (c *Client) GetProjects() ([]Project, error) {
 }
 
 // GetProject はプロジェクト情報を取得する
-func (c *Client) GetProject(projectIDOrKey string) (*Project, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s", projectIDOrKey), nil)
+func (c *Client) GetProject(ctx context.Context, projectIDOrKey string) (*Project, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +70,8 @@ type IssueType struct {
 }
 
 // GetIssueTypes は課題種別一覧を取得する
-func (c *Client) GetIssueTypes(projectIDOrKey string) ([]IssueType, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/issueTypes", projectIDOrKey), nil)
+func (c *Client) GetIssueTypes(ctx context.Context, projectIDOrKey string) ([]IssueType, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/issueTypes", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +93,8 @@ type Category struct {
 }
 
 // GetCategories はカテゴリー一覧を取得する
-func (c *Client) GetCategories(projectIDOrKey string) ([]Category, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/categories", projectIDOrKey), nil)
+func (c *Client) GetCategories(ctx context.Context, projectIDOrKey string) ([]Category, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/categories", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +121,8 @@ type Version struct {
 }
 
 // GetVersions はバージョン一覧を取得する
-func (c *Client) GetVersions(projectIDOrKey string) ([]Version, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/versions", projectIDOrKey), nil)
+func (c *Client) GetVersions(ctx context.Context, projectIDOrKey string) ([]Version, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/versions", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +146,8 @@ type Status struct {
 }
 
 // GetStatuses はステータス一覧を取得する
-func (c *Client) GetStatuses(projectIDOrKey string) ([]Status, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/statuses", projectIDOrKey), nil)
+func (c *Client) GetStatuses(ctx context.Context, projectIDOrKey string) ([]Status, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/statuses", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +162,8 @@ func (c *Client) GetStatuses(projectIDOrKey string) ([]Status, error) {
 }
 
 // GetProjectUsers はプロジェクトユーザー一覧を取得する
-func (c *Client) GetProjectUsers(projectIDOrKey string) ([]User, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/users", projectIDOrKey), nil)
+func (c *Client) GetProjectUsers(ctx context.Context, projectIDOrKey string) ([]User, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/users", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}

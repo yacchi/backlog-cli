@@ -42,13 +42,14 @@ func runClose(c *cobra.Command, args []string) error {
 	}
 
 	// 現在の課題を取得
-	issue, err := client.GetIssue(issueKey)
+	ctx := c.Context()
+	issue, err := client.GetIssue(ctx, issueKey)
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
 
 	// プロジェクトのステータスを取得してCloseステータスを探す
-	statuses, err := client.GetStatuses(strconv.Itoa(issue.ProjectId.Value))
+	statuses, err := client.GetStatuses(ctx, strconv.Itoa(issue.ProjectId.Value))
 	if err != nil {
 		return fmt.Errorf("failed to get statuses: %w", err)
 	}
@@ -82,7 +83,7 @@ func runClose(c *cobra.Command, args []string) error {
 		input.Comment = &closeComment
 	}
 
-	issue, err = client.UpdateIssue(issueKey, input)
+	issue, err = client.UpdateIssue(ctx, issueKey, input)
 	if err != nil {
 		return fmt.Errorf("failed to close issue: %w", err)
 	}

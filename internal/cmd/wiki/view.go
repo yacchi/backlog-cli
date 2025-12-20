@@ -56,7 +56,7 @@ func runView(c *cobra.Command, args []string) error {
 	}
 
 	// Wiki取得
-	wiki, err := client.GetWiki(wikiID)
+	wiki, err := client.GetWiki(c.Context(), wikiID)
 	if err != nil {
 		return fmt.Errorf("failed to get wiki page: %w", err)
 	}

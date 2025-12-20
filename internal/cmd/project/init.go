@@ -59,7 +59,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// プロジェクト一覧から選択
-			projects, err := client.GetProjects()
+			projects, err := client.GetProjects(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("failed to get projects: %w", err)
 			}

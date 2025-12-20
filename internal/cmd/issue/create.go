@@ -58,15 +58,16 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
+	ctx := c.Context()
 
 	// プロジェクト情報取得
-	project, err := client.GetProject(projectKey)
+	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
 	// 課題種別を取得
-	issueTypes, err := client.GetIssueTypes(projectKey)
+	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get issue types: %w", err)
 	}
@@ -128,7 +129,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// 担当者
 	if createAssignee == "@me" {
-		me, err := client.GetCurrentUser()
+		me, err := client.GetCurrentUser(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get current user: %w", err)
 		}
@@ -141,7 +142,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		input.AssigneeID = assigneeID
 	} else {
 		// 担当者選択（オプション）
-		users, err := client.GetProjectUsers(projectKey)
+		users, err := client.GetProjectUsers(ctx, projectKey)
 		if err == nil && len(users) > 0 {
 			userOpts := make([]ui.SelectOption, len(users)+1)
 			userOpts[0] = ui.SelectOption{Value: "0", Description: "(unassigned)"}
@@ -182,7 +183,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// 作成
 	fmt.Println("Creating issue...")
-	issue, err := client.CreateIssue(input)
+	issue, err := client.CreateIssue(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to create issue: %w", err)
 	}

@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -68,7 +69,8 @@ func runView(c *cobra.Command, args []string) error {
 	}
 
 	// 課題取得
-	issue, err := client.GetIssue(issueKey)
+	ctx := c.Context()
+	issue, err := client.GetIssue(ctx, issueKey)
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
@@ -78,11 +80,11 @@ func runView(c *cobra.Command, args []string) error {
 	case "json":
 		return outputJSON(issue)
 	default:
-		return renderIssueDetail(client, issue, profile, display)
+		return renderIssueDetail(ctx, client, issue, profile, display)
 	}
 }
 
-func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {
+func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {
 	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
 	if viewSummaryWithComments {
 		viewSummary = true
@@ -184,7 +186,7 @@ func renderIssueDetail(client *api.Client, issue *backlog.Issue, profile *config
 	// コメント取得
 	var comments []api.Comment
 	if fetchCount > 0 {
-		comments, _ = client.GetComments(key, &api.CommentListOptions{
+		comments, _ = client.GetComments(ctx, key, &api.CommentListOptions{
 			Count: fetchCount,
 			Order: "desc",
 		})

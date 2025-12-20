@@ -28,13 +28,13 @@ type NulabAccount struct {
 }
 
 // GetCurrentUser は認証ユーザーの情報を取得する
-func (c *Client) GetCurrentUser() (*backlog.User, error) {
-	return c.backlogClient.GetCurrentUser(context.TODO())
+func (c *Client) GetCurrentUser(ctx context.Context) (*backlog.User, error) {
+	return c.backlogClient.GetCurrentUser(ctx)
 }
 
 // GetUser はユーザー情報を取得する
-func (c *Client) GetUser(userID int) (*backlog.User, error) {
-	return c.backlogClient.GetUser(context.TODO(), backlog.GetUserParams{
+func (c *Client) GetUser(ctx context.Context, userID int) (*backlog.User, error) {
+	return c.backlogClient.GetUser(ctx, backlog.GetUserParams{
 		UserId: userID,
 	})
 }
@@ -42,7 +42,7 @@ func (c *Client) GetUser(userID int) (*backlog.User, error) {
 // FetchCurrentUser はアクセストークンを使用して認証ユーザー情報を取得する
 // Client を使用せずに直接 HTTP リクエストを行うスタンドアロン関数
 // 中継サーバーなど、Client を構築できない場面で使用する
-func FetchCurrentUser(domain, space, accessToken string) (*backlog.User, error) {
+func FetchCurrentUser(ctx context.Context, domain, space, accessToken string) (*backlog.User, error) {
 	// 簡易的な SecuritySource 実装
 	tokenSource := &simpleTokenSource{token: accessToken}
 
@@ -54,7 +54,7 @@ func FetchCurrentUser(domain, space, accessToken string) (*backlog.User, error) 
 		return nil, fmt.Errorf("failed to create backlog client: %w", err)
 	}
 
-	return client.GetCurrentUser(context.TODO())
+	return client.GetCurrentUser(ctx)
 }
 
 type simpleTokenSource struct {

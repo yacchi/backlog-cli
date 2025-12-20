@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -38,7 +37,7 @@ func runLogout(cmd *cobra.Command, args []string) error {
 	// プロファイル情報を取得
 	profiles := resolved.Profiles
 
-	ctx := context.Background()
+	ctx := cmd.Context()
 
 	if logoutAll {
 		for profileName := range credentials {

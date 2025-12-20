@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -63,9 +64,10 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
+	ctx := c.Context()
 
 	// プロジェクト情報取得
-	project, err := client.GetProject(projectKey)
+	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
@@ -85,7 +87,7 @@ func runList(c *cobra.Command, args []string) error {
 	// 担当者フィルター
 	if listMine || listAssignee == "@me" {
 		// 自分の課題
-		me, err := client.GetCurrentUser()
+		me, err := client.GetCurrentUser(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get current user: %w", err)
 		}
@@ -109,7 +111,7 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	// 課題取得
-	issues, err := client.GetIssues(opts)
+	issues, err := client.GetIssues(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to get issues: %w", err)
 	}
@@ -126,12 +128,12 @@ func runList(c *cobra.Command, args []string) error {
 	case "json":
 		return outputJSON(issues)
 	default:
-		outputTable(client, issues, profile, display)
+		outputTable(ctx, client, issues, profile, display)
 		return nil
 	}
 }
 
-func outputTable(client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
+func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
 	// フラグ調整
 	if listSummaryWithComments {
 		listSummary = true
@@ -180,7 +182,7 @@ func outputTable(client *api.Client, issues []backlog.Issue, profile *config.Res
 	for _, issue := range issues {
 		row := make([]string, len(fields))
 		for i, f := range fields {
-			row[i] = getIssueFieldValue(client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments)
+			row[i] = getIssueFieldValue(ctx, client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments)
 		}
 		table.AddRow(row...)
 	}
@@ -188,7 +190,7 @@ func outputTable(client *api.Client, issues []backlog.Issue, profile *config.Res
 	table.RenderWithColor(os.Stdout, ui.IsColorEnabled())
 }
 
-func getIssueFieldValue(client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool) string {
+func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool) string {
 	switch field {
 	case "key":
 		key := issue.IssueKey.Value
@@ -222,7 +224,7 @@ func getIssueFieldValue(client *api.Client, issue backlog.Issue, field string, f
 			if fetchCount > 100 {
 				fetchCount = 100
 			}
-			comments, err := client.GetComments(issue.IssueKey.Value, &api.CommentListOptions{
+			comments, err := client.GetComments(ctx, issue.IssueKey.Value, &api.CommentListOptions{
 				Count: fetchCount,
 				Order: "desc",
 			})

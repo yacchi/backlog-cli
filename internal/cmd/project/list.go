@@ -34,7 +34,7 @@ func runList(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	projects, err := client.GetProjects()
+	projects, err := client.GetProjects(c.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get projects: %w", err)
 	}

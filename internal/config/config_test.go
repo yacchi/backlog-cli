@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +11,7 @@ func TestDefaultConfig(t *testing.T) {
 	ResetConfig()
 	defer ResetConfig()
 
-	cfg, err := Load(context.Background())
+	cfg, err := Load(t.Context())
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
@@ -35,7 +34,7 @@ func TestEnvOverrides(t *testing.T) {
 	// 動的マッピング形式: BACKLOG_PROFILE_{key}_SPACE
 	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space")
 
-	cfg, err := Load(context.Background())
+	cfg, err := Load(t.Context())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -75,7 +74,7 @@ func TestStoreProjectConfigPath(t *testing.T) {
 	defer ResetConfig()
 
 	// Store をロード
-	cfg, err := Load(context.Background())
+	cfg, err := Load(t.Context())
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}

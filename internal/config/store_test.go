@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"testing"
 
 	"github.com/yacchi/jubako"
@@ -11,7 +10,7 @@ func TestJubakoStoreLoad(t *testing.T) {
 	// テスト用に環境変数をクリア（t.Setenvは元の値を自動復元する）
 	t.Setenv("BACKLOG_SPACE", "")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -52,7 +51,7 @@ func TestJubakoStoreEnvOverrides(t *testing.T) {
 	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space-from-env")
 	t.Setenv("BACKLOG_CLIENT_ID_JP", "test-client-id-jp")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -80,7 +79,7 @@ func TestJubakoStoreEnvOverrides(t *testing.T) {
 }
 
 func TestJubakoStoreReload(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -98,7 +97,7 @@ func TestJubakoStoreReload(t *testing.T) {
 }
 
 func TestJubakoStoreActiveProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -126,7 +125,7 @@ func TestEnvShortcuts(t *testing.T) {
 	// BACKLOG_SPACE は BACKLOG_PROFILE_default_SPACE に展開される
 	t.Setenv("BACKLOG_SPACE", "shortcut-test-space")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -152,7 +151,7 @@ func TestEnvShortcutsPriority(t *testing.T) {
 	t.Setenv("BACKLOG_SPACE", "shortcut-space")
 	t.Setenv("BACKLOG_PROFILE_default_SPACE", "full-form-space")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {
@@ -175,7 +174,7 @@ func TestEnvShortcutsPriority(t *testing.T) {
 }
 
 func TestSetFlagsLayer(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	store, err := newConfigStore()
 	if err != nil {

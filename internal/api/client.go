@@ -34,7 +34,7 @@ type Client struct {
 	refreshToken  string
 	expiresAt     time.Time
 	relayServer   string
-	onTokenUpdate func(accessToken, refreshToken string, expiresAt time.Time)
+	onTokenUpdate func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time)
 
 	// キャッシュ
 	cache    cache.Cache
@@ -53,7 +53,7 @@ func WithCache(c cache.Cache, ttl time.Duration) ClientOption {
 }
 
 // WithTokenRefresh はトークン自動更新を有効にする（OAuth用）
-func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, callback func(string, string, time.Time)) ClientOption {
+func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, callback func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time)) ClientOption {
 	return func(c *Client) {
 		c.refreshToken = refreshToken
 		c.relayServer = relayServer
@@ -119,7 +119,7 @@ func (c *Client) OAuth2(ctx context.Context, operationName backlog.OperationName
 
 	if c.accessToken != "" {
 		// トークンリフレッシュの確認
-		if err := c.ensureValidToken(); err != nil {
+		if err := c.ensureValidToken(ctx); err != nil {
 			return backlog.OAuth2{}, fmt.Errorf("token refresh failed: %w", err)
 		}
 		return backlog.OAuth2{Token: c.accessToken}, nil
@@ -185,10 +185,8 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 				cred.RefreshToken,
 				profile.RelayServer,
 				cred.ExpiresAt,
-				func(accessToken, refreshToken string, expiresAt time.Time) {
+				func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) {
 					// 設定ファイルを更新（プロファイルに紐づける）
-					ctx := context.Background()
-
 					if err := cfg.SetCredential(profileName, &config.Credential{
 						AuthType:     config.AuthTypeOAuth,
 						AccessToken:  accessToken,
@@ -215,7 +213,7 @@ func (c *Client) baseURL() string {
 }
 
 // ensureValidToken はトークンが有効か確認し、必要なら更新する
-func (c *Client) ensureValidToken() error {
+func (c *Client) ensureValidToken(ctx context.Context) error {
 	if c.refreshToken == "" || c.relayServer == "" {
 		return nil // 自動更新なし
 	}
@@ -226,10 +224,10 @@ func (c *Client) ensureValidToken() error {
 	}
 
 	// トークン更新
-	return c.doRefreshToken()
+	return c.doRefreshToken(ctx)
 }
 
-func (c *Client) doRefreshToken() error {
+func (c *Client) doRefreshToken(ctx context.Context) error {
 	reqBody := map[string]string{
 		"grant_type":    "refresh_token",
 		"refresh_token": c.refreshToken,
@@ -238,11 +236,14 @@ func (c *Client) doRefreshToken() error {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	resp, err := c.httpClient.Post(
-		c.relayServer+"/auth/token",
-		"application/json",
-		bytes.NewReader(body),
-	)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.relayServer+"/auth/token", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create token refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("token refresh request failed: %w", err)
 	}
@@ -266,19 +267,19 @@ func (c *Client) doRefreshToken() error {
 	c.refreshToken = tokenResp.RefreshToken
 	c.expiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
-	// コールバック
+	// コールバック（キャンセルを切って値のみ伝播）
 	if c.onTokenUpdate != nil {
-		c.onTokenUpdate(c.accessToken, c.refreshToken, c.expiresAt)
+		c.onTokenUpdate(context.WithoutCancel(ctx), c.accessToken, c.refreshToken, c.expiresAt)
 	}
 
 	return nil
 }
 
 // Request はAPIリクエストを実行する
-func (c *Client) Request(method, path string, query url.Values, body interface{}) (*http.Response, error) {
+func (c *Client) Request(ctx context.Context, method, path string, query url.Values, body interface{}) (*http.Response, error) {
 	// OAuth認証の場合のみトークン更新チェック
 	if c.apiKey == "" {
-		if err := c.ensureValidToken(); err != nil {
+		if err := c.ensureValidToken(ctx); err != nil {
 			return nil, fmt.Errorf("token refresh failed: %w", err)
 		}
 	}
@@ -306,7 +307,7 @@ func (c *Client) Request(method, path string, query url.Values, body interface{}
 		reqBody = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequest(method, u, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -323,20 +324,20 @@ func (c *Client) Request(method, path string, query url.Values, body interface{}
 }
 
 // Get はGETリクエストを実行する
-func (c *Client) Get(path string, query url.Values) (*http.Response, error) {
-	return c.Request("GET", path, query, nil)
+func (c *Client) Get(ctx context.Context, path string, query url.Values) (*http.Response, error) {
+	return c.Request(ctx, "GET", path, query, nil)
 }
 
 // Post はPOSTリクエストを実行する
-func (c *Client) Post(path string, body interface{}) (*http.Response, error) {
-	return c.Request("POST", path, nil, body)
+func (c *Client) Post(ctx context.Context, path string, body interface{}) (*http.Response, error) {
+	return c.Request(ctx, "POST", path, nil, body)
 }
 
 // PostForm はフォーム形式でPOSTする
-func (c *Client) PostForm(path string, data url.Values) (*http.Response, error) {
+func (c *Client) PostForm(ctx context.Context, path string, data url.Values) (*http.Response, error) {
 	// OAuth認証の場合のみトークン更新チェック
 	if c.apiKey == "" {
-		if err := c.ensureValidToken(); err != nil {
+		if err := c.ensureValidToken(ctx); err != nil {
 			return nil, fmt.Errorf("token refresh failed: %w", err)
 		}
 	}
@@ -347,7 +348,7 @@ func (c *Client) PostForm(path string, data url.Values) (*http.Response, error) 
 		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
 	}
 
-	req, err := http.NewRequest("POST", requestURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", requestURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -362,10 +363,10 @@ func (c *Client) PostForm(path string, data url.Values) (*http.Response, error) 
 }
 
 // PatchForm はフォーム形式でPATCHする
-func (c *Client) PatchForm(path string, data url.Values) (*http.Response, error) {
+func (c *Client) PatchForm(ctx context.Context, path string, data url.Values) (*http.Response, error) {
 	// OAuth認証の場合のみトークン更新チェック
 	if c.apiKey == "" {
-		if err := c.ensureValidToken(); err != nil {
+		if err := c.ensureValidToken(ctx); err != nil {
 			return nil, fmt.Errorf("token refresh failed: %w", err)
 		}
 	}
@@ -376,7 +377,7 @@ func (c *Client) PatchForm(path string, data url.Values) (*http.Response, error)
 		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
 	}
 
-	req, err := http.NewRequest("PATCH", requestURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "PATCH", requestURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -391,11 +392,11 @@ func (c *Client) PatchForm(path string, data url.Values) (*http.Response, error)
 }
 
 // Patch はPATCHリクエストを実行する
-func (c *Client) Patch(path string, body interface{}) (*http.Response, error) {
-	return c.Request("PATCH", path, nil, body)
+func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*http.Response, error) {
+	return c.Request(ctx, "PATCH", path, nil, body)
 }
 
 // Delete はDELETEリクエストを実行する
-func (c *Client) Delete(path string) (*http.Response, error) {
-	return c.Request("DELETE", path, nil, nil)
+func (c *Client) Delete(ctx context.Context, path string) (*http.Response, error) {
+	return c.Request(ctx, "DELETE", path, nil, nil)
 }

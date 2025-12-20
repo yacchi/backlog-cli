@@ -114,7 +114,7 @@ type IssueListOptions struct {
 }
 
 // GetIssues は課題一覧を取得する
-func (c *Client) GetIssues(opts *IssueListOptions) ([]backlog.Issue, error) {
+func (c *Client) GetIssues(ctx context.Context, opts *IssueListOptions) ([]backlog.Issue, error) {
 	// リスト自体のキャッシュは行わない
 
 	params := backlog.GetIssuesParams{}
@@ -182,7 +182,7 @@ func (c *Client) GetIssues(opts *IssueListOptions) ([]backlog.Issue, error) {
 		}
 	}
 
-	res, err := c.backlogClient.GetIssues(context.TODO(), params)
+	res, err := c.backlogClient.GetIssues(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -202,14 +202,14 @@ func (c *Client) GetIssues(opts *IssueListOptions) ([]backlog.Issue, error) {
 }
 
 // GetIssuesCount は課題数を取得する
-func (c *Client) GetIssuesCount(opts *IssueListOptions) (int, error) {
+func (c *Client) GetIssuesCount(ctx context.Context, opts *IssueListOptions) (int, error) {
 	params := backlog.GetIssuesCountParams{}
 	if opts != nil {
 		params.ProjectId = opts.ProjectIDs
 		params.StatusId = opts.StatusIDs
 	}
 
-	res, err := c.backlogClient.GetIssuesCount(context.TODO(), params)
+	res, err := c.backlogClient.GetIssuesCount(ctx, params)
 	if err != nil {
 		return 0, err
 	}
@@ -221,7 +221,7 @@ func (c *Client) GetIssuesCount(opts *IssueListOptions) (int, error) {
 }
 
 // GetIssue は課題を取得する
-func (c *Client) GetIssue(issueIDOrKey string) (*backlog.Issue, error) {
+func (c *Client) GetIssue(ctx context.Context, issueIDOrKey string) (*backlog.Issue, error) {
 	if c.cache != nil {
 		var issue backlog.Issue
 		key := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueIDOrKey)
@@ -230,7 +230,7 @@ func (c *Client) GetIssue(issueIDOrKey string) (*backlog.Issue, error) {
 		}
 	}
 
-	issue, err := c.backlogClient.GetIssue(context.TODO(), backlog.GetIssueParams{
+	issue, err := c.backlogClient.GetIssue(ctx, backlog.GetIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
 	if err != nil {
@@ -264,7 +264,7 @@ type CreateIssueInput struct {
 }
 
 // CreateIssue は課題を作成する
-func (c *Client) CreateIssue(input *CreateIssueInput) (*backlog.Issue, error) {
+func (c *Client) CreateIssue(ctx context.Context, input *CreateIssueInput) (*backlog.Issue, error) {
 	req := backlog.CreateIssueReq{
 		ProjectId:   input.ProjectID,
 		Summary:     input.Summary,
@@ -297,7 +297,7 @@ func (c *Client) CreateIssue(input *CreateIssueInput) (*backlog.Issue, error) {
 		req.ParentIssueId = backlog.NewOptInt(input.ParentIssueID)
 	}
 
-	return c.backlogClient.CreateIssue(context.TODO(), backlog.NewOptCreateIssueReq(req))
+	return c.backlogClient.CreateIssue(ctx, backlog.NewOptCreateIssueReq(req))
 }
 
 // UpdateIssueInput は課題更新の入力
@@ -320,7 +320,7 @@ type UpdateIssueInput struct {
 }
 
 // UpdateIssue は課題を更新する
-func (c *Client) UpdateIssue(issueIDOrKey string, input *UpdateIssueInput) (*backlog.Issue, error) {
+func (c *Client) UpdateIssue(ctx context.Context, issueIDOrKey string, input *UpdateIssueInput) (*backlog.Issue, error) {
 	req := backlog.UpdateIssueReq{}
 
 	if input.Summary != nil {
@@ -364,14 +364,14 @@ func (c *Client) UpdateIssue(issueIDOrKey string, input *UpdateIssueInput) (*bac
 	req.VersionId = input.VersionIDs
 	req.MilestoneId = input.MilestoneIDs
 
-	return c.backlogClient.UpdateIssue(context.TODO(), backlog.NewOptUpdateIssueReq(req), backlog.UpdateIssueParams{
+	return c.backlogClient.UpdateIssue(ctx, backlog.NewOptUpdateIssueReq(req), backlog.UpdateIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
 }
 
 // DeleteIssue は課題を削除する
-func (c *Client) DeleteIssue(issueIDOrKey string) (*backlog.Issue, error) {
-	return c.backlogClient.DeleteIssue(context.TODO(), backlog.DeleteIssueParams{
+func (c *Client) DeleteIssue(ctx context.Context, issueIDOrKey string) (*backlog.Issue, error) {
+	return c.backlogClient.DeleteIssue(ctx, backlog.DeleteIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
 }

@@ -56,7 +56,7 @@ func runList(c *cobra.Command, args []string) error {
 		opts.StatusIDs = []int{listStatus}
 	}
 
-	prs, err := client.GetPullRequests(projectKey, listRepo, opts)
+	prs, err := client.GetPullRequests(c.Context(), projectKey, listRepo, opts)
 	if err != nil {
 		return fmt.Errorf("failed to get pull requests: %w", err)
 	}

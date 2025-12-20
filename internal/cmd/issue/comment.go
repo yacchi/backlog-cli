@@ -60,7 +60,7 @@ func runComment(c *cobra.Command, args []string) error {
 		return fmt.Errorf("comment cannot be empty")
 	}
 
-	comment, err := client.AddComment(issueKey, message, nil)
+	comment, err := client.AddComment(c.Context(), issueKey, message, nil)
 	if err != nil {
 		return fmt.Errorf("failed to add comment: %w", err)
 	}

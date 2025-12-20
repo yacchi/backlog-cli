@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -29,11 +30,11 @@ type WikiTag struct {
 }
 
 // GetWikis はWiki一覧を取得する
-func (c *Client) GetWikis(projectIDOrKey string) ([]Wiki, error) {
+func (c *Client) GetWikis(ctx context.Context, projectIDOrKey string) ([]Wiki, error) {
 	query := url.Values{}
 	query.Set("projectIdOrKey", projectIDOrKey)
 
-	resp, err := c.Get("/wikis", query)
+	resp, err := c.Get(ctx, "/wikis", query)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +49,8 @@ func (c *Client) GetWikis(projectIDOrKey string) ([]Wiki, error) {
 }
 
 // GetWiki はWikiページを取得する
-func (c *Client) GetWiki(wikiID int) (*Wiki, error) {
-	resp, err := c.Get(fmt.Sprintf("/wikis/%d", wikiID), nil)
+func (c *Client) GetWiki(ctx context.Context, wikiID int) (*Wiki, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/wikis/%d", wikiID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,11 +65,11 @@ func (c *Client) GetWiki(wikiID int) (*Wiki, error) {
 }
 
 // GetWikisCount はWikiページ数を取得する
-func (c *Client) GetWikisCount(projectIDOrKey string) (int, error) {
+func (c *Client) GetWikisCount(ctx context.Context, projectIDOrKey string) (int, error) {
 	query := url.Values{}
 	query.Set("projectIdOrKey", projectIDOrKey)
 
-	resp, err := c.Get("/wikis/count", query)
+	resp, err := c.Get(ctx, "/wikis/count", query)
 	if err != nil {
 		return 0, err
 	}
@@ -93,7 +94,7 @@ type CreateWikiInput struct {
 }
 
 // CreateWiki はWikiページを作成する
-func (c *Client) CreateWiki(input *CreateWikiInput) (*Wiki, error) {
+func (c *Client) CreateWiki(ctx context.Context, input *CreateWikiInput) (*Wiki, error) {
 	data := url.Values{}
 	data.Set("projectId", strconv.Itoa(input.ProjectID))
 	data.Set("name", input.Name)
@@ -102,7 +103,7 @@ func (c *Client) CreateWiki(input *CreateWikiInput) (*Wiki, error) {
 		data.Set("mailNotify", "true")
 	}
 
-	resp, err := c.PostForm("/wikis", data)
+	resp, err := c.PostForm(ctx, "/wikis", data)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ type UpdateWikiInput struct {
 }
 
 // UpdateWiki はWikiページを更新する
-func (c *Client) UpdateWiki(wikiID int, input *UpdateWikiInput) (*Wiki, error) {
+func (c *Client) UpdateWiki(ctx context.Context, wikiID int, input *UpdateWikiInput) (*Wiki, error) {
 	data := url.Values{}
 	if input.Name != nil {
 		data.Set("name", *input.Name)
@@ -136,7 +137,7 @@ func (c *Client) UpdateWiki(wikiID int, input *UpdateWikiInput) (*Wiki, error) {
 		data.Set("mailNotify", "true")
 	}
 
-	resp, err := c.PatchForm(fmt.Sprintf("/wikis/%d", wikiID), data)
+	resp, err := c.PatchForm(ctx, fmt.Sprintf("/wikis/%d", wikiID), data)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +152,8 @@ func (c *Client) UpdateWiki(wikiID int, input *UpdateWikiInput) (*Wiki, error) {
 }
 
 // DeleteWiki はWikiページを削除する
-func (c *Client) DeleteWiki(wikiID int) (*Wiki, error) {
-	resp, err := c.Delete(fmt.Sprintf("/wikis/%d", wikiID))
+func (c *Client) DeleteWiki(ctx context.Context, wikiID int) (*Wiki, error) {
+	resp, err := c.Delete(ctx, fmt.Sprintf("/wikis/%d", wikiID))
 	if err != nil {
 		return nil, err
 	}

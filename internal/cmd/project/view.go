@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -57,7 +58,8 @@ func runView(c *cobra.Command, args []string) error {
 	}
 
 	// プロジェクト情報取得
-	project, err := client.GetProject(projectKey)
+	ctx := c.Context()
+	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
@@ -69,11 +71,11 @@ func runView(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(project)
 	default:
-		return renderProjectDetail(client, project, profile)
+		return renderProjectDetail(ctx, client, project, profile)
 	}
 }
 
-func renderProjectDetail(client *api.Client, project *api.Project, profile *config.ResolvedProfile) error {
+func renderProjectDetail(ctx context.Context, client *api.Client, project *api.Project, profile *config.ResolvedProfile) error {
 	// ヘッダー
 	fmt.Printf("%s %s\n", ui.Bold(project.ProjectKey), project.Name)
 	fmt.Println(strings.Repeat("─", 60))
@@ -112,7 +114,7 @@ func renderProjectDetail(client *api.Client, project *api.Project, profile *conf
 	fmt.Println(strings.Repeat("─", 60))
 
 	// 課題種別
-	issueTypes, err := client.GetIssueTypes(project.ProjectKey)
+	issueTypes, err := client.GetIssueTypes(ctx, project.ProjectKey)
 	if err == nil && len(issueTypes) > 0 {
 		types := make([]string, len(issueTypes))
 		for i, t := range issueTypes {
@@ -122,7 +124,7 @@ func renderProjectDetail(client *api.Client, project *api.Project, profile *conf
 	}
 
 	// カテゴリー
-	categories, err := client.GetCategories(project.ProjectKey)
+	categories, err := client.GetCategories(ctx, project.ProjectKey)
 	if err == nil && len(categories) > 0 {
 		cats := make([]string, len(categories))
 		for i, c := range categories {
@@ -132,7 +134,7 @@ func renderProjectDetail(client *api.Client, project *api.Project, profile *conf
 	}
 
 	// バージョン
-	versions, err := client.GetVersions(project.ProjectKey)
+	versions, err := client.GetVersions(ctx, project.ProjectKey)
 	if err == nil {
 		activeVersions := 0
 		for _, v := range versions {
@@ -144,7 +146,7 @@ func renderProjectDetail(client *api.Client, project *api.Project, profile *conf
 	}
 
 	// メンバー
-	users, err := client.GetProjectUsers(project.ProjectKey)
+	users, err := client.GetProjectUsers(ctx, project.ProjectKey)
 	if err == nil {
 		fmt.Printf("Members: %d\n", len(users))
 	}

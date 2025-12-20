@@ -65,7 +65,7 @@ func runView(c *cobra.Command, args []string) error {
 	}
 
 	// PR取得
-	pr, err := client.GetPullRequest(projectKey, viewRepo, number)
+	pr, err := client.GetPullRequest(c.Context(), projectKey, viewRepo, number)
 	if err != nil {
 		return fmt.Errorf("failed to get pull request: %w", err)
 	}

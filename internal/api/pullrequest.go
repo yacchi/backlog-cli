@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -53,8 +54,8 @@ type Repository struct {
 }
 
 // GetRepositories はリポジトリ一覧を取得する
-func (c *Client) GetRepositories(projectIDOrKey string) ([]Repository, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/git/repositories", projectIDOrKey), nil)
+func (c *Client) GetRepositories(ctx context.Context, projectIDOrKey string) ([]Repository, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/git/repositories", projectIDOrKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -103,13 +104,13 @@ func (o *PRListOptions) ToQuery() url.Values {
 }
 
 // GetPullRequests はプルリクエスト一覧を取得する
-func (c *Client) GetPullRequests(projectIDOrKey, repoIDOrName string, opts *PRListOptions) ([]PullRequest, error) {
+func (c *Client) GetPullRequests(ctx context.Context, projectIDOrKey, repoIDOrName string, opts *PRListOptions) ([]PullRequest, error) {
 	var query url.Values
 	if opts != nil {
 		query = opts.ToQuery()
 	}
 
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests", projectIDOrKey, repoIDOrName), query)
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests", projectIDOrKey, repoIDOrName), query)
 	if err != nil {
 		return nil, err
 	}
@@ -124,8 +125,8 @@ func (c *Client) GetPullRequests(projectIDOrKey, repoIDOrName string, opts *PRLi
 }
 
 // GetPullRequest はプルリクエストを取得する
-func (c *Client) GetPullRequest(projectIDOrKey, repoIDOrName string, number int) (*PullRequest, error) {
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d", projectIDOrKey, repoIDOrName, number), nil)
+func (c *Client) GetPullRequest(ctx context.Context, projectIDOrKey, repoIDOrName string, number int) (*PullRequest, error) {
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d", projectIDOrKey, repoIDOrName, number), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -140,13 +141,13 @@ func (c *Client) GetPullRequest(projectIDOrKey, repoIDOrName string, number int)
 }
 
 // GetPullRequestsCount はプルリクエスト数を取得する
-func (c *Client) GetPullRequestsCount(projectIDOrKey, repoIDOrName string, opts *PRListOptions) (int, error) {
+func (c *Client) GetPullRequestsCount(ctx context.Context, projectIDOrKey, repoIDOrName string, opts *PRListOptions) (int, error) {
 	var query url.Values
 	if opts != nil {
 		query = opts.ToQuery()
 	}
 
-	resp, err := c.Get(fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/count", projectIDOrKey, repoIDOrName), query)
+	resp, err := c.Get(ctx, fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/count", projectIDOrKey, repoIDOrName), query)
 	if err != nil {
 		return 0, err
 	}

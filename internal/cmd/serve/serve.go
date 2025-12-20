@@ -67,8 +67,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	case <-stop:
 		fmt.Println("\nShutting down...")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		return srv.Shutdown(ctx)
+		return srv.Shutdown(shutdownCtx)
 	}
 }

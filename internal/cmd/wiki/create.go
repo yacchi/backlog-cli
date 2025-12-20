@@ -48,7 +48,8 @@ func runCreate(c *cobra.Command, args []string) error {
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
 	// プロジェクトID取得
-	project, err := client.GetProject(projectKey)
+	ctx := c.Context()
+	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
@@ -80,7 +81,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		MailNotify: createMailNotify,
 	}
 
-	wiki, err := client.CreateWiki(input)
+	wiki, err := client.CreateWiki(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to create wiki page: %w", err)
 	}

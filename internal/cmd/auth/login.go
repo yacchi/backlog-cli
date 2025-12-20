@@ -125,14 +125,15 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	// 認証方式に応じて処理を分岐
+	ctx := cmd.Context()
 	if authMethod == authMethodAPIKey {
-		return runAPIKeyLogin(cfg)
+		return runAPIKeyLogin(ctx, cfg)
 	}
-	return runOAuthLogin(cfg, relayServer)
+	return runOAuthLogin(ctx, cfg, relayServer)
 }
 
 // runAPIKeyLogin はAPI Key認証を実行する
-func runAPIKeyLogin(cfg *config.Store) error {
+func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	// オプションのマージ
 	opts := mergeLoginOptions(cfg)
 
@@ -210,7 +211,7 @@ func runAPIKeyLogin(cfg *config.Store) error {
 	// API Keyの検証（ユーザー情報取得）
 	fmt.Println("Verifying API Key...")
 	apiClient := api.NewClient(opts.space, opts.domain, "", api.WithAPIKey(apiKey))
-	user, err := apiClient.GetCurrentUser()
+	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("API Key verification failed: %w", err)
 	}
@@ -220,8 +221,6 @@ func runAPIKeyLogin(cfg *config.Store) error {
 		fmt.Printf(" (%s)", user.MailAddress.Value)
 	}
 	fmt.Println()
-
-	ctx := context.Background()
 
 	// 認証情報保存（プロファイルに紐づける）
 	profileName := cfg.GetActiveProfile()
@@ -253,7 +252,7 @@ func runAPIKeyLogin(cfg *config.Store) error {
 }
 
 // runOAuthLogin はOAuth認証を実行する
-func runOAuthLogin(cfg *config.Store, relayServer string) error {
+func runOAuthLogin(ctx context.Context, cfg *config.Store, relayServer string) error {
 	debug.Log("starting OAuth login", "relay_server", relayServer)
 
 	// オプションのマージ
@@ -347,9 +346,9 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 		}
 	}()
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := callbackServer.Shutdown(ctx); err != nil {
+		if err := callbackServer.Shutdown(shutdownCtx); err != nil {
 			debug.Log("callback server shutdown error", "error", err)
 		}
 	}()
@@ -416,7 +415,7 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 
 	// 9. ユーザー情報取得
 	apiClient := api.NewClient(opts.space, opts.domain, tokenResp.AccessToken)
-	user, err := apiClient.GetCurrentUser()
+	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
 	} else {
@@ -426,8 +425,6 @@ func runOAuthLogin(cfg *config.Store, relayServer string) error {
 		}
 		fmt.Println()
 	}
-
-	ctx := context.Background()
 
 	// 10. 認証情報保存（プロファイルに紐づける）
 	profileName := cfg.GetActiveProfile()

@@ -26,7 +26,7 @@ func runMe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not authenticated: %w", err)
 	}
 
-	user, err := client.GetCurrentUser()
+	user, err := client.GetCurrentUser(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get user info: %w", err)
 	}

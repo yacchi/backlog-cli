@@ -302,7 +302,7 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 
 	// 認証ユーザー情報を取得
 	var userID, userName, userEmail string
-	if user, err := api.FetchCurrentUser(req.Domain, req.Space, tokenResp.AccessToken); err == nil {
+	if user, err := api.FetchCurrentUser(r.Context(), req.Domain, req.Space, tokenResp.AccessToken); err == nil {
 		userID = user.UserId.Value
 		userName = user.Name.Value
 		userEmail = user.MailAddress.Value

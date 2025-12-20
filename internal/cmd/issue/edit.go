@@ -80,8 +80,9 @@ func runEdit(c *cobra.Command, args []string) error {
 	}
 
 	// 担当者
+	ctx := c.Context()
 	if editAssignee == "@me" {
-		me, err := client.GetCurrentUser()
+		me, err := client.GetCurrentUser(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get current user: %w", err)
 		}
@@ -101,7 +102,7 @@ func runEdit(c *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	issue, err := client.UpdateIssue(issueKey, input)
+	issue, err := client.UpdateIssue(ctx, issueKey, input)
 	if err != nil {
 		return fmt.Errorf("failed to update issue: %w", err)
 	}

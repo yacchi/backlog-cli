@@ -37,7 +37,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
-	wikis, err := client.GetWikis(projectKey)
+	wikis, err := client.GetWikis(c.Context(), projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get wiki pages: %w", err)
 	}
