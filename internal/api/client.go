@@ -152,14 +152,22 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 
 	// キャッシュ設定
 	var c cache.Cache
+	ttl := time.Duration(resolved.Cache.TTL) * time.Second
 	if resolved.Cache.Enabled {
 		cacheDir, err := resolved.Cache.GetCacheDir()
 		if err == nil {
-			c, _ = cache.NewFileCache(cacheDir)
-			// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
+			c, err = cache.NewFileCache(cacheDir)
+			if err != nil {
+				// キャッシュ初期化失敗はログに出さず無視（キャッシュなしで動作）
+			} else {
+				// バックグラウンドで期限切れキャッシュの削除を実行
+				// プロセス終了とともに終了するため、context.Background()を使用
+				go func() {
+					_ = c.Cleanup(context.Background(), ttl)
+				}()
+			}
 		}
 	}
-	ttl := time.Duration(resolved.Cache.TTL) * time.Second
 
 	// 認証タイプに応じてクライアントを作成
 	switch cred.GetAuthType() {

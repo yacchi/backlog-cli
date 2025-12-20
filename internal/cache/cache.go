@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ type Cache interface {
 	Get(key string, v interface{}) (bool, error)
 	Set(key string, v interface{}, ttl time.Duration) error
 	Clear() error
+	Cleanup(ctx context.Context, ttl time.Duration) error
 }
 
 // FileCache はファイルベースのキャッシュ実装
@@ -128,4 +130,39 @@ func (c *FileCache) Set(key string, v interface{}, ttl time.Duration) error {
 // Clear はキャッシュディレクトリを削除する
 func (c *FileCache) Clear() error {
 	return os.RemoveAll(c.dir)
+}
+
+// Cleanup は期限切れのキャッシュファイルを削除する
+func (c *FileCache) Cleanup(ctx context.Context, ttl time.Duration) error {
+	entries, err := os.ReadDir(c.dir)
+	if err != nil {
+		return err
+	}
+
+	threshold := time.Now().Add(-ttl)
+
+	for _, entry := range entries {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if info.ModTime().Before(threshold) {
+			_ = os.Remove(filepath.Join(c.dir, entry.Name()))
+		}
+	}
+	return nil
 }
