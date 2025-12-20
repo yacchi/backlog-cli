@@ -33,3 +33,4 @@ verification_targets.txt
 web/node_modules/
 internal/ui/dist/
 web/.vite/
+web/dist/

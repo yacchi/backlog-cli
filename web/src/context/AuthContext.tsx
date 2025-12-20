@@ -18,7 +18,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 async function fetchAuthContext(): Promise<AuthContextData> {
-  const response = await fetch('/auth/context', {
+  const response = await fetch('/auth/config', {
     method: 'GET',
     headers: {
       Accept: 'application/json',

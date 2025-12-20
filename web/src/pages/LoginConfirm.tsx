@@ -3,10 +3,11 @@ import {Navigate, useNavigate} from 'react-router-dom'
 import Button from '../components/Button'
 import Container from '../components/Container'
 import InfoBox from '../components/InfoBox'
-import ResultView, {ResultType} from '../components/ResultView'
+import ResultView, {type ResultType} from '../components/ResultView'
 import StatusIndicator from '../components/StatusIndicator'
 import {useAuthContext} from '../context/AuthContext'
 import {useWebSocketContext} from '../context/WebSocketContext'
+import {openPopupCentered} from '../utils/popup'
 
 export default function LoginConfirm() {
   const navigate = useNavigate()
@@ -74,15 +75,7 @@ export default function LoginConfirm() {
     setPopupMessage(null)
     setIsLoggingIn(true)
 
-    const width = 600
-    const height = 700
-    const left = window.screenX + (window.outerWidth - width) / 2
-    const top = window.screenY + (window.outerHeight - height) / 2
-    const popup = window.open(
-      '/auth/popup',
-      'backlog_auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    )
+    const popup = openPopupCentered('/auth/popup', 'backlog_auth', 600, 700)
 
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
       setPopupMessage('ポップアップがブロックされました。ポップアップを許可してください。')

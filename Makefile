@@ -1,4 +1,4 @@
-.PHONY: build test lint clean run serve install build-web dev-web
+.PHONY: build test lint clean run serve install build-web dev-web build-dev
 
 # バージョン情報
 VERSION ?= $(shell cat version.txt 2>/dev/null | tr -d '[:space:]' || echo "dev")
@@ -68,12 +68,18 @@ clean:
 
 # フロントエンドビルド
 build-web:
-	# cd web && pnpm install --frozen-lockfile && pnpm build
 	cd web && pnpm install && pnpm build
+	rm -rf internal/ui/dist
+	cp -r web/dist internal/ui/dist
 
 # フロントエンド開発サーバー
 dev-web:
 	cd web && pnpm dev
+
+# 開発用ビルド（フロントエンドビルドをスキップ）
+build-dev:
+	@mkdir -p $(BUILD_DIR)
+	go build -tags=dev $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/backlog
 
 # 中継サーバー起動（開発用、go run使用）
 serve:

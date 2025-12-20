@@ -131,18 +131,16 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 
 func (cs *CallbackServer) setupRoutes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/config", cs.handleConfig)
 	mux.HandleFunc("/auth/configure", cs.handleConfigure)
-	mux.HandleFunc("/auth/context", cs.handleAuthContext)
 	mux.HandleFunc("/auth/ws", cs.handleWebSocket)
 	mux.HandleFunc("/auth/popup", cs.handlePopup)
 	mux.HandleFunc("/callback", cs.handleCallback)
 
 	assets, err := ui.Assets()
 	if err != nil {
-		debug.Log("ui assets unavailable, falling back to legacy templates", "error", err)
-		mux.HandleFunc("/auth/start", cs.handleAuthStart)
-		mux.HandleFunc("/auth/setup", cs.handleSetup)
-		mux.HandleFunc("/", cs.handleAuthStart)
+		debug.Log("ui assets unavailable", "error", err)
+		http.Error(nil, "SPA assets not available", http.StatusInternalServerError)
 		return mux
 	}
 
@@ -387,67 +385,9 @@ func (cs *CallbackServer) ensureSession(w http.ResponseWriter, r *http.Request) 
 	return session
 }
 
-// handleAuthStart は設定状況に応じたページを表示する
-func (cs *CallbackServer) handleAuthStart(w http.ResponseWriter, r *http.Request) {
-	debug.Log("auth/start accessed", "method", r.Method)
 
-	// セッションを確保
-	session := cs.ensureSession(w, r)
-	if session == nil {
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
-		return
-	}
-
-	profile := cs.configStore.CurrentProfile()
-	relayServer := profile.RelayServer
-	space := profile.Space
-	domain := profile.Domain
-
-	if relayServer == "" || space == "" || domain == "" {
-		// 未設定 → 入力フォーム表示
-		debug.Log("showing setup form (unconfigured)")
-		renderSetupForm(w, SetupPageData{})
-		return
-	}
-
-	spaceURL := fmt.Sprintf("https://%s.%s", space, domain)
-
-	// 常に確認画面を表示（ポップアップブロック回避のためユーザー操作を必須とする）
-	debug.Log("showing confirm page")
-	renderConfirmPage(w, SetupPageData{
-		SpaceURL:     spaceURL,
-		RelayServer:  relayServer,
-		IsConfigured: true,
-		Space:        space,
-		Domain:       domain,
-	})
-}
-
-// handleSetup は設定フォームを表示する（再設定用）
-func (cs *CallbackServer) handleSetup(w http.ResponseWriter, r *http.Request) {
-	debug.Log("auth/setup accessed", "method", r.Method)
-
-	// セッションを確保
-	session := cs.ensureSession(w, r)
-	if session == nil {
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
-		return
-	}
-
-	profile := cs.configStore.CurrentProfile()
-
-	spaceHost := ""
-	if profile.Space != "" && profile.Domain != "" {
-		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
-	}
-
-	renderSetupForm(w, SetupPageData{
-		SpaceHost:   spaceHost,
-		RelayServer: profile.RelayServer,
-	})
-}
-
-type AuthContextResponse struct {
+// AuthConfigResponse は設定取得のJSONレスポンス
+type AuthConfigResponse struct {
 	Space       string `json:"space"`
 	Domain      string `json:"domain"`
 	RelayServer string `json:"relayServer"`
@@ -455,8 +395,8 @@ type AuthContextResponse struct {
 	Configured  bool   `json:"configured"`
 }
 
-func (cs *CallbackServer) handleAuthContext(w http.ResponseWriter, r *http.Request) {
-	debug.Log("auth/context accessed", "method", r.Method)
+func (cs *CallbackServer) handleConfig(w http.ResponseWriter, r *http.Request) {
+	debug.Log("auth/config accessed", "method", r.Method)
 
 	if r.Method != http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")
@@ -477,7 +417,7 @@ func (cs *CallbackServer) handleAuthContext(w http.ResponseWriter, r *http.Reque
 		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
 	}
 
-	payload := AuthContextResponse{
+	payload := AuthConfigResponse{
 		Space:       profile.Space,
 		Domain:      profile.Domain,
 		RelayServer: profile.RelayServer,
@@ -495,48 +435,30 @@ type ConfigureResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// handleConfigure はフォーム送信を処理する
+// handleConfigure はフォーム送信を処理する（JSON APIのみ）
 func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request) {
 	debug.Log("auth/configure accessed", "method", r.Method)
 
-	// Accept ヘッダーをチェックして JSON レスポンスを返すか判定
-	wantJSON := strings.Contains(r.Header.Get("Accept"), "application/json")
+	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method != http.MethodPost {
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Method not allowed"})
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Method not allowed"})
 		return
 	}
 
 	// FormData (multipart/form-data) と通常のフォーム (application/x-www-form-urlencoded) の両方に対応
 	contentType := r.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "multipart/form-data") {
-		// multipart/form-data の場合は ParseMultipartForm を使用
-		if err := r.ParseMultipartForm(32 << 10); err != nil { // 32KB max memory
-			if wantJSON {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
-			} else {
-				http.Error(w, "Failed to parse form", http.StatusBadRequest)
-			}
+		if err := r.ParseMultipartForm(32 << 10); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
 			return
 		}
 	} else {
-		// application/x-www-form-urlencoded の場合は ParseForm を使用
 		if err := r.ParseForm(); err != nil {
-			if wantJSON {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
-			} else {
-				http.Error(w, "Failed to parse form", http.StatusBadRequest)
-			}
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
 			return
 		}
 	}
@@ -550,17 +472,7 @@ func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request
 	space, domain, err := parseSpaceHost(spaceHost)
 	if err != nil {
 		debug.Log("invalid space host", "error", err)
-		errMsg := "無効なスペース形式です: " + err.Error()
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: errMsg})
-		} else {
-			renderSetupForm(w, SetupPageData{
-				SpaceHost:    spaceHost,
-				RelayServer:  relayServer,
-				ErrorMessage: errMsg,
-			})
-		}
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "無効なスペース形式です: " + err.Error()})
 		return
 	}
 
@@ -569,34 +481,14 @@ func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request
 	wellKnown, err := client.FetchWellKnown()
 	if err != nil {
 		debug.Log("failed to fetch well-known", "error", err)
-		errMsg := fmt.Sprintf("リレーサーバーに接続できません: %v", err)
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: errMsg})
-		} else {
-			renderSetupForm(w, SetupPageData{
-				SpaceHost:    spaceHost,
-				RelayServer:  relayServer,
-				ErrorMessage: errMsg,
-			})
-		}
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("リレーサーバーに接続できません: %v", err)})
 		return
 	}
 
 	// ドメインがサポートされているかチェック
 	if !slices.Contains(wellKnown.SupportedDomains, domain) {
 		debug.Log("domain not supported", "domain", domain, "supported", wellKnown.SupportedDomains)
-		errMsg := fmt.Sprintf("このリレーサーバーは %s をサポートしていません（サポート: %s）", domain, strings.Join(wellKnown.SupportedDomains, ", "))
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: errMsg})
-		} else {
-			renderSetupForm(w, SetupPageData{
-				SpaceHost:    spaceHost,
-				RelayServer:  relayServer,
-				ErrorMessage: errMsg,
-			})
-		}
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("このリレーサーバーは %s をサポートしていません（サポート: %s）", domain, strings.Join(wellKnown.SupportedDomains, ", "))})
 		return
 	}
 
@@ -604,17 +496,7 @@ func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request
 	profileName := cs.configStore.GetActiveProfile()
 	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer); err != nil {
 		debug.Log("failed to save relay_server", "error", err)
-		errMsg := fmt.Sprintf("設定の保存に失敗しました: %v", err)
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: errMsg})
-		} else {
-			renderSetupForm(w, SetupPageData{
-				SpaceHost:    spaceHost,
-				RelayServer:  relayServer,
-				ErrorMessage: errMsg,
-			})
-		}
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("設定の保存に失敗しました: %v", err)})
 		return
 	}
 	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", space); err != nil {
@@ -626,32 +508,12 @@ func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request
 
 	if err := cs.configStore.Save(r.Context()); err != nil {
 		debug.Log("failed to save config", "error", err)
-		errMsg := fmt.Sprintf("設定の保存に失敗しました: %v", err)
-		if wantJSON {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: errMsg})
-		} else {
-			renderSetupForm(w, SetupPageData{
-				SpaceHost:    spaceHost,
-				RelayServer:  relayServer,
-				ErrorMessage: errMsg,
-			})
-		}
+		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("設定の保存に失敗しました: %v", err)})
 		return
 	}
 
 	debug.Log("config saved")
-
-	// JSON レスポンスの場合は成功を返す（リダイレクトしない）
-	if wantJSON {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: true})
-		return
-	}
-
-	// 通常のフォーム送信の場合は中継サーバーへリダイレクト
-	debug.Log("redirecting to relay server")
-	cs.redirectToRelay(w, r, relayServer, space, domain)
+	_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: true})
 }
 
 // redirectToRelay は中継サーバーへリダイレクトする

@@ -1,4 +1,4 @@
-import {FormEvent, useEffect, useState} from 'react'
+import {type FormEvent, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import Button from '../components/Button'
 import Container from '../components/Container'

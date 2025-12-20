@@ -22,7 +22,7 @@ export function WebSocketProvider({children}: {children: React.ReactNode}) {
 
     try {
       wsRef.current = new WebSocket(wsUrl)
-    } catch (err) {
+    } catch {
       setStatus('closed')
       return
     }
