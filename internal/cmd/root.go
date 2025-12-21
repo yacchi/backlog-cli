@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/internal/cmd/auth"
 	configcmd "github.com/yacchi/backlog-cli/internal/cmd/config"
@@ -11,6 +13,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/cmd/wiki"
 	"github.com/yacchi/backlog-cli/internal/config"
 	"github.com/yacchi/backlog-cli/internal/debug"
+	"github.com/yacchi/backlog-cli/internal/ui"
 	"github.com/yacchi/jubako"
 )
 
@@ -43,6 +46,18 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 		// profileフラグが指定されていればアクティブプロファイルを切り替え
 		if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 			cfg.SetActiveProfile(profile)
+		}
+
+		// カラー設定
+		if noColor, _ := cmd.Flags().GetBool("no-color"); noColor {
+			ui.SetColorEnabled(false)
+		} else if profile := cfg.CurrentProfile(); profile != nil {
+			switch strings.ToLower(profile.Color) {
+			case "never":
+				ui.SetColorEnabled(false)
+			case "always":
+				ui.SetColorEnabled(true)
+			}
 		}
 
 		// グローバルフラグを取得してArgsレイヤーに適用

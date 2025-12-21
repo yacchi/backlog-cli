@@ -109,8 +109,8 @@ type ResolvedProfile struct {
 	AuthTimeout            int    `json:"auth_timeout" jubako:",env:PROFILE_{key}_AUTH_TIMEOUT"`
 	AuthNoBrowser          bool   `json:"auth_no_browser" jubako:",env:PROFILE_{key}_NO_BROWSER"`
 	AuthSkipConfirmation   bool   `json:"auth_skip_confirmation" jubako:",env:PROFILE_{key}_SKIP_CONFIRMATION"`
-	HTTPTimeout            int    `json:"http_timeout"`
-	HTTPTokenRefreshMargin int    `json:"http_token_refresh_margin"`
+	HTTPTimeout            int    `json:"http_timeout" jubako:",env:PROFILE_{key}_HTTP_TIMEOUT"`
+	HTTPTokenRefreshMargin int    `json:"http_token_refresh_margin" jubako:",env:PROFILE_{key}_HTTP_TOKEN_REFRESH_MARGIN"`
 }
 
 // ResolvedProject はマージ済みのプロジェクト設定
@@ -145,10 +145,6 @@ type ResolvedServer struct {
 	HTTPReadTimeout  int `json:"http_read_timeout" jubako:"/server/http/read_timeout,env:HTTP_READ_TIMEOUT"`
 	HTTPWriteTimeout int `json:"http_write_timeout" jubako:"/server/http/write_timeout,env:HTTP_WRITE_TIMEOUT"`
 	HTTPIdleTimeout  int `json:"http_idle_timeout" jubako:"/server/http/idle_timeout,env:HTTP_IDLE_TIMEOUT"`
-
-	// Cookie設定 (server.cookie.*)
-	CookieSecret string `json:"cookie_secret" jubako:"/server/cookie/secret,env:COOKIE_SECRET,sensitive"`
-	CookieMaxAge int    `json:"cookie_max_age" jubako:"/server/cookie/max_age,env:COOKIE_MAX_AGE"`
 
 	// JWT設定 (server.jwt.*)
 	JWTExpiry int `json:"jwt_expiry" jubako:"/server/jwt/expiry,env:JWT_EXPIRY"`

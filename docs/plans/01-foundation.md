@@ -252,7 +252,7 @@ func init() {
 	AuthCmd.AddCommand(loginCmd)
 	AuthCmd.AddCommand(logoutCmd)
 	AuthCmd.AddCommand(statusCmd)
-	AuthCmd.AddCommand(setupCmd)
+	AuthCmd.AddCommand(meCmd)
 }
 
 var loginCmd = &cobra.Command{
@@ -282,10 +282,9 @@ var statusCmd = &cobra.Command{
 	},
 }
 
-var setupCmd = &cobra.Command{
-	Use:   "setup <relay-server-url>",
-	Short: "Configure relay server",
-	Args:  cobra.ExactArgs(1),
+var meCmd = &cobra.Command{
+	Use:   "me",
+	Short: "Show current authenticated user information",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// TODO: 実装
 		return nil

@@ -24,8 +24,6 @@ const (
 	PathServerHttpReadTimeout              = "/server/http/read_timeout"
 	PathServerHttpWriteTimeout             = "/server/http/write_timeout"
 	PathServerHttpIdleTimeout              = "/server/http/idle_timeout"
-	PathServerCookieSecret                 = "/server/cookie/secret"
-	PathServerCookieMaxAge                 = "/server/cookie/max_age"
 	PathServerJwtExpiry                    = "/server/jwt/expiry"
 	PathServerBacklog                      = "/server/backlog"
 	PathServerAccessControlAllowedSpaces   = "/server/access_control/allowed_spaces"

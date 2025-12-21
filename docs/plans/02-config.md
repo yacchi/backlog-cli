@@ -38,10 +38,6 @@ server:
   port: 8080
   base_url: ""
   
-  cookie:
-    secret: ""
-    max_age: 300
-  
   backlog: []
   
   access_control:
@@ -121,16 +117,9 @@ type ServerConfig struct {
 	Host    string             `yaml:"host" env:"BACKLOG_SERVER_HOST"`
 	Port    int                `yaml:"port" env:"BACKLOG_SERVER_PORT"`
 	BaseURL string             `yaml:"base_url" env:"BACKLOG_SERVER_BASE_URL"`
-	Cookie  CookieConfig       `yaml:"cookie"`
 	Backlog []BacklogAppConfig `yaml:"backlog"`
 	Access  AccessControl      `yaml:"access_control"`
 	Audit   AuditConfig        `yaml:"audit"`
-}
-
-// CookieConfig はCookie設定
-type CookieConfig struct {
-	Secret string `yaml:"secret" env:"BACKLOG_COOKIE_SECRET"`
-	MaxAge int    `yaml:"max_age"`
 }
 
 // BacklogAppConfig はBacklogアプリケーションの設定
@@ -198,8 +187,6 @@ client:
 server:
   host: "0.0.0.0"
   port: 8080
-  cookie:
-    max_age: 300
   audit:
     enabled: true
     output: "stdout"
@@ -384,10 +371,6 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Server.Port = port
 		}
 	}
-	if v := os.Getenv("BACKLOG_COOKIE_SECRET"); v != "" {
-		cfg.Server.Cookie.Secret = v
-	}
-	
 	// Backlog JP credentials
 	if clientID := os.Getenv("BACKLOG_JP_CLIENT_ID"); clientID != "" {
 		clientSecret := os.Getenv("BACKLOG_JP_CLIENT_SECRET")

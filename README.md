@@ -43,12 +43,12 @@ API Key は Backlog の個人設定ページから取得できます：
 OAuth 2.0 を使用する場合は、事前に中継サーバーの設定が必要です。
 
 ```bash
-# 1. 中継サーバーを設定
-backlog auth setup https://relay.example.com
-
-# 2. ログイン（ブラウザが開きます）
+# ログイン（ブラウザが開きます）
 backlog auth login
 ```
+
+初回はブラウザの設定画面で中継サーバーURLとスペース情報を登録します。
+事前に設定しておきたい場合は `backlog config set profile.default.relay_server <URL>` を使用できます。
 
 > ⚠️ **セキュリティに関する重要な注意**
 >
@@ -107,7 +107,7 @@ backlog issue close ISSUE-123
 | `auth login`       | Backlog にログイン（API Key または OAuth 2.0） |
 | `auth logout`      | ログアウト                                |
 | `auth status`      | 認証状態を表示                              |
-| `auth setup <URL>` | OAuth 2.0 用の中継サーバーを設定                |
+| `auth me`          | ログイン中のユーザー情報を表示                  |
 
 #### 再ログイン（`--reuse` オプション）
 
@@ -145,7 +145,6 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 |----------------|---------------|
 | `pr list`      | プルリクエスト一覧を表示  |
 | `pr view <ID>` | プルリクエストの詳細を表示 |
-| `pr create`    | 新しいプルリクエストを作成 |
 
 ### Wiki (`wiki`)
 
@@ -184,11 +183,11 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 
 | オプション           | 説明                                            |
 |-----------------|-----------------------------------------------|
-| `-s, --space`   | Backlog スペース名                                 |
-| `--domain`      | Backlog ドメイン (`backlog.jp` または `backlog.com`) |
+| `--profile`     | 使用する設定プロファイル名                              |
 | `-p, --project` | プロジェクトキー                                      |
 | `-o, --output`  | 出力形式 (`table` または `json`)                     |
 | `--no-color`    | カラー出力を無効化                                     |
+| `--debug`       | デバッグログを有効化                                   |
 
 ## 設定
 

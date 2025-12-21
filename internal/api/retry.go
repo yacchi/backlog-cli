@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,10 +20,22 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		base = http.DefaultTransport
 	}
 
+	if err := ensureRequestBodyReusable(req); err != nil {
+		return nil, err
+	}
+
 	var resp *http.Response
 	var err error
 
 	for i := 0; i <= t.MaxRetries; i++ {
+		if i > 0 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req.Body = body
+		}
+
 		resp, err = base.RoundTrip(req)
 		if err != nil {
 			return nil, err
@@ -54,6 +68,26 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func ensureRequestBodyReusable(req *http.Request) error {
+	if req.Body == nil || req.GetBody != nil {
+		return nil
+	}
+
+	bodyBytes, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
+	if err := req.Body.Close(); err != nil {
+		return err
+	}
+
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+	}
+	req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	return nil
 }
 
 func (t *RetryTransport) getWaitDuration(resp *http.Response) time.Duration {

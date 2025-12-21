@@ -15,10 +15,6 @@ import { RelayConfig } from "./lib/types";
 export const config: RelayConfig = {
   source: "inline",
 
-  // Cookie/JWT 署名用シークレット（32文字以上）
-  // 例: openssl rand -base64 32
-  cookieSecret: "your-32-character-secret-here!!!",
-
   backlog: {
     // backlog.jp 用の OAuth アプリ設定
     jp: {
@@ -65,7 +61,6 @@ export const config: RelayConfig = {
 //   parameterName: '/backlog-relay/config',
 //   createParameter: true,
 //   parameterValue: {
-//     cookieSecret: 'your-32-character-secret-here!!!',
 //     backlog: {
 //       jp: {
 //         clientId: 'your-client-id',

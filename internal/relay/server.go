@@ -14,7 +14,6 @@ import (
 type Server struct {
 	cfg           *config.Store
 	httpServer    *http.Server
-	cookieSecret  []byte
 	accessControl *AccessController
 	ipRestriction *IPRestriction
 	rateLimiter   *RateLimiter
@@ -24,10 +23,6 @@ type Server struct {
 // NewServer は新しいサーバーを作成する
 func NewServer(cfg *config.Store) (*Server, error) {
 	server := cfg.Server()
-
-	if server.CookieSecret == "" {
-		return nil, fmt.Errorf("cookie secret is required")
-	}
 
 	// IP制限
 	ipRestriction, err := NewIPRestriction(server.AllowedCIDRs)
@@ -56,7 +51,6 @@ func NewServer(cfg *config.Store) (*Server, error) {
 
 	return &Server{
 		cfg:           cfg,
-		cookieSecret:  []byte(server.CookieSecret),
 		accessControl: accessControl,
 		ipRestriction: ipRestriction,
 		rateLimiter:   rateLimiter,

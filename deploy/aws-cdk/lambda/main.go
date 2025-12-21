@@ -35,7 +35,6 @@ func main() {
 
 // ParameterStoreConfig は Parameter Store から読み込む設定の構造
 type ParameterStoreConfig struct {
-	CookieSecret        string   `json:"cookieSecret"`
 	AllowedSpaces       []string `json:"allowedSpaces,omitempty"`
 	AllowedProjects     []string `json:"allowedProjects,omitempty"`
 	AllowedHostPatterns string   `json:"allowedHostPatterns,omitempty"`
@@ -122,8 +121,6 @@ func loadFromParameterStore(ctx context.Context, paramName string) error {
 	}
 
 	// 環境変数に設定
-	setEnvIfNotEmpty("BACKLOG_COOKIE_SECRET", psc.CookieSecret)
-
 	if psc.Backlog.JP != nil {
 		setEnvIfNotEmpty("BACKLOG_CLIENT_ID_JP", psc.Backlog.JP.ClientID)
 		setEnvIfNotEmpty("BACKLOG_CLIENT_SECRET_JP", psc.Backlog.JP.ClientSecret)

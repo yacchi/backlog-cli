@@ -39,6 +39,9 @@ type Client struct {
 	// キャッシュ
 	cache    cache.Cache
 	cacheTTL time.Duration
+
+	// HTTP/認証設定
+	tokenRefreshMargin time.Duration
 }
 
 // ClientOption はクライアントオプション
@@ -62,6 +65,24 @@ func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, cal
 	}
 }
 
+// WithHTTPTimeout はHTTPタイムアウトを設定する
+func WithHTTPTimeout(timeout time.Duration) ClientOption {
+	return func(c *Client) {
+		if timeout > 0 {
+			c.httpClient.Timeout = timeout
+		}
+	}
+}
+
+// WithTokenRefreshMargin はトークン更新のマージンを設定する
+func WithTokenRefreshMargin(margin time.Duration) ClientOption {
+	return func(c *Client) {
+		if margin >= 0 {
+			c.tokenRefreshMargin = margin
+		}
+	}
+}
+
 // WithAPIKey はAPI Key認証を設定する
 func WithAPIKey(apiKey string) ClientOption {
 	return func(c *Client) {
@@ -73,9 +94,10 @@ func WithAPIKey(apiKey string) ClientOption {
 // NewClient は新しいクライアントを作成する
 func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client {
 	c := &Client{
-		space:       space,
-		domain:      domain,
-		accessToken: accessToken,
+		space:              space,
+		domain:             domain,
+		accessToken:        accessToken,
+		tokenRefreshMargin: 5 * time.Minute,
 	}
 
 	// RetryTransportを設定したHTTPクライアントを作成
@@ -173,11 +195,14 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 	switch cred.GetAuthType() {
 	case config.AuthTypeAPIKey:
 		// API Key認証
+		httpTimeout := time.Duration(profile.HTTPTimeout) * time.Second
 		client := NewClient(
 			space,
 			domain,
 			"", // accessToken不要
 			WithAPIKey(cred.APIKey),
+			WithHTTPTimeout(httpTimeout),
+			WithTokenRefreshMargin(time.Duration(profile.HTTPTokenRefreshMargin)*time.Second),
 			WithCache(c, ttl),
 		)
 		return client, nil
@@ -185,6 +210,7 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 	default:
 		// OAuth認証（デフォルト）
 		profileName := resolved.ActiveProfile
+		httpTimeout := time.Duration(profile.HTTPTimeout) * time.Second
 		client := NewClient(
 			space,
 			domain,
@@ -210,6 +236,8 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 					}
 				},
 			),
+			WithHTTPTimeout(httpTimeout),
+			WithTokenRefreshMargin(time.Duration(profile.HTTPTokenRefreshMargin)*time.Second),
 			WithCache(c, ttl),
 		)
 		return client, nil
@@ -227,7 +255,7 @@ func (c *Client) ensureValidToken(ctx context.Context) error {
 	}
 
 	// 有効期限の5分前に更新
-	if time.Now().Add(5 * time.Minute).Before(c.expiresAt) {
+	if time.Now().Add(c.tokenRefreshMargin).Before(c.expiresAt) {
 		return nil // まだ有効
 	}
 

@@ -105,14 +105,6 @@ server:
     # アイドルタイムアウト (秒)
     idle_timeout: 60
 
-  # Cookie設定
-  cookie:
-    # Cookie署名用シークレット (必須、環境変数で設定推奨)
-    # 環境変数: BACKLOG_COOKIE_SECRET
-    secret: ""
-    # Cookie有効期限 (秒)
-    max_age: 300
-
   # Backlogアプリケーション設定 (OAuth Client ID/Secret)
   # キーは識別子（環境変数のキーにドットや大文字小文字混在を避けるため）
   backlog:

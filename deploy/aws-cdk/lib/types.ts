@@ -19,9 +19,6 @@ export interface AuditConfig {
 export interface InlineConfig {
   source: "inline";
 
-  /** Cookie/JWT 署名用シークレット（32文字以上） */
-  cookieSecret: string;
-
   /** Backlog アプリケーション設定 */
   backlog: {
     jp?: BacklogAppConfig;
@@ -64,7 +61,6 @@ export interface ParameterStoreConfig {
  * Parameter Store に格納する JSON の型
  */
 export interface ParameterStoreValue {
-  cookieSecret: string;
   backlog: {
     jp?: BacklogAppConfig;
     com?: BacklogAppConfig;

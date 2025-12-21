@@ -5,7 +5,7 @@
 - 対話的UIヘルパー
 - ローカルHTTPサーバー（認証フロー開始点）
 - 認証クライアント
-- `backlog auth login/logout/status/setup` コマンド
+- `backlog auth login/logout/status/me` コマンド
 
 ## 設計変更のポイント
 
@@ -522,7 +522,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	// 中継サーバーの確認
 	relayServer := cfg.Client.Default.RelayServer
 	if relayServer == "" {
-		return fmt.Errorf("relay server is not configured\nRun 'backlog auth setup <relay-server-url>' first")
+		return fmt.Errorf("relay server is not configured\nRun 'backlog auth login' to configure it in the browser UI")
 	}
 	
 	// 中継サーバーの情報を取得
@@ -811,9 +811,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 ```
 
-## 7. Setup コマンド
+## 7. Me コマンド
 
-### internal/cmd/auth/setup.go
+中継サーバーの設定は `backlog auth login` のブラウザUIで行うため、
+専用の `auth setup` コマンドは不要です。
+
+### internal/cmd/auth/me.go
 
 ```go
 package auth
@@ -822,50 +825,33 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	authpkg "github.com/yourorg/backlog-cli/internal/auth"
-	"github.com/yourorg/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/api"
+	"github.com/yacchi/backlog-cli/internal/config"
 )
 
-var setupCmd = &cobra.Command{
-	Use:   "setup <relay-server-url>",
-	Short: "Configure relay server",
-	Long: `Configure the OAuth relay server URL.
-
-The relay server handles OAuth authentication, keeping your
-client_id and client_secret secure.
-
-Example:
-  backlog auth setup https://relay.example.com`,
-	Args: cobra.ExactArgs(1),
-	RunE: runSetup,
+var meCmd = &cobra.Command{
+	Use:   "me",
+	Short: "Show current authenticated user information",
+	RunE:  runMe,
 }
 
-func runSetup(cmd *cobra.Command, args []string) error {
-	relayServer := args[0]
-	
-	// 中継サーバーの確認
-	client := authpkg.NewClient(relayServer)
-	wellKnown, err := client.FetchWellKnown()
-	if err != nil {
-		return fmt.Errorf("failed to connect to relay server: %w\nMake sure the URL is correct and the server is running", err)
-	}
-	
-	// 設定を保存
-	cfg, err := config.Load()
+func runMe(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	
-	cfg.Client.Default.RelayServer = relayServer
-	
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+
+	client, err := api.NewClientFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("not authenticated: %w", err)
 	}
-	
-	fmt.Printf("✓ Relay server configured: %s\n", relayServer)
-	fmt.Printf("  Supported domains: %v\n", wellKnown.SupportedDomains)
-	fmt.Println("\nRun 'backlog auth login' to authenticate")
-	
+
+	user, err := client.GetCurrentUser(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	fmt.Printf("User ID: %s\n", user.UserId.Value)
 	return nil
 }
 ```
@@ -891,7 +877,7 @@ func init() {
 	AuthCmd.AddCommand(loginCmd)
 	AuthCmd.AddCommand(logoutCmd)
 	AuthCmd.AddCommand(statusCmd)
-	AuthCmd.AddCommand(setupCmd)
+	AuthCmd.AddCommand(meCmd)
 }
 ```
 
@@ -966,7 +952,7 @@ func (c *Client) GetCurrentUser() (*User, error) {
 
 ## 完了条件
 
-- [ ] `backlog auth setup <url>` で中継サーバーを設定できる
+- [ ] `backlog auth login` でブラウザUIから中継サーバーを設定できる
 - [ ] `backlog auth login` で対話的にログインできる
 - [ ] ブラウザが自動で開く
 - [ ] ローカルサーバーが `/auth/start` で中継サーバーへリダイレクトする

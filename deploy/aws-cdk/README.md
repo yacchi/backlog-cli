@@ -68,7 +68,6 @@ backlog config set relay_server https://xxx.lambda-url.ap-northeast-1.on.aws
 ```typescript
 export const config: RelayConfig = {
   source: "inline",
-  cookieSecret: "your-32-character-secret-here!!!",
   backlog: {
     jp: {
       clientId: "your-client-id",
@@ -86,7 +85,7 @@ export const config: RelayConfig = {
 aws ssm put-parameter \
   --name /backlog-relay/config \
   --type String \
-  --value '{"cookieSecret":"...","backlog":{"jp":{"clientId":"...","clientSecret":"..."}}}'
+  --value '{"backlog":{"jp":{"clientId":"...","clientSecret":"..."}}}'
 ```
 
 ```typescript
@@ -104,7 +103,6 @@ export const config: RelayConfig = {
   parameterName: "/backlog-relay/config",
   createParameter: true,
   parameterValue: {
-    cookieSecret: "your-32-character-secret-here!!!",
     backlog: {
       jp: {
         clientId: "your-client-id",
@@ -140,7 +138,6 @@ pnpm destroy
 
 | フィールド                        | 説明                                        |
 | --------------------------------- | ------------------------------------------- |
-| `cookieSecret`                    | Cookie/JWT 署名用シークレット（32文字以上） |
 | `backlog.jp` または `backlog.com` | 少なくとも1つの OAuth アプリ設定            |
 
 ### オプション設定
@@ -175,10 +172,6 @@ pnpm destroy
 一般的な CLI 使用では AWS 無料利用枠内に収まります。
 
 ## トラブルシューティング
-
-### "Cookie secret is required" エラー
-
-`cookieSecret` が設定されていないか、32文字未満です。
 
 ### "Domain not supported" エラー
 

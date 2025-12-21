@@ -369,22 +369,17 @@ Download from [GitHub Releases](https://github.com/yourorg/backlog-cli/releases)
 
 ## Quick Start
 
-1. Set up the relay server (or use a hosted one):
-   ```bash
-   backlog auth setup https://relay.example.com
-   ```
-
-2. Log in to Backlog:
+1. Log in to Backlog (browser UI will prompt for relay server URL on first run):
    ```bash
    backlog auth login
    ```
 
-3. Initialize your project:
+2. Initialize your project:
    ```bash
    backlog project init
    ```
 
-4. Start using:
+3. Start using:
    ```bash
    backlog issue list
    backlog issue create
@@ -396,7 +391,7 @@ Download from [GitHub Releases](https://github.com/yourorg/backlog-cli/releases)
 - `backlog auth login` - Log in to Backlog
 - `backlog auth logout` - Log out
 - `backlog auth status` - Show authentication status
-- `backlog auth setup` - Configure relay server
+- `backlog auth me` - Show current user info
 
 ### Issues
 - `backlog issue list` - List issues

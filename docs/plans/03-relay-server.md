@@ -622,8 +622,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 server:
   port: 8080
   base_url: "http://localhost:8080"
-  cookie:
-    secret: "your-32-byte-secret-key-here!!"  # 署名用シークレット
   backlog:
     - domain: "backlog.jp"
       client_id: "YOUR_CLIENT_ID"

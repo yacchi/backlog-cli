@@ -49,8 +49,6 @@ export class RelayStack extends cdk.Stack {
 
     // インライン設定の場合
     if (isInlineConfig(config)) {
-      environment["BACKLOG_COOKIE_SECRET"] = config.cookieSecret;
-
       // Note: ローカル .env ファイルと同じ形式（大文字ドメイン名）を使用
       if (config.backlog.jp) {
         environment["BACKLOG_CLIENT_ID_JP"] = config.backlog.jp.clientId;

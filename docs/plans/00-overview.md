@@ -8,7 +8,7 @@ Backlog用CLI「backlog」を開発し、GitHub CLI (gh) と同様のユーザ�
 
 1. **OAuth2.0認証** - 中継サーバー経由でのセキュアな認証
 2. **課題管理** - issue list/view/create/edit/close/comment
-3. **プルリクエスト** - pr list/view/create
+3. **プルリクエスト** - pr list/view
 4. **Wiki** - wiki list/view/create
 5. **プロジェクト管理** - project list/view/init
 6. **設定管理** - config get/set/list
@@ -43,13 +43,13 @@ Backlog用CLI「backlog」を開発し、GitHub CLI (gh) と同様のユーザ�
 backlog <resource> <action> [arguments] [flags]
 
 # 認証
-backlog auth login/logout/status/refresh/setup
+backlog auth login/logout/status/me
 
 # 課題
 backlog issue list/view/create/edit/close/comment
 
 # プルリクエスト
-backlog pr list/view/create
+backlog pr list/view
 
 # Wiki
 backlog wiki list/view/create

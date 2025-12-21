@@ -499,7 +499,6 @@ Content-Type: application/json
 | BACKLOG_JP_CLIENT_SECRET  | backlog.jp用Client Secret  | `efgh5678...`     |
 | BACKLOG_COM_CLIENT_ID     | backlog.com用Client ID     | `ijkl9012...`     |
 | BACKLOG_COM_CLIENT_SECRET | backlog.com用Client Secret | `mnop3456...`     |
-| BACKLOG_COOKIE_SECRET     | state署名用シークレット（32バイト以上推奨） | `your-secret-key` |
 
 ### 10.2 Backlog OAuth設定
 

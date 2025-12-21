@@ -589,7 +589,6 @@ import (
 type Server struct {
 	cfg           *config.ServerConfig
 	httpServer    *http.Server
-	cookieSecret  []byte
 	accessControl *AccessController
 	ipRestriction *IPRestriction
 	rateLimiter   *RateLimiter
@@ -597,10 +596,6 @@ type Server struct {
 }
 
 func NewServer(cfg *config.ServerConfig) (*Server, error) {
-	if cfg.Cookie.Secret == "" {
-		return nil, fmt.Errorf("cookie secret is required")
-	}
-	
 	// IP制限
 	ipRestriction, err := NewIPRestriction(cfg.Access.AllowedCIDRs)
 	if err != nil {
@@ -628,7 +623,6 @@ func NewServer(cfg *config.ServerConfig) (*Server, error) {
 	
 	return &Server{
 		cfg:           cfg,
-		cookieSecret:  []byte(cfg.Cookie.Secret),
 		accessControl: accessControl,
 		ipRestriction: ipRestriction,
 		rateLimiter:   rateLimiter,
