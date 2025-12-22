@@ -1,5 +1,6 @@
 [tools]
-go-sdk = "1.25.5"
+go = "1.25"
+buf = "latest"
 golangci-lint = "latest"
 lefthook = "latest"
 node = "20"
