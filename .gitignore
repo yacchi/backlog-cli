@@ -1,5 +1,8 @@
 # Binaries
 /build/
+
+# Temporary files
+/.tmp/
 /backlog
 *.exe
 

@@ -66,11 +66,32 @@ clean:
 	rm -f coverage.out coverage.html
 	rm -rf internal/ui/dist web/node_modules/.vite
 
-# Proto コード生成
-buf-generate:
+# Temporary directory for stamps
+TMP_DIR := .tmp
+
+# Proto sources
+PROTO_SOURCES := $(shell find proto -name '*.proto' 2>/dev/null)
+BUF_CONFIG := buf.yaml buf.gen.yaml
+
+# Stamp file for buf generate
+GEN_STAMP := $(TMP_DIR)/.buf-generate-stamp
+
+# Generate proto files only when sources change
+$(GEN_STAMP): $(PROTO_SOURCES) $(BUF_CONFIG)
 	mise exec -- buf generate
 	rm -rf web/src/gen
 	cp -r gen/ts web/src/gen
+	@mkdir -p $(TMP_DIR)
+	@touch $@
+
+# Proto コード生成（変更時のみ実行）
+buf-generate: $(GEN_STAMP)
+
+# 強制的に再生成
+.PHONY: buf-generate-force
+buf-generate-force:
+	@rm -f $(GEN_STAMP)
+	@$(MAKE) buf-generate
 
 # Proto lint
 buf-lint:
