@@ -5,12 +5,15 @@ pre-commit:
   commands:
     go-fmt:
       glob: "*.go"
-      run: gofmt -w {staged_files} && git add {staged_files}
+      run: gofmt -w {staged_files}
+      stage_fixed: true
     web-prettier:
       root: "web/"
       glob: "*.{ts,tsx,js,jsx,css,md,json}"
-      run: pnpm exec prettier --write {staged_files} && git add {staged_files}
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
     cdk-prettier:
       root: "deploy/aws-cdk/"
       glob: "*.{ts,js,json}"
-      run: pnpm exec prettier --write {staged_files} && git add {staged_files}
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
