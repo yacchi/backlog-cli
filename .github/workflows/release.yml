@@ -47,6 +47,28 @@ jobs:
         with:
           go-version: ${{ steps.go_version.outputs.version }}
 
+      - name: Set up mise
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: jdx/mise-action@v2
+
+      - name: Set up pnpm
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'web/pnpm-lock.yaml'
+
+      - name: Build
+        if: steps.check_tag.outputs.exists == 'false'
+        run: make build
+
       - name: Run tests
         if: steps.check_tag.outputs.exists == 'false'
         run: make test
