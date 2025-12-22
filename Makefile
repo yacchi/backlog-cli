@@ -81,7 +81,7 @@ $(GEN_STAMP): $(PROTO_SOURCES) $(BUF_CONFIG)
 	mise exec -- buf generate
 	rm -rf web/src/gen
 	cp -r gen/ts web/src/gen
-	cd web && pnpm exec prettier --write src/gen/
+	cd web && pnpm install --frozen-lockfile && pnpm exec prettier --write src/gen/
 	@mkdir -p $(TMP_DIR)
 	@touch $@
 
