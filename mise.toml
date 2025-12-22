@@ -8,5 +8,4 @@ pnpm = "10"
 
 [env]
 GOBIN = "{{env.HOME}}/.local/bin"
-CGO_ENABLED = "0"
 _.file = ".env"
