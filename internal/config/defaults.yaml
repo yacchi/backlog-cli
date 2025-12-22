@@ -309,21 +309,21 @@ auth:
     # セッション有効期限 (秒)
     timeout: 300
 
-  # WebSocket設定 (ローカル認証サーバー用)
-  websocket:
+  # Keepalive設定 (ローカル認証サーバー用)
+  keepalive:
     # 状態チェック間隔 (秒)
     # 認証状態の変更をクライアントに通知する間隔
-    ping_interval: 3
+    interval: 3
 
-    # 未使用（将来の拡張用に保持）
-    ping_timeout: 5
+    # 応答タイムアウト (秒)
+    timeout: 5
 
     # 接続待機タイムアウト (秒)
     connect_timeout: 30
 
     # 切断後の猶予期間 (秒)
     # この期間内に再接続があればタイムアウトしない
-    disconnect_grace_period: 10
+    grace_period: 10
 
 # ================================================
 # キャッシュ設定

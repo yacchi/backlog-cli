@@ -5,6 +5,9 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { create } from "@bufbuild/protobuf";
+import { authClient } from "../lib/connect-client";
+import { GetConfigRequestSchema } from "../gen/auth/v1/auth_pb";
 
 export type AuthContextData = {
   space: string;
@@ -24,19 +27,17 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchAuthContext(): Promise<AuthContextData> {
-  const response = await fetch("/auth/config", {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
-    credentials: "same-origin",
-  });
+  const response = await authClient.getConfig(
+    create(GetConfigRequestSchema, {}),
+  );
 
-  if (!response.ok) {
-    throw new Error("認証情報の取得に失敗しました");
-  }
-
-  return response.json();
+  return {
+    space: response.space,
+    domain: response.domain,
+    relayServer: response.relayServer,
+    spaceHost: response.spaceHost,
+    configured: response.configured,
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

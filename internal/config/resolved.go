@@ -227,7 +227,7 @@ type ResolvedAuth struct {
 	MinCallbackPort int                   `json:"min_callback_port" jubako:"/auth/min_callback_port,env:AUTH_MIN_CALLBACK_PORT"`
 	MaxCallbackPort int                   `json:"max_callback_port" jubako:"/auth/max_callback_port,env:AUTH_MAX_CALLBACK_PORT"`
 	Session         ResolvedAuthSession   `json:"session" jubako:"/auth/session"`
-	WebSocket       ResolvedAuthWebSocket `json:"websocket" jubako:"/auth/websocket"`
+	Keepalive       ResolvedAuthKeepalive `json:"keepalive" jubako:"/auth/keepalive"`
 }
 
 // ResolvedAuthSession はセッション設定
@@ -246,32 +246,32 @@ func (s *ResolvedAuthSession) TimeoutDuration() time.Duration {
 	return time.Duration(s.Timeout) * time.Second
 }
 
-// ResolvedAuthWebSocket はWebSocket設定
-type ResolvedAuthWebSocket struct {
-	PingInterval          int `json:"ping_interval" jubako:"/auth/websocket/ping_interval"`
-	PingTimeout           int `json:"ping_timeout" jubako:"/auth/websocket/ping_timeout"`
-	ConnectTimeout        int `json:"connect_timeout" jubako:"/auth/websocket/connect_timeout"`
-	DisconnectGracePeriod int `json:"disconnect_grace_period" jubako:"/auth/websocket/disconnect_grace_period"`
+// ResolvedAuthKeepalive はKeepalive設定
+type ResolvedAuthKeepalive struct {
+	Interval       int `json:"interval" jubako:"/auth/keepalive/interval"`
+	Timeout        int `json:"timeout" jubako:"/auth/keepalive/timeout"`
+	ConnectTimeout int `json:"connect_timeout" jubako:"/auth/keepalive/connect_timeout"`
+	GracePeriod    int `json:"grace_period" jubako:"/auth/keepalive/grace_period"`
 }
 
-// PingIntervalDuration はping間隔をtime.Durationで返す
-func (ws *ResolvedAuthWebSocket) PingIntervalDuration() time.Duration {
-	return time.Duration(ws.PingInterval) * time.Second
+// IntervalDuration はkeepalive間隔をtime.Durationで返す
+func (k *ResolvedAuthKeepalive) IntervalDuration() time.Duration {
+	return time.Duration(k.Interval) * time.Second
 }
 
-// PingTimeoutDuration はpingタイムアウトをtime.Durationで返す
-func (ws *ResolvedAuthWebSocket) PingTimeoutDuration() time.Duration {
-	return time.Duration(ws.PingTimeout) * time.Second
+// TimeoutDuration はタイムアウトをtime.Durationで返す
+func (k *ResolvedAuthKeepalive) TimeoutDuration() time.Duration {
+	return time.Duration(k.Timeout) * time.Second
 }
 
 // ConnectTimeoutDuration は接続タイムアウトをtime.Durationで返す
-func (ws *ResolvedAuthWebSocket) ConnectTimeoutDuration() time.Duration {
-	return time.Duration(ws.ConnectTimeout) * time.Second
+func (k *ResolvedAuthKeepalive) ConnectTimeoutDuration() time.Duration {
+	return time.Duration(k.ConnectTimeout) * time.Second
 }
 
-// DisconnectGracePeriodDuration は切断猶予期間をtime.Durationで返す
-func (ws *ResolvedAuthWebSocket) DisconnectGracePeriodDuration() time.Duration {
-	return time.Duration(ws.DisconnectGracePeriod) * time.Second
+// GracePeriodDuration は切断猶予期間をtime.Durationで返す
+func (k *ResolvedAuthKeepalive) GracePeriodDuration() time.Duration {
+	return time.Duration(k.GracePeriod) * time.Second
 }
 
 // NewResolvedConfig は空のResolvedConfigを作成する

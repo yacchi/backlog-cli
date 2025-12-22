@@ -4,18 +4,16 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
+	"github.com/yacchi/backlog-cli/gen/go/auth/v1/authv1connect"
 	"github.com/yacchi/backlog-cli/internal/config"
 	"github.com/yacchi/backlog-cli/internal/debug"
 	"github.com/yacchi/backlog-cli/internal/ui"
@@ -39,21 +37,15 @@ type CallbackServerOptions struct {
 	Ctx         context.Context // コマンドのContext（シグナル処理用）
 }
 
-// WSMessage はWebSocketで送信するメッセージ
-type WSMessage struct {
-	Status string `json:"status"` // "pending", "success", "error"
-	Error  string `json:"error,omitempty"`
-}
-
 // Session は認証セッションを表す
 type Session struct {
-	ID             string          // セッションID
-	CreatedAt      time.Time       // 作成時刻
-	LastActivityAt time.Time       // 最終アクティビティ時刻
-	Status         string          // pending/success/error
-	ErrorMessage   string          // エラーメッセージ
-	WSConn         *websocket.Conn // WebSocket接続（nil=未接続）
-	DisconnectedAt *time.Time      // WebSocket切断時刻（nil=接続中または未接続）
+	ID              string     // セッションID
+	CreatedAt       time.Time  // 作成時刻
+	LastActivityAt  time.Time  // 最終アクティビティ時刻
+	Status          string     // pending/success/error
+	ErrorMessage    string     // エラーメッセージ
+	StreamConnected bool       // ストリーム接続中かどうか
+	DisconnectedAt  *time.Time // 接続切断時刻（nil=接続中または未接続）
 }
 
 // CallbackServer はCLIのローカルコールバックサーバー
@@ -74,6 +66,7 @@ type CallbackServer struct {
 	sessionEstablished bool          // セッションが確立されたことがあるか
 	cancelCheck        chan struct{} // チェッカーを停止するためのチャネル
 	cancelOnce         sync.Once     // cancelCheck を一度だけ閉じるため
+	statusNotify       chan struct{} // ステータス変更通知用チャネル
 }
 
 // authConfig は認証設定を取得する
@@ -81,9 +74,9 @@ func (cs *CallbackServer) authConfig() *config.ResolvedAuth {
 	return &cs.configStore.Resolved().Auth
 }
 
-// wsConfig はWebSocket設定を取得する
-func (cs *CallbackServer) wsConfig() *config.ResolvedAuthWebSocket {
-	return &cs.authConfig().WebSocket
+// keepaliveConfig はKeepalive設定を取得する
+func (cs *CallbackServer) keepaliveConfig() *config.ResolvedAuthKeepalive {
+	return &cs.authConfig().Keepalive
 }
 
 // sessionConfig はセッション設定を取得する
@@ -110,14 +103,15 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 	}
 
 	cs := &CallbackServer{
-		port:        actualPort,
-		result:      make(chan CallbackResult, 1),
-		listener:    listener,
-		state:       opts.State,
-		configStore: opts.ConfigStore,
-		reuse:       opts.Reuse,
-		ctx:         ctx,
-		cancelCheck: make(chan struct{}),
+		port:         actualPort,
+		result:       make(chan CallbackResult, 1),
+		listener:     listener,
+		state:        opts.State,
+		configStore:  opts.ConfigStore,
+		reuse:        opts.Reuse,
+		ctx:          ctx,
+		cancelCheck:  make(chan struct{}),
+		statusNotify: make(chan struct{}, 1), // バッファ付き（ノンブロッキング通知用）
 	}
 
 	debug.Log("callback server created", "port", actualPort, "address", addr)
@@ -131,9 +125,12 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 
 func (cs *CallbackServer) setupRoutes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/config", cs.handleConfig)
-	mux.HandleFunc("/auth/configure", cs.handleConfigure)
-	mux.HandleFunc("/auth/ws", cs.handleWebSocket)
+
+	// Connect RPCハンドラーを登録
+	path, handler := authv1connect.NewAuthServiceHandler(cs)
+	mux.Handle(path, handler)
+
+	// HTTPエンドポイント（HTML/リダイレクト用）
 	mux.HandleFunc("/auth/popup", cs.handlePopup)
 	mux.HandleFunc("/callback", cs.handleCallback)
 
@@ -148,7 +145,7 @@ func (cs *CallbackServer) setupRoutes() http.Handler {
 
 	spaHandler := ui.SPAHandler(assets)
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Ensure a session cookie exists before the SPA boots and opens WebSocket.
+		// Ensure a session cookie exists before the SPA boots and opens streaming.
 		_ = cs.ensureSession(w, r)
 		spaHandler.ServeHTTP(w, r)
 	}))
@@ -204,17 +201,22 @@ func (cs *CallbackServer) getSessionFromCookie(r *http.Request) *Session {
 	return nil
 }
 
-// setSessionCookie はセッションCookieを設定する
-func (cs *CallbackServer) setSessionCookie(w http.ResponseWriter, sessionID string) {
+// sessionCookie はセッションCookieを生成する
+func (cs *CallbackServer) sessionCookie(sessionID string) *http.Cookie {
 	timeout := cs.sessionConfig().TimeoutDuration()
-	http.SetCookie(w, &http.Cookie{
+	return &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(timeout.Seconds()),
-	})
+	}
+}
+
+// setSessionCookie はセッションCookieを設定する
+func (cs *CallbackServer) setSessionCookie(w http.ResponseWriter, sessionID string) {
+	http.SetCookie(w, cs.sessionCookie(sessionID))
 }
 
 // updateSessionActivity はセッションの最終アクティビティ時刻を更新する
@@ -258,7 +260,7 @@ func (cs *CallbackServer) checkSessionTimeout() {
 	defer ticker.Stop()
 
 	checkCount := 0
-	var noConnectionSince *time.Time // WebSocket接続がない状態が始まった時刻
+	var noConnectionSince *time.Time // 接続がない状態が始まった時刻
 
 	for {
 		select {
@@ -273,11 +275,11 @@ func (cs *CallbackServer) checkSessionTimeout() {
 			established := cs.sessionEstablished
 			var status string
 			var createdAt time.Time
-			var wsConn *websocket.Conn
+			var hasConnection bool
 			if session != nil {
 				status = session.Status
 				createdAt = session.CreatedAt
-				wsConn = session.WSConn
+				hasConnection = session.StreamConnected
 			}
 			cs.sessionMu.RUnlock()
 
@@ -289,7 +291,6 @@ func (cs *CallbackServer) checkSessionTimeout() {
 
 			// 10回に1回状態をログ出力
 			if checkCount%10 == 0 {
-				hasWS := wsConn != nil
 				noConnDuration := ""
 				if noConnectionSince != nil {
 					noConnDuration = time.Since(*noConnectionSince).String()
@@ -297,7 +298,7 @@ func (cs *CallbackServer) checkSessionTimeout() {
 				debug.Log("session checker tick",
 					"count", checkCount,
 					"status", status,
-					"hasWS", hasWS,
+					"hasConnection", hasConnection,
 					"noConnDuration", noConnDuration,
 					"age", time.Since(createdAt).String())
 			}
@@ -311,6 +312,8 @@ func (cs *CallbackServer) checkSessionTimeout() {
 			// セッション全体のタイムアウトチェック
 			if time.Since(createdAt) > sessConf.TimeoutDuration() {
 				debug.Log("session timeout detected", "age", time.Since(createdAt).String())
+				// セッションステータスを更新してストリームに通知
+				cs.setSessionError("authentication timeout (session expired)")
 				cs.once.Do(func() {
 					cs.result <- CallbackResult{
 						Error: fmt.Errorf("authentication timeout (session expired)"),
@@ -319,28 +322,30 @@ func (cs *CallbackServer) checkSessionTimeout() {
 				return
 			}
 
-			// WebSocket接続状態のチェック
-			if wsConn != nil {
-				// WebSocket接続中：タイマーをリセット
+			// 接続状態のチェック
+			if hasConnection {
+				// 接続中：タイマーをリセット
 				noConnectionSince = nil
 				continue
 			}
 
-			// WebSocket接続がない状態
+			// 接続がない状態
 			now := time.Now()
 			if noConnectionSince == nil {
 				// 接続がない状態が始まった
 				noConnectionSince = &now
-				debug.Log("no WebSocket connection detected, starting grace period timer")
+				debug.Log("no connection detected, starting grace period timer")
 			}
 
 			// 接続がない状態が一定時間続いたらタイムアウト
-			gracePeriod := cs.wsConfig().DisconnectGracePeriodDuration()
+			gracePeriod := cs.keepaliveConfig().GracePeriodDuration()
 			elapsed := time.Since(*noConnectionSince)
 			if elapsed > gracePeriod {
 				debug.Log("no connection grace period expired",
 					"elapsed", elapsed.String(),
 					"grace", gracePeriod.String())
+				// セッションステータスを更新してストリームに通知
+				cs.setSessionError("authentication cancelled (browser closed or navigated away)")
 				cs.once.Do(func() {
 					cs.result <- CallbackResult{
 						Error: fmt.Errorf("authentication cancelled (browser closed or navigated away)"),
@@ -387,134 +392,74 @@ func (cs *CallbackServer) ensureSession(w http.ResponseWriter, r *http.Request) 
 	return session
 }
 
-// AuthConfigResponse は設定取得のJSONレスポンス
-type AuthConfigResponse struct {
-	Space       string `json:"space"`
-	Domain      string `json:"domain"`
-	RelayServer string `json:"relayServer"`
-	SpaceHost   string `json:"spaceHost"`
-	Configured  bool   `json:"configured"`
-}
+// ensureSessionFromHeader はConnect RPC用にHTTPヘッダーからセッションを確保する
+// セキュリティ: Cookie検証を厳格に行い、セッション乗っ取りを防止
+func (cs *CallbackServer) ensureSessionFromHeader(reqHeader http.Header, respHeader http.Header) *Session {
+	// CookieヘッダーからセッションIDを取得
+	cookieHeader := reqHeader.Get("Cookie")
+	sessionID := extractSessionIDFromCookie(cookieHeader)
 
-func (cs *CallbackServer) handleConfig(w http.ResponseWriter, r *http.Request) {
-	debug.Log("auth/config accessed", "method", r.Method)
+	cs.sessionMu.RLock()
+	session := cs.session
+	cs.sessionMu.RUnlock()
 
-	if r.Method != http.MethodGet {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
-		return
+	// 既存セッションがあり、IDが一致する場合のみ再利用
+	if session != nil && sessionID != "" && session.ID == sessionID {
+		cs.updateSessionActivity()
+		return session
 	}
 
-	session := cs.ensureSession(w, r)
-	if session == nil {
-		http.Error(w, "Failed to create session", http.StatusInternalServerError)
-		return
-	}
-
-	profile := cs.configStore.CurrentProfile()
-	spaceHost := ""
-	if profile.Space != "" && profile.Domain != "" {
-		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
-	}
-
-	payload := AuthConfigResponse{
-		Space:       profile.Space,
-		Domain:      profile.Domain,
-		RelayServer: profile.RelayServer,
-		SpaceHost:   spaceHost,
-		Configured:  profile.Space != "" && profile.Domain != "" && profile.RelayServer != "",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(payload)
-}
-
-// ConfigureResponse は設定保存の JSON レスポンス
-type ConfigureResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
-}
-
-// handleConfigure はフォーム送信を処理する（JSON APIのみ）
-func (cs *CallbackServer) handleConfigure(w http.ResponseWriter, r *http.Request) {
-	debug.Log("auth/configure accessed", "method", r.Method)
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Method not allowed"})
-		return
-	}
-
-	// FormData (multipart/form-data) と通常のフォーム (application/x-www-form-urlencoded) の両方に対応
-	contentType := r.Header.Get("Content-Type")
-	if strings.HasPrefix(contentType, "multipart/form-data") {
-		if err := r.ParseMultipartForm(32 << 10); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
-			return
-		}
-	} else {
-		if err := r.ParseForm(); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "Failed to parse form"})
-			return
-		}
-	}
-
-	spaceHost := r.FormValue("space_host")
-	relayServer := r.FormValue("relay_server")
-
-	debug.Log("form values", "space_host", spaceHost, "relay_server", relayServer)
-
-	// スペースホストをパース
-	space, domain, err := parseSpaceHost(spaceHost)
+	// Cookie が無い、または不一致の場合は新規セッション作成
+	// これにより、別クライアントが既存セッションに紐付くことを防止
+	newSession, err := cs.createSession()
 	if err != nil {
-		debug.Log("invalid space host", "error", err)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: "無効なスペース形式です: " + err.Error()})
-		return
+		debug.Log("failed to create session", "error", err)
+		return nil
 	}
 
-	// well-known チェック
-	client := NewClient(relayServer)
-	wellKnown, err := client.FetchWellKnown()
+	// レスポンスヘッダーにSet-Cookieを設定
+	respHeader.Add("Set-Cookie", cs.sessionCookie(newSession.ID).String())
+	return newSession
+}
+
+// extractSessionIDFromCookie はCookieヘッダー文字列からセッションIDを抽出する
+func extractSessionIDFromCookie(cookieHeader string) string {
+	if cookieHeader == "" {
+		return ""
+	}
+	header := http.Header{"Cookie": []string{cookieHeader}}
+	req := &http.Request{Header: header}
+	cookie, err := req.Cookie(sessionCookieName)
 	if err != nil {
-		debug.Log("failed to fetch well-known", "error", err)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("リレーサーバーに接続できません: %v", err)})
+		return ""
+	}
+	return cookie.Value
+}
+
+// sessionStatus はセッションのステータスとエラーメッセージを返す
+func (cs *CallbackServer) sessionStatus() (status string, errorMsg string) {
+	cs.sessionMu.RLock()
+	defer cs.sessionMu.RUnlock()
+	if cs.session == nil {
+		return "pending", ""
+	}
+	return cs.session.Status, cs.session.ErrorMessage
+}
+
+// handleStreamConnect はストリーム接続時の処理を行う
+func (cs *CallbackServer) handleStreamConnect() {
+	cs.sessionMu.Lock()
+	defer cs.sessionMu.Unlock()
+
+	if cs.session == nil {
 		return
 	}
 
-	// ドメインがサポートされているかチェック
-	if !slices.Contains(wellKnown.SupportedDomains, domain) {
-		debug.Log("domain not supported", "domain", domain, "supported", wellKnown.SupportedDomains)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("このリレーサーバーは %s をサポートしていません（サポート: %s）", domain, strings.Join(wellKnown.SupportedDomains, ", "))})
-		return
-	}
+	cs.session.DisconnectedAt = nil
+	cs.session.StreamConnected = true
 
-	// 設定保存
-	profileName := cs.configStore.GetActiveProfile()
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer); err != nil {
-		debug.Log("failed to save relay_server", "error", err)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("設定の保存に失敗しました: %v", err)})
-		return
-	}
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", space); err != nil {
-		debug.Log("failed to save space", "error", err)
-	}
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "domain", domain); err != nil {
-		debug.Log("failed to save domain", "error", err)
-	}
-
-	if err := cs.configStore.Save(r.Context()); err != nil {
-		debug.Log("failed to save config", "error", err)
-		_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: false, Error: fmt.Sprintf("設定の保存に失敗しました: %v", err)})
-		return
-	}
-
-	debug.Log("config saved")
-	_ = json.NewEncoder(w).Encode(ConfigureResponse{Success: true})
+	// ユーザーに通知
+	fmt.Fprintf(os.Stderr, "Browser connected.\n")
 }
 
 // redirectToRelay は中継サーバーへリダイレクトする
@@ -538,128 +483,29 @@ func (cs *CallbackServer) redirectToRelay(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
-// handleWebSocket はWebSocket接続を処理する
-func (cs *CallbackServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	debug.Log("WebSocket connection request received")
-
-	// セッションを検証
-	session := cs.getSessionFromCookie(r)
-	if session == nil {
-		debug.Log("WebSocket: no valid session")
-		http.Error(w, "No valid session", http.StatusUnauthorized)
-		return
+// notifyStatus は認証状態変更をストリーミングリスナーに通知する
+func (cs *CallbackServer) notifyStatus(status string) {
+	select {
+	case cs.statusNotify <- struct{}{}:
+		debug.Log("notified streaming listeners", "status", status)
+	default:
+		// チャネルがいっぱいの場合はスキップ（既に通知済み）
 	}
+}
 
-	// WebSocket接続を受け入れる
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// localhostからの接続のみ許可（Origin チェックをスキップ）
-		InsecureSkipVerify: true,
-	})
-	if err != nil {
-		debug.Log("WebSocket accept failed", "error", err)
-		http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
-		return
-	}
-
-	debug.Log("WebSocket connection established", "sessionID", session.ID[:16]+"...")
-
-	// セッションにWebSocket接続を紐付け
+// setSessionError はセッションのエラーステータスを設定し、ストリームに通知する
+func (cs *CallbackServer) setSessionError(errorMsg string) {
 	cs.sessionMu.Lock()
-	session.WSConn = conn
-	session.DisconnectedAt = nil // 切断時刻をクリア
+	if cs.session != nil {
+		cs.session.Status = "error"
+		cs.session.ErrorMessage = errorMsg
+	}
 	cs.sessionMu.Unlock()
-
-	// ユーザーに通知
-	fmt.Fprintf(os.Stderr, "Browser connected.\n")
-
-	// WebSocket用のcontextを作成（コマンドのcontextを親として使用）
-	ctx, cancel := context.WithCancel(cs.ctx)
-	defer cancel()
-
-	// 接続終了時の処理
-	defer func() {
-		cs.handleWSDisconnect()
-		_ = conn.Close(websocket.StatusNormalClosure, "connection closed")
-	}()
-
-	// 現在の状態を即座に送信
-	cs.sessionMu.RLock()
-	status := session.Status
-	errorMsg := session.ErrorMessage
-	cs.sessionMu.RUnlock()
-
-	msg := WSMessage{Status: status}
-	if errorMsg != "" {
-		msg.Error = errorMsg
-	}
-	if err := cs.sendWSMessage(ctx, conn, msg); err != nil {
-		debug.Log("failed to send initial status", "error", err)
-		return
-	}
-
-	// 認証が既に完了している場合は終了
-	if status != "pending" {
-		debug.Log("auth already completed, closing WebSocket", "status", status)
-		return
-	}
-
-	// 接続切断を検知するための読み取りgoroutine
-	readDone := make(chan struct{})
-	go func() {
-		defer close(readDone)
-		for {
-			// クライアントからのメッセージを読み取る（切断検知用）
-			_, _, err := conn.Read(ctx)
-			if err != nil {
-				debug.Log("WebSocket read error (connection closed)", "error", err)
-				return
-			}
-		}
-	}()
-
-	// 状態変更を監視するループ
-	wsConf := cs.wsConfig()
-	checkTicker := time.NewTicker(wsConf.PingIntervalDuration())
-	defer checkTicker.Stop()
-
-	for {
-		select {
-		case <-readDone:
-			// クライアントが切断した
-			debug.Log("WebSocket client disconnected")
-			return
-		case <-checkTicker.C:
-			// 状態が変わっていないかチェック
-			cs.sessionMu.RLock()
-			currentStatus := session.Status
-			currentError := session.ErrorMessage
-			cs.sessionMu.RUnlock()
-
-			if currentStatus != "pending" {
-				// 状態が変わった（別のgoroutineで更新された）
-				msg := WSMessage{Status: currentStatus}
-				if currentError != "" {
-					msg.Error = currentError
-				}
-				_ = cs.sendWSMessage(ctx, conn, msg)
-				debug.Log("auth status changed, closing WebSocket", "status", currentStatus)
-				return
-			}
-		}
-	}
+	cs.notifyStatus("error")
 }
 
-// sendWSMessage はWebSocketでメッセージを送信する
-func (cs *CallbackServer) sendWSMessage(ctx context.Context, conn *websocket.Conn, msg WSMessage) error {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	return conn.Write(ctx, websocket.MessageText, data)
-}
-
-// handleWSDisconnect はWebSocket切断時の処理を行う
-func (cs *CallbackServer) handleWSDisconnect() {
+// handleStreamDisconnect はストリーム切断時の処理を行う
+func (cs *CallbackServer) handleStreamDisconnect() {
 	cs.sessionMu.Lock()
 	defer cs.sessionMu.Unlock()
 
@@ -667,43 +513,31 @@ func (cs *CallbackServer) handleWSDisconnect() {
 		return
 	}
 
+	// 認証が完了している場合は接続状態のみ更新
+	if cs.session.Status != "pending" {
+		cs.session.StreamConnected = false
+		return
+	}
+
+	// 既に切断状態の場合は何もしない
+	if !cs.session.StreamConnected {
+		return
+	}
+
 	// 切断時刻を記録
 	now := time.Now()
-	cs.session.WSConn = nil
+	cs.session.StreamConnected = false
 	cs.session.DisconnectedAt = &now
 
-	gracePeriod := cs.wsConfig().DisconnectGracePeriodDuration()
+	gracePeriod := cs.keepaliveConfig().GracePeriodDuration()
 
 	// ユーザーに通知
 	fmt.Fprintf(os.Stderr, "Browser disconnected. Waiting %s for reconnection...\n", gracePeriod)
 
-	debug.Log("session temporarily disconnected",
+	debug.Log("stream disconnected",
 		"state", "disconnected",
 		"gracePeriod", gracePeriod.String(),
 		"willTimeoutAt", now.Add(gracePeriod).Format("15:04:05"))
-}
-
-// broadcastAuthStatus はセッションのWebSocket接続に認証状態を配信する
-func (cs *CallbackServer) broadcastAuthStatus(status, errorMsg string) {
-	cs.sessionMu.RLock()
-	session := cs.session
-	cs.sessionMu.RUnlock()
-
-	if session == nil || session.WSConn == nil {
-		debug.Log("no WebSocket connection to broadcast")
-		return
-	}
-
-	msg := WSMessage{Status: status}
-	if errorMsg != "" {
-		msg.Error = errorMsg
-	}
-
-	ctx := context.Background()
-	if err := cs.sendWSMessage(ctx, session.WSConn, msg); err != nil {
-		debug.Log("failed to broadcast to WebSocket", "error", err)
-	}
-	debug.Log("broadcast auth status", "status", status)
 }
 
 // handlePopup はポップアップウィンドウ用のページを表示する
@@ -766,7 +600,6 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 
 	var callbackError error
 	var newStatus string
-	var newErrorMsg string
 
 	cs.once.Do(func() {
 		code := r.URL.Query().Get("code")
@@ -790,7 +623,6 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 			cs.result <- CallbackResult{Error: callbackError}
 			updateSessionStatus("error", callbackError.Error())
 			newStatus = "error"
-			newErrorMsg = callbackError.Error()
 		} else if returnedState != cs.state {
 			// state 検証
 			debug.Log("state mismatch", "expected", cs.state, "got", returnedState)
@@ -798,14 +630,12 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 			cs.result <- CallbackResult{Error: callbackError}
 			updateSessionStatus("error", callbackError.Error())
 			newStatus = "error"
-			newErrorMsg = callbackError.Error()
 		} else if code == "" {
 			debug.Log("callback received without code")
 			callbackError = fmt.Errorf("no code received")
 			cs.result <- CallbackResult{Error: callbackError}
 			updateSessionStatus("error", callbackError.Error())
 			newStatus = "error"
-			newErrorMsg = callbackError.Error()
 		} else {
 			debug.Log("callback code received", "code_length", len(code))
 			cs.result <- CallbackResult{Code: code}
@@ -814,9 +644,9 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 		}
 	})
 
-	// WebSocketクライアントに状態変更を通知
+	// ストリーミングリスナーに状態変更を通知
 	if newStatus != "" {
-		cs.broadcastAuthStatus(newStatus, newErrorMsg)
+		cs.notifyStatus(newStatus)
 	}
 
 	// Accept-Languageヘッダーから言語を判定

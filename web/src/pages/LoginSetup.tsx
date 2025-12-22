@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { create } from "@bufbuild/protobuf";
 import Button from "../components/Button";
 import Container from "../components/Container";
 import Input from "../components/Input";
@@ -7,12 +8,14 @@ import ResultView from "../components/ResultView";
 import StatusIndicator from "../components/StatusIndicator";
 import WarningBox from "../components/WarningBox";
 import { useAuthContext } from "../context/AuthContext";
-import { useWebSocketContext } from "../context/WebSocketContext";
+import { useStreamingContext } from "../context/StreamingContext";
+import { authClient } from "../lib/connect-client";
+import { ConfigureRequestSchema } from "../gen/auth/v1/auth_pb";
 
 export default function LoginSetup() {
   const navigate = useNavigate();
   const { loading, error, data, refresh } = useAuthContext();
-  const { status, error: wsError } = useWebSocketContext();
+  const { status, error: streamError } = useStreamingContext();
   const [spaceHost, setSpaceHost] = useState("");
   const [relayServer, setRelayServer] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -39,7 +42,7 @@ export default function LoginSetup() {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
-          <ResultView type="error" message={wsError || undefined} />
+          <ResultView type="error" message={streamError || undefined} />
         </Container>
       </main>
     );
@@ -60,23 +63,16 @@ export default function LoginSetup() {
     setSubmitting(true);
     setFormError(null);
 
-    const formData = new FormData();
-    formData.append("space_host", spaceHost);
-    formData.append("relay_server", relayServer);
-
     try {
-      const response = await fetch("/auth/configure", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-        },
-        body: formData,
-        credentials: "same-origin",
-      });
+      const response = await authClient.configure(
+        create(ConfigureRequestSchema, {
+          spaceHost,
+          relayServer,
+        }),
+      );
 
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok || payload.error) {
-        setFormError(payload.error || "設定の保存に失敗しました");
+      if (!response.success || response.error) {
+        setFormError(response.error || "設定の保存に失敗しました");
         setSubmitting(false);
         return;
       }

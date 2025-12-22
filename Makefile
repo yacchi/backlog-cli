@@ -1,4 +1,4 @@
-.PHONY: build test lint clean run serve install build-web dev-web build-dev
+.PHONY: build test lint clean run serve install build-web dev-web build-dev buf-generate buf-lint
 
 # バージョン情報
 VERSION ?= $(shell cat version.txt 2>/dev/null | tr -d '[:space:]' || echo "dev")
@@ -66,8 +66,18 @@ clean:
 	rm -f coverage.out coverage.html
 	rm -rf internal/ui/dist web/node_modules/.vite
 
+# Proto コード生成
+buf-generate:
+	mise exec -- buf generate
+	rm -rf web/src/gen
+	cp -r gen/ts web/src/gen
+
+# Proto lint
+buf-lint:
+	mise exec -- buf lint
+
 # フロントエンドビルド
-build-web:
+build-web: buf-generate
 	cd web && pnpm install --frozen-lockfile && pnpm build
 	rm -rf internal/ui/dist
 	cp -r web/dist internal/ui/dist

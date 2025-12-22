@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "github.com/yacchi/backlog-cli/gen/go/auth/v1;authv1";
+
+service AuthService {
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc Configure(ConfigureRequest) returns (ConfigureResponse);
+  rpc SubscribeAuthEvents(SubscribeAuthEventsRequest) returns (stream AuthEvent);
+}
+
+message GetConfigRequest {}
+
+message GetConfigResponse {
+  string space = 1;
+  string domain = 2;
+  string relay_server = 3;
+  string space_host = 4;
+  bool configured = 5;
+}
+
+message ConfigureRequest {
+  string space_host = 1;
+  string relay_server = 2;
+}
+
+message ConfigureResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message SubscribeAuthEventsRequest {}
+
+message AuthEvent {
+  AuthStatus status = 1;
+  optional string error = 2;
+}
+
+enum AuthStatus {
+  AUTH_STATUS_UNSPECIFIED = 0;
+  AUTH_STATUS_PENDING = 1;
+  AUTH_STATUS_SUCCESS = 2;
+  AUTH_STATUS_ERROR = 3;
+}

@@ -8,7 +8,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 認証関連エンドポイントをGoサーバーへプロキシ
+      // Connect RPC エンドポイント
+      "/auth.v1.AuthService": {
+        target: "http://localhost:52847",
+        changeOrigin: true,
+      },
+      // 認証関連エンドポイントをGoサーバーへプロキシ（後方互換性）
       "/auth/ws": {
         target: "http://localhost:52847",
         changeOrigin: true,

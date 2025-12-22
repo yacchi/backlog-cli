@@ -6,17 +6,20 @@ import InfoBox from "../components/InfoBox";
 import ResultView, { type ResultType } from "../components/ResultView";
 import StatusIndicator from "../components/StatusIndicator";
 import { useAuthContext } from "../context/AuthContext";
-import { useWebSocketContext } from "../context/WebSocketContext";
+import { useStreamingContext } from "../context/StreamingContext";
 import { openPopupCentered } from "../utils/popup";
 
 export default function LoginConfirm() {
   const navigate = useNavigate();
   const { loading, error, data } = useAuthContext();
-  const { status, error: wsError, disconnect } = useWebSocketContext();
+  const { status, error: streamError, disconnect } = useStreamingContext();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [popupMessage, setPopupMessage] = useState<string | null>(null);
   const [forcedResult, setForcedResult] = useState<ResultType | null>(null);
   const popupCheckRef = useRef<number | null>(null);
+  // statusをrefで追跡（interval内でのクロージャ問題を回避）
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   useEffect(() => {
     if (
@@ -60,7 +63,7 @@ export default function LoginConfirm() {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-10">
         <Container>
-          <ResultView type="error" message={wsError || undefined} />
+          <ResultView type="error" message={streamError || undefined} />
         </Container>
       </main>
     );
@@ -93,7 +96,14 @@ export default function LoginConfirm() {
     setPopupMessage("ポップアップで認証を進めてください...");
 
     popupCheckRef.current = window.setInterval(() => {
-      if (status !== "connecting" && status !== "connected") {
+      const currentStatus = statusRef.current;
+
+      // 認証が完了した場合はチェック終了
+      if (
+        currentStatus === "success" ||
+        currentStatus === "error" ||
+        currentStatus === "closed"
+      ) {
         if (popupCheckRef.current) {
           window.clearInterval(popupCheckRef.current);
           popupCheckRef.current = null;
@@ -101,16 +111,26 @@ export default function LoginConfirm() {
         return;
       }
 
+      // ポップアップが閉じられた場合（認証完了以外で）
       if (popup.closed) {
         if (popupCheckRef.current) {
           window.clearInterval(popupCheckRef.current);
           popupCheckRef.current = null;
         }
-        disconnect();
-        setForcedResult("error");
-        setPopupMessage(
-          "認証がキャンセルされました。ポップアップが閉じられました。",
-        );
+        // React状態更新の反映を待つために少し遅延させる
+        // これにより、認証成功直後にポップアップが閉じられた場合の
+        // タイミング問題を回避する
+        setTimeout(() => {
+          const finalStatus = statusRef.current;
+          // 認証が完了していない場合のみエラーとする
+          if (finalStatus === "connecting" || finalStatus === "connected") {
+            disconnect();
+            setForcedResult("error");
+            setPopupMessage(
+              "認証がキャンセルされました。ポップアップが閉じられました。",
+            );
+          }
+        }, 500);
       }
     }, 1000);
   };

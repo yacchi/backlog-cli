@@ -3,10 +3,10 @@ module github.com/yacchi/backlog-cli
 go 1.24.0
 
 require (
+	connectrpc.com/connect v1.19.1
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.2.0
-	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/ogen-go/ogen v1.18.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/ramenjuniti/lexrankmmr v0.0.0-20190322132754-572a7e47c7a5
@@ -17,11 +17,11 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
 	golang.org/x/term v0.38.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dcadenas/pagerank v0.0.0-20231224215204-32a14b9c24a7 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
