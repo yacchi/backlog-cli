@@ -27,9 +27,9 @@ build: build-web
 run:
 	go run ./cmd/backlog $(ARGS)
 
-# テスト
+# テスト (-race requires CGO)
 test:
-	go test -v -race -cover ./...
+	CGO_ENABLED=1 go test -v -race -cover ./...
 
 # カバレッジ
 coverage:
