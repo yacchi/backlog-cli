@@ -59,7 +59,8 @@ func WithCache(c cache.Cache, ttl time.Duration) ClientOption {
 func WithTokenRefresh(refreshToken, relayServer string, expiresAt time.Time, callback func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time)) ClientOption {
 	return func(c *Client) {
 		c.refreshToken = refreshToken
-		c.relayServer = relayServer
+		// 末尾スラッシュを除去してパス連結時のダブルスラッシュを防止
+		c.relayServer = strings.TrimRight(relayServer, "/")
 		c.expiresAt = expiresAt
 		c.onTokenUpdate = callback
 	}
