@@ -47,7 +47,7 @@ brews:
   - name: backlog-cli
     repository:
       owner: yacchi
-      name: homebrew-tap
+      name: tap
     homepage: "https://github.com/yacchi/backlog-cli"
     description: "CLI for Backlog project management"
     install: |
