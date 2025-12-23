@@ -116,6 +116,10 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKe
 		fmt.Printf("Attachments: %d file(s)\n", len(wiki.Attachments))
 	}
 
+	// URL
+	url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
+		profile.Space, profile.Domain, wiki.ID)
+
 	// 内容
 	if wiki.Content != "" {
 		fmt.Println()
@@ -134,8 +138,6 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKe
 
 	// URL
 	fmt.Println()
-	url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
-		profile.Space, profile.Domain, wiki.ID)
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil
