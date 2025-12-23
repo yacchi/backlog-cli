@@ -223,3 +223,77 @@ When project context is needed:
 2. If exit code is 1, suggest:
    - `backlog project init PROJ` for repository-local config
    - `backlog config set client.default.project PROJ` for global config
+
+## Text Formatting
+
+**IMPORTANT**: Before posting any text content (wiki pages, PR comments, etc.), check the project's text formatting rule and format your text accordingly.
+
+### Get Formatting Rule
+
+```bash
+# Efficient: Get only the formatting rule
+backlog project view PROJ --output json | jq -r '.textFormattingRule'
+
+# Get current project's formatting rule
+backlog project current --quiet && \
+  backlog project view "$(backlog project current)" --output json | jq -r '.textFormattingRule'
+```
+
+Returns either `backlog` or `markdown`.
+
+### backlog format (Backlog native syntax)
+
+```
+*Heading 1  **Heading 2  ***Heading 3
+''bold''  '''italic'''
+%%strikethrough%%
+[[link text>URL]]
+[[WikiPageName]]
+#issue-key (auto-links to issue)
+-bullet list  --sub item  ---sub sub item
++numbered list  ++sub item
+{code}code block{/code}
+{code:javascript}highlighted code{/code}
+>quote
+>>nested quote
+|header1|header2|h
+|cell1|cell2|
+&color(red){colored text}
+#image(file.png)
+#thumbnail(file.png)
+```
+
+### markdown format (GitHub Flavored Markdown)
+
+```markdown
+# Heading 1  ## Heading 2  ### Heading 3
+**bold**  *italic*  ~~strikethrough~~
+[link text](URL)
+- bullet list
+  - sub item
+1. numbered list
+```code block```
+```javascript
+highlighted code
+```
+> quote
+| header1 | header2 |
+|---------|---------|
+| cell1   | cell2   |
+![alt text](image.png)
+```
+
+### Applicable Contexts
+
+Text formatting applies to:
+- Issue descriptions and comments
+- Wiki page content
+- Pull request descriptions and comments
+- Git commit comments
+
+### Workflow for Posting Text
+
+1. Identify the target project
+2. Check formatting rule: `backlog project view PROJ --output json | jq -r '.textFormattingRule'`
+3. Format your text content according to the rule
+4. Post using the appropriate command

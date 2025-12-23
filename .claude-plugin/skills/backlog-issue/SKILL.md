@@ -271,3 +271,53 @@ When user wants to create an issue:
 When closing or updating issues:
 1. Commands output the issue URL after completion
 2. Share the URL with the user for verification
+
+## Text Formatting
+
+**IMPORTANT**: Before posting any text content (comments, descriptions), check the project's text formatting rule and format your text accordingly.
+
+### Get Formatting Rule
+
+```bash
+# Efficient: Get only the formatting rule
+backlog project view PROJ --output json | jq -r '.textFormattingRule'
+```
+
+Returns either `backlog` or `markdown`.
+
+### backlog format (Backlog native syntax)
+
+```
+*Heading 1  **Heading 2  ***Heading 3
+''bold''  '''italic'''
+[[link text>URL]]
+-bullet list  --sub item
++numbered list  ++sub item
+{code}code block{/code}
+>quote
+|header1|header2|h
+|cell1|cell2|
+```
+
+### markdown format (GitHub Flavored Markdown)
+
+```markdown
+# Heading 1  ## Heading 2  ### Heading 3
+**bold**  *italic*
+[link text](URL)
+- bullet list
+  - sub item
+1. numbered list
+```code block```
+> quote
+| header1 | header2 |
+|---------|---------|
+| cell1   | cell2   |
+```
+
+### Workflow for Posting Text
+
+1. Get project key from issue key (e.g., `PROJ-123` → `PROJ`)
+2. Check formatting rule: `backlog project view PROJ --output json | jq -r '.textFormattingRule'`
+3. Format your text content according to the rule
+4. Post using the appropriate command
