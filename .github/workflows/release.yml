@@ -23,42 +23,56 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Check if release already exists
+        id: check_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release $TAG already exists. Skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release $TAG does not exist. Creating release."
+          fi
+
       - name: Check if tag already exists
         id: check_tag
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          if git ls-remote --tags origin | grep -q "refs/tags/v${{ steps.version.outputs.version }}$"; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.version.outputs.version }} already exists. Skipping release."
+            echo "Tag v${{ steps.version.outputs.version }} already exists on remote."
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.version.outputs.version }} does not exist. Creating release."
+            echo "Tag v${{ steps.version.outputs.version }} does not exist."
           fi
 
       - name: Read Go version from mise.toml
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         id: go_version
         run: |
           GO_VERSION=$(grep 'go-sdk' mise.toml | sed 's/.*= *"\([0-9]*\.[0-9]*\).*/\1/')
           echo "version=$GO_VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up Go
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/setup-go@v5
         with:
           go-version: ${{ steps.go_version.outputs.version }}
 
       - name: Set up mise
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: jdx/mise-action@v2
 
       - name: Set up pnpm
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Set up Node.js
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -66,23 +80,28 @@ jobs:
           cache-dependency-path: 'web/pnpm-lock.yaml'
 
       - name: Build
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         run: make build
 
       - name: Run tests
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         run: make test
 
       - name: Create and push tag
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false' && steps.check_tag.outputs.exists == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          # Check again before creating (race condition protection)
+          if git ls-remote --tags origin | grep -q "refs/tags/${{ steps.version.outputs.tag }}$"; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists on remote. Skipping tag creation."
+          else
+            git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+            git push origin "${{ steps.version.outputs.tag }}"
+          fi
 
       - name: Generate GitHub App token
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/create-github-app-token@v2
         id: app-token
         with:
@@ -91,7 +110,7 @@ jobs:
           repositories: backlog-cli,homebrew-tap
 
       - name: Run GoReleaser
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
