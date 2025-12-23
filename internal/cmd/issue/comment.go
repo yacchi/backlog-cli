@@ -48,7 +48,7 @@ func init() {
 func runComment(c *cobra.Command, args []string) error {
 	issueKey := args[0]
 
-	client, _, err := cmdutil.GetAPIClient(c)
+	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
 		return err
 	}
@@ -77,5 +77,10 @@ func runComment(c *cobra.Command, args []string) error {
 	}
 
 	ui.Success("Added comment #%d to %s", comment.ID, issueKey)
+
+	profile := cfg.CurrentProfile()
+	url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
+	fmt.Printf("URL: %s\n", ui.Cyan(url))
+
 	return nil
 }

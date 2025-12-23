@@ -84,5 +84,10 @@ func runReopen(c *cobra.Command, args []string) error {
 	}
 
 	ui.Success("Reopened %s", issue.IssueKey)
+
+	profile := cfg.CurrentProfile()
+	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
+	fmt.Printf("URL: %s\n", ui.Cyan(url))
+
 	return nil
 }
