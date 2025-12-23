@@ -4,6 +4,7 @@
 # Temporary files
 /.tmp/
 /backlog
+/tmp
 *.exe
 
 # Test coverage
