@@ -21,11 +21,13 @@ Examples:
 
 ### 1. Check Authentication
 
-Before any operation, verify authentication:
+Before any operation, verify authentication by calling the API:
 
 ```bash
-backlog auth status --quiet && echo "authenticated" || echo "not authenticated"
+backlog auth me --quiet && echo "authenticated" || echo "not authenticated"
 ```
+
+This verifies actual API access, including automatic token refresh if the refresh token is valid.
 
 If not authenticated, prompt the user to run:
 ```bash
@@ -222,7 +224,7 @@ URL: https://space.backlog.com/view/PROJ-123
 
 ### Not Authenticated
 
-If `backlog auth status --quiet` returns exit code 1:
+If `backlog auth me --quiet` returns exit code 1:
 - Inform the user they need to authenticate
 - Suggest running `backlog auth login`
 

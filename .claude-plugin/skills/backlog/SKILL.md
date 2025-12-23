@@ -213,7 +213,7 @@ backlog auth me
 ### Not Authenticated
 
 When authentication is required:
-1. Run `backlog auth status --quiet` to check
+1. Run `backlog auth me --quiet` to check (verifies actual API access including token refresh)
 2. If exit code is 1, suggest `backlog auth login`
 
 ### No Project Configured
