@@ -25,7 +25,7 @@ func RenderMarkdownContent(content string, opts MarkdownViewOptions, itemType st
 
 	if opts.Cache {
 		entry := markdown.BuildCacheEntry(result, content, output, opts.CacheExcerpt, opts.CacheRaw)
-		if err := markdown.AppendCache(entry); err != nil {
+		if err := markdown.AppendCache(entry, opts.CacheDir); err != nil {
 			return output, err
 		}
 	}

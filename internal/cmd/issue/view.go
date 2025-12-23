@@ -97,7 +97,11 @@ func runView(c *cobra.Command, args []string) error {
 		if viewBrief {
 			return renderIssueBrief(issue, profile)
 		}
-		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
 		projectKey := cmdutil.GetCurrentProject(cfg)
 		return renderIssueDetail(ctx, client, issue, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}

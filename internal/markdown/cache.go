@@ -17,8 +17,8 @@ const defaultExcerptLength = 200
 var emailMask = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
 
 // AppendCache writes an entry to the JSONL cache.
-func AppendCache(entry CacheEntry) error {
-	path, err := cacheFilePath()
+func AppendCache(entry CacheEntry, cacheDir string) error {
+	path, err := cacheFilePath(cacheDir)
 	if err != nil {
 		return err
 	}
@@ -67,9 +67,9 @@ func BuildCacheEntry(result ConvertResult, input, output string, excerptLength i
 	return entry
 }
 
-func cacheFilePath() (string, error) {
-	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		return filepath.Join(xdg, "backlog", "markdown", "events.jsonl"), nil
+func cacheFilePath(cacheDir string) (string, error) {
+	if cacheDir != "" {
+		return filepath.Join(cacheDir, "markdown", "events.jsonl"), nil
 	}
 	base, err := os.UserCacheDir()
 	if err != nil {

@@ -78,7 +78,11 @@ func runView(c *cobra.Command, args []string) error {
 		return enc.Encode(wiki)
 	default:
 		display := cfg.Display()
-		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
 		projectKey := cmdutil.GetCurrentProject(cfg)
 		return renderWikiDetail(wiki, profile, projectKey, markdownOpts, c.OutOrStdout())
 	}

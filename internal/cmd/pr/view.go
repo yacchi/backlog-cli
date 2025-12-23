@@ -86,7 +86,11 @@ func runView(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(pr)
 	default:
-		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
 		return renderPRDetail(pr, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
