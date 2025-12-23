@@ -31,7 +31,7 @@ func TestConvertBacklogToGFM(t *testing.T) {
 	}
 	for _, want := range checks {
 		if !strings.Contains(result.Output, want) {
-			t.Errorf("missing %q in output", want)
+			t.Errorf("missing %q in output. output=%q", want, result.Output)
 		}
 	}
 }

@@ -59,7 +59,7 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	content := input
 
 	// Extract code blocks.
-	content, codeTokens := replaceBlocks(content, reCodeBlock, func(groups []string) string {
+	content, codeTokens := replaceBlocks(content, reCodeBlock, "CODE", func(groups []string) string {
 		lang := strings.TrimSpace(groups[1])
 		body := strings.Trim(groups[2], "\n")
 		head := "```"
@@ -72,7 +72,7 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	})
 
 	// Extract quote blocks.
-	content, quoteTokens := replaceBlocks(content, reQuoteBlock, func(groups []string) string {
+	content, quoteTokens := replaceBlocks(content, reQuoteBlock, "QUOTE", func(groups []string) string {
 		body := strings.Trim(groups[1], "\n")
 		lines := strings.Split(body, "\n")
 		for i, line := range lines {
@@ -137,17 +137,6 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 		return "[" + label + "](" + url + ")"
 	})
 
-	boldChanged := false
-	content = reBold.ReplaceAllStringFunc(content, func(match string) string {
-		parts := reBold.FindStringSubmatch(match)
-		if len(parts) < 2 {
-			return match
-		}
-		boldChanged = true
-		rules = appendRule(rules, RuleEmphasisBold)
-		return "**" + parts[1] + "**"
-	})
-
 	italicChanged := false
 	content = reItalic.ReplaceAllStringFunc(content, func(match string) string {
 		parts := reItalic.FindStringSubmatch(match)
@@ -157,6 +146,17 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 		italicChanged = true
 		rules = appendRule(rules, RuleEmphasisItalic)
 		return "*" + parts[1] + "*"
+	})
+
+	boldChanged := false
+	content = reBold.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reBold.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		boldChanged = true
+		rules = appendRule(rules, RuleEmphasisBold)
+		return "**" + parts[1] + "**"
 	})
 
 	strikeChanged := false
@@ -194,7 +194,7 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	return content, rules, warnings
 }
 
-func replaceBlocks(input string, re *regexp.Regexp, fn func(groups []string) string) (string, map[string]string) {
+func replaceBlocks(input string, re *regexp.Regexp, prefix string, fn func(groups []string) string) (string, map[string]string) {
 	matches := re.FindAllStringSubmatchIndex(input, -1)
 	if len(matches) == 0 {
 		return input, nil
@@ -215,7 +215,7 @@ func replaceBlocks(input string, re *regexp.Regexp, fn func(groups []string) str
 			}
 			groups[g] = input[m[idx]:m[idx+1]]
 		}
-		token := fmt.Sprintf("{{BACKLOG_MD_BLOCK_%d}}", i)
+		token := fmt.Sprintf("{{BACKLOG_MD_%s_%d}}", prefix, i)
 		replacements[token] = fn(groups)
 		b.WriteString(token)
 		last = end
