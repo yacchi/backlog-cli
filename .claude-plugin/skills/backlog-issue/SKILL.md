@@ -78,19 +78,28 @@ backlog issue view PROJ-123 --web
 ### List Issues
 
 ```bash
-# List issues in current project
+# List issues in current project (alias: ls)
 backlog issue list
+backlog issue ls
 
-# Filter by status
-backlog issue list --status open
-backlog issue list --status closed
+# Filter by state (open/closed/all, default: open)
+backlog issue list --state open
+backlog issue list -s closed
+backlog issue list -s all
 
 # Filter by assignee
 backlog issue list --assignee @me
-backlog issue list --assignee "User Name"
+backlog issue list --mine
+
+# Search issues
+backlog issue list --search "keyword"
+backlog issue list -S "bug fix"
 
 # Limit results
-backlog issue list --limit 20
+backlog issue list -L 20
+
+# Open in browser
+backlog issue list --web
 
 # JSON output for processing
 backlog issue list --output json
@@ -102,11 +111,24 @@ backlog issue list --output json
 # Interactive mode
 backlog issue create
 
-# With options
-backlog issue create --summary "Issue title" --description "Details"
+# With options (alias: new)
+backlog issue create --title "Issue title" --body "Details"
+backlog issue new -t "Issue title" -b "Details"
+
+# Read body from file
+backlog issue create -t "Issue title" --body-file description.md
+
+# Read body from stdin
+echo "Description" | backlog issue create -t "Issue title" -F -
 
 # With issue type and priority
-backlog issue create --summary "Bug report" --type Bug --priority High
+backlog issue create -t "Bug report" --type Bug --priority High
+```
+
+Output includes the created issue URL:
+```
+Created PROJ-123
+URL: https://space.backlog.com/view/PROJ-123
 ```
 
 ### Add Comment
@@ -114,26 +136,86 @@ backlog issue create --summary "Bug report" --type Bug --priority High
 ```bash
 # Add comment to issue
 backlog issue comment PROJ-123 --body "Comment text"
+backlog issue comment PROJ-123 -b "Quick note"
+
+# Read comment from file
+backlog issue comment PROJ-123 --body-file comment.md
+
+# Read comment from stdin
+echo "Comment" | backlog issue comment PROJ-123 -F -
+
+# Open editor to write comment
+backlog issue comment PROJ-123 --editor
 
 # Interactive mode
 backlog issue comment PROJ-123
 ```
 
-### Close Issue
-
-```bash
-backlog issue close PROJ-123
+Output includes the comment URL:
+```
+Added comment #456 to PROJ-123
+URL: https://space.backlog.com/view/PROJ-123#comment-456
 ```
 
 ### Edit Issue
 
 ```bash
-# Interactive edit
-backlog issue edit PROJ-123
+# Update title and body
+backlog issue edit PROJ-123 --title "New title" --body "Updated description"
+backlog issue edit PROJ-123 -t "New title" -b "Updated description"
 
-# Direct field update
-backlog issue edit PROJ-123 --status "In Progress"
-backlog issue edit PROJ-123 --assignee "@me"
+# Read body from file
+backlog issue edit PROJ-123 --body-file description.md
+
+# Assign to yourself
+backlog issue edit PROJ-123 --assignee @me
+
+# Change status (by ID)
+backlog issue edit PROJ-123 --status 2
+
+# Add comment with edit
+backlog issue edit PROJ-123 -t "Updated" --comment "Changed the title"
+```
+
+Output includes the issue URL:
+```
+Updated PROJ-123
+URL: https://space.backlog.com/view/PROJ-123
+```
+
+### Close Issue
+
+```bash
+# Close an issue
+backlog issue close PROJ-123
+
+# Close with comment
+backlog issue close PROJ-123 --comment "Fixed in v1.2"
+
+# Close with resolution
+backlog issue close PROJ-123 --resolution 0
+```
+
+Output includes the issue URL:
+```
+Closed PROJ-123
+URL: https://space.backlog.com/view/PROJ-123
+```
+
+### Reopen Issue
+
+```bash
+# Reopen a closed issue
+backlog issue reopen PROJ-123
+
+# Reopen with comment
+backlog issue reopen PROJ-123 --comment "Reopening for further investigation"
+```
+
+Output includes the issue URL:
+```
+Reopened PROJ-123
+URL: https://space.backlog.com/view/PROJ-123
 ```
 
 ## Error Handling
@@ -176,3 +258,16 @@ When user asks for details about an issue:
 When user provides multiple issue keys:
 1. Fetch each issue with `--brief` flag
 2. Present a consolidated summary
+
+### Create Issue from Context
+
+When user wants to create an issue:
+1. Use `--title` and `--body` flags for non-interactive creation
+2. For long descriptions, write to a temp file and use `--body-file`
+3. The output URL can be shared with the user
+
+### Update and Close
+
+When closing or updating issues:
+1. Commands output the issue URL after completion
+2. Share the URL with the user for verification
