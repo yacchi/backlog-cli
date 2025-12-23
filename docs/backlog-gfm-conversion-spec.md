@@ -237,9 +237,12 @@ Markdown Warning Summary
   - `item_id`
   - `parent_id` (commentの場合のみ)
   - `project_key`
+  - `item_key` (issue key / pr number / wiki name)
+  - `url` (対象のURL)
   - `detected_mode` (backlog/markdown/unknown)
   - `score`
   - `warnings` (type list + count)
+  - `warning_lines` (type -> line numbers)
   - `rules_applied` (rule ids)
 - 入出力
   - `input_hash` / `output_hash` (sha256)
@@ -254,9 +257,12 @@ Markdown Warning Summary
   "item_id": 12345,
   "parent_id": 999,
   "project_key": "PROJ",
+  "item_key": "PROJ-123",
+  "url": "https://example.backlog.com/view/PROJ-123",
   "detected_mode": "backlog|markdown|unknown",
   "score": 3,
   "warnings": {"color_macro": 2},
+  "warning_lines": {"color_macro": [3, 7]},
   "rules_applied": ["rule.backlog_link", "rule.code_block"],
   "input_hash": "sha256",
   "output_hash": "sha256",

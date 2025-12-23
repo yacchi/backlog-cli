@@ -302,7 +302,9 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 		}
 
 		if markdownOpts.Enable {
-			converted, err := cmdutil.RenderMarkdownContent(fullText, markdownOpts, "issue", issueID, 0, projectKey, nil)
+			issueKey := issue.IssueKey.Value
+			issueURL := fmt.Sprintf("%s/view/%s", baseURL, issueKey)
+			converted, err := cmdutil.RenderMarkdownContent(fullText, markdownOpts, "issue", issueID, 0, projectKey, issueKey, issueURL, nil)
 			if err == nil {
 				fullText = converted
 			}

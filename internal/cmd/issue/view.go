@@ -316,7 +316,7 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		fmt.Println(strings.Repeat("─", 60))
 		content := issue.Description.Value
 		if markdownOpts.Enable {
-			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "issue", issueID, 0, projectKey, out)
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "issue", issueID, 0, projectKey, key, issueURL, out)
 			if err != nil {
 				return err
 			}
@@ -341,7 +341,8 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 			fmt.Printf("\n%s %s\n", ui.Bold(comment.CreatedUser.Name), ui.Gray(formatter.FormatDateTime(comment.Created, "created")))
 			content := comment.Content
 			if markdownOpts.Enable {
-				rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "comment", comment.ID, issueID, projectKey, out)
+				commentURL := fmt.Sprintf("%s#comment-%d", issueURL, comment.ID)
+				rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "comment", comment.ID, issueID, projectKey, key, commentURL, out)
 				if err != nil {
 					return err
 				}

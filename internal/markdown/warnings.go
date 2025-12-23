@@ -21,8 +21,9 @@ var (
 )
 
 // CollectWarnings analyzes input and returns warning counts.
-func CollectWarnings(input string) map[WarningType]int {
+func CollectWarningsWithLines(input string) (map[WarningType]int, map[WarningType][]int) {
 	warnings := map[WarningType]int{}
+	lines := map[WarningType][]int{}
 
 	addCount := func(w WarningType, count int) {
 		if count <= 0 {
@@ -30,35 +31,67 @@ func CollectWarnings(input string) map[WarningType]int {
 		}
 		warnings[w] += count
 	}
-
-	addCount(WarningColorMacro, len(reColorMacro.FindAllStringIndex(input, -1)))
-	addCount(WarningTableHeaderH, len(reTableHeaderH.FindAllStringIndex(input, -1)))
-	addCount(WarningTableHeaderCell, len(reTableHeaderCell.FindAllStringIndex(input, -1)))
-	addCount(WarningTableCellMerge, len(reTableCellMerge.FindAllStringIndex(input, -1)))
-	addCount(WarningThumbnailMacro, len(reThumbnailMacro.FindAllStringIndex(input, -1)))
-
-	for _, match := range reUnknownHash.FindAllStringSubmatch(input, -1) {
-		if len(match) < 2 {
-			continue
+	addLine := func(w WarningType, line int) {
+		existing := lines[w]
+		if len(existing) > 0 && existing[len(existing)-1] == line {
+			return
 		}
-		name := strings.ToLower(match[1])
-		if _, ok := allowedHashMacros[name]; ok {
-			continue
-		}
-		warnings[WarningUnknownHashMacro]++
+		lines[w] = append(existing, line)
 	}
 
-	for _, match := range reUnknownBrace.FindAllStringSubmatch(input, -1) {
-		if len(match) < 2 {
-			continue
+	for idx, line := range strings.Split(input, "\n") {
+		lineNo := idx + 1
+		if count := len(reColorMacro.FindAllStringIndex(line, -1)); count > 0 {
+			addCount(WarningColorMacro, count)
+			addLine(WarningColorMacro, lineNo)
 		}
-		name := strings.ToLower(match[1])
-		if _, ok := allowedBraceMacros[name]; ok {
-			continue
+		if count := len(reTableHeaderH.FindAllStringIndex(line, -1)); count > 0 {
+			addCount(WarningTableHeaderH, count)
+			addLine(WarningTableHeaderH, lineNo)
 		}
-		warnings[WarningUnknownBrace]++
+		if count := len(reTableHeaderCell.FindAllStringIndex(line, -1)); count > 0 {
+			addCount(WarningTableHeaderCell, count)
+			addLine(WarningTableHeaderCell, lineNo)
+		}
+		if count := len(reTableCellMerge.FindAllStringIndex(line, -1)); count > 0 {
+			addCount(WarningTableCellMerge, count)
+			addLine(WarningTableCellMerge, lineNo)
+		}
+		if count := len(reThumbnailMacro.FindAllStringIndex(line, -1)); count > 0 {
+			addCount(WarningThumbnailMacro, count)
+			addLine(WarningThumbnailMacro, lineNo)
+		}
+
+		for _, match := range reUnknownHash.FindAllStringSubmatch(line, -1) {
+			if len(match) < 2 {
+				continue
+			}
+			name := strings.ToLower(match[1])
+			if _, ok := allowedHashMacros[name]; ok {
+				continue
+			}
+			warnings[WarningUnknownHashMacro]++
+			addLine(WarningUnknownHashMacro, lineNo)
+		}
+
+		for _, match := range reUnknownBrace.FindAllStringSubmatch(line, -1) {
+			if len(match) < 2 {
+				continue
+			}
+			name := strings.ToLower(match[1])
+			if _, ok := allowedBraceMacros[name]; ok {
+				continue
+			}
+			warnings[WarningUnknownBrace]++
+			addLine(WarningUnknownBrace, lineNo)
+		}
 	}
 
+	return warnings, lines
+}
+
+func CollectWarnings(input string) map[WarningType]int {
+	warnings, _ := CollectWarningsWithLines(input)
 	return warnings
 }
 

@@ -123,7 +123,7 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKe
 		fmt.Println(strings.Repeat("─", 60))
 		content := wiki.Content
 		if markdownOpts.Enable {
-			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "wiki", wiki.ID, 0, projectKey, out)
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "wiki", wiki.ID, 0, projectKey, wiki.Name, url, out)
 			if err != nil {
 				return err
 			}

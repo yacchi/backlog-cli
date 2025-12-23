@@ -58,36 +58,44 @@ type ConvertOptions struct {
 	ItemID     int
 	ParentID   int
 	ProjectKey string
+	ItemKey    string
+	URL        string
 }
 
 // ConvertResult represents conversion output.
 type ConvertResult struct {
-	Output     string
-	Mode       Mode
-	Score      int
-	Warnings   map[WarningType]int
-	Rules      []RuleID
-	ItemType   string
-	ItemID     int
-	ParentID   int
-	ProjectKey string
+	Output       string
+	Mode         Mode
+	Score        int
+	Warnings     map[WarningType]int
+	WarningLines map[WarningType][]int
+	Rules        []RuleID
+	ItemType     string
+	ItemID       int
+	ParentID     int
+	ProjectKey   string
+	ItemKey      string
+	URL          string
 }
 
 // CacheEntry represents a JSONL cache record.
 type CacheEntry struct {
-	TS            time.Time           `json:"ts"`
-	ItemType      string              `json:"item_type"`
-	ItemID        int                 `json:"item_id"`
-	ParentID      int                 `json:"parent_id,omitempty"`
-	ProjectKey    string              `json:"project_key"`
-	DetectedMode  Mode                `json:"detected_mode"`
-	Score         int                 `json:"score"`
-	Warnings      map[WarningType]int `json:"warnings"`
-	RulesApplied  []RuleID            `json:"rules_applied"`
-	InputHash     string              `json:"input_hash"`
-	OutputHash    string              `json:"output_hash"`
-	InputExcerpt  string              `json:"input_excerpt"`
-	OutputExcerpt string              `json:"output_excerpt"`
-	InputRaw      string              `json:"input_raw,omitempty"`
-	OutputRaw     string              `json:"output_raw,omitempty"`
+	TS            time.Time             `json:"ts"`
+	ItemType      string                `json:"item_type"`
+	ItemID        int                   `json:"item_id"`
+	ParentID      int                   `json:"parent_id,omitempty"`
+	ProjectKey    string                `json:"project_key"`
+	ItemKey       string                `json:"item_key,omitempty"`
+	URL           string                `json:"url,omitempty"`
+	DetectedMode  Mode                  `json:"detected_mode"`
+	Score         int                   `json:"score"`
+	Warnings      map[WarningType]int   `json:"warnings"`
+	WarningLines  map[WarningType][]int `json:"warning_lines,omitempty"`
+	RulesApplied  []RuleID              `json:"rules_applied"`
+	InputHash     string                `json:"input_hash"`
+	OutputHash    string                `json:"output_hash"`
+	InputExcerpt  string                `json:"input_excerpt"`
+	OutputExcerpt string                `json:"output_excerpt"`
+	InputRaw      string                `json:"input_raw,omitempty"`
+	OutputRaw     string                `json:"output_raw,omitempty"`
 }

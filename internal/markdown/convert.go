@@ -30,12 +30,14 @@ func Convert(input string, opts ConvertOptions) ConvertResult {
 		ItemID:     opts.ItemID,
 		ParentID:   opts.ParentID,
 		ProjectKey: opts.ProjectKey,
+		ItemKey:    opts.ItemKey,
+		URL:        opts.URL,
 	}
 
 	detect := Detect(input)
 	result.Mode = detect.Mode
 	result.Score = detect.Score
-	result.Warnings = CollectWarnings(input)
+	result.Warnings, result.WarningLines = CollectWarningsWithLines(input)
 
 	if result.Mode != ModeBacklog && !(result.Mode == ModeUnknown && opts.Force) {
 		return result
