@@ -42,18 +42,18 @@
 - `config.yaml`に「markdown表示変換を常に有効」なフラグを追加
 - CLI引数が設定より優先
 - 設定キー案
-  - `client.default.markdown_view` (bool, default: false)
-  - `client.default.markdown_warn` (bool, default: true)
-  - `client.default.markdown_cache` (bool, default: false)
-  - `client.default.markdown_cache_raw` (bool, default: false)
-  - `client.default.markdown_cache_excerpt` (int, default: 200)
-  - 対応する環境変数も用意する（例: `BACKLOG_MARKDOWN_VIEW`）
+  - `display.markdown_view` (bool, default: false)
+  - `display.markdown_warn` (bool, default: true)
+  - `display.markdown_cache` (bool, default: false)
+  - `display.markdown_cache_raw` (bool, default: false)
+  - `display.markdown_cache_excerpt` (int, default: 200)
+  - 対応する環境変数も用意する（例: `BACKLOG_DISPLAY_MARKDOWN_VIEW`）
 - 環境変数例
-  - `BACKLOG_MARKDOWN_VIEW`
-  - `BACKLOG_MARKDOWN_WARN`
-  - `BACKLOG_MARKDOWN_CACHE`
-  - `BACKLOG_MARKDOWN_CACHE_RAW`
-  - `BACKLOG_MARKDOWN_CACHE_EXCERPT`
+  - `BACKLOG_DISPLAY_MARKDOWN_VIEW`
+  - `BACKLOG_DISPLAY_MARKDOWN_WARN`
+  - `BACKLOG_DISPLAY_MARKDOWN_CACHE`
+  - `BACKLOG_DISPLAY_MARKDOWN_CACHE_RAW`
+  - `BACKLOG_DISPLAY_MARKDOWN_CACHE_EXCERPT`
 
 ## コマンド別の適用ポイント
 - issue view

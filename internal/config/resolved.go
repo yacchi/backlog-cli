@@ -200,18 +200,23 @@ func (b *ResolvedBacklogApp) ClientSecret() string {
 // jubako tagでdisplay.*からマッピング
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedDisplay struct {
-	SummaryMaxLength    int                            `json:"summary_max_length" jubako:"/display/summary_max_length,env:DISPLAY_SUMMARY_MAX_LENGTH"`
-	SummaryCommentCount int                            `json:"summary_comment_count" jubako:"/display/summary_comment_count,env:DISPLAY_SUMMARY_COMMENT_COUNT"`
-	DefaultCommentCount int                            `json:"default_comment_count" jubako:"/display/default_comment_count,env:DISPLAY_DEFAULT_COMMENT_COUNT"`
-	DefaultIssueLimit   int                            `json:"default_issue_limit" jubako:"/display/default_issue_limit,env:DISPLAY_DEFAULT_ISSUE_LIMIT"`
-	Timezone            string                         `json:"timezone" jubako:"/display/timezone,env:DISPLAY_TIMEZONE"`
-	DateFormat          string                         `json:"date_format" jubako:"/display/date_format,env:DISPLAY_DATE_FORMAT"`
-	DateTimeFormat      string                         `json:"datetime_format" jubako:"/display/datetime_format,env:DISPLAY_DATETIME_FORMAT"`
-	Hyperlink           bool                           `json:"hyperlink" jubako:"/display/hyperlink,env:DISPLAY_HYPERLINK"`
-	IssueListFields     []string                       `json:"issue_list_fields" jubako:"/display/issue_list_fields"`
-	IssueFieldConfig    map[string]ResolvedFieldConfig `json:"issue_field_config" jubako:"/display/issue_field_config"`
-	PRListFields        []string                       `json:"pr_list_fields" jubako:"/display/pr_list_fields"`
-	PRFieldConfig       map[string]ResolvedFieldConfig `json:"pr_field_config" jubako:"/display/pr_field_config"`
+	SummaryMaxLength     int                            `json:"summary_max_length" jubako:"/display/summary_max_length,env:DISPLAY_SUMMARY_MAX_LENGTH"`
+	SummaryCommentCount  int                            `json:"summary_comment_count" jubako:"/display/summary_comment_count,env:DISPLAY_SUMMARY_COMMENT_COUNT"`
+	DefaultCommentCount  int                            `json:"default_comment_count" jubako:"/display/default_comment_count,env:DISPLAY_DEFAULT_COMMENT_COUNT"`
+	DefaultIssueLimit    int                            `json:"default_issue_limit" jubako:"/display/default_issue_limit,env:DISPLAY_DEFAULT_ISSUE_LIMIT"`
+	Timezone             string                         `json:"timezone" jubako:"/display/timezone,env:DISPLAY_TIMEZONE"`
+	DateFormat           string                         `json:"date_format" jubako:"/display/date_format,env:DISPLAY_DATE_FORMAT"`
+	DateTimeFormat       string                         `json:"datetime_format" jubako:"/display/datetime_format,env:DISPLAY_DATETIME_FORMAT"`
+	Hyperlink            bool                           `json:"hyperlink" jubako:"/display/hyperlink,env:DISPLAY_HYPERLINK"`
+	MarkdownView         bool                           `json:"markdown_view" jubako:"/display/markdown_view,env:DISPLAY_MARKDOWN_VIEW"`
+	MarkdownWarn         bool                           `json:"markdown_warn" jubako:"/display/markdown_warn,env:DISPLAY_MARKDOWN_WARN"`
+	MarkdownCache        bool                           `json:"markdown_cache" jubako:"/display/markdown_cache,env:DISPLAY_MARKDOWN_CACHE"`
+	MarkdownCacheRaw     bool                           `json:"markdown_cache_raw" jubako:"/display/markdown_cache_raw,env:DISPLAY_MARKDOWN_CACHE_RAW"`
+	MarkdownCacheExcerpt int                            `json:"markdown_cache_excerpt" jubako:"/display/markdown_cache_excerpt,env:DISPLAY_MARKDOWN_CACHE_EXCERPT"`
+	IssueListFields      []string                       `json:"issue_list_fields" jubako:"/display/issue_list_fields"`
+	IssueFieldConfig     map[string]ResolvedFieldConfig `json:"issue_field_config" jubako:"/display/issue_field_config"`
+	PRListFields         []string                       `json:"pr_list_fields" jubako:"/display/pr_list_fields"`
+	PRFieldConfig        map[string]ResolvedFieldConfig `json:"pr_field_config" jubako:"/display/pr_field_config"`
 }
 
 // ResolvedFieldConfig はマージ済みのフィールド設定

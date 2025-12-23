@@ -205,6 +205,13 @@ display:
   # 対応ターミナル: iTerm2, Windows Terminal, GNOME Terminal (3.26+), Konsole (18.07+), foot など
   hyperlink: true
 
+  # Backlog記法→GFM表示変換
+  markdown_view: false
+  markdown_warn: true
+  markdown_cache: false
+  markdown_cache_raw: false
+  markdown_cache_excerpt: 200
+
   # 課題一覧の表示フィールド
   # 利用可能: key, status, priority, assignee, summary, type, created, updated,
   #          created_user, due_date, start_date, category, milestone, version, url

@@ -1,0 +1,312 @@
+package markdown
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+var (
+	reHeading  = regexp.MustCompile(`(?m)^(\*{1,3})\s*(\S.*)$`)
+	reTOC      = regexp.MustCompile(`(?m)^#contents\s*$`)
+	reListPlus = regexp.MustCompile(`(?m)^\+\s+`)
+	reListDash = regexp.MustCompile(`(?m)^-(\S)`)
+
+	reQuoteBlock = regexp.MustCompile(`(?s)\{quote\}(.*?)\{/quote\}`)
+	reCodeBlock  = regexp.MustCompile(`(?s)\{code(?::([a-zA-Z0-9_+-]+))?\}(.*?)\{/code\}`)
+
+	reBacklogLink     = regexp.MustCompile(`\[\[([^\]]+?)\]\]`)
+	reBold            = regexp.MustCompile(`''([^']+?)''`)
+	reItalic          = regexp.MustCompile(`'''([^']+?)'''`)
+	reStrike          = regexp.MustCompile(`%%([^%]+?)%%`)
+	reInlineCodeToken = regexp.MustCompile("`[^`]*`")
+)
+
+// Convert converts Backlog markdown to GFM when needed.
+func Convert(input string, opts ConvertOptions) ConvertResult {
+	result := ConvertResult{
+		Output:     input,
+		ItemType:   opts.ItemType,
+		ItemID:     opts.ItemID,
+		ParentID:   opts.ParentID,
+		ProjectKey: opts.ProjectKey,
+	}
+
+	detect := Detect(input)
+	result.Mode = detect.Mode
+	result.Score = detect.Score
+	result.Warnings = CollectWarnings(input)
+
+	if result.Mode != ModeBacklog && !(result.Mode == ModeUnknown && opts.Force) {
+		return result
+	}
+
+	lineBreak := opts.LineBreak
+	if lineBreak == "" {
+		lineBreak = "<br>"
+	}
+
+	converted, rules, warnings := applyConversion(input, lineBreak, result.Warnings)
+	result.Output = converted
+	result.Rules = rules
+	result.Warnings = warnings
+
+	return result
+}
+
+func applyConversion(input, lineBreak string, warnings map[WarningType]int) (string, []RuleID, map[WarningType]int) {
+	rules := []RuleID{}
+	content := input
+
+	// Extract code blocks.
+	content, codeTokens := replaceBlocks(content, reCodeBlock, func(groups []string) string {
+		lang := strings.TrimSpace(groups[1])
+		body := strings.Trim(groups[2], "\n")
+		head := "```"
+		if lang != "" {
+			head += lang
+		}
+		block := head + "\n" + body + "\n```"
+		rules = appendRule(rules, RuleCodeBlock)
+		return block
+	})
+
+	// Extract quote blocks.
+	content, quoteTokens := replaceBlocks(content, reQuoteBlock, func(groups []string) string {
+		body := strings.Trim(groups[1], "\n")
+		lines := strings.Split(body, "\n")
+		for i, line := range lines {
+			if line == "" {
+				lines[i] = ">"
+				continue
+			}
+			lines[i] = "> " + line
+		}
+		rules = appendRule(rules, RuleQuoteBlock)
+		return strings.Join(lines, "\n")
+	})
+
+	// Replace inline code with tokens to avoid conversions inside.
+	content, codeInlineTokens := replaceInlineTokens(content, reInlineCodeToken)
+
+	// Headings
+	content = reHeading.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reHeading.FindStringSubmatch(match)
+		if len(parts) < 3 {
+			return match
+		}
+		level := len(parts[1])
+		rules = appendRule(rules, RuleHeadingAsterisk)
+		return strings.Repeat("#", level) + " " + parts[2]
+	})
+
+	// TOC
+	content = reTOC.ReplaceAllString(content, "[toc]")
+	if reTOC.MatchString(input) {
+		rules = appendRule(rules, RuleTOC)
+	}
+
+	// Lists
+	content = reListPlus.ReplaceAllString(content, "1. ")
+	if reListPlus.MatchString(input) {
+		rules = appendRule(rules, RuleListPlus)
+	}
+	content = reListDash.ReplaceAllString(content, "- $1")
+	if reListDash.MatchString(input) {
+		rules = appendRule(rules, RuleListDashSpace)
+	}
+
+	// Inline conversions
+	content = reBacklogLink.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reBacklogLink.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		label, url, ok, warn := parseBacklogLink(parts[1])
+		if warn {
+			AddWarning(warnings, WarningWikiLinkAmbig)
+			return match
+		}
+		if !ok {
+			return match
+		}
+		rules = appendRule(rules, RuleBacklogLink)
+		if label == "" {
+			return "<" + url + ">"
+		}
+		return "[" + label + "](" + url + ")"
+	})
+
+	boldChanged := false
+	content = reBold.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reBold.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		boldChanged = true
+		rules = appendRule(rules, RuleEmphasisBold)
+		return "**" + parts[1] + "**"
+	})
+
+	italicChanged := false
+	content = reItalic.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reItalic.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		italicChanged = true
+		rules = appendRule(rules, RuleEmphasisItalic)
+		return "*" + parts[1] + "*"
+	})
+
+	strikeChanged := false
+	content = reStrike.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reStrike.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		strikeChanged = true
+		rules = appendRule(rules, RuleStrikethrough)
+		return "~~" + parts[1] + "~~"
+	})
+
+	if boldChanged || italicChanged {
+		if strings.Contains(content, "''") {
+			AddWarning(warnings, WarningEmphasisAmbig)
+		}
+	}
+
+	if strikeChanged && strings.Contains(content, "%%") {
+		AddWarning(warnings, WarningEmphasisAmbig)
+	}
+
+	if strings.Contains(content, "&br;") {
+		content = strings.ReplaceAll(content, "&br;", lineBreak)
+		rules = appendRule(rules, RuleLineBreak)
+	}
+
+	// Restore inline code tokens.
+	content = restoreTokens(content, codeInlineTokens)
+	// Restore quote/code blocks.
+	content = restoreTokens(content, quoteTokens)
+	content = restoreTokens(content, codeTokens)
+
+	return content, rules, warnings
+}
+
+func replaceBlocks(input string, re *regexp.Regexp, fn func(groups []string) string) (string, map[string]string) {
+	matches := re.FindAllStringSubmatchIndex(input, -1)
+	if len(matches) == 0 {
+		return input, nil
+	}
+	var b strings.Builder
+	b.Grow(len(input))
+	replacements := make(map[string]string, len(matches))
+	last := 0
+	for i, m := range matches {
+		start, end := m[0], m[1]
+		b.WriteString(input[last:start])
+		groups := make([]string, len(m)/2)
+		for g := 0; g < len(groups); g++ {
+			idx := g * 2
+			if m[idx] == -1 {
+				groups[g] = ""
+				continue
+			}
+			groups[g] = input[m[idx]:m[idx+1]]
+		}
+		token := fmt.Sprintf("{{BACKLOG_MD_BLOCK_%d}}", i)
+		replacements[token] = fn(groups)
+		b.WriteString(token)
+		last = end
+	}
+	b.WriteString(input[last:])
+	return b.String(), replacements
+}
+
+func replaceInlineTokens(input string, re *regexp.Regexp) (string, map[string]string) {
+	matches := re.FindAllStringIndex(input, -1)
+	if len(matches) == 0 {
+		return input, nil
+	}
+	var b strings.Builder
+	b.Grow(len(input))
+	replacements := make(map[string]string, len(matches))
+	last := 0
+	for i, m := range matches {
+		start, end := m[0], m[1]
+		b.WriteString(input[last:start])
+		token := fmt.Sprintf("{{BACKLOG_MD_INLINE_%d}}", i)
+		replacements[token] = input[start:end]
+		b.WriteString(token)
+		last = end
+	}
+	b.WriteString(input[last:])
+	return b.String(), replacements
+}
+
+func restoreTokens(input string, tokens map[string]string) string {
+	if len(tokens) == 0 {
+		return input
+	}
+	out := input
+	for token, value := range tokens {
+		out = strings.ReplaceAll(out, token, value)
+	}
+	return out
+}
+
+func appendRule(rules []RuleID, rule RuleID) []RuleID {
+	for _, r := range rules {
+		if r == rule {
+			return rules
+		}
+	}
+	return append(rules, rule)
+}
+
+func parseBacklogLink(content string) (label string, url string, ok bool, warn bool) {
+	if strings.Contains(content, ">") {
+		parts := strings.SplitN(content, ">", 2)
+		label = strings.TrimSpace(parts[0])
+		url = strings.TrimSpace(parts[1])
+		if isURL(url) {
+			return label, url, true, false
+		}
+		return "", "", false, true
+	}
+	if strings.Contains(content, ":") && !startsWithURLScheme(content) {
+		parts := strings.SplitN(content, ":", 2)
+		label = strings.TrimSpace(parts[0])
+		url = strings.TrimSpace(parts[1])
+		if isURL(url) {
+			return label, url, true, false
+		}
+		return "", "", false, true
+	}
+
+	trimmed := strings.TrimSpace(content)
+	if isURL(trimmed) {
+		return "", trimmed, true, false
+	}
+	if isIssueKey(trimmed) {
+		return "", "", false, false
+	}
+	return "", "", false, true
+}
+
+func startsWithURLScheme(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "mailto:")
+}
+
+func isURL(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "mailto:")
+}
+
+var issueKeyPattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]+-\d+$`)
+
+func isIssueKey(value string) bool {
+	return issueKeyPattern.MatchString(strings.TrimSpace(value))
+}
