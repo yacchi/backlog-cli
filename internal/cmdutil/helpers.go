@@ -2,6 +2,8 @@ package cmdutil
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -124,4 +126,54 @@ func ResolveIssueKey(issueKey, configProject string) (resolvedKey, projectKey st
 
 	// 補完不可
 	return issueKey, ""
+}
+
+// ReadBodyFromFile はファイルまたは標準入力からボディテキストを読み込む
+// filePath が "-" の場合は標準入力から読み込む
+func ReadBodyFromFile(filePath string) (string, error) {
+	var reader io.Reader
+	if filePath == "-" {
+		reader = os.Stdin
+	} else {
+		f, err := os.Open(filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to open file: %w", err)
+		}
+		defer f.Close()
+		reader = f
+	}
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+	return strings.TrimSpace(string(content)), nil
+}
+
+// ResolveBody はbody, bodyFile, editorの優先順位でボディテキストを解決する
+// 優先順位: body > bodyFile > editor > interactive
+// openEditorFn: エディタを開く関数（nil可）
+// interactiveFn: 対話的入力を行う関数（nil可）
+func ResolveBody(body, bodyFile string, useEditor bool, openEditorFn func(string) (string, error), interactiveFn func() (string, error)) (string, error) {
+	// 1. --body フラグが指定されている場合
+	if body != "" {
+		return body, nil
+	}
+
+	// 2. --body-file フラグが指定されている場合
+	if bodyFile != "" {
+		return ReadBodyFromFile(bodyFile)
+	}
+
+	// 3. --editor フラグが指定されている場合
+	if useEditor && openEditorFn != nil {
+		return openEditorFn("")
+	}
+
+	// 4. 対話的入力
+	if interactiveFn != nil {
+		return interactiveFn()
+	}
+
+	return "", nil
 }

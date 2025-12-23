@@ -16,5 +16,6 @@ func init() {
 	IssueCmd.AddCommand(createCmd)
 	IssueCmd.AddCommand(editCmd)
 	IssueCmd.AddCommand(closeCmd)
+	IssueCmd.AddCommand(reopenCmd)
 	IssueCmd.AddCommand(commentCmd)
 }

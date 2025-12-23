@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/internal/api"
 	"github.com/yacchi/backlog-cli/internal/backlog"
@@ -18,25 +19,39 @@ import (
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List issues",
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List issues",
 	Long: `List issues in a project.
 
 Examples:
+  # List open issues (default)
   backlog issue list
+  backlog issue ls
+
+  # Filter by assignee
+  backlog issue list --assignee @me
   backlog issue list --mine
-  backlog issue list --assignee @me --status 1,2
-  backlog issue list --keyword "search term"
-  backlog issue list --summary`,
+
+  # Filter by state
+  backlog issue list --state closed
+  backlog issue list --state all
+
+  # Search issues
+  backlog issue list --search "bug fix"
+
+  # Open issue list in browser
+  backlog issue list --web`,
 	RunE: runList,
 }
 
 var (
 	listAssignee            string
-	listStatus              string
+	listState               string
 	listLimit               int
-	listKeyword             string
+	listSearch              string
 	listMine                bool
+	listWeb                 bool
 	listSummary             bool
 	listSummaryWithComments bool
 	listSummaryCommentCount int
@@ -44,10 +59,11 @@ var (
 
 func init() {
 	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID or @me)")
-	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status IDs (comma-separated)")
-	listCmd.Flags().IntVarP(&listLimit, "limit", "l", 20, "Maximum number of issues to show")
-	listCmd.Flags().StringVarP(&listKeyword, "keyword", "k", "", "Search keyword")
+	listCmd.Flags().StringVarP(&listState, "state", "s", "open", "Filter by state: {open|closed|all}")
+	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of issues to fetch")
+	listCmd.Flags().StringVarP(&listSearch, "search", "S", "", "Search issues with keyword")
 	listCmd.Flags().BoolVar(&listMine, "mine", false, "Show only my issues")
+	listCmd.Flags().BoolVarP(&listWeb, "web", "w", false, "Open issue list in browser")
 	listCmd.Flags().BoolVar(&listSummary, "summary", false, "Show AI summary column (description only)")
 	listCmd.Flags().BoolVar(&listSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
 	listCmd.Flags().IntVar(&listSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
@@ -64,7 +80,14 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
+	profile := cfg.CurrentProfile()
 	ctx := c.Context()
+
+	// ブラウザで開く
+	if listWeb {
+		url := fmt.Sprintf("https://%s.%s/find/%s", profile.Space, profile.Domain, projectKey)
+		return browser.OpenURL(url)
+	}
 
 	// プロジェクト情報取得
 	project, err := client.GetProject(ctx, projectKey)
@@ -80,8 +103,8 @@ func runList(c *cobra.Command, args []string) error {
 		Order:      "desc",
 	}
 
-	if listKeyword != "" {
-		opts.Keyword = listKeyword
+	if listSearch != "" {
+		opts.Keyword = listSearch
 	}
 
 	// 担当者フィルター
@@ -101,13 +124,39 @@ func runList(c *cobra.Command, args []string) error {
 		opts.AssigneeIDs = []int{assigneeID}
 	}
 
-	// ステータスフィルター
-	if listStatus != "" {
-		statusIDs, err := parseIntList(listStatus)
-		if err != nil {
-			return fmt.Errorf("invalid status IDs: %w", err)
+	// ステータスフィルター（--state オプション）
+	switch listState {
+	case "open":
+		// Backlogのステータス: 1=未対応, 2=処理中, 3=処理済み
+		// open = 完了以外（4=完了を除く）
+		statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
+		if err == nil {
+			var openStatusIDs []int
+			for _, s := range statuses {
+				// "完了" または "Closed" 以外を含める
+				if s.Name != "完了" && s.Name != "Closed" && s.Name != "Done" {
+					openStatusIDs = append(openStatusIDs, s.ID)
+				}
+			}
+			if len(openStatusIDs) > 0 {
+				opts.StatusIDs = openStatusIDs
+			}
 		}
-		opts.StatusIDs = statusIDs
+	case "closed":
+		// closed = 完了のみ
+		statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
+		if err == nil {
+			for _, s := range statuses {
+				if s.Name == "完了" || s.Name == "Closed" || s.Name == "Done" {
+					opts.StatusIDs = []int{s.ID}
+					break
+				}
+			}
+		}
+	case "all":
+		// all = フィルターなし
+	default:
+		return fmt.Errorf("invalid state: %s (must be open, closed, or all)", listState)
 	}
 
 	// 課題取得
@@ -122,7 +171,6 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	// 出力
-	profile := cfg.CurrentProfile()
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":

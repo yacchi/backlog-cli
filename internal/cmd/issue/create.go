@@ -14,37 +14,55 @@ import (
 )
 
 var createCmd = &cobra.Command{
-	Use:   "create",
-	Short: "Create a new issue",
+	Use:     "create",
+	Aliases: []string{"new"},
+	Short:   "Create a new issue",
 	Long: `Create a new issue in the project.
 
-If summary is not provided, an interactive prompt will be shown.
+Without the title or body text supplied through flags, the command will
+interactively prompt for the required information.
 
 Examples:
+  # Interactive mode
   backlog issue create
-  backlog issue create --summary "Bug fix" --type 1
-  backlog issue create -s "Feature request" -a @me`,
+
+  # Non-interactive mode
+  backlog issue create --title "Bug fix" --body "Details here" --type 1
+
+  # Read body from file
+  backlog issue create --title "Feature" --body-file spec.md
+
+  # Read body from stdin
+  cat description.md | backlog issue create --title "New feature" --body-file -
+
+  # Open editor for body
+  backlog issue create --title "Bug" --editor
+
+  # Assign to yourself
+  backlog issue create -t "Task" -a @me`,
 	RunE: runCreate,
 }
 
 var (
-	createSummary     string
-	createDescription string
-	createTypeID      int
-	createPriorityID  int
-	createAssignee    string
-	createDueDate     string
-	createEditor      bool
+	createTitle    string
+	createBody     string
+	createBodyFile string
+	createTypeID   int
+	createPriority int
+	createAssignee string
+	createDueDate  string
+	createEditor   bool
 )
 
 func init() {
-	createCmd.Flags().StringVarP(&createSummary, "summary", "s", "", "Issue summary")
-	createCmd.Flags().StringVarP(&createDescription, "description", "d", "", "Issue description")
-	createCmd.Flags().IntVarP(&createTypeID, "type", "t", 0, "Issue type ID")
-	createCmd.Flags().IntVar(&createPriorityID, "priority", 0, "Priority ID")
+	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "Issue title (summary)")
+	createCmd.Flags().StringVarP(&createBody, "body", "b", "", "Issue body (description)")
+	createCmd.Flags().StringVarP(&createBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
+	createCmd.Flags().IntVar(&createTypeID, "type", 0, "Issue type ID")
+	createCmd.Flags().IntVar(&createPriority, "priority", 0, "Priority ID")
 	createCmd.Flags().StringVarP(&createAssignee, "assignee", "a", "", "Assignee (user ID or @me)")
 	createCmd.Flags().StringVar(&createDueDate, "due", "", "Due date (YYYY-MM-DD)")
-	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor for description")
+	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor to write the body")
 }
 
 func runCreate(c *cobra.Command, args []string) error {
@@ -77,16 +95,16 @@ func runCreate(c *cobra.Command, args []string) error {
 		ProjectID: project.ID,
 	}
 
-	// 件名
-	if createSummary != "" {
-		input.Summary = createSummary
+	// 件名（タイトル）
+	if createTitle != "" {
+		input.Summary = createTitle
 	} else {
-		input.Summary, err = ui.Input("Summary:", "")
+		input.Summary, err = ui.Input("Title:", "")
 		if err != nil {
 			return err
 		}
 		if input.Summary == "" {
-			return fmt.Errorf("summary is required")
+			return fmt.Errorf("title is required")
 		}
 	}
 
@@ -110,8 +128,8 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 優先度
-	if createPriorityID > 0 {
-		input.PriorityID = createPriorityID
+	if createPriority > 0 {
+		input.PriorityID = createPriority
 	} else {
 		// デフォルトは「中」(ID=3)
 		priorityOpts := []ui.SelectOption{
@@ -161,19 +179,18 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 	}
 
-	// 説明
-	if createDescription != "" {
-		input.Description = createDescription
-	} else if createEditor {
-		// エディタで編集
-		content, err := openEditor("")
-		if err != nil {
-			return fmt.Errorf("failed to open editor: %w", err)
-		}
-		input.Description = content
-	} else {
-		// 説明入力（オプション）
-		input.Description, _ = ui.Input("Description (optional):", "")
+	// 説明（ボディ）
+	input.Description, err = cmdutil.ResolveBody(
+		createBody,
+		createBodyFile,
+		createEditor,
+		openEditor,
+		func() (string, error) {
+			return ui.Input("Body (optional):", "")
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get body: %w", err)
 	}
 
 	// 期限

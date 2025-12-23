@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/internal/api"
 	"github.com/yacchi/backlog-cli/internal/cmdutil"
@@ -14,26 +15,38 @@ import (
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List pull requests",
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List pull requests",
 	Long: `List pull requests in a repository.
 
 Examples:
+  # List open pull requests (default)
   backlog pr list --repo myrepo
-  backlog pr list --repo myrepo --status 1`,
+  backlog pr ls -r myrepo
+
+  # Filter by state
+  backlog pr list --repo myrepo --state closed
+  backlog pr list --repo myrepo --state merged
+  backlog pr list --repo myrepo --state all
+
+  # Open PR list in browser
+  backlog pr list --repo myrepo --web`,
 	RunE: runList,
 }
 
 var (
-	listRepo   string
-	listStatus int
-	listLimit  int
+	listRepo  string
+	listState string
+	listLimit int
+	listWeb   bool
 )
 
 func init() {
 	listCmd.Flags().StringVarP(&listRepo, "repo", "r", "", "Repository name (required)")
-	listCmd.Flags().IntVar(&listStatus, "status", 0, "Filter by status (1=Open, 2=Closed, 3=Merged)")
-	listCmd.Flags().IntVarP(&listLimit, "limit", "l", 20, "Maximum number to show")
+	listCmd.Flags().StringVarP(&listState, "state", "s", "open", "Filter by state: {open|closed|merged|all}")
+	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of pull requests to fetch")
+	listCmd.Flags().BoolVarP(&listWeb, "web", "w", false, "Open pull request list in browser")
 	_ = listCmd.MarkFlagRequired("repo")
 }
 
@@ -48,12 +61,31 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
+	profile := cfg.CurrentProfile()
+
+	// ブラウザで開く
+	if listWeb {
+		url := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests",
+			profile.Space, profile.Domain, projectKey, listRepo)
+		return browser.OpenURL(url)
+	}
 
 	opts := &api.PRListOptions{
 		Count: listLimit,
 	}
-	if listStatus > 0 {
-		opts.StatusIDs = []int{listStatus}
+
+	// ステータスフィルター
+	switch listState {
+	case "open":
+		opts.StatusIDs = []int{1}
+	case "closed":
+		opts.StatusIDs = []int{2}
+	case "merged":
+		opts.StatusIDs = []int{3}
+	case "all":
+		// フィルターなし
+	default:
+		return fmt.Errorf("invalid state: %s (must be open, closed, merged, or all)", listState)
 	}
 
 	prs, err := client.GetPullRequests(c.Context(), projectKey, listRepo, opts)
@@ -67,7 +99,6 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	// 出力
-	profile := cfg.CurrentProfile()
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
