@@ -268,7 +268,7 @@ Markdown Warning Summary
 ```
 
 ### 保存場所
-- 既定: `~/.cache/backlog/markdown/`（XDG_CACHE_HOMEがあれば優先）
+- 既定: `cache.dir/markdown/`（cache.dirが未設定の場合は`~/.cache/backlog/`）
 - 1件ごとにJSONL形式で追記
 - ファイル名
   - 既定: `events.jsonl`
