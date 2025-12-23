@@ -117,12 +117,21 @@ backlog wiki create --name "Page Title" --content "Page content"
 ### List Pull Requests
 
 ```bash
-# List PRs in repository
+# List PRs in repository (alias: ls)
 backlog pr list
+backlog pr ls
 
-# Filter by status
-backlog pr list --status open
-backlog pr list --status merged
+# Filter by state (open/closed/merged/all, default: open)
+backlog pr list --state open
+backlog pr list -s closed
+backlog pr list -s merged
+backlog pr list -s all
+
+# Limit results
+backlog pr list -L 20
+
+# Open in browser
+backlog pr list --web
 
 # JSON output
 backlog pr list --output json
