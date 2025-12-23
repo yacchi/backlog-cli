@@ -14,4 +14,5 @@ func init() {
 	ProjectCmd.AddCommand(listCmd)
 	ProjectCmd.AddCommand(viewCmd)
 	ProjectCmd.AddCommand(initCmd)
+	ProjectCmd.AddCommand(currentCmd)
 }

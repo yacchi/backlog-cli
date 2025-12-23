@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,21 +12,43 @@ import (
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show authentication status",
-	RunE:  runStatus,
+	Long: `Show authentication status for all configured accounts.
+
+Examples:
+  backlog auth status
+  backlog auth status --quiet`,
+	RunE: runStatus,
+}
+
+var statusQuiet bool
+
+func init() {
+	statusCmd.Flags().BoolVarP(&statusQuiet, "quiet", "q", false, "Exit with code 0 if credentials exist, 1 otherwise (no output)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load(cmd.Context())
 	if err != nil {
+		if statusQuiet {
+			os.Exit(1)
+		}
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	resolved := cfg.Resolved()
 	credentials := resolved.Credentials
 	if len(credentials) == 0 {
+		if statusQuiet {
+			os.Exit(1)
+		}
 		fmt.Println("Not logged in to any account")
 		fmt.Println()
 		fmt.Println("Run 'backlog auth login' to authenticate")
+		return nil
+	}
+
+	// quiet mode: just check if credentials exist, no output
+	if statusQuiet {
 		return nil
 	}
 

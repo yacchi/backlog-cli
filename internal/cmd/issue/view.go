@@ -38,6 +38,7 @@ var (
 	viewSummary             bool
 	viewSummaryWithComments bool
 	viewSummaryCommentCount int
+	viewBrief               bool
 )
 
 func init() {
@@ -46,6 +47,7 @@ func init() {
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary (description only)")
 	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
 	viewCmd.Flags().IntVar(&viewSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
+	viewCmd.Flags().BoolVar(&viewBrief, "brief", false, "Show brief summary (key, summary, status, assignee, URL)")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -78,10 +80,67 @@ func runView(c *cobra.Command, args []string) error {
 	// 出力
 	switch profile.Output {
 	case "json":
+		if viewBrief {
+			return outputBriefJSON(issue, profile)
+		}
 		return outputJSON(issue)
 	default:
+		if viewBrief {
+			return renderIssueBrief(issue, profile)
+		}
 		return renderIssueDetail(ctx, client, issue, profile, display)
 	}
+}
+
+// renderIssueBrief displays a brief summary of the issue
+func renderIssueBrief(issue *backlog.Issue, profile *config.ResolvedProfile) error {
+	key := issue.IssueKey.Value
+	summary := issue.Summary.Value
+
+	status := "-"
+	if issue.Status.IsSet() && issue.Status.Value.Name.IsSet() {
+		status = issue.Status.Value.Name.Value
+	}
+
+	assignee := "(unassigned)"
+	if issue.Assignee.IsSet() && issue.Assignee.Value.Name.IsSet() {
+		assignee = issue.Assignee.Value.Name.Value
+	}
+
+	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
+
+	fmt.Printf("%s: %s\n", key, summary)
+	fmt.Printf("Status: %s | Assignee: %s\n", ui.StatusColor(status), assignee)
+	fmt.Printf("URL: %s\n", url)
+
+	return nil
+}
+
+// outputBriefJSON outputs a brief JSON representation of the issue
+func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) error {
+	key := issue.IssueKey.Value
+
+	status := ""
+	if issue.Status.IsSet() && issue.Status.Value.Name.IsSet() {
+		status = issue.Status.Value.Name.Value
+	}
+
+	assignee := ""
+	if issue.Assignee.IsSet() && issue.Assignee.Value.Name.IsSet() {
+		assignee = issue.Assignee.Value.Name.Value
+	}
+
+	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
+
+	brief := map[string]string{
+		"key":      key,
+		"summary":  issue.Summary.Value,
+		"status":   status,
+		"assignee": assignee,
+		"url":      url,
+	}
+
+	return outputJSON(brief)
 }
 
 func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {
