@@ -33,11 +33,11 @@ backlog auth me
 ### Login
 
 ```bash
-# Interactive OAuth login
-backlog auth login
+# Web-based login (opens browser for all authentication steps)
+backlog auth login --web
 
 # Login to specific space
-backlog auth login --space myspace
+backlog auth login --web --space myspace
 ```
 
 ### Logout
@@ -181,7 +181,7 @@ backlog config set display.hyperlink true
 
 1. Login to Backlog:
    ```bash
-   backlog auth login
+   backlog auth login --web
    ```
 
 2. Verify authentication:
@@ -223,7 +223,7 @@ backlog auth me
 
 When authentication is required:
 1. Run `backlog auth me --quiet` to check (verifies actual API access including token refresh)
-2. If exit code is 1, suggest `backlog auth login`
+2. If exit code is 1, suggest `backlog auth login --web`
 
 ### No Project Configured
 

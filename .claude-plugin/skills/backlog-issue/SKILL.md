@@ -31,7 +31,7 @@ This verifies actual API access, including automatic token refresh if the refres
 
 If not authenticated, prompt the user to run:
 ```bash
-backlog auth login
+backlog auth login --web
 ```
 
 ### 2. Check Current Project (Optional)
@@ -234,7 +234,7 @@ URL: https://space.backlog.com/view/PROJ-123
 
 If `backlog auth me --quiet` returns exit code 1:
 - Inform the user they need to authenticate
-- Suggest running `backlog auth login`
+- Suggest running `backlog auth login --web`
 
 ### Project Not Found
 
