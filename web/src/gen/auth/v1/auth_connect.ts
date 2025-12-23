@@ -4,6 +4,8 @@
 // @ts-nocheck
 
 import {
+  AuthenticateWithApiKeyRequest,
+  AuthenticateWithApiKeyResponse,
   AuthEvent,
   ConfigureRequest,
   ConfigureResponse,
@@ -45,6 +47,17 @@ export const AuthService = {
       I: SubscribeAuthEventsRequest,
       O: AuthEvent,
       kind: MethodKind.ServerStreaming,
+    },
+    /**
+     * API Key による認証を実行する
+     *
+     * @generated from rpc auth.v1.AuthService.AuthenticateWithApiKey
+     */
+    authenticateWithApiKey: {
+      name: "AuthenticateWithApiKey",
+      I: AuthenticateWithApiKeyRequest,
+      O: AuthenticateWithApiKeyResponse,
+      kind: MethodKind.Unary,
     },
   },
 } as const;

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AuthEvent, ConfigureRequest, ConfigureResponse, GetConfigRequest, GetConfigResponse, SubscribeAuthEventsRequest } from "./auth_pb.js";
+import { AuthenticateWithApiKeyRequest, AuthenticateWithApiKeyResponse, AuthEvent, ConfigureRequest, ConfigureResponse, GetConfigRequest, GetConfigResponse, SubscribeAuthEventsRequest } from "./auth_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -38,6 +38,17 @@ export const AuthService = {
       I: SubscribeAuthEventsRequest,
       O: AuthEvent,
       kind: MethodKind.ServerStreaming,
+    },
+    /**
+     * API Key による認証を実行する
+     *
+     * @generated from rpc auth.v1.AuthService.AuthenticateWithApiKey
+     */
+    authenticateWithApiKey: {
+      name: "AuthenticateWithApiKey",
+      I: AuthenticateWithApiKeyRequest,
+      O: AuthenticateWithApiKeyResponse,
+      kind: MethodKind.Unary,
     },
   }
 } as const;

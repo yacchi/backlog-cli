@@ -8,6 +8,8 @@ service AuthService {
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
   rpc Configure(ConfigureRequest) returns (ConfigureResponse);
   rpc SubscribeAuthEvents(SubscribeAuthEventsRequest) returns (stream AuthEvent);
+  // API Key による認証を実行する
+  rpc AuthenticateWithApiKey(AuthenticateWithApiKeyRequest) returns (AuthenticateWithApiKeyResponse);
 }
 
 message GetConfigRequest {}
@@ -18,6 +20,8 @@ message GetConfigResponse {
   string relay_server = 3;
   string space_host = 4;
   bool configured = 5;
+  // 現在の認証タイプ (oauth, apikey, または空文字列)
+  string current_auth_type = 6;
 }
 
 message ConfigureRequest {
@@ -42,4 +46,15 @@ enum AuthStatus {
   AUTH_STATUS_PENDING = 1;
   AUTH_STATUS_SUCCESS = 2;
   AUTH_STATUS_ERROR = 3;
+}
+
+message AuthenticateWithApiKeyRequest {
+  string space_host = 1;  // スペースホスト（例: yourspace.backlog.jp）
+  string api_key = 2;     // API Key
+}
+
+message AuthenticateWithApiKeyResponse {
+  bool success = 1;
+  optional string error = 2;
+  optional string user_name = 3;  // 認証成功時のユーザー名
 }

@@ -31,6 +31,7 @@ var (
 	loginCallbackPort int
 	loginTimeout      int
 	loginReuse        bool
+	loginWeb          bool
 )
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 	loginCmd.Flags().IntVar(&loginCallbackPort, "callback-port", 0, "Fixed port for callback server")
 	loginCmd.Flags().IntVar(&loginTimeout, "timeout", 0, "Timeout in seconds (default: 120)")
 	loginCmd.Flags().BoolVarP(&loginReuse, "reuse", "r", false, "Reuse previous login settings (method, space, domain) without prompts")
+	loginCmd.Flags().BoolVar(&loginWeb, "web", false, "Use web-based authentication (all prompts in browser)")
 }
 
 var loginCmd = &cobra.Command{
@@ -61,7 +63,10 @@ On first login, you will be prompted to select a domain and enter your
 space name. These settings will be saved to your profile.
 
 Use --reuse (-r) flag to skip prompts and reuse previous login settings
-(authentication method, space, and domain).`,
+(authentication method, space, and domain).
+
+Use --web flag to perform all authentication steps in the browser,
+which is useful for automation or when terminal input is not available.`,
 	RunE: runLogin,
 }
 
@@ -70,6 +75,11 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// --web オプションが指定された場合はWebベースの認証フローを使用
+	if loginWeb {
+		return runWebLogin(cmd.Context(), cfg)
 	}
 
 	// 中継サーバーの確認
@@ -381,6 +391,7 @@ type loginOptions struct {
 	callbackPort int
 	timeout      int
 	reuse        bool
+	web          bool
 }
 
 func mergeLoginOptions(cfg *config.Store) loginOptions {
@@ -391,6 +402,7 @@ func mergeLoginOptions(cfg *config.Store) loginOptions {
 		callbackPort: loginCallbackPort,
 		timeout:      loginTimeout,
 		reuse:        loginReuse,
+		web:          loginWeb,
 	}
 
 	// 設定ファイルからの補完
@@ -419,4 +431,147 @@ func mergeLoginOptions(cfg *config.Store) loginOptions {
 	}
 
 	return opts
+}
+
+// runWebLogin はWebベースの認証フローを実行する
+// 認証方式の選択もブラウザで行い、端末での対話を不要にする
+func runWebLogin(ctx context.Context, cfg *config.Store) error {
+	debug.Log("starting web-based login")
+
+	// オプションのマージ
+	opts := mergeLoginOptions(cfg)
+	debug.Log("login options merged", "callback_port", opts.callbackPort)
+
+	// 1. state 生成
+	state, err := auth.GenerateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate state: %w", err)
+	}
+	debug.Log("state generated", "state_length", len(state))
+
+	// 2. コールバックサーバー起動（設定UIハンドラー付き）
+	debug.Log("creating callback server", "requested_port", opts.callbackPort)
+	callbackServer, err := auth.NewCallbackServer(auth.CallbackServerOptions{
+		Port:        opts.callbackPort,
+		State:       state,
+		ConfigStore: cfg,
+		Reuse:       false, // --web モードでは常にブラウザで設定
+		Ctx:         ctx,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start callback server: %w", err)
+	}
+	debug.Log("callback server ready", "actual_port", callbackServer.Port())
+
+	go func() {
+		if err := callbackServer.Start(); err != nil && err != http.ErrServerClosed {
+			debug.Log("callback server error", "error", err)
+		}
+	}()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := callbackServer.Shutdown(shutdownCtx); err != nil {
+			debug.Log("callback server shutdown error", "error", err)
+		}
+	}()
+
+	// 3. ローカルサーバーの /auth/method を開く（認証方式選択画面）
+	localAuthURL := fmt.Sprintf("http://localhost:%d/auth/method", callbackServer.Port())
+
+	fmt.Println()
+	fmt.Println("Open this URL in your browser to log in:")
+	fmt.Println()
+	fmt.Printf("  %s\n", localAuthURL)
+	fmt.Println()
+	fmt.Println("Waiting for authentication... (press Ctrl+C to cancel)")
+
+	if !opts.noBrowser {
+		if err := browser.OpenURL(localAuthURL); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
+		}
+	}
+
+	// 4. コールバック待機
+	debug.Log("waiting for callback (no timeout)")
+	result := callbackServer.Wait()
+
+	if result.Error != nil {
+		return fmt.Errorf("authentication failed: %w", result.Error)
+	}
+
+	// 5. 設定を再読み込み
+	if err := cfg.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	// API Key 認証の場合は既に完了している
+	if result.Code == "api_key_auth" {
+		profile := cfg.CurrentProfile()
+		if profile != nil && profile.Space != "" && profile.Domain != "" {
+			fmt.Printf("Logged in to %s.%s\n", profile.Space, profile.Domain)
+		}
+		return nil
+	}
+
+	// OAuth 認証の場合はトークン交換が必要
+	profile := cfg.CurrentProfile()
+	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
+		return fmt.Errorf("configuration incomplete after authentication")
+	}
+	space := profile.Space
+	domain := profile.Domain
+	currentRelayServer := profile.RelayServer
+
+	// 6. トークン交換
+	debug.Log("exchanging authorization code", "code_length", len(result.Code))
+	fmt.Println("Exchanging authorization code...")
+	client := auth.NewClient(currentRelayServer)
+	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
+		GrantType: "authorization_code",
+		Code:      result.Code,
+		Domain:    domain,
+		Space:     space,
+		State:     state,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to exchange token: %w", err)
+	}
+	debug.Log("token exchange successful", "expires_in", tokenResp.ExpiresIn)
+
+	// 7. ユーザー情報取得
+	apiClient := api.NewClient(space, domain, tokenResp.AccessToken)
+	user, err := apiClient.GetCurrentUser(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
+	} else {
+		fmt.Printf("Authenticated as %s", user.Name.Value)
+		if user.MailAddress.Value != "" {
+			fmt.Printf(" (%s)", user.MailAddress.Value)
+		}
+		fmt.Println()
+	}
+
+	// 8. 認証情報保存
+	profileName := cfg.GetActiveProfile()
+	cred := &config.Credential{
+		AuthType:     config.AuthTypeOAuth,
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}
+	if user != nil {
+		cred.UserID = user.UserId.Value
+		cred.UserName = user.Name.Value
+	}
+	_ = cfg.SetCredential(profileName, cred)
+
+	// 設定を保存
+	if err := cfg.Save(ctx); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("Logged in to %s.%s\n", space, domain)
+
+	return nil
 }

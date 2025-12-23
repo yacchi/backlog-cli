@@ -40,6 +40,9 @@ const (
 	// AuthServiceSubscribeAuthEventsProcedure is the fully-qualified name of the AuthService's
 	// SubscribeAuthEvents RPC.
 	AuthServiceSubscribeAuthEventsProcedure = "/auth.v1.AuthService/SubscribeAuthEvents"
+	// AuthServiceAuthenticateWithApiKeyProcedure is the fully-qualified name of the AuthService's
+	// AuthenticateWithApiKey RPC.
+	AuthServiceAuthenticateWithApiKeyProcedure = "/auth.v1.AuthService/AuthenticateWithApiKey"
 )
 
 // AuthServiceClient is a client for the auth.v1.AuthService service.
@@ -47,6 +50,8 @@ type AuthServiceClient interface {
 	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
 	Configure(context.Context, *connect.Request[v1.ConfigureRequest]) (*connect.Response[v1.ConfigureResponse], error)
 	SubscribeAuthEvents(context.Context, *connect.Request[v1.SubscribeAuthEventsRequest]) (*connect.ServerStreamForClient[v1.AuthEvent], error)
+	// API Key による認証を実行する
+	AuthenticateWithApiKey(context.Context, *connect.Request[v1.AuthenticateWithApiKeyRequest]) (*connect.Response[v1.AuthenticateWithApiKeyResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the auth.v1.AuthService service. By default, it uses
@@ -78,14 +83,21 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("SubscribeAuthEvents")),
 			connect.WithClientOptions(opts...),
 		),
+		authenticateWithApiKey: connect.NewClient[v1.AuthenticateWithApiKeyRequest, v1.AuthenticateWithApiKeyResponse](
+			httpClient,
+			baseURL+AuthServiceAuthenticateWithApiKeyProcedure,
+			connect.WithSchema(authServiceMethods.ByName("AuthenticateWithApiKey")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	getConfig           *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
-	configure           *connect.Client[v1.ConfigureRequest, v1.ConfigureResponse]
-	subscribeAuthEvents *connect.Client[v1.SubscribeAuthEventsRequest, v1.AuthEvent]
+	getConfig              *connect.Client[v1.GetConfigRequest, v1.GetConfigResponse]
+	configure              *connect.Client[v1.ConfigureRequest, v1.ConfigureResponse]
+	subscribeAuthEvents    *connect.Client[v1.SubscribeAuthEventsRequest, v1.AuthEvent]
+	authenticateWithApiKey *connect.Client[v1.AuthenticateWithApiKeyRequest, v1.AuthenticateWithApiKeyResponse]
 }
 
 // GetConfig calls auth.v1.AuthService.GetConfig.
@@ -103,11 +115,18 @@ func (c *authServiceClient) SubscribeAuthEvents(ctx context.Context, req *connec
 	return c.subscribeAuthEvents.CallServerStream(ctx, req)
 }
 
+// AuthenticateWithApiKey calls auth.v1.AuthService.AuthenticateWithApiKey.
+func (c *authServiceClient) AuthenticateWithApiKey(ctx context.Context, req *connect.Request[v1.AuthenticateWithApiKeyRequest]) (*connect.Response[v1.AuthenticateWithApiKeyResponse], error) {
+	return c.authenticateWithApiKey.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the auth.v1.AuthService service.
 type AuthServiceHandler interface {
 	GetConfig(context.Context, *connect.Request[v1.GetConfigRequest]) (*connect.Response[v1.GetConfigResponse], error)
 	Configure(context.Context, *connect.Request[v1.ConfigureRequest]) (*connect.Response[v1.ConfigureResponse], error)
 	SubscribeAuthEvents(context.Context, *connect.Request[v1.SubscribeAuthEventsRequest], *connect.ServerStream[v1.AuthEvent]) error
+	// API Key による認証を実行する
+	AuthenticateWithApiKey(context.Context, *connect.Request[v1.AuthenticateWithApiKeyRequest]) (*connect.Response[v1.AuthenticateWithApiKeyResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -135,6 +154,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("SubscribeAuthEvents")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceAuthenticateWithApiKeyHandler := connect.NewUnaryHandler(
+		AuthServiceAuthenticateWithApiKeyProcedure,
+		svc.AuthenticateWithApiKey,
+		connect.WithSchema(authServiceMethods.ByName("AuthenticateWithApiKey")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/auth.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceGetConfigProcedure:
@@ -143,6 +168,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceConfigureHandler.ServeHTTP(w, r)
 		case AuthServiceSubscribeAuthEventsProcedure:
 			authServiceSubscribeAuthEventsHandler.ServeHTTP(w, r)
+		case AuthServiceAuthenticateWithApiKeyProcedure:
+			authServiceAuthenticateWithApiKeyHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -162,4 +189,8 @@ func (UnimplementedAuthServiceHandler) Configure(context.Context, *connect.Reque
 
 func (UnimplementedAuthServiceHandler) SubscribeAuthEvents(context.Context, *connect.Request[v1.SubscribeAuthEventsRequest], *connect.ServerStream[v1.AuthEvent]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.SubscribeAuthEvents is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) AuthenticateWithApiKey(context.Context, *connect.Request[v1.AuthenticateWithApiKeyRequest]) (*connect.Response[v1.AuthenticateWithApiKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.AuthenticateWithApiKey is not implemented"))
 }

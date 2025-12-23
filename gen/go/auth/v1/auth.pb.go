@@ -110,14 +110,16 @@ func (*GetConfigRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetConfigResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Space         string                 `protobuf:"bytes,1,opt,name=space,proto3" json:"space,omitempty"`
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
-	RelayServer   string                 `protobuf:"bytes,3,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
-	SpaceHost     string                 `protobuf:"bytes,4,opt,name=space_host,json=spaceHost,proto3" json:"space_host,omitempty"`
-	Configured    bool                   `protobuf:"varint,5,opt,name=configured,proto3" json:"configured,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Space       string                 `protobuf:"bytes,1,opt,name=space,proto3" json:"space,omitempty"`
+	Domain      string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	RelayServer string                 `protobuf:"bytes,3,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
+	SpaceHost   string                 `protobuf:"bytes,4,opt,name=space_host,json=spaceHost,proto3" json:"space_host,omitempty"`
+	Configured  bool                   `protobuf:"varint,5,opt,name=configured,proto3" json:"configured,omitempty"`
+	// 現在の認証タイプ (oauth, apikey, または空文字列)
+	CurrentAuthType string `protobuf:"bytes,6,opt,name=current_auth_type,json=currentAuthType,proto3" json:"current_auth_type,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetConfigResponse) Reset() {
@@ -183,6 +185,13 @@ func (x *GetConfigResponse) GetConfigured() bool {
 		return x.Configured
 	}
 	return false
+}
+
+func (x *GetConfigResponse) GetCurrentAuthType() string {
+	if x != nil {
+		return x.CurrentAuthType
+	}
+	return ""
 }
 
 type ConfigureRequest struct {
@@ -377,12 +386,124 @@ func (x *AuthEvent) GetError() string {
 	return ""
 }
 
+type AuthenticateWithApiKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SpaceHost     string                 `protobuf:"bytes,1,opt,name=space_host,json=spaceHost,proto3" json:"space_host,omitempty"` // スペースホスト（例: yourspace.backlog.jp）
+	ApiKey        string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`          // API Key
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateWithApiKeyRequest) Reset() {
+	*x = AuthenticateWithApiKeyRequest{}
+	mi := &file_auth_v1_auth_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateWithApiKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateWithApiKeyRequest) ProtoMessage() {}
+
+func (x *AuthenticateWithApiKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_v1_auth_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateWithApiKeyRequest.ProtoReflect.Descriptor instead.
+func (*AuthenticateWithApiKeyRequest) Descriptor() ([]byte, []int) {
+	return file_auth_v1_auth_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AuthenticateWithApiKeyRequest) GetSpaceHost() string {
+	if x != nil {
+		return x.SpaceHost
+	}
+	return ""
+}
+
+func (x *AuthenticateWithApiKeyRequest) GetApiKey() string {
+	if x != nil {
+		return x.ApiKey
+	}
+	return ""
+}
+
+type AuthenticateWithApiKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         *string                `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	UserName      *string                `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3,oneof" json:"user_name,omitempty"` // 認証成功時のユーザー名
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateWithApiKeyResponse) Reset() {
+	*x = AuthenticateWithApiKeyResponse{}
+	mi := &file_auth_v1_auth_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateWithApiKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateWithApiKeyResponse) ProtoMessage() {}
+
+func (x *AuthenticateWithApiKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_auth_v1_auth_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateWithApiKeyResponse.ProtoReflect.Descriptor instead.
+func (*AuthenticateWithApiKeyResponse) Descriptor() ([]byte, []int) {
+	return file_auth_v1_auth_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AuthenticateWithApiKeyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AuthenticateWithApiKeyResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *AuthenticateWithApiKeyResponse) GetUserName() string {
+	if x != nil && x.UserName != nil {
+		return *x.UserName
+	}
+	return ""
+}
+
 var File_auth_v1_auth_proto protoreflect.FileDescriptor
 
 const file_auth_v1_auth_proto_rawDesc = "" +
 	"\n" +
 	"\x12auth/v1/auth.proto\x12\aauth.v1\"\x12\n" +
-	"\x10GetConfigRequest\"\xa3\x01\n" +
+	"\x10GetConfigRequest\"\xcf\x01\n" +
 	"\x11GetConfigResponse\x12\x14\n" +
 	"\x05space\x18\x01 \x01(\tR\x05space\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12!\n" +
@@ -391,7 +512,8 @@ const file_auth_v1_auth_proto_rawDesc = "" +
 	"space_host\x18\x04 \x01(\tR\tspaceHost\x12\x1e\n" +
 	"\n" +
 	"configured\x18\x05 \x01(\bR\n" +
-	"configured\"T\n" +
+	"configured\x12*\n" +
+	"\x11current_auth_type\x18\x06 \x01(\tR\x0fcurrentAuthType\"T\n" +
 	"\x10ConfigureRequest\x12\x1d\n" +
 	"\n" +
 	"space_host\x18\x01 \x01(\tR\tspaceHost\x12!\n" +
@@ -404,17 +526,29 @@ const file_auth_v1_auth_proto_rawDesc = "" +
 	"\tAuthEvent\x12+\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x13.auth.v1.AuthStatusR\x06status\x12\x19\n" +
 	"\x05error\x18\x02 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
-	"\x06_error*r\n" +
+	"\x06_error\"W\n" +
+	"\x1dAuthenticateWithApiKeyRequest\x12\x1d\n" +
+	"\n" +
+	"space_host\x18\x01 \x01(\tR\tspaceHost\x12\x17\n" +
+	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\"\x8f\x01\n" +
+	"\x1eAuthenticateWithApiKeyResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x19\n" +
+	"\x05error\x18\x02 \x01(\tH\x00R\x05error\x88\x01\x01\x12 \n" +
+	"\tuser_name\x18\x03 \x01(\tH\x01R\buserName\x88\x01\x01B\b\n" +
+	"\x06_errorB\f\n" +
+	"\n" +
+	"_user_name*r\n" +
 	"\n" +
 	"AuthStatus\x12\x1b\n" +
 	"\x17AUTH_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13AUTH_STATUS_PENDING\x10\x01\x12\x17\n" +
 	"\x13AUTH_STATUS_SUCCESS\x10\x02\x12\x15\n" +
-	"\x11AUTH_STATUS_ERROR\x10\x032\xe7\x01\n" +
+	"\x11AUTH_STATUS_ERROR\x10\x032\xd2\x02\n" +
 	"\vAuthService\x12B\n" +
 	"\tGetConfig\x12\x19.auth.v1.GetConfigRequest\x1a\x1a.auth.v1.GetConfigResponse\x12B\n" +
 	"\tConfigure\x12\x19.auth.v1.ConfigureRequest\x1a\x1a.auth.v1.ConfigureResponse\x12P\n" +
-	"\x13SubscribeAuthEvents\x12#.auth.v1.SubscribeAuthEventsRequest\x1a\x12.auth.v1.AuthEvent0\x01B5Z3github.com/yacchi/backlog-cli/gen/go/auth/v1;authv1b\x06proto3"
+	"\x13SubscribeAuthEvents\x12#.auth.v1.SubscribeAuthEventsRequest\x1a\x12.auth.v1.AuthEvent0\x01\x12i\n" +
+	"\x16AuthenticateWithApiKey\x12&.auth.v1.AuthenticateWithApiKeyRequest\x1a'.auth.v1.AuthenticateWithApiKeyResponseB5Z3github.com/yacchi/backlog-cli/gen/go/auth/v1;authv1b\x06proto3"
 
 var (
 	file_auth_v1_auth_proto_rawDescOnce sync.Once
@@ -429,26 +563,30 @@ func file_auth_v1_auth_proto_rawDescGZIP() []byte {
 }
 
 var file_auth_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_auth_v1_auth_proto_goTypes = []any{
-	(AuthStatus)(0),                    // 0: auth.v1.AuthStatus
-	(*GetConfigRequest)(nil),           // 1: auth.v1.GetConfigRequest
-	(*GetConfigResponse)(nil),          // 2: auth.v1.GetConfigResponse
-	(*ConfigureRequest)(nil),           // 3: auth.v1.ConfigureRequest
-	(*ConfigureResponse)(nil),          // 4: auth.v1.ConfigureResponse
-	(*SubscribeAuthEventsRequest)(nil), // 5: auth.v1.SubscribeAuthEventsRequest
-	(*AuthEvent)(nil),                  // 6: auth.v1.AuthEvent
+	(AuthStatus)(0),                        // 0: auth.v1.AuthStatus
+	(*GetConfigRequest)(nil),               // 1: auth.v1.GetConfigRequest
+	(*GetConfigResponse)(nil),              // 2: auth.v1.GetConfigResponse
+	(*ConfigureRequest)(nil),               // 3: auth.v1.ConfigureRequest
+	(*ConfigureResponse)(nil),              // 4: auth.v1.ConfigureResponse
+	(*SubscribeAuthEventsRequest)(nil),     // 5: auth.v1.SubscribeAuthEventsRequest
+	(*AuthEvent)(nil),                      // 6: auth.v1.AuthEvent
+	(*AuthenticateWithApiKeyRequest)(nil),  // 7: auth.v1.AuthenticateWithApiKeyRequest
+	(*AuthenticateWithApiKeyResponse)(nil), // 8: auth.v1.AuthenticateWithApiKeyResponse
 }
 var file_auth_v1_auth_proto_depIdxs = []int32{
 	0, // 0: auth.v1.AuthEvent.status:type_name -> auth.v1.AuthStatus
 	1, // 1: auth.v1.AuthService.GetConfig:input_type -> auth.v1.GetConfigRequest
 	3, // 2: auth.v1.AuthService.Configure:input_type -> auth.v1.ConfigureRequest
 	5, // 3: auth.v1.AuthService.SubscribeAuthEvents:input_type -> auth.v1.SubscribeAuthEventsRequest
-	2, // 4: auth.v1.AuthService.GetConfig:output_type -> auth.v1.GetConfigResponse
-	4, // 5: auth.v1.AuthService.Configure:output_type -> auth.v1.ConfigureResponse
-	6, // 6: auth.v1.AuthService.SubscribeAuthEvents:output_type -> auth.v1.AuthEvent
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	7, // 4: auth.v1.AuthService.AuthenticateWithApiKey:input_type -> auth.v1.AuthenticateWithApiKeyRequest
+	2, // 5: auth.v1.AuthService.GetConfig:output_type -> auth.v1.GetConfigResponse
+	4, // 6: auth.v1.AuthService.Configure:output_type -> auth.v1.ConfigureResponse
+	6, // 7: auth.v1.AuthService.SubscribeAuthEvents:output_type -> auth.v1.AuthEvent
+	8, // 8: auth.v1.AuthService.AuthenticateWithApiKey:output_type -> auth.v1.AuthenticateWithApiKeyResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -461,13 +599,14 @@ func file_auth_v1_auth_proto_init() {
 	}
 	file_auth_v1_auth_proto_msgTypes[3].OneofWrappers = []any{}
 	file_auth_v1_auth_proto_msgTypes[5].OneofWrappers = []any{}
+	file_auth_v1_auth_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_auth_v1_auth_proto_rawDesc), len(file_auth_v1_auth_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

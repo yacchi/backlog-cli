@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Container from "../components/Container";
 import InfoBox from "../components/InfoBox";
-import ResultView, { type ResultType } from "../components/ResultView";
+import type { ResultType } from "../components/ResultView";
 import StatusIndicator from "../components/StatusIndicator";
 import { useAuthContext } from "../context/AuthContext";
 import { useStreamingContext } from "../context/StreamingContext";
@@ -35,48 +35,25 @@ export default function LoginConfirm() {
     }
   }, [status, forcedResult]);
 
+  // Navigate to complete page when auth finishes
+  useEffect(() => {
+    if (forcedResult) {
+      const params = new URLSearchParams({ type: forcedResult });
+      if (popupMessage) params.set("message", popupMessage);
+      navigate(`/auth/complete?${params.toString()}`, { replace: true });
+    } else if (status === "success") {
+      navigate("/auth/complete?type=success", { replace: true });
+    } else if (status === "error") {
+      const params = new URLSearchParams({ type: "error" });
+      if (streamError) params.set("message", streamError);
+      navigate(`/auth/complete?${params.toString()}`, { replace: true });
+    } else if (status === "closed") {
+      navigate("/auth/complete?type=closed", { replace: true });
+    }
+  }, [status, streamError, forcedResult, popupMessage, navigate]);
+
   if (!loading && data && !data.configured) {
     return <Navigate to="/auth/setup" replace />;
-  }
-
-  if (forcedResult) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Container>
-          <ResultView type={forcedResult} message={popupMessage || undefined} />
-        </Container>
-      </main>
-    );
-  }
-
-  if (status === "success") {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Container>
-          <ResultView type="success" />
-        </Container>
-      </main>
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Container>
-          <ResultView type="error" message={streamError || undefined} />
-        </Container>
-      </main>
-    );
-  }
-
-  if (status === "closed") {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <Container>
-          <ResultView type="closed" />
-        </Container>
-      </main>
-    );
   }
 
   const handleLogin = () => {
@@ -174,6 +151,15 @@ export default function LoginConfirm() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                navigate("/auth/method");
+              }}
+            >
+              戻る
+            </Button>
             <Button
               variant="secondary"
               type="button"

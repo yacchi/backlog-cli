@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file auth/v1/auth.proto.
  */
 export const file_auth_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChJhdXRoL3YxL2F1dGgucHJvdG8SB2F1dGgudjEiEgoQR2V0Q29uZmlnUmVxdWVzdCJwChFHZXRDb25maWdSZXNwb25zZRINCgVzcGFjZRgBIAEoCRIOCgZkb21haW4YAiABKAkSFAoMcmVsYXlfc2VydmVyGAMgASgJEhIKCnNwYWNlX2hvc3QYBCABKAkSEgoKY29uZmlndXJlZBgFIAEoCCI8ChBDb25maWd1cmVSZXF1ZXN0EhIKCnNwYWNlX2hvc3QYASABKAkSFAoMcmVsYXlfc2VydmVyGAIgASgJIkIKEUNvbmZpZ3VyZVJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEgoFZXJyb3IYAiABKAlIAIgBAUIICgZfZXJyb3IiHAoaU3Vic2NyaWJlQXV0aEV2ZW50c1JlcXVlc3QiTgoJQXV0aEV2ZW50EiMKBnN0YXR1cxgBIAEoDjITLmF1dGgudjEuQXV0aFN0YXR1cxISCgVlcnJvchgCIAEoCUgAiAEBQggKBl9lcnJvcipyCgpBdXRoU3RhdHVzEhsKF0FVVEhfU1RBVFVTX1VOU1BFQ0lGSUVEEAASFwoTQVVUSF9TVEFUVVNfUEVORElORxABEhcKE0FVVEhfU1RBVFVTX1NVQ0NFU1MQAhIVChFBVVRIX1NUQVRVU19FUlJPUhADMucBCgtBdXRoU2VydmljZRJCCglHZXRDb25maWcSGS5hdXRoLnYxLkdldENvbmZpZ1JlcXVlc3QaGi5hdXRoLnYxLkdldENvbmZpZ1Jlc3BvbnNlEkIKCUNvbmZpZ3VyZRIZLmF1dGgudjEuQ29uZmlndXJlUmVxdWVzdBoaLmF1dGgudjEuQ29uZmlndXJlUmVzcG9uc2USUAoTU3Vic2NyaWJlQXV0aEV2ZW50cxIjLmF1dGgudjEuU3Vic2NyaWJlQXV0aEV2ZW50c1JlcXVlc3QaEi5hdXRoLnYxLkF1dGhFdmVudDABQjVaM2dpdGh1Yi5jb20veWFjY2hpL2JhY2tsb2ctY2xpL2dlbi9nby9hdXRoL3YxO2F1dGh2MWIGcHJvdG8z");
+  fileDesc("ChJhdXRoL3YxL2F1dGgucHJvdG8SB2F1dGgudjEiEgoQR2V0Q29uZmlnUmVxdWVzdCKLAQoRR2V0Q29uZmlnUmVzcG9uc2USDQoFc3BhY2UYASABKAkSDgoGZG9tYWluGAIgASgJEhQKDHJlbGF5X3NlcnZlchgDIAEoCRISCgpzcGFjZV9ob3N0GAQgASgJEhIKCmNvbmZpZ3VyZWQYBSABKAgSGQoRY3VycmVudF9hdXRoX3R5cGUYBiABKAkiPAoQQ29uZmlndXJlUmVxdWVzdBISCgpzcGFjZV9ob3N0GAEgASgJEhQKDHJlbGF5X3NlcnZlchgCIAEoCSJCChFDb25maWd1cmVSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhIKBWVycm9yGAIgASgJSACIAQFCCAoGX2Vycm9yIhwKGlN1YnNjcmliZUF1dGhFdmVudHNSZXF1ZXN0Ik4KCUF1dGhFdmVudBIjCgZzdGF0dXMYASABKA4yEy5hdXRoLnYxLkF1dGhTdGF0dXMSEgoFZXJyb3IYAiABKAlIAIgBAUIICgZfZXJyb3IiRAodQXV0aGVudGljYXRlV2l0aEFwaUtleVJlcXVlc3QSEgoKc3BhY2VfaG9zdBgBIAEoCRIPCgdhcGlfa2V5GAIgASgJInUKHkF1dGhlbnRpY2F0ZVdpdGhBcGlLZXlSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhIKBWVycm9yGAIgASgJSACIAQESFgoJdXNlcl9uYW1lGAMgASgJSAGIAQFCCAoGX2Vycm9yQgwKCl91c2VyX25hbWUqcgoKQXV0aFN0YXR1cxIbChdBVVRIX1NUQVRVU19VTlNQRUNJRklFRBAAEhcKE0FVVEhfU1RBVFVTX1BFTkRJTkcQARIXChNBVVRIX1NUQVRVU19TVUNDRVNTEAISFQoRQVVUSF9TVEFUVVNfRVJST1IQAzLSAgoLQXV0aFNlcnZpY2USQgoJR2V0Q29uZmlnEhkuYXV0aC52MS5HZXRDb25maWdSZXF1ZXN0GhouYXV0aC52MS5HZXRDb25maWdSZXNwb25zZRJCCglDb25maWd1cmUSGS5hdXRoLnYxLkNvbmZpZ3VyZVJlcXVlc3QaGi5hdXRoLnYxLkNvbmZpZ3VyZVJlc3BvbnNlElAKE1N1YnNjcmliZUF1dGhFdmVudHMSIy5hdXRoLnYxLlN1YnNjcmliZUF1dGhFdmVudHNSZXF1ZXN0GhIuYXV0aC52MS5BdXRoRXZlbnQwARJpChZBdXRoZW50aWNhdGVXaXRoQXBpS2V5EiYuYXV0aC52MS5BdXRoZW50aWNhdGVXaXRoQXBpS2V5UmVxdWVzdBonLmF1dGgudjEuQXV0aGVudGljYXRlV2l0aEFwaUtleVJlc3BvbnNlQjVaM2dpdGh1Yi5jb20veWFjY2hpL2JhY2tsb2ctY2xpL2dlbi9nby9hdXRoL3YxO2F1dGh2MWIGcHJvdG8z");
 
 /**
  * @generated from message auth.v1.GetConfigRequest
@@ -53,6 +53,13 @@ export type GetConfigResponse = Message<"auth.v1.GetConfigResponse"> & {
    * @generated from field: bool configured = 5;
    */
   configured: boolean;
+
+  /**
+   * 現在の認証タイプ (oauth, apikey, または空文字列)
+   *
+   * @generated from field: string current_auth_type = 6;
+   */
+  currentAuthType: string;
 };
 
 /**
@@ -142,6 +149,61 @@ export const AuthEventSchema: GenMessage<AuthEvent> = /*@__PURE__*/
   messageDesc(file_auth_v1_auth, 5);
 
 /**
+ * @generated from message auth.v1.AuthenticateWithApiKeyRequest
+ */
+export type AuthenticateWithApiKeyRequest = Message<"auth.v1.AuthenticateWithApiKeyRequest"> & {
+  /**
+   * スペースホスト（例: yourspace.backlog.jp）
+   *
+   * @generated from field: string space_host = 1;
+   */
+  spaceHost: string;
+
+  /**
+   * API Key
+   *
+   * @generated from field: string api_key = 2;
+   */
+  apiKey: string;
+};
+
+/**
+ * Describes the message auth.v1.AuthenticateWithApiKeyRequest.
+ * Use `create(AuthenticateWithApiKeyRequestSchema)` to create a new message.
+ */
+export const AuthenticateWithApiKeyRequestSchema: GenMessage<AuthenticateWithApiKeyRequest> = /*@__PURE__*/
+  messageDesc(file_auth_v1_auth, 6);
+
+/**
+ * @generated from message auth.v1.AuthenticateWithApiKeyResponse
+ */
+export type AuthenticateWithApiKeyResponse = Message<"auth.v1.AuthenticateWithApiKeyResponse"> & {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success: boolean;
+
+  /**
+   * @generated from field: optional string error = 2;
+   */
+  error?: string;
+
+  /**
+   * 認証成功時のユーザー名
+   *
+   * @generated from field: optional string user_name = 3;
+   */
+  userName?: string;
+};
+
+/**
+ * Describes the message auth.v1.AuthenticateWithApiKeyResponse.
+ * Use `create(AuthenticateWithApiKeyResponseSchema)` to create a new message.
+ */
+export const AuthenticateWithApiKeyResponseSchema: GenMessage<AuthenticateWithApiKeyResponse> = /*@__PURE__*/
+  messageDesc(file_auth_v1_auth, 7);
+
+/**
  * @generated from enum auth.v1.AuthStatus
  */
 export enum AuthStatus {
@@ -199,6 +261,16 @@ export const AuthService: GenService<{
     methodKind: "server_streaming";
     input: typeof SubscribeAuthEventsRequestSchema;
     output: typeof AuthEventSchema;
+  },
+  /**
+   * API Key による認証を実行する
+   *
+   * @generated from rpc auth.v1.AuthService.AuthenticateWithApiKey
+   */
+  authenticateWithApiKey: {
+    methodKind: "unary";
+    input: typeof AuthenticateWithApiKeyRequestSchema;
+    output: typeof AuthenticateWithApiKeyResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_auth_v1_auth, 0);

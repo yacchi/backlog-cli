@@ -15,6 +15,7 @@ export type AuthContextData = {
   relayServer: string;
   spaceHost: string;
   configured: boolean;
+  currentAuthType: string;
 };
 
 type AuthContextValue = {
@@ -37,6 +38,7 @@ async function fetchAuthContext(): Promise<AuthContextData> {
     relayServer: response.relayServer,
     spaceHost: response.spaceHost,
     configured: response.configured,
+    currentAuthType: response.currentAuthType,
   };
 }
 
