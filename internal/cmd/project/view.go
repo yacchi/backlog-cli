@@ -2,9 +2,7 @@ package project
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -67,9 +65,7 @@ func runView(c *cobra.Command, args []string) error {
 	// 出力
 	switch profile.Output {
 	case "json":
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(project)
+		return cmdutil.OutputJSONFromProfile(project, profile)
 	default:
 		return renderProjectDetail(ctx, client, project, profile)
 	}

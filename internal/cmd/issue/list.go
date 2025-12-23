@@ -2,7 +2,6 @@ package issue
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -174,7 +173,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		return outputJSON(issues)
+		return cmdutil.OutputJSONFromProfile(issues, profile)
 	default:
 		outputTable(ctx, client, issues, profile, display)
 		return nil
@@ -363,10 +362,4 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 	default:
 		return "-"
 	}
-}
-
-func outputJSON(v interface{}) error {
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
 }

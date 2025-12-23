@@ -1,7 +1,6 @@
 package project
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -59,9 +58,7 @@ func runList(c *cobra.Command, args []string) error {
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(projects)
+		return cmdutil.OutputJSONFromProfile(projects, profile)
 	default:
 		outputProjectTable(projects, profile.Project)
 		return nil

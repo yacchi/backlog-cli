@@ -1,7 +1,6 @@
 package pr
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -102,9 +101,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(prs)
+		return cmdutil.OutputJSONFromProfile(prs, profile)
 	default:
 		outputPRTable(prs, profile, display, projectKey, listRepo)
 		return nil

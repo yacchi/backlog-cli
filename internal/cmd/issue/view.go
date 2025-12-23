@@ -83,7 +83,7 @@ func runView(c *cobra.Command, args []string) error {
 		if viewBrief {
 			return outputBriefJSON(issue, profile)
 		}
-		return outputJSON(issue)
+		return cmdutil.OutputJSONFromProfile(issue, profile)
 	default:
 		if viewBrief {
 			return renderIssueBrief(issue, profile)
@@ -140,7 +140,7 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 		"url":      url,
 	}
 
-	return outputJSON(brief)
+	return cmdutil.OutputJSONFromProfile(brief, profile)
 }
 
 func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {

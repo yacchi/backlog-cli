@@ -55,13 +55,19 @@ backlog auth logout
 backlog project list
 
 # JSON output
-backlog project list --output json
+backlog project list -o json
+
+# Extract specific fields using Go template (like docker --format)
+backlog project list -o json -f '{{.projectKey}}: {{.name}}'
 ```
 
 ### View Project Details
 
 ```bash
 backlog project view PROJ
+
+# Get specific field value (no jq required)
+backlog project view PROJ -o json -f '{{.textFormattingRule}}'
 ```
 
 ### Check Current Project
@@ -134,7 +140,10 @@ backlog pr list -L 20
 backlog pr list --web
 
 # JSON output
-backlog pr list --output json
+backlog pr list -o json
+
+# Extract specific fields using Go template
+backlog pr list -o json -f '#{{.number}}: {{.summary}}'
 ```
 
 ### View Pull Request
@@ -231,12 +240,11 @@ When project context is needed:
 ### Get Formatting Rule
 
 ```bash
-# Efficient: Get only the formatting rule
-backlog project view PROJ --output json | jq -r '.textFormattingRule'
+# Get only the formatting rule (no jq required, uses Go template)
+backlog project view PROJ -o json -f '{{.textFormattingRule}}'
 
 # Get current project's formatting rule
-backlog project current --quiet && \
-  backlog project view "$(backlog project current)" --output json | jq -r '.textFormattingRule'
+backlog project view -o json -f '{{.textFormattingRule}}'
 ```
 
 Returns either `backlog` or `markdown`.
@@ -294,6 +302,44 @@ Text formatting applies to:
 ### Workflow for Posting Text
 
 1. Identify the target project
-2. Check formatting rule: `backlog project view PROJ --output json | jq -r '.textFormattingRule'`
+2. Check formatting rule: `backlog project view PROJ -o json -f '{{.textFormattingRule}}'`
 3. Format your text content according to the rule
 4. Post using the appropriate command
+
+## Go Template Format Examples
+
+The `--format` (`-f`) option uses Go text/template syntax. It works with `-o json` for all commands.
+
+### Single Object Commands
+
+```bash
+# Get project text formatting rule
+backlog project view PROJ -o json -f '{{.textFormattingRule}}'
+
+# Get issue summary
+backlog issue view PROJ-123 -o json -f '{{.summary}}'
+
+# Multiple fields
+backlog issue view PROJ-123 -o json -f '{{.issueKey}}: {{.summary}} [{{.status.name}}]'
+```
+
+### List Commands
+
+For list commands, the template is applied to each item:
+
+```bash
+# List project keys only
+backlog project list -o json -f '{{.projectKey}}'
+
+# List issues with key and summary
+backlog issue list -o json -f '{{.issueKey}}: {{.summary}}'
+
+# List PRs with number and branch
+backlog pr list -o json -f '#{{.number}} {{.branch}} -> {{.base}}'
+```
+
+### Template Syntax Reference
+
+- `{{.fieldName}}` - Access a field (uses JSON field names like `issueKey`, `textFormattingRule`)
+- `{{.nested.field}}` - Access nested fields (e.g., `{{.status.name}}`)
+- Field names are case-sensitive and use camelCase (matching JSON output)

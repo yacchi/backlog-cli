@@ -56,7 +56,12 @@ backlog issue view <ISSUE-KEY>
 
 For JSON output:
 ```bash
-backlog issue view <ISSUE-KEY> --output json
+backlog issue view <ISSUE-KEY> -o json
+```
+
+For extracting specific fields (Go template):
+```bash
+backlog issue view <ISSUE-KEY> -o json -f '{{.summary}}'
 ```
 
 ## Issue Commands
@@ -104,7 +109,10 @@ backlog issue list -L 20
 backlog issue list --web
 
 # JSON output for processing
-backlog issue list --output json
+backlog issue list -o json
+
+# Extract specific fields using Go template
+backlog issue list -o json -f '{{.issueKey}}: {{.summary}}'
 ```
 
 ### Create Issue
@@ -281,8 +289,8 @@ When closing or updating issues:
 ### Get Formatting Rule
 
 ```bash
-# Efficient: Get only the formatting rule
-backlog project view PROJ --output json | jq -r '.textFormattingRule'
+# Get only the formatting rule (no jq required, uses Go template)
+backlog project view PROJ -o json -f '{{.textFormattingRule}}'
 ```
 
 Returns either `backlog` or `markdown`.
@@ -320,6 +328,44 @@ Returns either `backlog` or `markdown`.
 ### Workflow for Posting Text
 
 1. Get project key from issue key (e.g., `PROJ-123` → `PROJ`)
-2. Check formatting rule: `backlog project view PROJ --output json | jq -r '.textFormattingRule'`
+2. Check formatting rule: `backlog project view PROJ -o json -f '{{.textFormattingRule}}'`
 3. Format your text content according to the rule
 4. Post using the appropriate command
+
+## Go Template Format Examples
+
+The `--format` (`-f`) option uses Go text/template syntax. It works with `-o json` for all commands.
+
+### Single Issue
+
+```bash
+# Get issue summary
+backlog issue view PROJ-123 -o json -f '{{.summary}}'
+
+# Get issue key with status
+backlog issue view PROJ-123 -o json -f '{{.issueKey}} [{{.status.name}}]'
+
+# Get assignee name
+backlog issue view PROJ-123 -o json -f '{{.assignee.name}}'
+```
+
+### Issue List
+
+For list commands, the template is applied to each item:
+
+```bash
+# List issue keys only
+backlog issue list -o json -f '{{.issueKey}}'
+
+# List issues with summary
+backlog issue list -o json -f '{{.issueKey}}: {{.summary}}'
+
+# List issues with status and assignee
+backlog issue list -o json -f '{{.issueKey}} [{{.status.name}}] {{.assignee.name}}'
+```
+
+### Template Syntax Reference
+
+- `{{.fieldName}}` - Access a field (uses JSON field names)
+- `{{.nested.field}}` - Access nested fields (e.g., `{{.status.name}}`, `{{.assignee.name}}`)
+- Field names are case-sensitive and use camelCase (matching JSON output)
