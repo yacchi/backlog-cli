@@ -15,7 +15,7 @@ func SPAHandler(assets fs.FS) http.Handler {
 
 		f, err := assets.Open(path)
 		if err == nil {
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			stat, statErr := f.Stat()
 			if statErr == nil && !stat.IsDir() {
 				fileServer.ServeHTTP(w, r)

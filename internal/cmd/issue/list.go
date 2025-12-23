@@ -370,19 +370,3 @@ func outputJSON(v interface{}) error {
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
-
-func parseIntList(s string) ([]int, error) {
-	var result []int
-	for _, part := range strings.Split(s, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		n, err := strconv.Atoi(part)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, n)
-	}
-	return result, nil
-}

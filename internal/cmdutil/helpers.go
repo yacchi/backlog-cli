@@ -139,7 +139,7 @@ func ReadBodyFromFile(filePath string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to open file: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		reader = f
 	}
 
