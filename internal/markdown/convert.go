@@ -7,10 +7,11 @@ import (
 )
 
 var (
-	reHeading  = regexp.MustCompile(`(?m)^(\*{1,3})\s*(\S.*)$`)
+	reHeading  = regexp.MustCompile(`(?m)^(\*+)\s+(\S.*)$`)
 	reTOC      = regexp.MustCompile(`(?m)^#contents\s*$`)
 	reListPlus = regexp.MustCompile(`(?m)^\+\s+`)
-	reListDash = regexp.MustCompile(`(?m)^-(\S)`)
+	reDashList = regexp.MustCompile(`^(\s*)(-+)\s*(\S.*)$`)
+	reOrdered  = regexp.MustCompile(`^\s*\d+\.\s+\S`)
 
 	reQuoteBlock = regexp.MustCompile(`(?s)\{quote\}(.*?)\{/quote\}`)
 	reCodeBlock  = regexp.MustCompile(`(?s)\{code(?::([a-zA-Z0-9_+-]+))?\}(.*?)\{/code\}`)
@@ -20,6 +21,8 @@ var (
 	reItalic          = regexp.MustCompile(`'''([^']+?)'''`)
 	reStrike          = regexp.MustCompile(`%%([^%]+?)%%`)
 	reInlineCodeToken = regexp.MustCompile("`[^`]*`")
+	reQuoteLine       = regexp.MustCompile(`^\s*>`)
+	reTableHeaderMark = regexp.MustCompile(`\|h\s*$`)
 )
 
 // Convert converts Backlog markdown to GFM when needed.
@@ -60,20 +63,7 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	rules := []RuleID{}
 	content := input
 
-	// Extract code blocks.
-	content, codeTokens := replaceBlocks(content, reCodeBlock, "CODE", func(groups []string) string {
-		lang := strings.TrimSpace(groups[1])
-		body := strings.Trim(groups[2], "\n")
-		head := "```"
-		if lang != "" {
-			head += lang
-		}
-		block := head + "\n" + body + "\n```"
-		rules = appendRule(rules, RuleCodeBlock)
-		return block
-	})
-
-	// Extract quote blocks.
+	// Extract quote blocks first to avoid conversions inside quotes.
 	content, quoteTokens := replaceBlocks(content, reQuoteBlock, "QUOTE", func(groups []string) string {
 		body := strings.Trim(groups[1], "\n")
 		lines := strings.Split(body, "\n")
@@ -86,6 +76,26 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 		}
 		rules = appendRule(rules, RuleQuoteBlock)
 		return strings.Join(lines, "\n")
+	})
+
+	// Replace quote lines to avoid conversions inside.
+	content, quoteLineTokens := replaceQuoteLines(content)
+
+	// Extract code blocks.
+	content, codeTokens := replaceBlocks(content, reCodeBlock, "CODE", func(groups []string) string {
+		lang := strings.TrimSpace(groups[1])
+		body := strings.Trim(groups[2], "\n")
+		if !strings.Contains(body, "\n") {
+			rules = appendRule(rules, RuleCodeBlock)
+			return inlineCodeWithLang(lang, body)
+		}
+		head := "```"
+		if lang != "" {
+			head += lang
+		}
+		block := head + "\n" + body + "\n```"
+		rules = appendRule(rules, RuleCodeBlock)
+		return block
 	})
 
 	// Replace inline code with tokens to avoid conversions inside.
@@ -113,9 +123,15 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	if reListPlus.MatchString(input) {
 		rules = appendRule(rules, RuleListPlus)
 	}
-	content = reListDash.ReplaceAllString(content, "- $1")
-	if reListDash.MatchString(input) {
+	content, listChanged := convertDashLists(content)
+	if listChanged {
 		rules = appendRule(rules, RuleListDashSpace)
+	}
+
+	// Tables
+	content, tableChanged := convertTables(content)
+	if tableChanged {
+		rules = appendRule(rules, RuleTableSeparator)
 	}
 
 	// Inline conversions
@@ -190,6 +206,7 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	// Restore inline code tokens.
 	content = restoreTokens(content, codeInlineTokens)
 	// Restore quote/code blocks.
+	content = restoreTokens(content, quoteLineTokens)
 	content = restoreTokens(content, quoteTokens)
 	content = restoreTokens(content, codeTokens)
 
@@ -245,6 +262,248 @@ func replaceInlineTokens(input string, re *regexp.Regexp) (string, map[string]st
 	}
 	b.WriteString(input[last:])
 	return b.String(), replacements
+}
+
+func replaceQuoteLines(input string) (string, map[string]string) {
+	lines := strings.Split(input, "\n")
+	replacements := make(map[string]string, 0)
+	for i, line := range lines {
+		if !reQuoteLine.MatchString(line) {
+			continue
+		}
+		token := fmt.Sprintf("{{BACKLOG_MD_QUOTE_LINE_%d}}", i)
+		replacements[token] = line
+		lines[i] = token
+	}
+	if len(replacements) == 0 {
+		return input, nil
+	}
+	return strings.Join(lines, "\n"), replacements
+}
+
+func convertTables(input string) (string, bool) {
+	lines := strings.Split(input, "\n")
+	if len(lines) == 0 {
+		return input, false
+	}
+
+	changed := false
+	out := make([]string, 0, len(lines)+1)
+	inGFMTable := false
+	for i, line := range lines {
+		if isTableSeparator(line) {
+			out = append(out, line)
+			inGFMTable = true
+			continue
+		}
+		if isTableRow(line) {
+			if inGFMTable {
+				out = append(out, line)
+				continue
+			}
+
+			prevIsTable := i > 0 && (isTableRow(lines[i-1]) || isTableSeparator(lines[i-1]))
+			nextIsSeparator := i+1 < len(lines) && isTableSeparator(lines[i+1])
+			normalized := normalizeTableRow(line)
+			if normalized != line {
+				changed = true
+			}
+			if !prevIsTable && !nextIsSeparator && i > 0 && strings.TrimSpace(lines[i-1]) != "" {
+				out = append(out, "")
+				changed = true
+			}
+			out = append(out, normalized)
+
+			if !prevIsTable {
+				if !nextIsSeparator {
+					sep := tableSeparatorLine(normalized)
+					if sep != "" {
+						out = append(out, sep)
+						changed = true
+					}
+				}
+			}
+			continue
+		}
+
+		inGFMTable = false
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n"), changed
+}
+
+func convertDashLists(input string) (string, bool) {
+	lines := strings.Split(input, "\n")
+	if len(lines) == 0 {
+		return input, false
+	}
+	changed := false
+	out := make([]string, 0, len(lines)+1)
+	for i, line := range lines {
+		converted, isList := normalizeDashListLine(line)
+		if converted != line {
+			changed = true
+		}
+		out = append(out, converted)
+
+		if !isList {
+			continue
+		}
+		nextLine := ""
+		if i+1 < len(lines) {
+			nextLine = lines[i+1]
+		}
+		if nextLine == "" {
+			continue
+		}
+		if isListLine(nextLine) {
+			continue
+		}
+		out = append(out, "")
+		changed = true
+	}
+	return strings.Join(out, "\n"), changed
+}
+
+func normalizeDashListLine(line string) (string, bool) {
+	match := reDashList.FindStringSubmatch(line)
+	if len(match) < 4 {
+		return line, false
+	}
+	leading := match[1]
+	dashes := match[2]
+	text := strings.TrimSpace(match[3])
+	if text == "" {
+		return line, false
+	}
+	depth := len(dashes) - 1
+	if depth < 0 {
+		depth = 0
+	}
+	indent := leading + strings.Repeat("  ", depth)
+	return indent + "- " + text, true
+}
+
+func isListLine(line string) bool {
+	if reDashList.MatchString(line) {
+		return true
+	}
+	if reListPlus.MatchString(line) {
+		return true
+	}
+	return reOrdered.MatchString(strings.TrimLeft(line, " \t"))
+}
+
+func isTableRow(line string) bool {
+	if isTableSeparator(line) {
+		return false
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.Contains(trimmed, "|") {
+		return false
+	}
+	return tableColumnCount(trimmed) >= 2
+}
+
+func isTableSeparator(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "|") {
+		trimmed = strings.TrimPrefix(trimmed, "|")
+	}
+	if strings.HasSuffix(trimmed, "|") {
+		trimmed = strings.TrimSuffix(trimmed, "|")
+	}
+	if !strings.Contains(trimmed, "|") {
+		return false
+	}
+	for _, part := range strings.Split(trimmed, "|") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		for _, r := range part {
+			if r != '-' && r != ':' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func normalizeTableRow(line string) string {
+	normalized := reTableHeaderMark.ReplaceAllString(line, "|")
+	normalized = strings.ReplaceAll(normalized, "|~", "|")
+	trimmed := strings.TrimSpace(normalized)
+	trimmed = strings.TrimPrefix(trimmed, "|")
+	trimmed = strings.TrimSuffix(trimmed, "|")
+	cells := strings.Split(trimmed, "|")
+	for i, cell := range cells {
+		cells[i] = strings.TrimSpace(cell)
+	}
+	return "| " + strings.Join(cells, " | ") + " |"
+}
+
+func tableColumnCount(line string) int {
+	trimmed := strings.TrimSpace(line)
+	trimmed = reTableHeaderMark.ReplaceAllString(trimmed, "|")
+	if strings.HasPrefix(trimmed, "|") {
+		trimmed = trimmed[1:]
+	}
+	if strings.HasSuffix(trimmed, "|") {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	parts := strings.Split(trimmed, "|")
+	if len(parts) < 2 {
+		return 0
+	}
+	return len(parts)
+}
+
+func tableSeparatorLine(row string) string {
+	columns := tableColumnCount(row)
+	if columns < 2 {
+		return ""
+	}
+	parts := make([]string, columns)
+	for i := range parts {
+		parts[i] = "---"
+	}
+	return "| " + strings.Join(parts, " | ") + " |"
+}
+
+func inlineCode(text string) string {
+	if text == "" {
+		return "``"
+	}
+	maxRun := 0
+	current := 0
+	for _, r := range text {
+		if r == '`' {
+			current++
+			if current > maxRun {
+				maxRun = current
+			}
+			continue
+		}
+		current = 0
+	}
+	fence := strings.Repeat("`", maxRun+1)
+	return fence + text + fence
+}
+
+func inlineCodeWithLang(lang, body string) string {
+	lang = strings.TrimSpace(lang)
+	body = strings.TrimSpace(body)
+	if lang == "" {
+		return inlineCode(body)
+	}
+	if body == "" {
+		return inlineCode(lang + ":")
+	}
+	return inlineCode(lang + ": " + body)
 }
 
 func restoreTokens(input string, tokens map[string]string) string {

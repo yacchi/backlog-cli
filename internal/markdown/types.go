@@ -41,6 +41,7 @@ const (
 	RuleLineBreak       RuleID = "rule.line_break"
 	RuleListPlus        RuleID = "rule.list_plus"
 	RuleListDashSpace   RuleID = "rule.list_dash_space"
+	RuleTableSeparator  RuleID = "rule.table_separator"
 )
 
 // DetectResult represents detection output.
