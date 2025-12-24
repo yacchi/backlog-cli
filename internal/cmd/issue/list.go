@@ -54,6 +54,10 @@ var (
 	listSummary             bool
 	listSummaryWithComments bool
 	listSummaryCommentCount int
+	listMarkdown            bool
+	listRaw                 bool
+	listMarkdownWarn        bool
+	listMarkdownCache       bool
 )
 
 func init() {
@@ -66,6 +70,10 @@ func init() {
 	listCmd.Flags().BoolVar(&listSummary, "summary", false, "Show AI summary column (description only)")
 	listCmd.Flags().BoolVar(&listSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
 	listCmd.Flags().IntVar(&listSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
+	listCmd.Flags().BoolVar(&listMarkdown, "markdown", false, "Render markdown by converting Backlog notation to GFM")
+	listCmd.Flags().BoolVar(&listRaw, "raw", false, "Render raw content without markdown conversion")
+	listCmd.Flags().BoolVar(&listMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
+	listCmd.Flags().BoolVar(&listMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -175,12 +183,17 @@ func runList(c *cobra.Command, args []string) error {
 	case "json":
 		return cmdutil.OutputJSONFromProfile(issues, profile)
 	default:
-		outputTable(ctx, client, issues, profile, display)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
+		outputTable(ctx, client, issues, profile, display, projectKey, markdownOpts)
 		return nil
 	}
 }
 
-func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) {
+func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) {
 	// フラグ調整
 	if listSummaryWithComments {
 		listSummary = true
@@ -229,7 +242,7 @@ func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue
 	for _, issue := range issues {
 		row := make([]string, len(fields))
 		for i, f := range fields {
-			row[i] = getIssueFieldValue(ctx, client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments)
+			row[i] = getIssueFieldValue(ctx, client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments, projectKey, markdownOpts)
 		}
 		table.AddRow(row...)
 	}
@@ -237,7 +250,7 @@ func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue
 	table.RenderWithColor(os.Stdout, ui.IsColorEnabled())
 }
 
-func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool) string {
+func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) string {
 	switch field {
 	case "key":
 		key := issue.IssueKey.Value
@@ -261,6 +274,10 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 	case "summary":
 		return f.FormatString(issue.Summary.Value, field)
 	case "ai_summary":
+		issueID := 0
+		if issue.ID.IsSet() {
+			issueID = issue.ID.Value
+		}
 		fullText := ""
 		if issue.Description.IsSet() {
 			fullText = issue.Description.Value
@@ -281,6 +298,15 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 						fullText += "\n" + comments[i].Content
 					}
 				}
+			}
+		}
+
+		if markdownOpts.Enable {
+			issueKey := issue.IssueKey.Value
+			issueURL := fmt.Sprintf("%s/view/%s", baseURL, issueKey)
+			converted, err := cmdutil.RenderMarkdownContent(fullText, markdownOpts, "issue", issueID, 0, projectKey, issueKey, issueURL, nil)
+			if err == nil {
+				fullText = converted
 			}
 		}
 

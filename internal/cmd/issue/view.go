@@ -3,6 +3,7 @@ package issue
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -39,6 +40,10 @@ var (
 	viewSummaryWithComments bool
 	viewSummaryCommentCount int
 	viewBrief               bool
+	viewMarkdown            bool
+	viewRaw                 bool
+	viewMarkdownWarn        bool
+	viewMarkdownCache       bool
 )
 
 func init() {
@@ -48,6 +53,10 @@ func init() {
 	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
 	viewCmd.Flags().IntVar(&viewSummaryCommentCount, "summary-comment-count", -1, "Number of comments to use for summary")
 	viewCmd.Flags().BoolVar(&viewBrief, "brief", false, "Show brief summary (key, summary, status, assignee, URL)")
+	viewCmd.Flags().BoolVar(&viewMarkdown, "markdown", false, "Render markdown by converting Backlog notation to GFM")
+	viewCmd.Flags().BoolVar(&viewRaw, "raw", false, "Render raw content without markdown conversion")
+	viewCmd.Flags().BoolVar(&viewMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
+	viewCmd.Flags().BoolVar(&viewMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -88,7 +97,13 @@ func runView(c *cobra.Command, args []string) error {
 		if viewBrief {
 			return renderIssueBrief(issue, profile)
 		}
-		return renderIssueDetail(ctx, client, issue, profile, display)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
+		projectKey := cmdutil.GetCurrentProject(cfg)
+		return renderIssueDetail(ctx, client, issue, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
@@ -143,7 +158,7 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 	return cmdutil.OutputJSONFromProfile(brief, profile)
 }
 
-func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay) error {
+func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
 	if viewSummaryWithComments {
 		viewSummary = true
@@ -157,6 +172,10 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 
 	// URL生成
 	key := issue.IssueKey.Value
+	issueID := 0
+	if issue.ID.IsSet() {
+		issueID = issue.ID.Value
+	}
 	issueURL := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
 
 	// ヘッダー（キーをハイパーリンク化）
@@ -295,7 +314,15 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		fmt.Println()
 		fmt.Println(ui.Bold("Description"))
 		fmt.Println(strings.Repeat("─", 60))
-		fmt.Println(issue.Description.Value)
+		content := issue.Description.Value
+		if markdownOpts.Enable {
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "issue", issueID, 0, projectKey, key, issueURL, out)
+			if err != nil {
+				return err
+			}
+			content = rendered
+		}
+		fmt.Println(content)
 	}
 
 	// URL（常に表示、ハイパーリンク化）
@@ -312,7 +339,16 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		// 元のコードは10件固定だったが、要約のために20件にしたので、表示も20件になる
 		for _, comment := range comments {
 			fmt.Printf("\n%s %s\n", ui.Bold(comment.CreatedUser.Name), ui.Gray(formatter.FormatDateTime(comment.Created, "created")))
-			fmt.Println(comment.Content)
+			content := comment.Content
+			if markdownOpts.Enable {
+				commentURL := fmt.Sprintf("%s#comment-%d", issueURL, comment.ID)
+				rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "comment", comment.ID, issueID, projectKey, key, commentURL, out)
+				if err != nil {
+					return err
+				}
+				content = rendered
+			}
+			fmt.Println(content)
 		}
 	}
 

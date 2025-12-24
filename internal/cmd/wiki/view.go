@@ -3,6 +3,7 @@ package wiki
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -28,11 +29,19 @@ Examples:
 }
 
 var (
-	viewWeb bool
+	viewWeb           bool
+	viewMarkdown      bool
+	viewRaw           bool
+	viewMarkdownWarn  bool
+	viewMarkdownCache bool
 )
 
 func init() {
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
+	viewCmd.Flags().BoolVar(&viewMarkdown, "markdown", false, "Render markdown by converting Backlog notation to GFM")
+	viewCmd.Flags().BoolVar(&viewRaw, "raw", false, "Render raw content without markdown conversion")
+	viewCmd.Flags().BoolVar(&viewMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
+	viewCmd.Flags().BoolVar(&viewMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -68,11 +77,18 @@ func runView(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(wiki)
 	default:
-		return renderWikiDetail(wiki, profile)
+		display := cfg.Display()
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
+		projectKey := cmdutil.GetCurrentProject(cfg)
+		return renderWikiDetail(wiki, profile, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
-func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile) error {
+func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// ヘッダー
 	fmt.Printf("%s\n", ui.Bold(wiki.Name))
 	fmt.Println(strings.Repeat("─", 60))
@@ -100,18 +116,28 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile) error {
 		fmt.Printf("Attachments: %d file(s)\n", len(wiki.Attachments))
 	}
 
+	// URL
+	url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
+		profile.Space, profile.Domain, wiki.ID)
+
 	// 内容
 	if wiki.Content != "" {
 		fmt.Println()
 		fmt.Println(ui.Bold("Content"))
 		fmt.Println(strings.Repeat("─", 60))
-		fmt.Println(wiki.Content)
+		content := wiki.Content
+		if markdownOpts.Enable {
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "wiki", wiki.ID, 0, projectKey, wiki.Name, url, out)
+			if err != nil {
+				return err
+			}
+			content = rendered
+		}
+		fmt.Println(content)
 	}
 
 	// URL
 	fmt.Println()
-	url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
-		profile.Space, profile.Domain, wiki.ID)
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil

@@ -3,6 +3,7 @@ package pr
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -28,13 +29,21 @@ Examples:
 }
 
 var (
-	viewRepo string
-	viewWeb  bool
+	viewRepo          string
+	viewWeb           bool
+	viewMarkdown      bool
+	viewRaw           bool
+	viewMarkdownWarn  bool
+	viewMarkdownCache bool
 )
 
 func init() {
 	viewCmd.Flags().StringVarP(&viewRepo, "repo", "r", "", "Repository name (required)")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
+	viewCmd.Flags().BoolVar(&viewMarkdown, "markdown", false, "Render markdown by converting Backlog notation to GFM")
+	viewCmd.Flags().BoolVar(&viewRaw, "raw", false, "Render raw content without markdown conversion")
+	viewCmd.Flags().BoolVar(&viewMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
+	viewCmd.Flags().BoolVar(&viewMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
 	_ = viewCmd.MarkFlagRequired("repo")
 }
 
@@ -77,11 +86,16 @@ func runView(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(pr)
 	default:
-		return renderPRDetail(pr, profile, display, projectKey)
+		cacheDir, cacheErr := cfg.GetCacheDir()
+		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
+		if markdownOpts.Cache && cacheErr != nil {
+			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
+		}
+		return renderPRDetail(pr, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
-func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string) error {
+func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// ハイパーリンク設定
 	ui.SetHyperlinkEnabled(display.Hyperlink)
 
@@ -133,7 +147,15 @@ func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, displa
 		fmt.Println()
 		fmt.Println(ui.Bold("Description"))
 		fmt.Println(strings.Repeat("─", 60))
-		fmt.Println(pr.Description)
+		content := pr.Description
+		if markdownOpts.Enable {
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "pr", pr.Number, 0, projectKey, fmt.Sprintf("#%d", pr.Number), prURL, out)
+			if err != nil {
+				return err
+			}
+			content = rendered
+		}
+		fmt.Println(content)
 	}
 
 	// URL（常に表示、ハイパーリンク化）

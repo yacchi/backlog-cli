@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/internal/config"
@@ -38,7 +39,7 @@ func init() {
 
 func runSet(cmd *cobra.Command, args []string) error {
 	key := args[0]
-	value := args[1]
+	value := parseConfigValue(args[1])
 
 	ctx := cmd.Context()
 	cfg, err := config.Load(ctx)
@@ -71,6 +72,18 @@ func runSet(cmd *cobra.Command, args []string) error {
 
 	ui.Success("Set %s = %s", key, value)
 	return nil
+}
+
+func parseConfigValue(value string) any {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "true":
+		return true
+	case "false":
+		return false
+	default:
+		return value
+	}
 }
 
 // resolveProjectRoot はプロジェクトルートを解決する
