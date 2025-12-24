@@ -102,12 +102,12 @@ backlog issue close ISSUE-123
 
 ### 認証 (`auth`)
 
-| コマンド               | 説明                                   |
-|--------------------|--------------------------------------|
-| `auth login`       | Backlog にログイン（API Key または OAuth 2.0） |
-| `auth logout`      | ログアウト                                |
-| `auth status`      | 認証状態を表示                              |
-| `auth me`          | ログイン中のユーザー情報を表示                  |
+| コマンド          | 説明                                   |
+|---------------|--------------------------------------|
+| `auth login`  | Backlog にログイン（API Key または OAuth 2.0） |
+| `auth logout` | ログアウト                                |
+| `auth status` | 認証状態を表示                              |
+| `auth me`     | ログイン中のユーザー情報を表示                      |
 
 #### 再ログイン（`--reuse` オプション）
 
@@ -121,6 +121,16 @@ backlog auth login -r
 
 このオプションを使用すると、前回のログイン設定（認証方式、スペース、ドメイン）をそのまま再利用し、確認プロンプトをスキップします。
 
+#### ブラウザ完結型認証（`--web` オプション）
+
+自動化や、ターミナルでの入力が難しい環境では `--web` オプションを使用できます：
+
+```bash
+backlog auth login --web
+```
+
+このオプションを使用すると、すべての認証ステップ（ドメイン選択、スペース入力、認証方式選択など）がブラウザ上で行われます。
+
 #### OAuth 認証完了ページの自動クローズ（オプション）
 
 OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Tampermonkey
@@ -130,14 +140,28 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 
 ### 課題 (`issue`)
 
-| コマンド                  | 説明       |
-|-----------------------|----------|
-| `issue list`          | 課題一覧を表示  |
-| `issue view <KEY>`    | 課題の詳細を表示 |
-| `issue create`        | 新しい課題を作成 |
-| `issue edit <KEY>`    | 課題を編集    |
-| `issue close <KEY>`   | 課題をクローズ  |
-| `issue comment <KEY>` | コメントを追加  |
+| コマンド                  | 説明         |
+|-----------------------|------------|
+| `issue list`          | 課題一覧を表示    |
+| `issue view <KEY>`    | 課題の詳細を表示   |
+| `issue create`        | 新しい課題を作成   |
+| `issue edit <KEY>`    | 課題を編集      |
+| `issue close <KEY>`   | 課題をクローズ    |
+| `issue comment <KEY>` | コメントを追加・編集 |
+
+#### コメントの編集
+
+既存のコメントを編集することもできます：
+
+```bash
+# コメントIDを指定して編集
+backlog issue comment PROJ-123 --edit 12345 --body "Updated comment"
+backlog issue comment PROJ-123 --edit 12345 --editor
+
+# 自分の最後のコメントを編集
+backlog issue comment PROJ-123 --edit-last --body "Updated comment"
+backlog issue comment PROJ-123 --edit-last --editor
+```
 
 ### プルリクエスト (`pr`)
 
@@ -171,6 +195,36 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 | `config list`              | すべての設定を表示    |
 | `config path`              | 設定ファイルのパスを表示 |
 
+### Markdown (`markdown`)
+
+Backlog 独自記法から GFM（GitHub Flavored Markdown）への変換をサポートします。
+
+| コマンド               | 説明                       |
+|--------------------|--------------------------|
+| `markdown logs`    | Markdown 変換ログを表示         |
+| `markdown migrate` | プロジェクト全体の Markdown を一括変換 |
+
+#### Markdown 一括変換
+
+プロジェクト内の課題や Wiki を Backlog 記法から GFM に一括変換できます：
+
+```bash
+# 変換ワークスペースを初期化
+backlog markdown migrate init
+
+# データを取得して変換
+backlog markdown migrate convert
+
+# 変換結果をプレビュー
+backlog markdown migrate list
+
+# 変換を適用
+backlog markdown migrate apply
+
+# 問題があればロールバック
+backlog markdown migrate rollback
+```
+
 ### その他
 
 | コマンド         | 説明              |
@@ -181,13 +235,26 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 
 ## グローバルオプション
 
-| オプション           | 説明                                            |
-|-----------------|-----------------------------------------------|
-| `--profile`     | 使用する設定プロファイル名                              |
-| `-p, --project` | プロジェクトキー                                      |
-| `-o, --output`  | 出力形式 (`table` または `json`)                     |
-| `--no-color`    | カラー出力を無効化                                     |
-| `--debug`       | デバッグログを有効化                                   |
+| オプション           | 説明                        |
+|-----------------|---------------------------|
+| `--profile`     | 使用する設定プロファイル名             |
+| `-p, --project` | プロジェクトキー                  |
+| `-o, --output`  | 出力形式 (`table` または `json`) |
+| `-f, --format`  | Go テンプレートで出力をフィルタリング      |
+| `--no-color`    | カラー出力を無効化                 |
+| `--debug`       | デバッグログを有効化                |
+
+### Go テンプレート出力 (`--format`)
+
+JSON 出力から必要なフィールドだけを抽出できます：
+
+```bash
+# 課題キーとサマリーのみを表示
+backlog issue list --format '{{range .}}{{.IssueKey}}: {{.Summary}}{{"\n"}}{{end}}'
+
+# 特定のフィールドを取得
+backlog issue view PROJ-123 --format '{{.Status.Name}}'
+```
 
 ## 設定
 

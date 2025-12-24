@@ -11,8 +11,8 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/ramenjuniti/lexrankmmr v0.0.0-20190322132754-572a7e47c7a5
 	github.com/spf13/cobra v1.10.2
-	github.com/yacchi/jubako v0.3.1
-	github.com/yacchi/jubako/format/yaml v0.3.1
+	github.com/yacchi/jubako v0.5.0
+	github.com/yacchi/jubako/format/yaml v0.5.0
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
@@ -44,7 +44,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

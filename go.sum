@@ -86,8 +86,12 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/yacchi/jubako v0.3.1 h1:YImZLYnfllOEh1i6E++7IeIxCtfgCSrpcSMPL3Tmf+Q=
 github.com/yacchi/jubako v0.3.1/go.mod h1:dsGxUOt0ZiWpInE6nDetSQ1Gpz+fmSjRcBR5VHpnCVM=
+github.com/yacchi/jubako v0.5.0 h1:dV6kvOrnn/P69b6KAteUA4GE2GIvcabdBjnOeUHKerA=
+github.com/yacchi/jubako v0.5.0/go.mod h1:dsGxUOt0ZiWpInE6nDetSQ1Gpz+fmSjRcBR5VHpnCVM=
 github.com/yacchi/jubako/format/yaml v0.3.1 h1:68CQw/puKoKYDpBYY76slDC20RGGnCb4WSMftdH54o8=
 github.com/yacchi/jubako/format/yaml v0.3.1/go.mod h1:ZC1NkndMTljFtEklvwRnTglM0VHIoZO/mG6Va+phgBo=
+github.com/yacchi/jubako/format/yaml v0.5.0 h1:pJClMEapd0u/nVcB8qGyqsUiR9qIkD4iVD0+hDm2rrg=
+github.com/yacchi/jubako/format/yaml v0.5.0/go.mod h1:W/eBdoFsZzcRz8fD2sqcNJBvxOS0MB5IPBagIdF0FtM=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
@@ -108,6 +112,8 @@ golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACk
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 h1:MDfG8Cvcqlt9XXrmEiD4epKn7VJHZO84hejP9Jmp0MM=
 golang.org/x/exp v0.0.0-20251209150349-8475f28825e9/go.mod h1:EPRbTFwzwjXj9NpYyyrvenVh9Y+GFeEvMNh7Xuz7xgU=
+golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 h1:fQsdNF2N+/YewlRZiricy4P1iimyPKZ/xwniHj8Q2a0=
+golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93/go.mod h1:EPRbTFwzwjXj9NpYyyrvenVh9Y+GFeEvMNh7Xuz7xgU=
 golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=
 golang.org/x/mod v0.31.0 h1:HaW9xtz0+kOcWKwli0ZXy79Ix+UW/vOfmWI5QVd2tgI=
 golang.org/x/mod v0.31.0/go.mod h1:43JraMp9cGx1Rx3AqioxrbrhNsLl2l/iNAvuBkrezpg=

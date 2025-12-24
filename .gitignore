@@ -40,3 +40,6 @@ web/node_modules/
 internal/ui/dist/
 web/.vite/
 web/dist/
+
+# Markdown migration workspace
+backlog-markdown-migrate/
