@@ -6,6 +6,7 @@
 /backlog
 /tmp
 *.exe
+/.gocache/
 
 # Test coverage
 coverage.out

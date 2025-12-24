@@ -1,2 +1,5 @@
 [tools]
 buf = "latest"
+
+[env]
+GOCACHE = "{{config_root}}/.gocache"
