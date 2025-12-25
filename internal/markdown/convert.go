@@ -135,7 +135,8 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int, atta
 		if reListPlus.MatchString(input) && allowedUnsafe(RuleListPlus) {
 			rules = appendRule(rules, RuleListPlus)
 		}
-		content, listChanged := convertDashLists(content)
+		var listChanged bool
+		content, listChanged = convertDashLists(content)
 		if listChanged && allowedUnsafe(RuleListDashSpace) {
 			rules = appendRule(rules, RuleListDashSpace)
 		}
@@ -143,7 +144,8 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int, atta
 
 	// Tables
 	if allowedUnsafe(RuleTableSeparator) {
-		content, tableChanged := convertTables(content)
+		var tableChanged bool
+		content, tableChanged = convertTables(content)
 		if tableChanged {
 			rules = appendRule(rules, RuleTableSeparator)
 		}
@@ -352,6 +354,10 @@ func convertTables(input string) (string, bool) {
 
 			prevIsTable := i > 0 && (isTableRow(lines[i-1]) || isTableSeparator(lines[i-1]))
 			nextIsSeparator := i+1 < len(lines) && isTableSeparator(lines[i+1])
+			if nextIsSeparator {
+				out = append(out, line)
+				continue
+			}
 			normalized := normalizeTableRow(line)
 			if normalized != line {
 				changed = true
