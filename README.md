@@ -12,6 +12,21 @@ Backlog をターミナルから操作するためのコマンドラインツー
 go install github.com/yacchi/backlog-cli/cmd/backlog@latest
 ```
 
+### Claude Code プラグイン
+
+[Claude Code](https://claude.com/claude-code) から Backlog を操作するためのプラグインも提供しています。
+[yacchi/claude-plugins](https://github.com/yacchi/claude-plugins) Marketplace からインストールできます：
+
+```bash
+# Marketplace を追加（初回のみ）
+/plugin marketplace add yacchi/claude-plugins
+
+# プラグインをインストール
+/plugin install backlog-cli
+```
+
+プラグインの詳細は [Claude Code プラグイン](#claude-code-プラグイン-1) セクションを参照してください。
+
 ## クイックスタート
 
 ### 1. 認証方式の選択
@@ -185,6 +200,19 @@ backlog issue comment PROJ-123 --edit-last --editor
 | `project list`       | プロジェクト一覧を表示           |
 | `project view <KEY>` | プロジェクトの詳細を表示          |
 | `project init`       | 現在のディレクトリにプロジェクト設定を作成 |
+| `project current`    | 現在のプロジェクトキーを表示        |
+
+### 課題種別 (`issue-type`)
+
+課題種別の作成・編集・削除を行います。エイリアス: `type`
+
+| コマンド                         | 説明      |
+|------------------------------|---------|
+| `issue-type list`            | 種別一覧を表示 |
+| `issue-type view <ID\|名前>`   | 種別詳細を表示 |
+| `issue-type create`          | 種別を作成   |
+| `issue-type edit <ID\|名前>`   | 種別を編集   |
+| `issue-type delete <ID\|名前>` | 種別を削除   |
 
 ### 設定 (`config`)
 
@@ -204,26 +232,74 @@ Backlog 独自記法から GFM（GitHub Flavored Markdown）への変換をサ�
 | `markdown logs`    | Markdown 変換ログを表示         |
 | `markdown migrate` | プロジェクト全体の Markdown を一括変換 |
 
-#### Markdown 一括変換
+#### Markdown マイグレーション
 
-プロジェクト内の課題や Wiki を Backlog 記法から GFM に一括変換できます：
+プロジェクト内の課題や Wiki、課題種別テンプレートを Backlog 記法から GFM に変換できます。
+作業ディレクトリはデフォルトでカレントディレクトリを使います。
 
 ```bash
-# 変換ワークスペースを初期化
-backlog markdown migrate init
+# 作業ディレクトリを初期化
+backlog markdown migrate init DEV
 
-# データを取得して変換
-backlog markdown migrate convert
+# 変更点のプレビュー
+backlog markdown migrate list --diff
 
-# 変換結果をプレビュー
-backlog markdown migrate list
-
-# 変換を適用
+# 変換を適用（対話モード）
 backlog markdown migrate apply
+
+# 自動適用（確認なし）
+backlog markdown migrate apply --auto
+
+# Dry-run（差分だけ表示、Backlog への反映とマージは行わない）
+backlog markdown migrate apply --dry-run --auto
 
 # 問題があればロールバック
 backlog markdown migrate rollback
+
+# 新規作成分を追加取り込み
+backlog markdown migrate snapshot --append
 ```
+
+作業ディレクトリは Git リポジトリとして扱われ、取得・変換・適用の差分がコミットとして記録されます。
+
+#### 変換ルール
+
+以下の変換ルールがサポートされています：
+
+| ルール ID             | 変換内容                              |
+|--------------------|-----------------------------------|
+| `heading_asterisk` | `*見出し` → `# 見出し`                  |
+| `quote_block`      | `{quote}` → `>`                   |
+| `code_block`       | `{code}` → ` ``` `                |
+| `emphasis_bold`    | `''bold''` → `**bold**`           |
+| `emphasis_italic`  | `'''italic'''` → `*italic*`       |
+| `strikethrough`    | `%%strike%%` → `~~strike~~`       |
+| `backlog_link`     | `[[label>url]]` → `[label](url)`  |
+| `toc`              | `#contents` → `[toc]`             |
+| `line_break`       | `&br;` → `<br>`                   |
+| `list_plus`        | `+ list` → `1. list`              |
+| `list_dash_space`  | `-list` / `--nested` → インデント・空行補正 |
+| `table_separator`  | `\|h` などのテーブル補正                   |
+| `image_macro`      | `#image(...)` → `![image](...)`   |
+
+#### Unsafe ルールの設定
+
+一部のルールは誤変換のリスクがあるため、デフォルトでは `markdown migrate apply` 時にスキップされます。
+これらは設定ファイルの `display.markdown_unsafe_rules` で管理されます：
+
+```yaml
+display:
+  markdown_unsafe_rules:
+    - heading_asterisk
+    - list_plus
+    - list_dash_space
+    - table_separator
+    - emphasis_bold
+    - emphasis_italic
+    - strikethrough
+```
+
+Unsafe ルールを適用するには、設定から該当ルールを削除してください。
 
 ### その他
 
@@ -292,6 +368,23 @@ backlog completion zsh >"${fpath[1]}/_backlog"
 ```bash
 backlog completion fish >~/.config/fish/completions/backlog.fish
 ```
+
+## Claude Code プラグイン
+
+インストール方法は [インストール](#インストール) セクションを参照してください。
+
+### 提供されるスキル
+
+| スキル             | 説明                   |
+|-----------------|----------------------|
+| `backlog`       | プロジェクト・Wiki・PR・認証の操作 |
+| `backlog-issue` | 課題キーパターン検出と課題操作      |
+
+### 機能
+
+- **課題キーの自動検出**: ブランチ名やコミットメッセージから課題キーを検出
+- **認証状態チェック**: `--quiet` オプションでスクリプト向けの終了コード
+- **テキスト形式対応**: プロジェクトの設定に応じた Backlog 記法 / Markdown の使い分け
 
 ## ライセンス
 
