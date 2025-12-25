@@ -7,6 +7,7 @@ import (
 	"github.com/yacchi/backlog-cli/internal/cmd/auth"
 	configcmd "github.com/yacchi/backlog-cli/internal/cmd/config"
 	"github.com/yacchi/backlog-cli/internal/cmd/issue"
+	"github.com/yacchi/backlog-cli/internal/cmd/issue_type"
 	"github.com/yacchi/backlog-cli/internal/cmd/markdown"
 	"github.com/yacchi/backlog-cli/internal/cmd/pr"
 	"github.com/yacchi/backlog-cli/internal/cmd/project"
@@ -106,6 +107,7 @@ func init() {
 	rootCmd.AddCommand(auth.AuthCmd)
 	rootCmd.AddCommand(configcmd.ConfigCmd)
 	rootCmd.AddCommand(issue.IssueCmd)
+	rootCmd.AddCommand(issue_type.IssueTypeCmd)
 	rootCmd.AddCommand(markdown.MarkdownCmd)
 	rootCmd.AddCommand(pr.PRCmd)
 	rootCmd.AddCommand(project.ProjectCmd)

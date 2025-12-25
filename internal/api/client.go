@@ -437,3 +437,32 @@ func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*htt
 func (c *Client) Delete(ctx context.Context, path string) (*http.Response, error) {
 	return c.Request(ctx, "DELETE", path, nil, nil)
 }
+
+// DeleteWithForm はフォーム形式でDELETEする
+func (c *Client) DeleteWithForm(ctx context.Context, path string, data url.Values) (*http.Response, error) {
+	// OAuth認証の場合のみトークン更新チェック
+	if c.apiKey == "" {
+		if err := c.ensureValidToken(ctx); err != nil {
+			return nil, fmt.Errorf("token refresh failed: %w", err)
+		}
+	}
+
+	// API Key認証の場合はURLにapiKeyを追加
+	requestURL := c.baseURL() + path
+	if c.apiKey != "" {
+		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", requestURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	// OAuth認証の場合のみAuthorizationヘッダーを設定
+	if c.apiKey == "" && c.accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return c.httpClient.Do(req)
+}

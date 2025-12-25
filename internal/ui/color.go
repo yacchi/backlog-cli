@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/term"
 )
@@ -158,4 +159,35 @@ func Hyperlink(url, label string) string {
 		return label
 	}
 	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, label)
+}
+
+// parseHex はHEXカラーコードをRGB値に変換する
+func parseHex(hex string) (r, g, b int) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) == 3 {
+		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	}
+	if len(hex) != 6 {
+		return 0, 0, 0
+	}
+	_, _ = fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	return
+}
+
+// HexColor はHEXカラーコードで文字色を設定する（24-bit truecolor）
+func HexColor(hex, text string) string {
+	if !colorEnabled {
+		return text
+	}
+	r, g, b := parseHex(hex)
+	return fmt.Sprintf("\033[38;2;%d;%d;%dm%s%s", r, g, b, text, reset)
+}
+
+// HexBgColor はHEXカラーコードで背景色を設定する（24-bit truecolor）
+func HexBgColor(hex, text string) string {
+	if !colorEnabled {
+		return text
+	}
+	r, g, b := parseHex(hex)
+	return fmt.Sprintf("\033[48;2;%d;%d;%dm%s%s", r, g, b, text, reset)
 }
