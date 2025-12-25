@@ -42,6 +42,7 @@ const (
 	RuleListPlus        RuleID = "rule.list_plus"
 	RuleListDashSpace   RuleID = "rule.list_dash_space"
 	RuleTableSeparator  RuleID = "rule.table_separator"
+	RuleImageMacro      RuleID = "rule.image_macro"
 )
 
 // DetectResult represents detection output.
@@ -52,15 +53,16 @@ type DetectResult struct {
 
 // ConvertOptions controls conversion behavior.
 type ConvertOptions struct {
-	Force      bool
-	LineBreak  string
-	WarnOnly   bool
-	ItemType   string
-	ItemID     int
-	ParentID   int
-	ProjectKey string
-	ItemKey    string
-	URL        string
+	Force           bool
+	LineBreak       string
+	WarnOnly        bool
+	ItemType        string
+	ItemID          int
+	ParentID        int
+	ProjectKey      string
+	ItemKey         string
+	URL             string
+	AttachmentNames []string
 }
 
 // ConvertResult represents conversion output.

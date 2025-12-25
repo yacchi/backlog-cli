@@ -131,6 +131,19 @@ func renderIssueBrief(issue *backlog.Issue, profile *config.ResolvedProfile) err
 	return nil
 }
 
+func issueAttachmentNames(attachments []backlog.Attachment) []string {
+	if len(attachments) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(attachments))
+	for _, attachment := range attachments {
+		if attachment.Name.IsSet() && attachment.Name.Value != "" {
+			names = append(names, attachment.Name.Value)
+		}
+	}
+	return names
+}
+
 // outputBriefJSON outputs a brief JSON representation of the issue
 func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) error {
 	key := issue.IssueKey.Value
@@ -316,7 +329,8 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		fmt.Println(strings.Repeat("─", 60))
 		content := issue.Description.Value
 		if markdownOpts.Enable {
-			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "issue", issueID, 0, projectKey, key, issueURL, out)
+			attachments := issueAttachmentNames(issue.Attachments)
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "issue", issueID, 0, projectKey, key, issueURL, attachments, out)
 			if err != nil {
 				return err
 			}
@@ -342,7 +356,7 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 			content := comment.Content
 			if markdownOpts.Enable {
 				commentURL := fmt.Sprintf("%s#comment-%d", issueURL, comment.ID)
-				rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "comment", comment.ID, issueID, projectKey, key, commentURL, out)
+				rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "comment", comment.ID, issueID, projectKey, key, commentURL, nil, out)
 				if err != nil {
 					return err
 				}

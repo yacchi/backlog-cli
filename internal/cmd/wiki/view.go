@@ -127,7 +127,8 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKe
 		fmt.Println(strings.Repeat("─", 60))
 		content := wiki.Content
 		if markdownOpts.Enable {
-			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "wiki", wiki.ID, 0, projectKey, wiki.Name, url, out)
+			attachments := wikiAttachmentNames(wiki.Attachments)
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "wiki", wiki.ID, 0, projectKey, wiki.Name, url, attachments, out)
 			if err != nil {
 				return err
 			}
@@ -148,4 +149,17 @@ func formatDate(dateStr string) string {
 		return dateStr[:10] + " " + dateStr[11:16]
 	}
 	return dateStr
+}
+
+func wikiAttachmentNames(attachments []api.Attachment) []string {
+	if len(attachments) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(attachments))
+	for _, attachment := range attachments {
+		if attachment.Name != "" {
+			names = append(names, attachment.Name)
+		}
+	}
+	return names
 }

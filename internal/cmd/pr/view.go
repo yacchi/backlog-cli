@@ -149,7 +149,7 @@ func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, displa
 		fmt.Println(strings.Repeat("─", 60))
 		content := pr.Description
 		if markdownOpts.Enable {
-			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "pr", pr.Number, 0, projectKey, fmt.Sprintf("#%d", pr.Number), prURL, out)
+			rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "pr", pr.Number, 0, projectKey, fmt.Sprintf("#%d", pr.Number), prURL, nil, out)
 			if err != nil {
 				return err
 			}

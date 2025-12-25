@@ -69,6 +69,14 @@ func TestConvertHeadingRequiresSpace(t *testing.T) {
 	}
 }
 
+func TestConvertHeadingAboveSixHashes(t *testing.T) {
+	input := "******** Title"
+	result := Convert(input, ConvertOptions{Force: true})
+	if result.Output != "######## Title" {
+		t.Fatalf("expected heading to convert with same count, got: %q", result.Output)
+	}
+}
+
 func TestConvertQuoteWithCodeBlock(t *testing.T) {
 	input := "{quote}\n{code}\nline\n{/code}\n{/quote}"
 	result := Convert(input, ConvertOptions{Force: true})
@@ -165,5 +173,21 @@ func TestConvertInlineCodeBlockWithLang(t *testing.T) {
 	want := "ID `sql: select 1` test"
 	if result.Output != want {
 		t.Fatalf("expected inline code conversion with lang, got: %q", result.Output)
+	}
+}
+
+func TestConvertImageMacroAttachment(t *testing.T) {
+	input := "#image(logo.png)"
+	result := Convert(input, ConvertOptions{Force: true, AttachmentNames: []string{"logo.png"}})
+	if result.Output != "![image][logo.png]" {
+		t.Fatalf("expected attachment image conversion, got: %q", result.Output)
+	}
+}
+
+func TestConvertImageMacroURL(t *testing.T) {
+	input := "#image(https://example.com/logo.png)"
+	result := Convert(input, ConvertOptions{Force: true})
+	if result.Output != "![image](https://example.com/logo.png)" {
+		t.Fatalf("expected URL image conversion, got: %q", result.Output)
 	}
 }

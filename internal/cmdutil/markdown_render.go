@@ -10,14 +10,15 @@ import (
 )
 
 // RenderMarkdownContent converts content and optionally prints warnings and caches.
-func RenderMarkdownContent(content string, opts MarkdownViewOptions, itemType string, itemID int, parentID int, projectKey string, itemKey string, url string, warnWriter io.Writer) (string, error) {
+func RenderMarkdownContent(content string, opts MarkdownViewOptions, itemType string, itemID int, parentID int, projectKey string, itemKey string, url string, attachments []string, warnWriter io.Writer) (string, error) {
 	result := markdown.Convert(content, markdown.ConvertOptions{
-		ItemType:   itemType,
-		ItemID:     itemID,
-		ParentID:   parentID,
-		ProjectKey: projectKey,
-		ItemKey:    itemKey,
-		URL:        url,
+		ItemType:        itemType,
+		ItemID:          itemID,
+		ParentID:        parentID,
+		ProjectKey:      projectKey,
+		ItemKey:         itemKey,
+		URL:             url,
+		AttachmentNames: attachments,
 	})
 
 	output := result.Output
