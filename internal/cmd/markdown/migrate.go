@@ -20,11 +20,8 @@ import (
 	"github.com/yacchi/backlog-cli/internal/api"
 	"github.com/yacchi/backlog-cli/internal/backlog"
 	"github.com/yacchi/backlog-cli/internal/cmdutil"
-	"github.com/yacchi/backlog-cli/internal/config"
 	"github.com/yacchi/backlog-cli/internal/markdown"
 )
-
-const migrationBaseDir = "backlog-markdown-migrate"
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
@@ -33,21 +30,22 @@ var migrateCmd = &cobra.Command{
 
 This command suite supports init/apply/rollback steps to control API usage and
 resume safely. Workspace data is stored in
-./backlog-markdown-migrate/<projectKey> under the current directory unless
---dir is provided.
+the current directory unless --dir (or -w) is provided.
 
 Examples:
   backlog markdown migrate init <projectKey>
-  backlog markdown migrate apply <projectKey>
-  backlog markdown migrate rollback <projectKey>
-  backlog markdown migrate list <projectKey>
-  backlog markdown migrate logs <projectKey>`,
+  backlog markdown migrate apply
+  backlog markdown migrate rollback
+  backlog markdown migrate list
+  backlog markdown migrate logs
+  backlog markdown migrate status
+  backlog markdown migrate clean`,
 }
 
 var migrateInitCmd = &cobra.Command{
 	Use:   "init <projectKey>",
 	Short: "Initialize a migration workspace",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.ExactArgs(1),
 	RunE:  runMigrateInit,
 }
 
@@ -59,9 +57,9 @@ var (
 )
 
 var migrateApplyCmd = &cobra.Command{
-	Use:   "apply <projectKey>",
+	Use:   "apply",
 	Short: "Apply converted data back to Backlog",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runMigrateApply,
 }
 
@@ -69,50 +67,72 @@ var (
 	rollbackForceLock bool
 	rollbackTargets   []string
 	rollbackTypes     []string
+	rollbackAuto      bool
 )
 
 var migrateRollbackCmd = &cobra.Command{
-	Use:   "rollback <projectKey>",
+	Use:   "rollback",
 	Short: "Rollback applied conversions",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runMigrateRollback,
 }
 
 var migrateListCmd = &cobra.Command{
-	Use:   "list <projectKey>",
+	Use:   "list",
 	Short: "List items in the migration workspace",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runMigrateList,
 }
 
 var migrateLogsCmd = &cobra.Command{
-	Use:   "logs <projectKey>",
+	Use:   "logs",
 	Short: "Show migration logs",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.NoArgs,
 	RunE:  runMigrateLogs,
+}
+
+var migrateStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show migration workspace status",
+	Args:  cobra.NoArgs,
+	RunE:  runMigrateStatus,
+}
+
+var migrateCleanCmd = &cobra.Command{
+	Use:   "clean",
+	Short: "Remove migration workspace",
+	Args:  cobra.NoArgs,
+	RunE:  runMigrateClean,
 }
 
 var listDiff bool
 var migrateLogsLimit int
 var migrateWorkspaceDir string
+var migrateCleanForce bool
+var migrateLogsAll bool
 
 func init() {
-	migrateCmd.PersistentFlags().StringVar(&migrateWorkspaceDir, "dir", "", "Migration workspace directory (defaults to ./backlog-markdown-migrate/<projectKey>)")
+	migrateCmd.PersistentFlags().StringVarP(&migrateWorkspaceDir, "dir", "w", "", "Migration workspace directory (defaults to current directory)")
 	migrateApplyCmd.Flags().BoolVar(&applyForceLock, "force-lock", false, "Remove existing lock and retry")
 	migrateApplyCmd.Flags().BoolVar(&applyAuto, "auto", false, "Apply changes without confirmation")
 	migrateApplyCmd.Flags().BoolVar(&applyDryRun, "dry-run", false, "Show diffs without applying changes")
-	migrateApplyCmd.Flags().StringSliceVar(&applyTypes, "types", nil, "Apply target types (issue,comment,wiki). Default: all")
+	migrateApplyCmd.Flags().StringSliceVar(&applyTypes, "types", nil, "Apply target types (issue,wiki). Default: all")
 	migrateRollbackCmd.Flags().BoolVar(&rollbackForceLock, "force-lock", false, "Remove existing lock and retry")
-	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTargets, "targets", nil, "Rollback target item keys (issue key, comment key, wiki name)")
-	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTypes, "types", nil, "Rollback target types (issue,comment,wiki). Default: all")
+	migrateRollbackCmd.Flags().BoolVar(&rollbackAuto, "auto", false, "Rollback without confirmation")
+	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTargets, "targets", nil, "Rollback target item keys (issue key, wiki id)")
+	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTypes, "types", nil, "Rollback target types (issue,wiki). Default: all")
 	migrateListCmd.Flags().BoolVar(&listDiff, "diff", false, "Show diffs for changed items")
 	migrateLogsCmd.Flags().IntVar(&migrateLogsLimit, "limit", 0, "Limit number of log entries (0 = all)")
+	migrateLogsCmd.Flags().BoolVar(&migrateLogsAll, "all", false, "Include no-change entries")
+	migrateCleanCmd.Flags().BoolVar(&migrateCleanForce, "force", false, "Remove workspace without confirmation")
 
 	migrateCmd.AddCommand(migrateInitCmd)
 	migrateCmd.AddCommand(migrateApplyCmd)
 	migrateCmd.AddCommand(migrateRollbackCmd)
 	migrateCmd.AddCommand(migrateListCmd)
 	migrateCmd.AddCommand(migrateLogsCmd)
+	migrateCmd.AddCommand(migrateStatusCmd)
+	migrateCmd.AddCommand(migrateCleanCmd)
 	MarkdownCmd.AddCommand(migrateCmd)
 }
 
@@ -122,24 +142,48 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	projectKey, err := resolveProjectKey(cfg, args)
-	if err != nil {
-		return err
-	}
+	projectKey := args[0]
 	fmt.Printf("Initializing migration workspace for %s...\n", projectKey)
 	project, err := client.GetProject(cmd.Context(), projectKey)
 	if err != nil {
 		return err
 	}
 
-	dir, err := migrationDir(projectKey)
+	dir, err := migrationDir()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Workspace: %s\n", dir)
 
+	if empty, err := isDirEmpty(dir); err != nil {
+		return err
+	} else if !empty {
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Directory %s is not empty. Continue?", dir),
+			Default: false,
+		}
+		if err := survey.AskOne(prompt, &confirm); err != nil {
+			return err
+		}
+		if !confirm {
+			fmt.Println("Canceled.")
+			return nil
+		}
+	}
+
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create migration dir: %w", err)
+	}
+
+	metaPath := filepath.Join(dir, "metadata.json")
+	if meta, err := loadMetadata(dir); err == nil {
+		if meta.ProjectKey != "" && meta.ProjectKey != projectKey {
+			return fmt.Errorf("workspace already initialized for %s", meta.ProjectKey)
+		}
+	}
+	if _, err := os.Stat(metaPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat metadata: %w", err)
 	}
 
 	baseBranch, err := ensureMigrationRepo(dir, false)
@@ -207,29 +251,31 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrateApply(cmd *cobra.Command, args []string) error {
-	client, cfg, err := cmdutil.GetAPIClient(cmd)
+	client, _, err := cmdutil.GetAPIClient(cmd)
 	if err != nil {
 		return err
 	}
 
-	projectKey, err := resolveProjectKey(cfg, args)
+	dir, err := migrationDir()
 	if err != nil {
 		return err
+	}
+	meta, err := loadMetadata(dir)
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	projectKey := meta.ProjectKey
+	if projectKey == "" {
+		return fmt.Errorf("metadata missing project key")
 	}
 	ctx := cmd.Context()
-
-	dir, err := migrationDir(projectKey)
-	if err != nil {
-		return err
-	}
 
 	baseBranch, err := ensureMigrationRepo(dir, true)
 	if err != nil {
 		return err
 	}
 
-	meta, err := loadMetadata(dir)
-	if err == nil && meta.BaseBranch != "" {
+	if meta.BaseBranch != "" {
 		baseBranch = meta.BaseBranch
 	}
 	if resolved, err := resolveBaseBranch(dir, baseBranch); err != nil {
@@ -293,6 +339,7 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 	applied := 0
 	skipped := 0
 	allowedTypes := normalizeTypes(applyTypes)
+	anyChanges := false
 
 	for i := range items {
 		item := &items[i]
@@ -314,14 +361,14 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 
 		current, err := fetchCurrentItem(ctx, client, item)
 		if err != nil {
-			item.ApplyError = err.Error()
+			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "apply",
 				Status:   "error",
 				ItemType: item.ItemType,
 				ItemKey:  item.ItemKey,
 				URL:      item.URL,
-				Message:  item.ApplyError,
+				Message:  errMsg,
 			})
 			skipped++
 			continue
@@ -361,6 +408,7 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 				if err := gitCommit(dir, fmt.Sprintf("snapshot: %s %s", item.ItemType, item.ItemKey)); err != nil {
 					return err
 				}
+				anyChanges = true
 			}
 			currentDisk = raw
 		} else if nameChanged {
@@ -385,25 +433,25 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 				if err := gitCommit(dir, fmt.Sprintf("snapshot: %s %s", item.ItemType, item.ItemKey)); err != nil {
 					return err
 				}
+				anyChanges = true
 			}
 		}
 
 		converted, changed, err := applyConversion(item, raw, current.Attachments)
 		if err != nil {
-			item.ApplyError = err.Error()
+			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "apply",
 				Status:   "error",
 				ItemType: item.ItemType,
 				ItemKey:  item.ItemKey,
 				URL:      item.URL,
-				Message:  item.ApplyError,
+				Message:  errMsg,
 			})
 			skipped++
 			continue
 		}
 		if !changed || converted == currentDisk {
-			item.ApplyError = "no changes"
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "apply",
 				Status:   "no_change",
@@ -430,7 +478,6 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			switch choice {
 			case "approve":
 			case "reject":
-				item.ApplyError = "rejected"
 				_ = appendMigrateLog(dir, migrateLogEntry{
 					Action:   "apply",
 					Status:   "rejected",
@@ -441,7 +488,6 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 				skipped++
 				continue
 			case "skip":
-				item.ApplyError = "skipped"
 				_ = appendMigrateLog(dir, migrateLogEntry{
 					Action:   "apply",
 					Status:   "skipped",
@@ -452,8 +498,10 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 				skipped++
 				continue
 			case "quit":
-				if err := finalizeApplyState(dir, items); err != nil {
-					return err
+				if anyChanges {
+					if err := finalizeApplyState(dir, items); err != nil {
+						return err
+					}
 				}
 				fmt.Println("Stopped by user.")
 				return nil
@@ -487,10 +535,11 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 		}
 
 		if !applyDryRun {
-			if err := applyItem(ctx, client, item, converted); err != nil {
-				item.ApplyError = err.Error()
+			updatedAt, err := applyItem(ctx, client, item, converted)
+			if err != nil {
+				errMsg := err.Error()
 				if !applyAuto {
-					fmt.Printf("Failed %s %s: %s\n", item.ItemType, item.ItemKey, item.ApplyError)
+					fmt.Printf("Failed %s %s: %s\n", item.ItemType, item.ItemKey, errMsg)
 				}
 				_ = appendMigrateLog(dir, migrateLogEntry{
 					Action:   "apply",
@@ -498,11 +547,16 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 					ItemType: item.ItemType,
 					ItemKey:  item.ItemKey,
 					URL:      item.URL,
-					Message:  item.ApplyError,
+					Message:  errMsg,
 				})
 				skipped++
 				continue
 			}
+			if updatedAt != "" {
+				item.UpdatedAt = updatedAt
+			}
+			item.InputHash = hashHex(converted)
+			item.FetchedAt = time.Now().Format(time.RFC3339)
 		}
 
 		if err := writeItemContent(path, converted); err != nil {
@@ -522,6 +576,7 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			if err := gitCommit(dir, fmt.Sprintf("apply: %s %s", item.ItemType, item.ItemKey)); err != nil {
 				return err
 			}
+			anyChanges = true
 		}
 		_ = appendMigrateLog(dir, migrateLogEntry{
 			Action:   "apply",
@@ -533,11 +588,15 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 		applied++
 	}
 
-	if err := finalizeApplyState(dir, items); err != nil {
-		return err
+	if anyChanges {
+		if err := finalizeApplyState(dir, items); err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("No changes; skipping merge and cleaning up.")
 	}
 
-	if baseBranch != "" && baseBranch != applyBranch && strings.HasPrefix(applyBranch, "apply-") && !applyDryRun {
+	if anyChanges && baseBranch != "" && baseBranch != applyBranch && strings.HasPrefix(applyBranch, "apply-") && !applyDryRun {
 		if !checkoutIfPossible(dir, baseBranch) {
 			fmt.Printf("Base branch %s not available; skipping merge.\n", baseBranch)
 			goto checkout_return
@@ -551,6 +610,9 @@ checkout_return:
 		if !checkoutIfPossible(dir, startBranch) {
 			_ = checkoutIfPossible(dir, baseBranch)
 		}
+		if !anyChanges && strings.HasPrefix(applyBranch, "apply-") {
+			_ = gitDeleteBranch(dir, applyBranch)
+		}
 	}
 
 	if createdBranch {
@@ -563,19 +625,21 @@ checkout_return:
 }
 
 func runMigrateRollback(cmd *cobra.Command, args []string) error {
-	_, cfg, err := cmdutil.GetAPIClient(cmd)
+	client, _, err := cmdutil.GetAPIClient(cmd)
 	if err != nil {
 		return err
 	}
 
-	projectKey, err := resolveProjectKey(cfg, args)
+	dir, err := migrationDir()
 	if err != nil {
 		return err
 	}
-
-	dir, err := migrationDir(projectKey)
+	meta, err := loadMetadata(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	if meta.ProjectKey == "" {
+		return fmt.Errorf("metadata missing project key")
 	}
 
 	if _, err := ensureMigrationRepo(dir, true); err != nil {
@@ -597,6 +661,7 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 	skipped := 0
 	allowedTypes := normalizeTypes(rollbackTypes)
 	targets := normalizeTargets(rollbackTargets)
+	anyChanges := false
 
 	for i := range items {
 		item := &items[i]
@@ -606,7 +671,7 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 		if !typeAllowed(allowedTypes, item.ItemType) {
 			continue
 		}
-		if len(targets) > 0 && !targets[item.ItemKey] {
+		if len(targets) > 0 && !matchesRollbackTarget(item, targets) {
 			continue
 		}
 
@@ -617,20 +682,19 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 
 		firstCommit, err := gitFirstCommitForFile(dir, path)
 		if err != nil {
-			item.RollbackError = err.Error()
+			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "rollback",
 				Status:   "error",
 				ItemType: item.ItemType,
 				ItemKey:  item.ItemKey,
 				URL:      item.URL,
-				Message:  item.RollbackError,
+				Message:  errMsg,
 			})
 			skipped++
 			continue
 		}
 		if firstCommit == "" {
-			item.RollbackError = "no snapshot"
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "rollback",
 				Status:   "no_snapshot",
@@ -643,14 +707,14 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := gitCheckoutFile(dir, firstCommit, path); err != nil {
-			item.RollbackError = err.Error()
+			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "rollback",
 				Status:   "error",
 				ItemType: item.ItemType,
 				ItemKey:  item.ItemKey,
 				URL:      item.URL,
-				Message:  item.RollbackError,
+				Message:  errMsg,
 			})
 			skipped++
 			continue
@@ -658,14 +722,88 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 
 		content, err := readFileIfExists(path)
 		if err != nil {
-			item.RollbackError = err.Error()
+			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
 				Action:   "rollback",
 				Status:   "error",
 				ItemType: item.ItemType,
 				ItemKey:  item.ItemKey,
 				URL:      item.URL,
-				Message:  item.RollbackError,
+				Message:  errMsg,
+			})
+			skipped++
+			continue
+		}
+
+		if !rollbackAuto {
+			current, err := fetchCurrentItem(cmd.Context(), client, item)
+			if err != nil {
+				errMsg := err.Error()
+				_ = appendMigrateLog(dir, migrateLogEntry{
+					Action:   "rollback",
+					Status:   "error",
+					ItemType: item.ItemType,
+					ItemKey:  item.ItemKey,
+					URL:      item.URL,
+					Message:  errMsg,
+				})
+				skipped++
+				continue
+			}
+			if err := printContentDiff(current.Content, content); err != nil {
+				return err
+			}
+			if item.URL != "" {
+				fmt.Printf("%s\n", item.URL)
+			}
+			fmt.Printf("\n%s %s\n", item.ItemType, item.ItemKey)
+			choice, err := promptApplyDecision()
+			if err != nil {
+				return err
+			}
+			switch choice {
+			case "approve":
+			case "reject":
+				_ = appendMigrateLog(dir, migrateLogEntry{
+					Action:   "rollback",
+					Status:   "rejected",
+					ItemType: item.ItemType,
+					ItemKey:  item.ItemKey,
+					URL:      item.URL,
+				})
+				skipped++
+				continue
+			case "skip":
+				_ = appendMigrateLog(dir, migrateLogEntry{
+					Action:   "rollback",
+					Status:   "skipped",
+					ItemType: item.ItemType,
+					ItemKey:  item.ItemKey,
+					URL:      item.URL,
+				})
+				skipped++
+				continue
+			case "quit":
+				if anyChanges {
+					if err := finalizeApplyState(dir, items); err != nil {
+						return err
+					}
+				}
+				fmt.Println("Stopped by user.")
+				return nil
+			}
+		}
+
+		updatedAt, err := applyItem(cmd.Context(), client, item, content)
+		if err != nil {
+			errMsg := err.Error()
+			_ = appendMigrateLog(dir, migrateLogEntry{
+				Action:   "rollback",
+				Status:   "error",
+				ItemType: item.ItemType,
+				ItemKey:  item.ItemKey,
+				URL:      item.URL,
+				Message:  errMsg,
 			})
 			skipped++
 			continue
@@ -678,6 +816,10 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 		item.ApplyError = ""
 		item.RollbackAt = time.Now().Format(time.RFC3339)
 		item.RollbackError = ""
+		item.FetchedAt = time.Now().Format(time.RFC3339)
+		if updatedAt != "" {
+			item.UpdatedAt = updatedAt
+		}
 
 		if err := writeItems(dir, items); err != nil {
 			return err
@@ -689,6 +831,7 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 			if err := gitCommit(dir, fmt.Sprintf("rollback: %s %s", item.ItemType, item.ItemKey)); err != nil {
 				return err
 			}
+			anyChanges = true
 		}
 
 		_ = appendMigrateLog(dir, migrateLogEntry{
@@ -701,11 +844,10 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 		rolledBack++
 	}
 
-	if err := writeItems(dir, items); err != nil {
-		return err
-	}
-	if err := touchMetadata(dir); err != nil {
-		return err
+	if anyChanges {
+		if err := finalizeApplyState(dir, items); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Rolled back: %d, Skipped: %d\n", rolledBack, skipped)
@@ -713,18 +855,12 @@ func runMigrateRollback(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrateList(cmd *cobra.Command, args []string) error {
-	_, cfg, err := cmdutil.GetAPIClient(cmd)
+	dir, err := migrationDir()
 	if err != nil {
 		return err
 	}
-
-	projectKey, err := resolveProjectKey(cfg, args)
-	if err != nil {
-		return err
-	}
-	dir, err := migrationDir(projectKey)
-	if err != nil {
-		return err
+	if _, err := loadMetadata(dir); err != nil {
+		return fmt.Errorf("load metadata: %w", err)
 	}
 
 	items, err := readItems(dir)
@@ -764,18 +900,12 @@ func runMigrateList(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrateLogs(cmd *cobra.Command, args []string) error {
-	_, cfg, err := cmdutil.GetAPIClient(cmd)
+	dir, err := migrationDir()
 	if err != nil {
 		return err
 	}
-
-	projectKey, err := resolveProjectKey(cfg, args)
-	if err != nil {
-		return err
-	}
-	dir, err := migrationDir(projectKey)
-	if err != nil {
-		return err
+	if _, err := loadMetadata(dir); err != nil {
+		return fmt.Errorf("load metadata: %w", err)
 	}
 
 	path := migrateLogPath(dir)
@@ -803,6 +933,9 @@ func runMigrateLogs(cmd *cobra.Command, args []string) error {
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			return fmt.Errorf("decode log: %w", err)
 		}
+		if entry.Status == "no_change" && !migrateLogsAll {
+			continue
+		}
 		entries = append(entries, entry)
 	}
 	if err := scanner.Err(); err != nil {
@@ -823,6 +956,117 @@ func runMigrateLogs(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  %s\n", entry.Message)
 		}
 	}
+	return nil
+}
+
+func runMigrateStatus(cmd *cobra.Command, args []string) error {
+	dir, err := migrationDir()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(dir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("Workspace not found: %s\n", dir)
+			return nil
+		}
+		return fmt.Errorf("stat workspace: %w", err)
+	}
+
+	meta, err := loadMetadata(dir)
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+
+	items, err := readItems(dir)
+	if err != nil {
+		return err
+	}
+
+	total := 0
+	applied := 0
+	changed := 0
+	byType := map[string]int{}
+	for _, item := range items {
+		if item.ItemType == "comment" {
+			continue
+		}
+		total++
+		byType[item.ItemType]++
+		if item.Applied {
+			applied++
+		}
+		if item.Changed {
+			changed++
+		}
+	}
+
+	fmt.Printf("Workspace: %s\n", dir)
+	if meta.ProjectKey != "" {
+		fmt.Printf("Project: %s (%s)\n", meta.ProjectKey, meta.ProjectName)
+	}
+	if meta.UpdatedAt != "" {
+		fmt.Printf("Updated: %s\n", meta.UpdatedAt)
+	}
+	fmt.Printf("Total: %d\n", total)
+	if len(byType) > 0 {
+		types := make([]string, 0, len(byType))
+		for key := range byType {
+			types = append(types, key)
+		}
+		sort.Strings(types)
+		parts := make([]string, 0, len(types))
+		for _, key := range types {
+			parts = append(parts, fmt.Sprintf("%s=%d", key, byType[key]))
+		}
+		fmt.Printf("By type: %s\n", strings.Join(parts, ", "))
+	}
+	fmt.Printf("Applied: %d\n", applied)
+	fmt.Printf("Pending: %d\n", total-applied)
+	fmt.Printf("Changed: %d\n", changed)
+	return nil
+}
+
+func runMigrateClean(cmd *cobra.Command, args []string) error {
+	dir, err := migrationDir()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(dir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("Workspace not found: %s\n", dir)
+			return nil
+		}
+		return fmt.Errorf("stat workspace: %w", err)
+	}
+	if _, err := loadMetadata(dir); err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+
+	if !migrateCleanForce {
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Remove workspace %s?", dir),
+			Default: false,
+		}
+		if err := survey.AskOne(prompt, &confirm); err != nil {
+			return err
+		}
+		if !confirm {
+			fmt.Println("Canceled.")
+			return nil
+		}
+	}
+
+	if err := removeWorkspaceContents(dir); err != nil {
+		return err
+	}
+	_ = appendMigrateLog(dir, migrateLogEntry{
+		Action: "clean",
+		Status: "cleanup",
+	})
+	fmt.Printf("Cleaned workspace: %s\n", dir)
 	return nil
 }
 
@@ -905,13 +1149,13 @@ type currentItem struct {
 	Name        string
 }
 
-func migrationDir(projectKey string) (string, error) {
+func migrationDir() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("get cwd: %w", err)
 	}
 	if migrateWorkspaceDir == "" {
-		return filepath.Join(cwd, migrationBaseDir, projectKey), nil
+		return cwd, nil
 	}
 	if filepath.IsAbs(migrateWorkspaceDir) {
 		return migrateWorkspaceDir, nil
@@ -1227,6 +1471,11 @@ func gitCheckoutNewBranchFrom(dir, branch, startPoint string) error {
 	return err
 }
 
+func gitDeleteBranch(dir, branch string) error {
+	_, err := runGit(dir, "branch", "-D", branch)
+	return err
+}
+
 func gitBranchExists(dir, branch string) bool {
 	_, err := runGit(dir, "show-ref", "--verify", fmt.Sprintf("refs/heads/%s", branch))
 	return err == nil
@@ -1268,14 +1517,43 @@ func checkoutIfPossible(dir, branch string) bool {
 	return true
 }
 
-func resolveProjectKey(cfg *config.Store, args []string) (string, error) {
-	if len(args) > 0 {
-		return args[0], nil
+func removeWorkspaceContents(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read workspace: %w", err)
 	}
-	if err := cmdutil.RequireProject(cfg); err != nil {
-		return "", err
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "metadata.json" {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("remove %s: %w", name, err)
+		}
 	}
-	return cmdutil.GetCurrentProject(cfg), nil
+	return nil
+}
+
+func isDirEmpty(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
+		}
+		return false, fmt.Errorf("read dir: %w", err)
+	}
+	return len(entries) == 0, nil
+}
+
+func matchesRollbackTarget(item *migrateItem, targets map[string]bool) bool {
+	if targets[item.ItemKey] {
+		return true
+	}
+	if item.ItemType == "wiki" {
+		return targets[fmt.Sprintf("%d", item.ItemID)]
+	}
+	return false
 }
 
 func gitFileCommits(dir, path string, limit int) ([]string, error) {
@@ -1564,27 +1842,36 @@ func fetchCurrentItem(ctx context.Context, client *api.Client, item *migrateItem
 	}
 }
 
-func applyItem(ctx context.Context, client *api.Client, item *migrateItem, content string) error {
+func applyItem(ctx context.Context, client *api.Client, item *migrateItem, content string) (string, error) {
 	switch item.ItemType {
 	case "issue":
-		_, err := client.UpdateIssue(ctx, item.ItemKey, &api.UpdateIssueInput{Description: &content})
-		return err
+		issue, err := client.UpdateIssue(ctx, item.ItemKey, &api.UpdateIssueInput{Description: &content})
+		if err != nil {
+			return "", err
+		}
+		return optStringValue(issue.Updated), nil
 	case "comment":
 		parts := strings.Split(item.ItemKey, "#comment-")
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid comment key: %s", item.ItemKey)
+			return "", fmt.Errorf("invalid comment key: %s", item.ItemKey)
 		}
 		commentID, err := parseInt(parts[1])
 		if err != nil {
-			return fmt.Errorf("invalid comment id: %w", err)
+			return "", fmt.Errorf("invalid comment id: %w", err)
 		}
 		_, err = client.UpdateComment(ctx, parts[0], commentID, content)
-		return err
+		if err != nil {
+			return "", err
+		}
+		return "", nil
 	case "wiki":
-		_, err := client.UpdateWiki(ctx, item.ItemID, &api.UpdateWikiInput{Content: &content})
-		return err
+		wiki, err := client.UpdateWiki(ctx, item.ItemID, &api.UpdateWikiInput{Content: &content})
+		if err != nil {
+			return "", err
+		}
+		return wiki.Updated, nil
 	default:
-		return fmt.Errorf("unknown item type: %s", item.ItemType)
+		return "", fmt.Errorf("unknown item type: %s", item.ItemType)
 	}
 }
 
