@@ -213,6 +213,7 @@ type ResolvedDisplay struct {
 	MarkdownCache        bool                           `json:"markdown_cache" jubako:"/display/markdown_cache,env:DISPLAY_MARKDOWN_CACHE"`
 	MarkdownCacheRaw     bool                           `json:"markdown_cache_raw" jubako:"/display/markdown_cache_raw,env:DISPLAY_MARKDOWN_CACHE_RAW"`
 	MarkdownCacheExcerpt int                            `json:"markdown_cache_excerpt" jubako:"/display/markdown_cache_excerpt,env:DISPLAY_MARKDOWN_CACHE_EXCERPT"`
+	MarkdownUnsafeRules  []string                       `json:"markdown_unsafe_rules" jubako:"/display/markdown_unsafe_rules"`
 	IssueListFields      []string                       `json:"issue_list_fields" jubako:"/display/issue_list_fields"`
 	IssueFieldConfig     map[string]ResolvedFieldConfig `json:"issue_field_config" jubako:"/display/issue_field_config"`
 	PRListFields         []string                       `json:"pr_list_fields" jubako:"/display/pr_list_fields"`

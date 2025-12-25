@@ -8,7 +8,15 @@ import (
 func TestConvertBacklogToGFM(t *testing.T) {
 	input := "* Title\n{quote}Quoted\nLine{/quote}\n{code:go}\nfmt.Println(\"x\")\n{/code}\n[[Label>https://example.com]]\n''bold'' '''italic''' %%strike%%\n#contents\n&br;\n+ item"
 
-	result := Convert(input, ConvertOptions{})
+	result := Convert(input, ConvertOptions{UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output == input {
 		t.Fatalf("expected conversion to change output")
 	}
@@ -38,7 +46,15 @@ func TestConvertBacklogToGFM(t *testing.T) {
 
 func TestConvertSkipsInlineCode(t *testing.T) {
 	input := "`''bold''`"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != input {
 		t.Fatalf("expected inline code to remain unchanged")
 	}
@@ -57,7 +73,15 @@ func TestConvertSkipsGFM(t *testing.T) {
 
 func TestConvertHeadingRequiresSpace(t *testing.T) {
 	input := "**** 対策\n* Heading\n******* Long"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if !strings.Contains(result.Output, "#### 対策") {
 		t.Fatalf("expected heading to convert with matching count: %q", result.Output)
 	}
@@ -71,7 +95,15 @@ func TestConvertHeadingRequiresSpace(t *testing.T) {
 
 func TestConvertHeadingAboveSixHashes(t *testing.T) {
 	input := "******** Title"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != "######## Title" {
 		t.Fatalf("expected heading to convert with same count, got: %q", result.Output)
 	}
@@ -79,7 +111,15 @@ func TestConvertHeadingAboveSixHashes(t *testing.T) {
 
 func TestConvertQuoteWithCodeBlock(t *testing.T) {
 	input := "{quote}\n{code}\nline\n{/code}\n{/quote}"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	want := strings.Join([]string{
 		"> {code}",
 		"> line",
@@ -92,7 +132,15 @@ func TestConvertQuoteWithCodeBlock(t *testing.T) {
 
 func TestConvertSkipsQuoteLine(t *testing.T) {
 	input := "> [[Title>https://example.com]]\n>{code}\n>line\n>{/code}"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != input {
 		t.Fatalf("expected quote lines to remain unchanged, got: %q", result.Output)
 	}
@@ -103,7 +151,15 @@ func TestConvertTableAddsSeparator(t *testing.T) {
 		"| 日時 | イベント |",
 		"|03/04|test|",
 	}, "\n")
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	want := strings.Join([]string{
 		"| 日時 | イベント |",
 		"| --- | --- |",
@@ -120,7 +176,15 @@ func TestConvertTableSkipsGFMTable(t *testing.T) {
 		"| --- | --- |",
 		"|1|2|",
 	}, "\n")
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != input {
 		t.Fatalf("expected GFM table to remain unchanged, got: %q", result.Output)
 	}
@@ -131,7 +195,15 @@ func TestConvertListDashSkipsDoubleDash(t *testing.T) {
 		"--- t3.large 2 台 (0.0835 USD/台)",
 		"-item",
 	}, "\n")
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if !strings.Contains(result.Output, "    - t3.large 2 台 (0.0835 USD/台)") {
 		t.Fatalf("expected nested dash list conversion: %q", result.Output)
 	}
@@ -146,7 +218,15 @@ func TestConvertDashListAddsBlankLine(t *testing.T) {
 		"-- nested",
 		"reference",
 	}, "\n")
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	want := strings.Join([]string{
 		"- item",
 		"  - nested",
@@ -160,7 +240,15 @@ func TestConvertDashListAddsBlankLine(t *testing.T) {
 
 func TestConvertInlineCodeBlock(t *testing.T) {
 	input := "ID {code}db-123{/code} test"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	want := "ID `db-123` test"
 	if result.Output != want {
 		t.Fatalf("expected inline code conversion, got: %q", result.Output)
@@ -169,7 +257,15 @@ func TestConvertInlineCodeBlock(t *testing.T) {
 
 func TestConvertInlineCodeBlockWithLang(t *testing.T) {
 	input := "ID {code:sql}select 1{/code} test"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	want := "ID `sql: select 1` test"
 	if result.Output != want {
 		t.Fatalf("expected inline code conversion with lang, got: %q", result.Output)
@@ -178,7 +274,15 @@ func TestConvertInlineCodeBlockWithLang(t *testing.T) {
 
 func TestConvertImageMacroAttachment(t *testing.T) {
 	input := "#image(logo.png)"
-	result := Convert(input, ConvertOptions{Force: true, AttachmentNames: []string{"logo.png"}})
+	result := Convert(input, ConvertOptions{Force: true, AttachmentNames: []string{"logo.png"}, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != "![image][logo.png]" {
 		t.Fatalf("expected attachment image conversion, got: %q", result.Output)
 	}
@@ -186,7 +290,15 @@ func TestConvertImageMacroAttachment(t *testing.T) {
 
 func TestConvertImageMacroURL(t *testing.T) {
 	input := "#image(https://example.com/logo.png)"
-	result := Convert(input, ConvertOptions{Force: true})
+	result := Convert(input, ConvertOptions{Force: true, UnsafeRules: map[RuleID]bool{
+		RuleHeadingAsterisk: true,
+		RuleListPlus:        true,
+		RuleListDashSpace:   true,
+		RuleTableSeparator:  true,
+		RuleEmphasisBold:    true,
+		RuleEmphasisItalic:  true,
+		RuleStrikethrough:   true,
+	}})
 	if result.Output != "![image](https://example.com/logo.png)" {
 		t.Fatalf("expected URL image conversion, got: %q", result.Output)
 	}

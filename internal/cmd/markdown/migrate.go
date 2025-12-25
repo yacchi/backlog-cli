@@ -262,7 +262,7 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrateApply(cmd *cobra.Command, args []string) error {
-	client, _, err := cmdutil.GetAPIClient(cmd)
+	client, cfg, err := cmdutil.GetAPIClient(cmd)
 	if err != nil {
 		return err
 	}
@@ -280,6 +280,7 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("metadata missing project key")
 	}
 	ctx := cmd.Context()
+	unsafeRules := buildUnsafeRuleSet(cfg.Display().MarkdownUnsafeRules)
 
 	baseBranch, err := ensureMigrationRepo(dir, true)
 	if err != nil {
@@ -448,7 +449,7 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		converted, changed, err := applyConversion(item, raw, current.Attachments)
+		converted, changed, err := applyConversion(item, raw, current.Attachments, unsafeRules)
 		if err != nil {
 			errMsg := err.Error()
 			_ = appendMigrateLog(dir, migrateLogEntry{
@@ -1805,6 +1806,21 @@ func matchesRollbackTarget(item *migrateItem, targets map[string]bool) bool {
 	return false
 }
 
+func buildUnsafeRuleSet(values []string) map[markdown.RuleID]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	allowed := make(map[markdown.RuleID]bool, len(values))
+	for _, rule := range values {
+		rule = strings.TrimSpace(rule)
+		if rule == "" {
+			continue
+		}
+		allowed[markdown.RuleID(rule)] = true
+	}
+	return allowed
+}
+
 func gitFileCommits(dir, path string, limit int) ([]string, error) {
 	args := []string{"log", "--pretty=format:%H", "--"}
 	if limit > 0 {
@@ -2313,7 +2329,7 @@ func formatRules(rules []markdown.RuleID) string {
 	return strings.Join(keys, ", ")
 }
 
-func applyConversion(item *migrateItem, content string, attachments []string) (string, bool, error) {
+func applyConversion(item *migrateItem, content string, attachments []string, unsafeRules map[markdown.RuleID]bool) (string, bool, error) {
 	force := item.ConvertForce
 	result := markdown.Convert(content, markdown.ConvertOptions{
 		Force:           force,
@@ -2324,6 +2340,7 @@ func applyConversion(item *migrateItem, content string, attachments []string) (s
 		ItemKey:         item.ItemKey,
 		URL:             item.URL,
 		AttachmentNames: attachments,
+		UnsafeRules:     unsafeRules,
 	})
 
 	changed := result.Output != content

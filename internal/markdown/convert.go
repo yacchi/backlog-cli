@@ -43,16 +43,13 @@ func Convert(input string, opts ConvertOptions) ConvertResult {
 	result.Score = detect.Score
 	result.Warnings, result.WarningLines = CollectWarningsWithLines(input)
 
-	if result.Mode != ModeBacklog && !(result.Mode == ModeUnknown && opts.Force) {
-		return result
-	}
-
 	lineBreak := opts.LineBreak
 	if lineBreak == "" {
 		lineBreak = "<br>"
 	}
 
-	converted, rules, warnings := applyConversion(input, lineBreak, result.Warnings, opts.AttachmentNames)
+	allowUnsafe := result.Mode == ModeBacklog || opts.Force
+	converted, rules, warnings := applyConversion(input, lineBreak, result.Warnings, opts.AttachmentNames, allowUnsafe, opts.UnsafeRules)
 	result.Output = converted
 	result.Rules = rules
 	result.Warnings = warnings
@@ -60,9 +57,18 @@ func Convert(input string, opts ConvertOptions) ConvertResult {
 	return result
 }
 
-func applyConversion(input, lineBreak string, warnings map[WarningType]int, attachments []string) (string, []RuleID, map[WarningType]int) {
+func applyConversion(input, lineBreak string, warnings map[WarningType]int, attachments []string, allowUnsafe bool, unsafeRules map[RuleID]bool) (string, []RuleID, map[WarningType]int) {
 	rules := []RuleID{}
 	content := input
+	allowedUnsafe := func(rule RuleID) bool {
+		if !allowUnsafe {
+			return false
+		}
+		if len(unsafeRules) == 0 {
+			return true
+		}
+		return unsafeRules[rule]
+	}
 
 	// Extract quote blocks first to avoid conversions inside quotes.
 	content, quoteTokens := replaceBlocks(content, reQuoteBlock, "QUOTE", func(groups []string) string {
@@ -104,16 +110,18 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int, atta
 	content, codeInlineTokens := replaceInlineTokens(content, reInlineCodeToken)
 
 	// Headings
-	content = reHeading.ReplaceAllStringFunc(content, func(match string) string {
-		parts := reHeading.FindStringSubmatch(match)
-		if len(parts) < 4 {
-			return match
-		}
-		indent := parts[1]
-		level := len(parts[2])
-		rules = appendRule(rules, RuleHeadingAsterisk)
-		return indent + strings.Repeat("#", level) + " " + parts[3]
-	})
+	if allowedUnsafe(RuleHeadingAsterisk) {
+		content = reHeading.ReplaceAllStringFunc(content, func(match string) string {
+			parts := reHeading.FindStringSubmatch(match)
+			if len(parts) < 4 {
+				return match
+			}
+			indent := parts[1]
+			level := len(parts[2])
+			rules = appendRule(rules, RuleHeadingAsterisk)
+			return indent + strings.Repeat("#", level) + " " + parts[3]
+		})
+	}
 
 	// TOC
 	content = reTOC.ReplaceAllString(content, "[toc]")
@@ -122,19 +130,23 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int, atta
 	}
 
 	// Lists
-	content = reListPlus.ReplaceAllString(content, "1. ")
-	if reListPlus.MatchString(input) {
-		rules = appendRule(rules, RuleListPlus)
-	}
-	content, listChanged := convertDashLists(content)
-	if listChanged {
-		rules = appendRule(rules, RuleListDashSpace)
+	if allowedUnsafe(RuleListPlus) || allowedUnsafe(RuleListDashSpace) {
+		content = reListPlus.ReplaceAllString(content, "1. ")
+		if reListPlus.MatchString(input) && allowedUnsafe(RuleListPlus) {
+			rules = appendRule(rules, RuleListPlus)
+		}
+		content, listChanged := convertDashLists(content)
+		if listChanged && allowedUnsafe(RuleListDashSpace) {
+			rules = appendRule(rules, RuleListDashSpace)
+		}
 	}
 
 	// Tables
-	content, tableChanged := convertTables(content)
-	if tableChanged {
-		rules = appendRule(rules, RuleTableSeparator)
+	if allowedUnsafe(RuleTableSeparator) {
+		content, tableChanged := convertTables(content)
+		if tableChanged {
+			rules = appendRule(rules, RuleTableSeparator)
+		}
 	}
 
 	attachmentSet := buildAttachmentSet(attachments)
@@ -180,47 +192,58 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int, atta
 		return "[" + label + "](" + url + ")"
 	})
 
-	italicChanged := false
-	content = reItalic.ReplaceAllStringFunc(content, func(match string) string {
-		parts := reItalic.FindStringSubmatch(match)
-		if len(parts) < 2 {
+	if allowedUnsafe(RuleEmphasisItalic) || allowedUnsafe(RuleEmphasisBold) || allowedUnsafe(RuleStrikethrough) {
+		italicChanged := false
+		content = reItalic.ReplaceAllStringFunc(content, func(match string) string {
+			parts := reItalic.FindStringSubmatch(match)
+			if len(parts) < 2 {
+				return match
+			}
+			italicChanged = true
+			if allowedUnsafe(RuleEmphasisItalic) {
+				rules = appendRule(rules, RuleEmphasisItalic)
+				return "*" + parts[1] + "*"
+			}
 			return match
-		}
-		italicChanged = true
-		rules = appendRule(rules, RuleEmphasisItalic)
-		return "*" + parts[1] + "*"
-	})
+		})
 
-	boldChanged := false
-	content = reBold.ReplaceAllStringFunc(content, func(match string) string {
-		parts := reBold.FindStringSubmatch(match)
-		if len(parts) < 2 {
+		boldChanged := false
+		content = reBold.ReplaceAllStringFunc(content, func(match string) string {
+			parts := reBold.FindStringSubmatch(match)
+			if len(parts) < 2 {
+				return match
+			}
+			boldChanged = true
+			if allowedUnsafe(RuleEmphasisBold) {
+				rules = appendRule(rules, RuleEmphasisBold)
+				return "**" + parts[1] + "**"
+			}
 			return match
-		}
-		boldChanged = true
-		rules = appendRule(rules, RuleEmphasisBold)
-		return "**" + parts[1] + "**"
-	})
+		})
 
-	strikeChanged := false
-	content = reStrike.ReplaceAllStringFunc(content, func(match string) string {
-		parts := reStrike.FindStringSubmatch(match)
-		if len(parts) < 2 {
+		strikeChanged := false
+		content = reStrike.ReplaceAllStringFunc(content, func(match string) string {
+			parts := reStrike.FindStringSubmatch(match)
+			if len(parts) < 2 {
+				return match
+			}
+			strikeChanged = true
+			if allowedUnsafe(RuleStrikethrough) {
+				rules = appendRule(rules, RuleStrikethrough)
+				return "~~" + parts[1] + "~~"
+			}
 			return match
-		}
-		strikeChanged = true
-		rules = appendRule(rules, RuleStrikethrough)
-		return "~~" + parts[1] + "~~"
-	})
+		})
 
-	if boldChanged || italicChanged {
-		if strings.Contains(content, "''") {
+		if boldChanged || italicChanged {
+			if strings.Contains(content, "''") {
+				AddWarning(warnings, WarningEmphasisAmbig)
+			}
+		}
+
+		if strikeChanged && strings.Contains(content, "%%") {
 			AddWarning(warnings, WarningEmphasisAmbig)
 		}
-	}
-
-	if strikeChanged && strings.Contains(content, "%%") {
-		AddWarning(warnings, WarningEmphasisAmbig)
 	}
 
 	if strings.Contains(content, "&br;") {

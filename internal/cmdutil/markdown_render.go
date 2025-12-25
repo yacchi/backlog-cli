@@ -11,6 +11,10 @@ import (
 
 // RenderMarkdownContent converts content and optionally prints warnings and caches.
 func RenderMarkdownContent(content string, opts MarkdownViewOptions, itemType string, itemID int, parentID int, projectKey string, itemKey string, url string, attachments []string, warnWriter io.Writer) (string, error) {
+	unsafeRules := map[markdown.RuleID]bool{}
+	for _, rule := range opts.UnsafeRules {
+		unsafeRules[markdown.RuleID(rule)] = true
+	}
 	result := markdown.Convert(content, markdown.ConvertOptions{
 		ItemType:        itemType,
 		ItemID:          itemID,
@@ -19,6 +23,7 @@ func RenderMarkdownContent(content string, opts MarkdownViewOptions, itemType st
 		ItemKey:         itemKey,
 		URL:             url,
 		AttachmentNames: attachments,
+		UnsafeRules:     unsafeRules,
 	})
 
 	output := result.Output

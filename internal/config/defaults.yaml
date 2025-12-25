@@ -212,6 +212,31 @@ display:
   markdown_cache_raw: false
   markdown_cache_excerpt: 200
 
+  # Markdown変換ルール一覧 (internal/markdown/types.go RuleID)
+  # - heading_asterisk: *見出し → # 見出し
+  # - quote_block: {quote} → >
+  # - code_block: {code} → ```
+  # - emphasis_bold: ''bold'' → **bold**
+  # - emphasis_italic: '''italic''' → *italic*
+  # - strikethrough: %%strike%% → ~~strike~~
+  # - backlog_link: [[label>url]] → [label](url)
+  # - toc: #contents → [toc]
+  # - line_break: &br; → <br>
+  # - list_plus: + list → 1. list
+  # - list_dash_space: -list/--nested → インデント/空行補正
+  # - table_separator: |h などのテーブル補正
+  # - image_macro: #image(...) → ![image](...)
+
+  # 常に変換を掛けることが安全ではないルール
+  markdown_unsafe_rules:
+    - heading_asterisk
+    - list_plus
+    - list_dash_space
+    - table_separator
+    - emphasis_bold
+    - emphasis_italic
+    - strikethrough
+
   # 課題一覧の表示フィールド
   # 利用可能: key, status, priority, assignee, summary, type, created, updated,
   #          created_user, due_date, start_date, category, milestone, version, url

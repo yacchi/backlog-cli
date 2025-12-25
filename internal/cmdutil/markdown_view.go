@@ -14,6 +14,7 @@ type MarkdownViewOptions struct {
 	CacheRaw     bool
 	CacheExcerpt int
 	CacheDir     string
+	UnsafeRules  []string
 }
 
 // ResolveMarkdownViewOptions resolves markdown view flags and config.
@@ -25,6 +26,7 @@ func ResolveMarkdownViewOptions(cmd *cobra.Command, display *config.ResolvedDisp
 		CacheRaw:     display.MarkdownCacheRaw,
 		CacheExcerpt: display.MarkdownCacheExcerpt,
 		CacheDir:     cacheDir,
+		UnsafeRules:  display.MarkdownUnsafeRules,
 	}
 
 	if cmd.Flags().Changed("markdown") {

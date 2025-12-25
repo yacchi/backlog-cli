@@ -30,19 +30,19 @@ const (
 type RuleID string
 
 const (
-	RuleHeadingAsterisk RuleID = "rule.heading_asterisk"
-	RuleQuoteBlock      RuleID = "rule.quote_block"
-	RuleCodeBlock       RuleID = "rule.code_block"
-	RuleEmphasisBold    RuleID = "rule.emphasis_bold"
-	RuleEmphasisItalic  RuleID = "rule.emphasis_italic"
-	RuleStrikethrough   RuleID = "rule.strikethrough"
-	RuleBacklogLink     RuleID = "rule.backlog_link"
-	RuleTOC             RuleID = "rule.toc"
-	RuleLineBreak       RuleID = "rule.line_break"
-	RuleListPlus        RuleID = "rule.list_plus"
-	RuleListDashSpace   RuleID = "rule.list_dash_space"
-	RuleTableSeparator  RuleID = "rule.table_separator"
-	RuleImageMacro      RuleID = "rule.image_macro"
+	RuleHeadingAsterisk RuleID = "heading_asterisk"
+	RuleQuoteBlock      RuleID = "quote_block"
+	RuleCodeBlock       RuleID = "code_block"
+	RuleEmphasisBold    RuleID = "emphasis_bold"
+	RuleEmphasisItalic  RuleID = "emphasis_italic"
+	RuleStrikethrough   RuleID = "strikethrough"
+	RuleBacklogLink     RuleID = "backlog_link"
+	RuleTOC             RuleID = "toc"
+	RuleLineBreak       RuleID = "line_break"
+	RuleListPlus        RuleID = "list_plus"
+	RuleListDashSpace   RuleID = "list_dash_space"
+	RuleTableSeparator  RuleID = "table_separator"
+	RuleImageMacro      RuleID = "image_macro"
 )
 
 // DetectResult represents detection output.
@@ -63,6 +63,7 @@ type ConvertOptions struct {
 	ItemKey         string
 	URL             string
 	AttachmentNames []string
+	UnsafeRules     map[RuleID]bool
 }
 
 // ConvertResult represents conversion output.
