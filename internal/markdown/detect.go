@@ -16,9 +16,10 @@ var (
 		regexp.MustCompile(`'''[^']+'''`),
 		regexp.MustCompile(`''[^']+''`),
 		regexp.MustCompile(`\[\[[^\]]+\]\]`),
+		regexp.MustCompile(`#image\([^)]+\)`),
+		regexp.MustCompile(`(?m)^\s*\*{1,}\s+\S`),
 	}
 	reWeakBacklogSignals = []*regexp.Regexp{
-		regexp.MustCompile(`(?m)^\*{1,3}\s+\S`),
 		regexp.MustCompile(`(?m)^\+\s+\S`),
 		regexp.MustCompile(`(?m)\|.*\|h\s*$`),
 	}
@@ -26,7 +27,7 @@ var (
 		regexp.MustCompile(`(?m)^\s*[-*+]\s+\[[ xX]\]\s+`),
 		regexp.MustCompile("(?m)^```+"),
 		regexp.MustCompile(`(?m)^\s*\|?.*\|.*\n\s*\|?\s*:?-{3,}:?\s*\|`),
-		regexp.MustCompile(`~~[^~]+~~`),
+		regexp.MustCompile(`(?m)(^|[^~])~~[^~]+~~([^~]|$)`),
 		regexp.MustCompile(`<https?://[^>]+>`),
 		regexp.MustCompile(`(?m)^\s*\[[^\]]+\]:\s+\S+`),
 	}

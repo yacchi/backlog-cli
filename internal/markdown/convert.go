@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	reHeading  = regexp.MustCompile(`(?m)^(\*+)\s+(\S.*)$`)
+	reHeading  = regexp.MustCompile(`(?m)^(\s*)(\*+)\s+(\S.*)$`)
 	reTOC      = regexp.MustCompile(`(?m)^#contents\s*$`)
 	reListPlus = regexp.MustCompile(`(?m)^\+\s+`)
 	reDashList = regexp.MustCompile(`^(\s*)(-+)\s*(\S.*)$`)
@@ -23,6 +23,7 @@ var (
 	reInlineCodeToken = regexp.MustCompile("`[^`]*`")
 	reQuoteLine       = regexp.MustCompile(`^\s*>`)
 	reTableHeaderMark = regexp.MustCompile(`\|h\s*$`)
+	reImageMacro      = regexp.MustCompile(`#image\(([^)]+)\)`)
 )
 
 // Convert converts Backlog markdown to GFM when needed.
@@ -51,7 +52,7 @@ func Convert(input string, opts ConvertOptions) ConvertResult {
 		lineBreak = "<br>"
 	}
 
-	converted, rules, warnings := applyConversion(input, lineBreak, result.Warnings)
+	converted, rules, warnings := applyConversion(input, lineBreak, result.Warnings, opts.AttachmentNames)
 	result.Output = converted
 	result.Rules = rules
 	result.Warnings = warnings
@@ -59,7 +60,7 @@ func Convert(input string, opts ConvertOptions) ConvertResult {
 	return result
 }
 
-func applyConversion(input, lineBreak string, warnings map[WarningType]int) (string, []RuleID, map[WarningType]int) {
+func applyConversion(input, lineBreak string, warnings map[WarningType]int, attachments []string) (string, []RuleID, map[WarningType]int) {
 	rules := []RuleID{}
 	content := input
 
@@ -84,8 +85,9 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	// Extract code blocks.
 	content, codeTokens := replaceBlocks(content, reCodeBlock, "CODE", func(groups []string) string {
 		lang := strings.TrimSpace(groups[1])
-		body := strings.Trim(groups[2], "\n")
-		if !strings.Contains(body, "\n") {
+		rawBody := groups[2]
+		body := strings.Trim(rawBody, "\n")
+		if !strings.Contains(rawBody, "\n") {
 			rules = appendRule(rules, RuleCodeBlock)
 			return inlineCodeWithLang(lang, body)
 		}
@@ -104,12 +106,13 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 	// Headings
 	content = reHeading.ReplaceAllStringFunc(content, func(match string) string {
 		parts := reHeading.FindStringSubmatch(match)
-		if len(parts) < 3 {
+		if len(parts) < 4 {
 			return match
 		}
-		level := len(parts[1])
+		indent := parts[1]
+		level := len(parts[2])
 		rules = appendRule(rules, RuleHeadingAsterisk)
-		return strings.Repeat("#", level) + " " + parts[2]
+		return indent + strings.Repeat("#", level) + " " + parts[3]
 	})
 
 	// TOC
@@ -134,7 +137,29 @@ func applyConversion(input, lineBreak string, warnings map[WarningType]int) (str
 		rules = appendRule(rules, RuleTableSeparator)
 	}
 
+	attachmentSet := buildAttachmentSet(attachments)
+
 	// Inline conversions
+	content = reImageMacro.ReplaceAllStringFunc(content, func(match string) string {
+		parts := reImageMacro.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		value := strings.TrimSpace(parts[1])
+		if value == "" {
+			return match
+		}
+		if attachmentSet[value] {
+			rules = appendRule(rules, RuleImageMacro)
+			return "![image][" + value + "]"
+		}
+		if isURL(value) {
+			rules = appendRule(rules, RuleImageMacro)
+			return "![image](" + value + ")"
+		}
+		return match
+	})
+
 	content = reBacklogLink.ReplaceAllStringFunc(content, func(match string) string {
 		parts := reBacklogLink.FindStringSubmatch(match)
 		if len(parts) < 2 {
@@ -492,6 +517,21 @@ func inlineCode(text string) string {
 	}
 	fence := strings.Repeat("`", maxRun+1)
 	return fence + text + fence
+}
+
+func buildAttachmentSet(values []string) map[string]bool {
+	if len(values) == 0 {
+		return map[string]bool{}
+	}
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		set[value] = true
+	}
+	return set
 }
 
 func inlineCodeWithLang(lang, body string) string {

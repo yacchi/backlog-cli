@@ -39,7 +39,8 @@ Examples:
   backlog markdown migrate list
   backlog markdown migrate logs
   backlog markdown migrate status
-  backlog markdown migrate clean`,
+  backlog markdown migrate clean
+  backlog markdown migrate snapshot --append`,
 }
 
 var migrateInitCmd = &cobra.Command{
@@ -105,26 +106,35 @@ var migrateCleanCmd = &cobra.Command{
 	RunE:  runMigrateClean,
 }
 
+var migrateSnapshotCmd = &cobra.Command{
+	Use:   "snapshot",
+	Short: "Snapshot migration data",
+	Args:  cobra.NoArgs,
+	RunE:  runMigrateSnapshot,
+}
+
 var listDiff bool
 var migrateLogsLimit int
 var migrateWorkspaceDir string
 var migrateCleanForce bool
 var migrateLogsAll bool
+var snapshotAppend bool
 
 func init() {
 	migrateCmd.PersistentFlags().StringVarP(&migrateWorkspaceDir, "dir", "w", "", "Migration workspace directory (defaults to current directory)")
 	migrateApplyCmd.Flags().BoolVar(&applyForceLock, "force-lock", false, "Remove existing lock and retry")
 	migrateApplyCmd.Flags().BoolVar(&applyAuto, "auto", false, "Apply changes without confirmation")
 	migrateApplyCmd.Flags().BoolVar(&applyDryRun, "dry-run", false, "Show diffs without applying changes")
-	migrateApplyCmd.Flags().StringSliceVar(&applyTypes, "types", nil, "Apply target types (issue,wiki). Default: all")
+	migrateApplyCmd.Flags().StringSliceVar(&applyTypes, "types", nil, "Apply target types (issue,wiki,issue_type). Default: all")
 	migrateRollbackCmd.Flags().BoolVar(&rollbackForceLock, "force-lock", false, "Remove existing lock and retry")
 	migrateRollbackCmd.Flags().BoolVar(&rollbackAuto, "auto", false, "Rollback without confirmation")
-	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTargets, "targets", nil, "Rollback target item keys (issue key, wiki id)")
-	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTypes, "types", nil, "Rollback target types (issue,wiki). Default: all")
+	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTargets, "targets", nil, "Rollback target item keys (issue key, wiki id, issue type id)")
+	migrateRollbackCmd.Flags().StringSliceVar(&rollbackTypes, "types", nil, "Rollback target types (issue,wiki,issue_type). Default: all")
 	migrateListCmd.Flags().BoolVar(&listDiff, "diff", false, "Show diffs for changed items")
 	migrateLogsCmd.Flags().IntVar(&migrateLogsLimit, "limit", 0, "Limit number of log entries (0 = all)")
 	migrateLogsCmd.Flags().BoolVar(&migrateLogsAll, "all", false, "Include no-change entries")
 	migrateCleanCmd.Flags().BoolVar(&migrateCleanForce, "force", false, "Remove workspace without confirmation")
+	migrateSnapshotCmd.Flags().BoolVar(&snapshotAppend, "append", false, "Append new items to an existing workspace")
 
 	migrateCmd.AddCommand(migrateInitCmd)
 	migrateCmd.AddCommand(migrateApplyCmd)
@@ -133,6 +143,7 @@ func init() {
 	migrateCmd.AddCommand(migrateLogsCmd)
 	migrateCmd.AddCommand(migrateStatusCmd)
 	migrateCmd.AddCommand(migrateCleanCmd)
+	migrateCmd.AddCommand(migrateSnapshotCmd)
 	MarkdownCmd.AddCommand(migrateCmd)
 }
 
@@ -237,7 +248,7 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Println("Writing items metadata...")
-	if err := gitAdd(dir, "."); err != nil {
+	if err := gitAdd(dir, "items.jsonl", "metadata.json", "issue", "wiki", "issue-type"); err != nil {
 		return err
 	}
 	if gitHasChanges(dir) {
@@ -518,22 +529,6 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			fmt.Printf("\n%s %s\n", item.ItemType, item.ItemKey)
 		}
 
-		if applyDryRun {
-			item.OutputHash = hashHex(converted)
-			item.Applied = false
-			item.AppliedAt = ""
-			item.ApplyError = ""
-			_ = appendMigrateLog(dir, migrateLogEntry{
-				Action:   "apply",
-				Status:   "dry_run",
-				ItemType: item.ItemType,
-				ItemKey:  item.ItemKey,
-				URL:      item.URL,
-			})
-			skipped++
-			continue
-		}
-
 		if !applyDryRun {
 			updatedAt, err := applyItem(ctx, client, item, converted)
 			if err != nil {
@@ -563,8 +558,13 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		item.OutputHash = hashHex(converted)
-		item.Applied = true
-		item.AppliedAt = time.Now().Format(time.RFC3339)
+		if applyDryRun {
+			item.Applied = false
+			item.AppliedAt = ""
+		} else {
+			item.Applied = true
+			item.AppliedAt = time.Now().Format(time.RFC3339)
+		}
 		item.ApplyError = ""
 		if err := writeItems(dir, items); err != nil {
 			return err
@@ -578,14 +578,22 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			}
 			anyChanges = true
 		}
+		status := "applied"
+		if applyDryRun {
+			status = "dry_run"
+		} else {
+			applied++
+		}
 		_ = appendMigrateLog(dir, migrateLogEntry{
 			Action:   "apply",
-			Status:   "applied",
+			Status:   status,
 			ItemType: item.ItemType,
 			ItemKey:  item.ItemKey,
 			URL:      item.URL,
 		})
-		applied++
+		if applyDryRun {
+			skipped++
+		}
 	}
 
 	if anyChanges {
@@ -992,7 +1000,7 @@ func runMigrateStatus(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		total++
-		byType[item.ItemType]++
+		byType[normalizedItemType(item.ItemType)]++
 		if item.Applied {
 			applied++
 		}
@@ -1070,6 +1078,184 @@ func runMigrateClean(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runMigrateSnapshot(cmd *cobra.Command, args []string) error {
+	if !snapshotAppend {
+		return fmt.Errorf("only --append is supported for snapshot")
+	}
+	client, cfg, err := cmdutil.GetAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	dir, err := migrationDir()
+	if err != nil {
+		return err
+	}
+	meta, err := loadMetadata(dir)
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	if meta.ProjectKey == "" {
+		return fmt.Errorf("metadata missing project key")
+	}
+
+	if _, err := ensureMigrationRepo(dir, true); err != nil {
+		return err
+	}
+
+	items, err := readItems(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("items.jsonl not found; run init first")
+		}
+		return err
+	}
+
+	existing := buildItemIndexByIdentity(items)
+	project, err := client.GetProject(cmd.Context(), meta.ProjectKey)
+	if err != nil {
+		return err
+	}
+	baseURL := fmt.Sprintf("https://%s.%s", cfg.CurrentProfile().Space, cfg.CurrentProfile().Domain)
+
+	newItems := make([]migrateItem, 0)
+	issues, err := fetchAllIssues(cmd.Context(), client, project.ID)
+	if err != nil {
+		return err
+	}
+	for _, issue := range issues {
+		if !issue.IssueKey.IsSet() || issue.IssueKey.Value == "" {
+			continue
+		}
+		issueKey := issue.IssueKey.Value
+		if existing[identityKey("issue", issueKey, 0)] {
+			continue
+		}
+		detail, err := client.GetIssue(cmd.Context(), issueKey)
+		if err != nil {
+			return fmt.Errorf("failed to get issue %s: %w", issueKey, err)
+		}
+		if !detail.ID.IsSet() {
+			return fmt.Errorf("issue %s has no id", issueKey)
+		}
+		content := optStringValue(detail.Description)
+		path := itemContentPath(dir, "issue", issueKey, detail.ID.Value)
+		if err := writeItemContent(path, content); err != nil {
+			return err
+		}
+		url := fmt.Sprintf("%s/view/%s", baseURL, issueKey)
+		item := migrateItem{
+			ItemType:   "issue",
+			ItemID:     detail.ID.Value,
+			ItemKey:    issueKey,
+			URL:        url,
+			ProjectKey: meta.ProjectKey,
+			Path:       path,
+			FetchedAt:  time.Now().Format(time.RFC3339),
+			UpdatedAt:  optStringValue(detail.Updated),
+			InputHash:  hashHex(content),
+		}
+		items = append(items, item)
+		newItems = append(newItems, item)
+		existing[identityKey(item.ItemType, item.ItemKey, item.ItemID)] = true
+	}
+
+	wikis, err := client.GetWikis(cmd.Context(), meta.ProjectKey)
+	if err != nil {
+		return fmt.Errorf("failed to get wikis: %w", err)
+	}
+	for _, wiki := range wikis {
+		key := identityKey("wiki", "", wiki.ID)
+		if existing[key] {
+			continue
+		}
+		full, err := client.GetWiki(cmd.Context(), wiki.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get wiki %d: %w", wiki.ID, err)
+		}
+		content := full.Content
+		path := itemContentPath(dir, "wiki", full.Name, full.ID)
+		if err := writeItemContent(path, content); err != nil {
+			return err
+		}
+		url := fmt.Sprintf("%s/alias/wiki/%d", baseURL, wiki.ID)
+		if err := writeWikiMetadata(dir, full.ID, full.Name, url, full.Updated); err != nil {
+			return err
+		}
+		item := migrateItem{
+			ItemType:   "wiki",
+			ItemID:     full.ID,
+			ItemKey:    full.Name,
+			URL:        url,
+			ProjectKey: meta.ProjectKey,
+			Path:       path,
+			FetchedAt:  time.Now().Format(time.RFC3339),
+			UpdatedAt:  full.Updated,
+			InputHash:  hashHex(content),
+		}
+		items = append(items, item)
+		newItems = append(newItems, item)
+		existing[identityKey(item.ItemType, item.ItemKey, item.ItemID)] = true
+	}
+
+	issueTypes, err := client.GetIssueTypes(cmd.Context(), meta.ProjectKey)
+	if err != nil {
+		return fmt.Errorf("failed to get issue types: %w", err)
+	}
+	for _, issueType := range issueTypes {
+		key := identityKey("issue_type_description", "", issueType.ID)
+		if existing[key] {
+			continue
+		}
+		content := issueType.TemplateDescription
+		path := itemContentPath(dir, "issue_type_description", issueType.Name, issueType.ID)
+		if err := writeItemContent(path, content); err != nil {
+			return err
+		}
+		url := fmt.Sprintf("%s/EditIssueType.action?projectId=%d", baseURL, project.ID)
+		if err := writeIssueTypeMetadata(dir, issueType.ID, issueType.Name, url, ""); err != nil {
+			return err
+		}
+		item := migrateItem{
+			ItemType:   "issue_type_description",
+			ItemID:     issueType.ID,
+			ItemKey:    issueType.Name,
+			URL:        url,
+			ProjectKey: meta.ProjectKey,
+			Path:       path,
+			FetchedAt:  time.Now().Format(time.RFC3339),
+			UpdatedAt:  "",
+			InputHash:  hashHex(content),
+		}
+		items = append(items, item)
+		newItems = append(newItems, item)
+		existing[identityKey(item.ItemType, item.ItemKey, item.ItemID)] = true
+	}
+
+	if len(newItems) == 0 {
+		fmt.Println("No new items to append.")
+		return nil
+	}
+
+	if err := writeItems(dir, items); err != nil {
+		return err
+	}
+	if err := touchMetadata(dir); err != nil {
+		return err
+	}
+	if err := gitAdd(dir, "items.jsonl", "metadata.json", "issue", "wiki", "issue-type"); err != nil {
+		return err
+	}
+	if gitHasChanges(dir) {
+		if err := gitCommit(dir, fmt.Sprintf("snapshot: append (%d)", len(newItems))); err != nil {
+			return err
+		}
+	}
+
+	fmt.Printf("Appended %d items.\n", len(newItems))
+	return nil
+}
+
 type processTarget struct {
 	Type        string
 	ID          int
@@ -1092,6 +1278,13 @@ type migrateMetadata struct {
 }
 
 type wikiMetadata struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
+type issueTypeMetadata struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`
 	URL       string `json:"url"`
@@ -1225,6 +1418,9 @@ func itemContentPath(dir, itemType, itemKey string, itemID int) string {
 	if itemType == "wiki" && itemID > 0 {
 		return filepath.Join(dir, itemType, fmt.Sprintf("%d", itemID), "content.md")
 	}
+	if itemType == "issue_type_description" && itemID > 0 {
+		return filepath.Join(dir, "issue-type", fmt.Sprintf("%d", itemID), "description.md")
+	}
 	return filepath.Join(dir, itemType, safePath(itemKey), "content.md")
 }
 
@@ -1264,6 +1460,30 @@ func writeWikiMetadata(dir string, wikiID int, name, url, updatedAt string) erro
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write wiki metadata: %w", err)
+	}
+	return nil
+}
+
+func writeIssueTypeMetadata(dir string, issueTypeID int, name, url, updatedAt string) error {
+	if issueTypeID == 0 {
+		return nil
+	}
+	meta := issueTypeMetadata{
+		ID:        issueTypeID,
+		Name:      name,
+		URL:       url,
+		UpdatedAt: updatedAt,
+	}
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal issue type metadata: %w", err)
+	}
+	path := filepath.Join(dir, "issue-type", fmt.Sprintf("%d", issueTypeID), "metadata.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create issue type dir: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write issue type metadata: %w", err)
 	}
 	return nil
 }
@@ -1374,6 +1594,32 @@ func snapshotAll(ctx context.Context, client *api.Client, projectKey string, pro
 			FetchedAt:  time.Now().Format(time.RFC3339),
 			UpdatedAt:  full.Updated,
 			InputHash:  hashHex(content),
+		})
+	}
+	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue types: %w", err)
+	}
+	for _, issueType := range issueTypes {
+		url := fmt.Sprintf("%s/EditIssueType.action?projectId=%d", baseURL, projectID)
+		description := issueType.TemplateDescription
+		descriptionPath := itemContentPath(dir, "issue_type_description", issueType.Name, issueType.ID)
+		if err := writeItemContent(descriptionPath, description); err != nil {
+			return nil, err
+		}
+		if err := writeIssueTypeMetadata(dir, issueType.ID, issueType.Name, url, ""); err != nil {
+			return nil, err
+		}
+		items = append(items, migrateItem{
+			ItemType:   "issue_type_description",
+			ItemID:     issueType.ID,
+			ItemKey:    issueType.Name,
+			URL:        url,
+			ProjectKey: projectKey,
+			Path:       descriptionPath,
+			FetchedAt:  time.Now().Format(time.RFC3339),
+			UpdatedAt:  "",
+			InputHash:  hashHex(description),
 		})
 	}
 	return items, nil
@@ -1551,6 +1797,9 @@ func matchesRollbackTarget(item *migrateItem, targets map[string]bool) bool {
 		return true
 	}
 	if item.ItemType == "wiki" {
+		return targets[fmt.Sprintf("%d", item.ItemID)]
+	}
+	if item.ItemType == "issue_type_description" {
 		return targets[fmt.Sprintf("%d", item.ItemID)]
 	}
 	return false
@@ -1837,9 +2086,46 @@ func fetchCurrentItem(ctx context.Context, client *api.Client, item *migrateItem
 			Attachments: attachmentNamesFromAPI(wiki.Attachments),
 			Name:        wiki.Name,
 		}, nil
+	case "issue_type_description":
+		issueType, err := getIssueType(ctx, client, item.ProjectKey, item.ItemID)
+		if err != nil {
+			return nil, err
+		}
+		return &currentItem{
+			Content:     issueType.TemplateDescription,
+			Updated:     "",
+			Attachments: nil,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown item type: %s", item.ItemType)
 	}
+}
+
+var issueTypeCache = map[string]map[int]api.IssueType{}
+
+func getIssueType(ctx context.Context, client *api.Client, projectKey string, issueTypeID int) (api.IssueType, error) {
+	if projectKey == "" {
+		return api.IssueType{}, fmt.Errorf("project key is required for issue type lookup")
+	}
+	if cache, ok := issueTypeCache[projectKey]; ok {
+		if issueType, ok := cache[issueTypeID]; ok {
+			return issueType, nil
+		}
+	}
+	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
+	if err != nil {
+		return api.IssueType{}, err
+	}
+	cache := make(map[int]api.IssueType, len(issueTypes))
+	for _, issueType := range issueTypes {
+		cache[issueType.ID] = issueType
+	}
+	issueTypeCache[projectKey] = cache
+	issueType, ok := cache[issueTypeID]
+	if !ok {
+		return api.IssueType{}, fmt.Errorf("issue type not found: %d", issueTypeID)
+	}
+	return issueType, nil
 }
 
 func applyItem(ctx context.Context, client *api.Client, item *migrateItem, content string) (string, error) {
@@ -1870,6 +2156,9 @@ func applyItem(ctx context.Context, client *api.Client, item *migrateItem, conte
 			return "", err
 		}
 		return wiki.Updated, nil
+	case "issue_type_description":
+		_, err := client.UpdateIssueType(ctx, item.ProjectKey, item.ItemID, &api.UpdateIssueTypeInput{TemplateDescription: &content})
+		return "", err
 	default:
 		return "", fmt.Errorf("unknown item type: %s", item.ItemType)
 	}
@@ -2025,8 +2314,9 @@ func formatRules(rules []markdown.RuleID) string {
 }
 
 func applyConversion(item *migrateItem, content string, attachments []string) (string, bool, error) {
+	force := item.ConvertForce
 	result := markdown.Convert(content, markdown.ConvertOptions{
-		Force:           item.ConvertForce,
+		Force:           force,
 		ItemType:        item.ItemType,
 		ItemID:          item.ItemID,
 		ParentID:        item.ParentID,
@@ -2069,6 +2359,27 @@ func buildItemIndex(items []migrateItem) map[string]migrateItem {
 		index[buildItemKey(item.ItemType, item.ItemKey)] = item
 	}
 	return index
+}
+
+func buildItemIndexByIdentity(items []migrateItem) map[string]bool {
+	index := make(map[string]bool, len(items))
+	for _, item := range items {
+		index[identityKey(item.ItemType, item.ItemKey, item.ItemID)] = true
+	}
+	return index
+}
+
+func identityKey(itemType, itemKey string, itemID int) string {
+	switch strings.ToLower(itemType) {
+	case "issue":
+		return "issue:" + itemKey
+	case "wiki":
+		return "wiki:" + fmt.Sprintf("%d", itemID)
+	case "issue_type_description":
+		return "issue_type_description:" + fmt.Sprintf("%d", itemID)
+	default:
+		return strings.ToLower(itemType) + ":" + itemKey
+	}
 }
 
 func inheritApplyState(item migrateItem, existing migrateItem) migrateItem {
@@ -2117,7 +2428,7 @@ func typeAllowed(allowed map[string]bool, itemType string) bool {
 	if len(allowed) == 0 {
 		return true
 	}
-	return allowed[strings.ToLower(itemType)]
+	return allowed[normalizedItemType(itemType)]
 }
 
 func promptApplyDecision() (string, error) {
@@ -2132,6 +2443,14 @@ func promptApplyDecision() (string, error) {
 		return "", err
 	}
 	return choice, nil
+}
+
+func normalizedItemType(itemType string) string {
+	normalized := strings.ToLower(itemType)
+	if strings.HasPrefix(normalized, "issue_type_") {
+		return "issue_type"
+	}
+	return normalized
 }
 
 func slugify(name string) string {
