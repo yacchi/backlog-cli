@@ -211,3 +211,205 @@ func TestSetFlagsLayer(t *testing.T) {
 		t.Errorf("Project = %q, want %q", project.Name, "QS2")
 	}
 }
+
+func TestGet(t *testing.T) {
+	ctx := t.Context()
+
+	// 環境変数をクリア
+	t.Setenv("BACKLOG_SPACE", "")
+
+	store, err := newConfigStore()
+	if err != nil {
+		t.Fatalf("NewConfigStore failed: %v", err)
+	}
+
+	if err := store.LoadAll(ctx); err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+
+	t.Run("non-existing value", func(t *testing.T) {
+		val, ok := Get[int](store, "/non/existing/path")
+		if ok {
+			t.Error("Get should return ok=false for non-existing path")
+		}
+		if val != 0 {
+			t.Errorf("Get should return zero value for non-existing path, got %d", val)
+		}
+	})
+
+	t.Run("type mismatch", func(t *testing.T) {
+		// ServerHost は string なので int として取得すると失敗する
+		val, ok := Get[int](store, PathServerHost)
+		if ok {
+			t.Error("Get should return ok=false for type mismatch")
+		}
+		if val != 0 {
+			t.Errorf("Get should return zero value for type mismatch, got %d", val)
+		}
+	})
+
+	t.Run("nil store", func(t *testing.T) {
+		val, ok := Get[string](nil, PathServerHost)
+		if ok {
+			t.Error("Get should return ok=false for nil store")
+		}
+		if val != "" {
+			t.Errorf("Get should return zero value for nil store, got %q", val)
+		}
+	})
+}
+
+func TestGetAllConstantPaths(t *testing.T) {
+	ctx := t.Context()
+
+	// 環境変数をクリア
+	t.Setenv("BACKLOG_SPACE", "")
+
+	store, err := newConfigStore()
+	if err != nil {
+		t.Fatalf("NewConfigStore failed: %v", err)
+	}
+
+	if err := store.LoadAll(ctx); err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+
+	// スカラー値のパス（defaults.yamlにデフォルト値が設定されているもの）
+	// 型ごとにテストケースを分類
+	stringPaths := []struct {
+		name string
+		path string
+	}{
+		{"PathServerHost", PathServerHost},
+		{"PathServerBaseUrl", PathServerBaseUrl},
+		{"PathServerAllowedHostPatterns", PathServerAllowedHostPatterns},
+		{"PathDisplayTimezone", PathDisplayTimezone},
+		{"PathDisplayDateFormat", PathDisplayDateFormat},
+		{"PathDisplayDatetimeFormat", PathDisplayDatetimeFormat},
+		{"PathServerAuditOutput", PathServerAuditOutput},
+		{"PathServerAuditFilePath", PathServerAuditFilePath},
+		{"PathServerAuditWebhookUrl", PathServerAuditWebhookUrl},
+		{"PathCacheDir", PathCacheDir},
+		{"PathProjectProfile", PathProjectProfile},
+		{"PathProjectSpace", PathProjectSpace},
+		{"PathProjectDomain", PathProjectDomain},
+		{"PathProjectName", PathProjectName},
+	}
+
+	intPaths := []struct {
+		name string
+		path string
+	}{
+		{"PathServerPort", PathServerPort},
+		{"PathServerHttpReadTimeout", PathServerHttpReadTimeout},
+		{"PathServerHttpWriteTimeout", PathServerHttpWriteTimeout},
+		{"PathServerHttpIdleTimeout", PathServerHttpIdleTimeout},
+		{"PathServerJwtExpiry", PathServerJwtExpiry},
+		{"PathServerCacheShortTtl", PathServerCacheShortTtl},
+		{"PathServerCacheLongTtl", PathServerCacheLongTtl},
+		{"PathServerCacheStaticTtl", PathServerCacheStaticTtl},
+		{"PathServerRateLimitRequestsPerMinute", PathServerRateLimitRequestsPerMinute},
+		{"PathServerRateLimitBurst", PathServerRateLimitBurst},
+		{"PathServerRateLimitCleanupInterval", PathServerRateLimitCleanupInterval},
+		{"PathServerRateLimitEntryTtl", PathServerRateLimitEntryTtl},
+		{"PathServerAuditWebhookTimeout", PathServerAuditWebhookTimeout},
+		{"PathDisplaySummaryMaxLength", PathDisplaySummaryMaxLength},
+		{"PathDisplaySummaryCommentCount", PathDisplaySummaryCommentCount},
+		{"PathDisplayDefaultCommentCount", PathDisplayDefaultCommentCount},
+		{"PathDisplayDefaultIssueLimit", PathDisplayDefaultIssueLimit},
+		{"PathDisplayMarkdownCacheExcerpt", PathDisplayMarkdownCacheExcerpt},
+		{"PathAuthMinCallbackPort", PathAuthMinCallbackPort},
+		{"PathAuthMaxCallbackPort", PathAuthMaxCallbackPort},
+		{"PathAuthSessionCheckInterval", PathAuthSessionCheckInterval},
+		{"PathAuthSessionTimeout", PathAuthSessionTimeout},
+		{"PathAuthKeepaliveInterval", PathAuthKeepaliveInterval},
+		{"PathAuthKeepaliveTimeout", PathAuthKeepaliveTimeout},
+		{"PathAuthKeepaliveConnectTimeout", PathAuthKeepaliveConnectTimeout},
+		{"PathAuthKeepaliveGracePeriod", PathAuthKeepaliveGracePeriod},
+		{"PathCacheTtl", PathCacheTtl},
+	}
+
+	boolPaths := []struct {
+		name string
+		path string
+	}{
+		{"PathServerRateLimitEnabled", PathServerRateLimitEnabled},
+		{"PathServerAuditEnabled", PathServerAuditEnabled},
+		{"PathDisplayHyperlink", PathDisplayHyperlink},
+		{"PathDisplayMarkdownView", PathDisplayMarkdownView},
+		{"PathDisplayMarkdownWarn", PathDisplayMarkdownWarn},
+		{"PathDisplayMarkdownCache", PathDisplayMarkdownCache},
+		{"PathDisplayMarkdownCacheRaw", PathDisplayMarkdownCacheRaw},
+		{"PathCacheEnabled", PathCacheEnabled},
+	}
+
+	t.Run("string paths", func(t *testing.T) {
+		for _, tc := range stringPaths {
+			t.Run(tc.name, func(t *testing.T) {
+				_, ok := Get[string](store, tc.path)
+				if !ok {
+					t.Errorf("Get[string](%s) should return ok=true", tc.path)
+				}
+			})
+		}
+	})
+
+	t.Run("int paths", func(t *testing.T) {
+		for _, tc := range intPaths {
+			t.Run(tc.name, func(t *testing.T) {
+				_, ok := Get[int](store, tc.path)
+				if !ok {
+					t.Errorf("Get[int](%s) should return ok=true", tc.path)
+				}
+			})
+		}
+	})
+
+	t.Run("bool paths", func(t *testing.T) {
+		for _, tc := range boolPaths {
+			t.Run(tc.name, func(t *testing.T) {
+				_, ok := Get[bool](store, tc.path)
+				if !ok {
+					t.Errorf("Get[bool](%s) should return ok=true", tc.path)
+				}
+			})
+		}
+	})
+}
+
+func TestGetDefault(t *testing.T) {
+	ctx := t.Context()
+
+	// 環境変数をクリア
+	t.Setenv("BACKLOG_SPACE", "")
+
+	store, err := newConfigStore()
+	if err != nil {
+		t.Fatalf("NewConfigStore failed: %v", err)
+	}
+
+	if err := store.LoadAll(ctx); err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+
+	t.Run("non-existing value returns default", func(t *testing.T) {
+		val := GetDefault(store, "/non/existing/path", 42)
+		if val != 42 {
+			t.Errorf("GetDefault should return default value for non-existing path, got %d", val)
+		}
+	})
+
+	t.Run("nil store returns default", func(t *testing.T) {
+		val := GetDefault[int](nil, PathServerPort, 9999)
+		if val != 9999 {
+			t.Errorf("GetDefault with nil store should return default 9999, got %d", val)
+		}
+	})
+
+	t.Run("string default", func(t *testing.T) {
+		val := GetDefault(store, "/non/existing/string", "fallback")
+		if val != "fallback" {
+			t.Errorf("GetDefault should return 'fallback', got %q", val)
+		}
+	})
+}

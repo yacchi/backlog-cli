@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 )
 
 // IPRestriction はIP制限の設定
@@ -62,7 +61,7 @@ func (ir *IPRestriction) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ip := getClientIP(r)
+		ip := extractClientIP(r)
 		if ip == nil || !ir.IsAllowed(ip) {
 			http.Error(w, "Access denied", http.StatusForbidden)
 			return
@@ -70,35 +69,6 @@ func (ir *IPRestriction) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// getClientIP はクライアントIPを取得する
-func getClientIP(r *http.Request) net.IP {
-	// X-Forwarded-For ヘッダーをチェック
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			ip := net.ParseIP(strings.TrimSpace(ips[0]))
-			if ip != nil {
-				return ip
-			}
-		}
-	}
-
-	// X-Real-IP ヘッダーをチェック
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		ip := net.ParseIP(xri)
-		if ip != nil {
-			return ip
-		}
-	}
-
-	// RemoteAddr から取得
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return nil
-	}
-	return net.ParseIP(host)
 }
 
 // AccessController はアクセス制御

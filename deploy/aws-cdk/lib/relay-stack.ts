@@ -25,16 +25,15 @@ import {
  * CloudFront キャッシュのデフォルト設定
  *
  * - assetsMaxAge: 静的アセットは長期キャッシュ（コンテンツハッシュで管理）
- * - apiDefaultTtl: certs/info のデフォルトキャッシュ時間
+ * - apiDefaultTtl: オリジンがCache-Controlを返さない場合のデフォルトTTL
  * - apiMaxTtl: オリジンの max-age が大きくてもこの値でキャップ
- * - apiMinTtl: Lambda 負荷軽減のため最低限キャッシュする時間
- *              鍵ローテーションは移行期間を設けて行うため問題ない
+ * - apiMinTtl: 0に設定してオリジンの no-cache/no-store を尊重
  */
 export const DEFAULT_CACHE_CONFIG: Required<CloudFrontCacheConfig> = {
   assetsMaxAge: 365 * 24 * 60 * 60, // 365日
-  apiDefaultTtl: 60 * 60, // 1時間
+  apiDefaultTtl: 5 * 60, // 5分（フォールバック用）
   apiMaxTtl: 24 * 60 * 60, // 24時間
-  apiMinTtl: 5 * 60, // 5分
+  apiMinTtl: 0, // オリジンのヘッダーを尊重
 };
 
 export interface RelayStackProps extends cdk.StackProps {
@@ -187,7 +186,8 @@ export class RelayStack extends cdk.Stack {
     const origin = this.createOrigin();
 
     // キャッシュポリシー
-    const { assetsCachePolicy, apiCachePolicy } = this.createCachePolicies();
+    const { staticAssetsCachePolicy, dynamicContentsCachePolicy } =
+      this.createCachePolicies();
 
     // オリジンリクエストポリシー: Content-* ヘッダーと Cookie を転送
     const originRequestPolicy = this.createOriginRequestPolicy();
@@ -198,6 +198,30 @@ export class RelayStack extends cdk.Stack {
     // Lambda@Edge: コンテンツハッシュを計算 (origin-request)
     // OAC + Lambda Function URL で POST/PUT を使うために必要
     const contentHashEdgeFunction = this.createContentHashEdgeFunction();
+
+    // 共通のビヘイビア設定（最大限の機能を含む）
+    // - X-Original-Host ヘッダーを注入・転送
+    // - Lambda@Edge でPOST/PUTのボディハッシュを計算
+    // 新しいエンドポイント追加時に設定漏れを防ぐため、
+    // デフォルトは全機能有効とし、不要なルートのみ上書きする
+    const baseBehavior = {
+      origin,
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      originRequestPolicy,
+      functionAssociations: [
+        {
+          function: forwardHostFunction,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        },
+      ],
+      edgeLambdas: [
+        {
+          functionVersion: contentHashEdgeFunction.currentVersion,
+          eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+          includeBody: true,
+        },
+      ],
+    } as const satisfies Partial<cloudfront.BehaviorOptions>;
 
     // ディストリビューション
     const distribution = new cloudfront.Distribution(this, "Distribution", {
@@ -212,51 +236,21 @@ export class RelayStack extends cdk.Stack {
       comment: useCustomDomain
         ? `Backlog CLI OAuth Relay Server (${domainName})`
         : "Backlog CLI OAuth Relay Server",
+      // デフォルト: オリジンのCache-Controlヘッダーを尊重
+      // アプリケーション側で適切なキャッシュ制御を返す
       defaultBehavior: {
-        origin,
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        ...baseBehavior,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-        originRequestPolicy,
-        functionAssociations: [
-          {
-            function: forwardHostFunction,
-            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
-          },
-        ],
-        edgeLambdas: [
-          {
-            functionVersion: contentHashEdgeFunction.currentVersion,
-            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
-            includeBody: true,
-          },
-        ],
+        cachePolicy: dynamicContentsCachePolicy,
       },
       additionalBehaviors: {
+        // 静的アセット: ホスト情報不要、長期キャッシュ（immutable）
         "/assets/*": {
           origin,
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachePolicy: assetsCachePolicy,
-          compress: true,
-        },
-        // certs/info エンドポイント: オリジンのCache-Controlを尊重
-        // ETagによる条件付きリクエストで更新を検知
-        "/v1/relay/tenants/*/certs": {
-          origin,
-          viewerProtocolPolicy:
-            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachePolicy: apiCachePolicy,
-          compress: true,
-        },
-        "/v1/relay/tenants/*/info": {
-          origin,
-          viewerProtocolPolicy:
-            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachePolicy: apiCachePolicy,
+          cachePolicy: staticAssetsCachePolicy,
           compress: true,
         },
       },
@@ -363,8 +357,8 @@ function handler(event) {
    * 設定値がない場合は DEFAULT_CACHE_CONFIG のデフォルト値を使用
    */
   private createCachePolicies(): {
-    assetsCachePolicy: cloudfront.CachePolicy;
-    apiCachePolicy: cloudfront.CachePolicy;
+    staticAssetsCachePolicy: cloudfront.CachePolicy;
+    dynamicContentsCachePolicy: cloudfront.CachePolicy;
   } {
     // 設定とデフォルト値をマージ
     const cacheConfig = {
@@ -372,12 +366,13 @@ function handler(event) {
       ...this.config.cloudFront?.cache,
     };
 
-    const assetsCachePolicy = new cloudfront.CachePolicy(
+    // 静的アセット用（長期キャッシュ、immutable）
+    const staticAssetsCachePolicy = new cloudfront.CachePolicy(
       this,
-      "AssetsCachePolicy",
+      "StaticAssetsCachePolicy",
       {
-        cachePolicyName: `${this.stackName}-assets`,
-        comment: "Cache policy for static assets with content hash",
+        cachePolicyName: `${this.stackName}-static`,
+        comment: "Cache policy for static assets (immutable, content hash)",
         defaultTtl: cdk.Duration.seconds(cacheConfig.assetsMaxAge),
         maxTtl: cdk.Duration.seconds(cacheConfig.assetsMaxAge),
         minTtl: cdk.Duration.days(1),
@@ -386,20 +381,24 @@ function handler(event) {
       },
     );
 
-    // certs/info エンドポイント用キャッシュポリシー
-    // minTtl を設定してLambdaへのリクエスト集中を防止
-    // 鍵ローテーションは移行期間を設けて行うため、数分のキャッシュは問題ない
-    const apiCachePolicy = new cloudfront.CachePolicy(this, "ApiCachePolicy", {
-      cachePolicyName: `${this.stackName}-api`,
-      comment: "Cache policy for certs/info API",
-      defaultTtl: cdk.Duration.seconds(cacheConfig.apiDefaultTtl),
-      maxTtl: cdk.Duration.seconds(cacheConfig.apiMaxTtl),
-      minTtl: cdk.Duration.seconds(cacheConfig.apiMinTtl),
-      enableAcceptEncodingGzip: true,
-      enableAcceptEncodingBrotli: true,
-    });
+    // 動的コンテンツ用（オリジンのCache-Controlを尊重）
+    // minTtl = 0 でオリジンの no-cache/no-store を尊重
+    // defaultTtl はオリジンがCache-Controlを返さない場合のフォールバック
+    const dynamicContentsCachePolicy = new cloudfront.CachePolicy(
+      this,
+      "DynamicContentsCachePolicy",
+      {
+        cachePolicyName: `${this.stackName}-dynamic`,
+        comment: "Cache policy for dynamic contents (respects origin headers)",
+        defaultTtl: cdk.Duration.seconds(cacheConfig.apiDefaultTtl),
+        maxTtl: cdk.Duration.seconds(cacheConfig.apiMaxTtl),
+        minTtl: cdk.Duration.seconds(cacheConfig.apiMinTtl),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true,
+      },
+    );
 
-    return { assetsCachePolicy, apiCachePolicy };
+    return { staticAssetsCachePolicy, dynamicContentsCachePolicy };
   }
 
   /**

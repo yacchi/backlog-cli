@@ -28,5 +28,6 @@ func (s *Server) handleWellKnown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	SetCacheHeaders(w, CacheTypeShort, s.cfg)
 	_ = json.NewEncoder(w).Encode(resp)
 }

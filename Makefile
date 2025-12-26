@@ -21,6 +21,7 @@ all: build
 # ビルド
 build: build-web
 	@mkdir -p $(BUILD_DIR)
+	go generate ./...
 	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/backlog
 
 # 開発用実行（go run使用）

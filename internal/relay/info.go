@@ -17,7 +17,6 @@ import (
 
 const relayInfoVersion = 1
 const relayInfoDefaultTTL = 600
-const relayInfoDefaultCacheTTL = 3600 // 1時間
 
 type relayInfoPayload struct {
 	Version       int    `json:"version"`
@@ -81,6 +80,8 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	reqCtx := ExtractRequestContext(r)
+
 	issuedAt := time.Now().UTC()
 	ttl := tenant.InfoTTL
 	if ttl <= 0 {
@@ -91,7 +92,7 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 	space, backlogDomain := domain.SplitDomain(tenant.AllowedDomain)
 	payload := relayInfoPayload{
 		Version:       relayInfoVersion,
-		RelayURL:      s.buildRelayURL(r),
+		RelayURL:      s.buildRelayURL(reqCtx),
 		AllowedDomain: tenant.AllowedDomain,
 		Space:         space,
 		Domain:        backlogDomain,
@@ -124,16 +125,9 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// キャッシュTTL取得（サーバー設定から）
-	cacheTTL := s.cfg.Server().CacheInfoTTL
-	if cacheTTL <= 0 {
-		cacheTTL = relayInfoDefaultCacheTTL
-	}
-
 	// キャッシュヘッダー設定
-	// stale-while-revalidate: キャッシュ更新中も古いレスポンスを返す
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d", cacheTTL, cacheTTL/2))
+	SetCacheHeaders(w, CacheTypeShort, s.cfg)
 	w.Header().Set("ETag", etag)
 	_, _ = w.Write(respJSON)
 }

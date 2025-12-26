@@ -69,6 +69,12 @@ profile:
 project:
   # 使用するプロファイル名 (未設定時は"default")
   profile: ""
+  # Backlogスペース名（プロファイル設定を上書き）
+  # 環境変数: BACKLOG_PROJECT_SPACE
+  space: ""
+  # Backlogドメイン（プロファイル設定を上書き）
+  # 環境変数: BACKLOG_PROJECT_DOMAIN
+  domain: ""
   # プロジェクトキー
   name: ""
 
@@ -181,17 +187,19 @@ server:
     # JWTトークン有効期限 (秒)
     expiry: 300
 
-  # certs/info エンドポイントの HTTP キャッシュ設定
+  # HTTP キャッシュ設定
   cache:
-    # certs エンドポイントの Cache-Control max-age (秒)
-    # 公開鍵は頻繁に変わらないため長めに設定可能
-    # 環境変数: BACKLOG_SERVER_CACHE_CERTS_TTL
-    certs_ttl: 86400
+    # 短期キャッシュ TTL (秒) - info等の動的コンテンツ向け
+    # 環境変数: BACKLOG_SERVER_CACHE_SHORT_TTL
+    short_ttl: 300
 
-    # info エンドポイントの Cache-Control max-age (秒)
-    # 署名付き情報のため、certsより短めを推奨
-    # 環境変数: BACKLOG_SERVER_CACHE_INFO_TTL
-    info_ttl: 300
+    # 長期キャッシュ TTL (秒) - certs等の準静的コンテンツ向け
+    # 環境変数: BACKLOG_SERVER_CACHE_LONG_TTL
+    long_ttl: 3600
+
+    # 静的アセット TTL (秒) - immutableなアセット向け
+    # 環境変数: BACKLOG_SERVER_CACHE_STATIC_TTL
+    static_ttl: 31536000
 
 # ================================================
 # 表示設定

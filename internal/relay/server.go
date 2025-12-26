@@ -139,6 +139,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // handleHealth はヘルスチェック
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	SetCacheHeaders(w, CacheTypeShort, s.cfg)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("OK"))
 }

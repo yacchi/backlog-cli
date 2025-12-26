@@ -76,13 +76,13 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ip := getClientIP(r)
-		if ip == nil {
+		clientIP := extractClientIPString(r)
+		if clientIP == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		if !rl.Allow(ip.String()) {
+		if !rl.Allow(clientIP) {
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return

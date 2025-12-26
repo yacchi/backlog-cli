@@ -6,6 +6,8 @@
 package config
 
 import (
+	"strconv"
+
 	"github.com/yacchi/jubako/jsonptr"
 )
 
@@ -14,6 +16,7 @@ const (
 	PathActiveProfile                      = "/active_profile"
 	PathProfile                            = "/profile"
 	PathCredential                         = "/credential"
+	PathClientTrustBundles                 = "/client/trust/bundles"
 	PathProjectProfile                     = "/project/profile"
 	PathProjectSpace                       = "/project/space"
 	PathProjectDomain                      = "/project/domain"
@@ -21,11 +24,16 @@ const (
 	PathServerHost                         = "/server/host"
 	PathServerPort                         = "/server/port"
 	PathServerBaseUrl                      = "/server/base_url"
+	PathServerAllowedHostPatterns          = "/server/allowed_host_patterns"
 	PathServerHttpReadTimeout              = "/server/http/read_timeout"
 	PathServerHttpWriteTimeout             = "/server/http/write_timeout"
 	PathServerHttpIdleTimeout              = "/server/http/idle_timeout"
 	PathServerJwtExpiry                    = "/server/jwt/expiry"
+	PathServerCacheShortTtl                = "/server/cache/short_ttl"
+	PathServerCacheLongTtl                 = "/server/cache/long_ttl"
+	PathServerCacheStaticTtl               = "/server/cache/static_ttl"
 	PathServerBacklog                      = "/server/backlog"
+	PathServerTenants                      = "/server/tenants"
 	PathServerAccessControlAllowedSpaces   = "/server/access_control/allowed_spaces"
 	PathServerAccessControlAllowedProjects = "/server/access_control/allowed_projects"
 	PathServerAccessControlAllowedCidrs    = "/server/access_control/allowed_cidrs"
@@ -40,18 +48,34 @@ const (
 	PathServerAuditWebhookUrl              = "/server/audit/webhook_url"
 	PathServerAuditWebhookTimeout          = "/server/audit/webhook_timeout"
 	PathDisplaySummaryMaxLength            = "/display/summary_max_length"
+	PathDisplaySummaryCommentCount         = "/display/summary_comment_count"
 	PathDisplayDefaultCommentCount         = "/display/default_comment_count"
 	PathDisplayDefaultIssueLimit           = "/display/default_issue_limit"
 	PathDisplayTimezone                    = "/display/timezone"
 	PathDisplayDateFormat                  = "/display/date_format"
 	PathDisplayDatetimeFormat              = "/display/datetime_format"
 	PathDisplayHyperlink                   = "/display/hyperlink"
+	PathDisplayMarkdownView                = "/display/markdown_view"
+	PathDisplayMarkdownWarn                = "/display/markdown_warn"
+	PathDisplayMarkdownCache               = "/display/markdown_cache"
+	PathDisplayMarkdownCacheRaw            = "/display/markdown_cache_raw"
+	PathDisplayMarkdownCacheExcerpt        = "/display/markdown_cache_excerpt"
+	PathDisplayMarkdownUnsafeRules         = "/display/markdown_unsafe_rules"
 	PathDisplayIssueListFields             = "/display/issue_list_fields"
 	PathDisplayIssueFieldConfig            = "/display/issue_field_config"
 	PathDisplayPrListFields                = "/display/pr_list_fields"
 	PathDisplayPrFieldConfig               = "/display/pr_field_config"
 	PathAuthMinCallbackPort                = "/auth/min_callback_port"
 	PathAuthMaxCallbackPort                = "/auth/max_callback_port"
+	PathAuthSessionCheckInterval           = "/auth/session/check_interval"
+	PathAuthSessionTimeout                 = "/auth/session/timeout"
+	PathAuthKeepaliveInterval              = "/auth/keepalive/interval"
+	PathAuthKeepaliveTimeout               = "/auth/keepalive/timeout"
+	PathAuthKeepaliveConnectTimeout        = "/auth/keepalive/connect_timeout"
+	PathAuthKeepaliveGracePeriod           = "/auth/keepalive/grace_period"
+	PathCacheEnabled                       = "/cache/enabled"
+	PathCacheDir                           = "/cache/dir"
+	PathCacheTtl                           = "/cache/ttl"
 )
 
 // PathProfileRelayServer returns the JSONPointer path.
@@ -126,6 +150,12 @@ func PathProfileAuthNoBrowser(key string) string {
 	return "/profile/" + jsonptr.Escape(key) + "/auth_no_browser"
 }
 
+// PathProfileAuthSkipConfirmation returns the JSONPointer path.
+// Path pattern: /profile/{key}/auth_skip_confirmation
+func PathProfileAuthSkipConfirmation(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/auth_skip_confirmation"
+}
+
 // PathProfileHttpTimeout returns the JSONPointer path.
 // Path pattern: /profile/{key}/http_timeout
 func PathProfileHttpTimeout(key string) string {
@@ -180,6 +210,84 @@ func PathCredentialUserName(key string) string {
 	return "/credential/" + jsonptr.Escape(key) + "/user_name"
 }
 
+// PathClientTrustBundlesId returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/id
+func PathClientTrustBundlesId(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/id"
+}
+
+// PathClientTrustBundlesRelayUrl returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/relay_url
+func PathClientTrustBundlesRelayUrl(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/relay_url"
+}
+
+// PathClientTrustBundlesAllowedDomain returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/allowed_domain
+func PathClientTrustBundlesAllowedDomain(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/allowed_domain"
+}
+
+// PathClientTrustBundlesBundleToken returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/bundle_token
+func PathClientTrustBundlesBundleToken(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/bundle_token"
+}
+
+// PathClientTrustBundlesRelayKeys returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/relay_keys
+func PathClientTrustBundlesRelayKeys(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/relay_keys"
+}
+
+// PathClientTrustBundlesRelayKeysKeyId returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/relay_keys/{index2}/key_id
+func PathClientTrustBundlesRelayKeysKeyId(index int, index2 int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/relay_keys/" + strconv.Itoa(index2) + "/key_id"
+}
+
+// PathClientTrustBundlesRelayKeysThumbprint returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/relay_keys/{index2}/thumbprint
+func PathClientTrustBundlesRelayKeysThumbprint(index int, index2 int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/relay_keys/" + strconv.Itoa(index2) + "/thumbprint"
+}
+
+// PathClientTrustBundlesIssuedAt returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/issued_at
+func PathClientTrustBundlesIssuedAt(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/issued_at"
+}
+
+// PathClientTrustBundlesExpiresAt returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/expires_at
+func PathClientTrustBundlesExpiresAt(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/expires_at"
+}
+
+// PathClientTrustBundlesCertsCacheTtl returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/certs_cache_ttl
+func PathClientTrustBundlesCertsCacheTtl(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/certs_cache_ttl"
+}
+
+// PathClientTrustBundlesSourceFileName returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/source/file_name
+func PathClientTrustBundlesSourceFileName(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/source/file_name"
+}
+
+// PathClientTrustBundlesSourceSha256 returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/source/sha256
+func PathClientTrustBundlesSourceSha256(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/source/sha256"
+}
+
+// PathClientTrustBundlesImportedAt returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/imported_at
+func PathClientTrustBundlesImportedAt(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/imported_at"
+}
+
 // PathServerBacklogDomain returns the JSONPointer path.
 // Path pattern: /server/backlog/{key}/domain
 func PathServerBacklogDomain(key string) string {
@@ -196,6 +304,36 @@ func PathServerBacklogClientId(key string) string {
 // Path pattern: /server/backlog/{key}/client_secret
 func PathServerBacklogClientSecret(key string) string {
 	return "/server/backlog/" + jsonptr.Escape(key) + "/client_secret"
+}
+
+// PathServerTenantsJwks returns the JSONPointer path.
+// Path pattern: /server/tenants/{key}/jwks
+func PathServerTenantsJwks(key string) string {
+	return "/server/tenants/" + jsonptr.Escape(key) + "/jwks"
+}
+
+// PathServerTenantsActiveKeys returns the JSONPointer path.
+// Path pattern: /server/tenants/{key}/active_keys
+func PathServerTenantsActiveKeys(key string) string {
+	return "/server/tenants/" + jsonptr.Escape(key) + "/active_keys"
+}
+
+// PathServerTenantsAllowedDomain returns the JSONPointer path.
+// Path pattern: /server/tenants/{key}/allowed_domain
+func PathServerTenantsAllowedDomain(key string) string {
+	return "/server/tenants/" + jsonptr.Escape(key) + "/allowed_domain"
+}
+
+// PathServerTenantsInfoTtl returns the JSONPointer path.
+// Path pattern: /server/tenants/{key}/info_ttl
+func PathServerTenantsInfoTtl(key string) string {
+	return "/server/tenants/" + jsonptr.Escape(key) + "/info_ttl"
+}
+
+// PathServerTenantsPassphraseHash returns the JSONPointer path.
+// Path pattern: /server/tenants/{key}/passphrase_hash
+func PathServerTenantsPassphraseHash(key string) string {
+	return "/server/tenants/" + jsonptr.Escape(key) + "/passphrase_hash"
 }
 
 // PathDisplayIssueFieldConfigHeader returns the JSONPointer path.

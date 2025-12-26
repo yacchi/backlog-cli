@@ -101,16 +101,13 @@ func (m *BundleAuthMiddleware) findTenantByDomain(domain string) *config.Resolve
 
 // logAuthFailure は認証失敗をログに記録する
 func (m *BundleAuthMiddleware) logAuthFailure(r *http.Request, domain, reason string) {
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	m.auditLogger.Log(AuditEvent{
 		Action:    AuditActionBundleAuth,
 		Domain:    domain,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "error",
 		Error:     reason,
 	})

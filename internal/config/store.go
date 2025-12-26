@@ -634,3 +634,30 @@ func ResetConfig() {
 	defer globalStoreMu.Unlock()
 	globalStore = nil
 }
+
+func Get[T any](cfg *Store, path string) (T, bool) {
+	var zero T
+	if cfg == nil {
+		return zero, false
+	}
+	// パスがJSON Pointer形式（スラッシュで始まる）の場合はそのまま使用
+	// それ以外はドット形式としてDotToPointerで変換
+	pointer := path
+	if !strings.HasPrefix(path, "/") {
+		pointer = DotToPointer(path)
+	}
+	rv := cfg.store.GetAt(pointer)
+	if rv.Exists {
+		if v, ok := rv.Value.(T); ok {
+			return v, true
+		}
+	}
+	return zero, false
+}
+
+func GetDefault[T any](cfg *Store, path string, defaultValue T) T {
+	if v, ok := Get[T](cfg, path); ok {
+		return v
+	}
+	return defaultValue
+}

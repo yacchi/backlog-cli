@@ -13,8 +13,6 @@ import (
 	"github.com/yacchi/backlog-cli/internal/config"
 )
 
-const defaultCertsCacheTTL = 3600
-
 func (s *Server) handleRelayCerts(w http.ResponseWriter, r *http.Request) {
 	domain := strings.TrimSpace(r.PathValue("domain"))
 	if domain == "" {
@@ -50,16 +48,9 @@ func (s *Server) handleRelayCerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// キャッシュTTL取得
-	cacheTTL := s.cfg.Server().CacheCertsTTL
-	if cacheTTL <= 0 {
-		cacheTTL = defaultCertsCacheTTL
-	}
-
 	// キャッシュヘッダー設定
-	// stale-while-revalidate: キャッシュ更新中も古いレスポンスを返す
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d", cacheTTL, cacheTTL/2))
+	SetCacheHeaders(w, CacheTypeLong, s.cfg)
 	w.Header().Set("ETag", etag)
 	_, _ = w.Write(redacted)
 }

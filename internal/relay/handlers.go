@@ -56,10 +56,7 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 	cliState := r.URL.Query().Get("state") // CLI が生成した state
 	project := r.URL.Query().Get("project")
 
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	// バリデーション
 	if domain == "" || space == "" || portStr == "" || cliState == "" {
@@ -80,8 +77,8 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 			Space:     space,
 			Domain:    domain,
 			Project:   project,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     err.Error(),
 		})
@@ -96,8 +93,8 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 			Space:     space,
 			Domain:    domain,
 			Project:   project,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     err.Error(),
 		})
@@ -132,13 +129,13 @@ func (s *Server) handleAuthStart(w http.ResponseWriter, r *http.Request) {
 		Space:     space,
 		Domain:    domain,
 		Project:   project,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
 	// Backlog認可URLを構築
-	redirectURI := s.buildCallbackURL(r)
+	redirectURI := s.buildCallbackURL(reqCtx)
 	authURL := fmt.Sprintf("https://%s.%s/OAuth2AccessRequest.action?response_type=code&client_id=%s&redirect_uri=%s&state=%s",
 		space,
 		domain,
@@ -157,18 +154,15 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	encodedState := r.URL.Query().Get("state") // エンコードされた state
 	errorParam := r.URL.Query().Get("error")
 
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	// Backlogからのエラー
 	if errorParam != "" {
 		errorDesc := r.URL.Query().Get("error_description")
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionAuthCallback,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     fmt.Sprintf("%s: %s", errorParam, errorDesc),
 		})
@@ -179,8 +173,8 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if code == "" || encodedState == "" {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionAuthCallback,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "missing code or state parameter",
 		})
@@ -193,8 +187,8 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionAuthCallback,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "invalid state: " + err.Error(),
 		})
@@ -209,8 +203,8 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		Space:     claims.Space,
 		Domain:    claims.Domain,
 		Project:   claims.Project,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
@@ -224,10 +218,7 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	// リクエストボディをパース
 	var req TokenRequest
@@ -259,7 +250,7 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, http.StatusBadRequest, "invalid_request", "code is required for authorization_code grant")
 			return
 		}
-		tokenResp, err = s.exchangeCode(r, backlogCfg, req.Space, req.Code)
+		tokenResp, err = s.exchangeCode(reqCtx, backlogCfg, req.Space, req.Code)
 
 	case "refresh_token":
 		auditAction = AuditActionTokenRefresh
@@ -283,8 +274,8 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 			Action:    auditAction,
 			Space:     req.Space,
 			Domain:    req.Domain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     err.Error(),
 		})
@@ -310,12 +301,13 @@ func (s *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		UserEmail: userEmail,
 		Space:     req.Space,
 		Domain:    req.Domain,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
 	w.Header().Set("Content-Type", "application/json")
+	SetCacheHeaders(w, CacheTypeNone, s.cfg)
 	_ = json.NewEncoder(w).Encode(tokenResp)
 }
 
@@ -323,40 +315,21 @@ func (s *Server) findBacklogConfig(domain string) *config.ResolvedBacklogApp {
 	return s.cfg.BacklogApp(domain)
 }
 
-func (s *Server) buildCallbackURL(r *http.Request) string {
+func (s *Server) buildCallbackURL(reqCtx RequestContext) string {
 	server := s.cfg.Server()
 	if server.BaseURL != "" {
 		return server.BaseURL + "/auth/callback"
 	}
 
-	// BaseURL が未設定の場合、リクエストヘッダーから URL を構築
-	// Lambda Function URL や CloudRun など、リバースプロキシ環境で有用
-	if r != nil {
-		scheme := "https" // デフォルトは HTTPS
-		host := r.Host
-
-		// X-Forwarded-Proto ヘッダーがあれば使用
-		if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-			scheme = proto
+	// BaseURL が未設定の場合、RequestContext から URL を構築
+	if reqCtx.Host != "" {
+		// ホストパターン検証
+		if !s.isHostAllowed(reqCtx.Host) {
+			slog.Warn("host not allowed", "host", reqCtx.Host, "patterns", server.AllowedHostPatterns)
+			// 検証失敗時はローカルホストにフォールバック
+			return fmt.Sprintf("http://localhost:%d/auth/callback", server.Port)
 		}
-
-		// X-Original-Host または X-Forwarded-Host ヘッダーがあれば使用（プロキシ経由の場合）
-		// X-Original-Host を優先（CloudFront Function で設定）
-		if origHost := r.Header.Get("X-Original-Host"); origHost != "" {
-			host = origHost
-		} else if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
-			host = fwdHost
-		}
-
-		if host != "" {
-			// ホストパターン検証
-			if !s.isHostAllowed(host) {
-				slog.Warn("host not allowed", "host", host, "patterns", server.AllowedHostPatterns)
-				// 検証失敗時はローカルホストにフォールバック
-				return fmt.Sprintf("http://localhost:%d/auth/callback", server.Port)
-			}
-			return fmt.Sprintf("%s://%s/auth/callback", scheme, host)
-		}
+		return reqCtx.BaseURL + "/auth/callback"
 	}
 
 	// デフォルト（ローカル開発用）
@@ -412,11 +385,11 @@ func (s *Server) renderErrorPage(w http.ResponseWriter, title, message string) {
 </html>`, title, title, message)
 }
 
-func (s *Server) exchangeCode(r *http.Request, cfg *config.ResolvedBacklogApp, space, code string) (*TokenResponse, error) {
+func (s *Server) exchangeCode(reqCtx RequestContext, cfg *config.ResolvedBacklogApp, space, code string) (*TokenResponse, error) {
 	return s.requestToken(cfg, space, url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
-		"redirect_uri":  {s.buildCallbackURL(r)},
+		"redirect_uri":  {s.buildCallbackURL(reqCtx)},
 		"client_id":     {cfg.ClientID()},
 		"client_secret": {cfg.ClientSecret()},
 	})

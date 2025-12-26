@@ -21,18 +21,15 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	tenant, ok := findTenantByAllowedDomain(s.cfg.Server().Tenants, allowedDomain)
 	if !ok {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionRelayBundle,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "tenant not found",
 		})
@@ -40,14 +37,14 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	relayURL := s.buildRelayURL(r)
+	relayURL := s.buildRelayURL(reqCtx)
 	bundleData, err := config.CreatePortalBundle(tenant, allowedDomain, relayURL)
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionRelayBundle,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     err.Error(),
 		})
@@ -60,13 +57,14 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		Action:    AuditActionRelayBundle,
 		Space:     space,
 		Domain:    backlogDomain,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
 	filename := allowedDomain + ".backlog-cli.zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	SetCacheHeaders(w, CacheTypeNone, s.cfg)
 	_, _ = w.Write(bundleData)
 }

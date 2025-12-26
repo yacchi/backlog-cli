@@ -41,6 +41,7 @@ func (s *Server) handlePortalSPA(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	SetCacheHeaders(w, CacheTypeShort, s.cfg)
 	ui.SPAHandler(assets).ServeHTTP(w, r)
 }
 
@@ -51,6 +52,7 @@ func (s *Server) handleStaticAssets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	SetCacheHeaders(w, CacheTypeStatic, s.cfg)
 	// /assets/xxx.js -> assets/xxx.js
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	http.ServeFileFS(w, r, assets, path)
@@ -58,10 +60,7 @@ func (s *Server) handleStaticAssets(w http.ResponseWriter, r *http.Request) {
 
 // handlePortalVerify はパスフレーズ検証を行う
 func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	var req PortalVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -79,8 +78,8 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalVerify,
 			Domain:    req.Domain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "tenant not found",
 		})
@@ -93,8 +92,8 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalVerify,
 			Domain:    req.Domain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "portal not enabled",
 		})
@@ -104,8 +103,8 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalVerify,
 			Domain:    req.Domain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "invalid passphrase",
 		})
@@ -114,18 +113,19 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	space, backlogDomain := domain.SplitDomain(req.Domain)
-	relayURL := s.buildRelayURL(r)
+	relayURL := s.buildRelayURL(reqCtx)
 
 	s.auditLogger.Log(AuditEvent{
 		Action:    AuditActionPortalVerify,
 		Space:     space,
 		Domain:    backlogDomain,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
 	w.Header().Set("Content-Type", "application/json")
+	SetCacheHeaders(w, CacheTypeNone, s.cfg)
 	_ = json.NewEncoder(w).Encode(PortalVerifyResponse{
 		Success:       true,
 		Domain:        req.Domain,
@@ -137,10 +137,7 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 
 // handlePortalBundle はバンドルをダウンロードさせる
 func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
-	clientIP := ""
-	if ip := getClientIP(r); ip != nil {
-		clientIP = ip.String()
-	}
+	reqCtx := ExtractRequestContext(r)
 
 	allowedDomain := r.PathValue("domain")
 	var req PortalVerifyRequest
@@ -160,8 +157,8 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "tenant not found",
 		})
@@ -174,8 +171,8 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "portal not enabled",
 		})
@@ -185,8 +182,8 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     "invalid passphrase",
 		})
@@ -194,14 +191,14 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	relayURL := s.buildRelayURL(r)
+	relayURL := s.buildRelayURL(reqCtx)
 	bundleData, err := config.CreatePortalBundle(tenant, allowedDomain, relayURL)
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
 			Domain:    allowedDomain,
-			ClientIP:  clientIP,
-			UserAgent: r.UserAgent(),
+			ClientIP:  reqCtx.ClientIP,
+			UserAgent: reqCtx.UserAgent,
 			Result:    "error",
 			Error:     err.Error(),
 		})
@@ -214,14 +211,15 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		Action:    AuditActionPortalDownload,
 		Space:     space,
 		Domain:    backlogDomain,
-		ClientIP:  clientIP,
-		UserAgent: r.UserAgent(),
+		ClientIP:  reqCtx.ClientIP,
+		UserAgent: reqCtx.UserAgent,
 		Result:    "success",
 	})
 
 	filename := allowedDomain + ".backlog-cli.zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	SetCacheHeaders(w, CacheTypeNone, s.cfg)
 	_, _ = w.Write(bundleData)
 }
 
@@ -260,27 +258,13 @@ func (s *Server) verifyPassphrase(tenant *config.ResolvedTenant, passphrase stri
 	return PassphraseValid
 }
 
-// buildRelayURL はリクエストからRelay URLを構築する
-func (s *Server) buildRelayURL(r *http.Request) string {
+// buildRelayURL はRequestContextからRelay URLを構築する
+func (s *Server) buildRelayURL(reqCtx RequestContext) string {
 	server := s.cfg.Server()
 	if server.BaseURL != "" {
 		return server.BaseURL
 	}
-
-	scheme := "https"
-	host := r.Host
-
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	// X-Original-Host を優先（CloudFront Function で設定）
-	if origHost := r.Header.Get("X-Original-Host"); origHost != "" {
-		host = origHost
-	} else if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
-		host = fwdHost
-	}
-
-	return scheme + "://" + host
+	return reqCtx.BaseURL
 }
 
 // writePortalError はポータルエラーレスポンスを書き込む

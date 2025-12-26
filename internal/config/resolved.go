@@ -153,9 +153,13 @@ type ResolvedServer struct {
 	// JWT設定 (server.jwt.*)
 	JWTExpiry int `json:"jwt_expiry" jubako:"/server/jwt/expiry,env:JWT_EXPIRY"`
 
-	// certs/info エンドポイントの HTTP キャッシュ設定 (server.cache.*)
-	CacheCertsTTL int `json:"cache_certs_ttl" jubako:"/server/cache/certs_ttl,env:SERVER_CACHE_CERTS_TTL"`
-	CacheInfoTTL  int `json:"cache_info_ttl" jubako:"/server/cache/info_ttl,env:SERVER_CACHE_INFO_TTL"`
+	// HTTP キャッシュ設定 (server.cache.*)
+	// CacheShortTTL: 短期キャッシュ（info等）、デフォルト300秒
+	// CacheLongTTL: 長期キャッシュ（certs等）、デフォルト3600秒
+	// CacheStaticTTL: 静的アセット（immutable）、デフォルト31536000秒
+	CacheShortTTL  int `json:"cache_short_ttl" jubako:"/server/cache/short_ttl,env:SERVER_CACHE_SHORT_TTL"`
+	CacheLongTTL   int `json:"cache_long_ttl" jubako:"/server/cache/long_ttl,env:SERVER_CACHE_LONG_TTL"`
+	CacheStaticTTL int `json:"cache_static_ttl" jubako:"/server/cache/static_ttl,env:SERVER_CACHE_STATIC_TTL"`
 
 	// Backlogアプリ設定 (キーは識別子: jp, com)
 	// 動的キーのため環境変数マッピングは手動で行う
