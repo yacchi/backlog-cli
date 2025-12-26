@@ -141,14 +141,13 @@ export class RelayStack extends cdk.Stack {
     const origin = this.createOrigin();
 
     // キャッシュポリシー
-    const { assetsCachePolicy, dynamicCachePolicy } =
-      this.createCachePolicies();
+    const { assetsCachePolicy } = this.createCachePolicies();
 
-    // オリジンリクエストポリシー
+    // Lambda@Edge: POST/PUT リクエストのコンテンツハッシュを計算
+    const contentHashEdgeFunction = this.createContentHashEdgeFunction();
+
+    // オリジンリクエストポリシー: Cookie と全ヘッダーを転送（OAuth フロー用）
     const originRequestPolicy = this.createOriginRequestPolicy();
-
-    // CloudFront Functions
-    const forwardHostFunction = this.createForwardHostFunction();
 
     // ディストリビューション
     const distribution = new cloudfront.Distribution(this, "Distribution", {
@@ -167,12 +166,13 @@ export class RelayStack extends cdk.Stack {
         origin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachePolicy: dynamicCachePolicy,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy,
-        functionAssociations: [
+        edgeLambdas: [
           {
-            function: forwardHostFunction,
-            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            functionVersion: contentHashEdgeFunction.currentVersion,
+            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+            includeBody: true,
           },
         ],
       },
@@ -207,8 +207,55 @@ export class RelayStack extends cdk.Stack {
   /**
    * Lambda Function URL をオリジンとして作成（OAC 自動設定）
    */
-  private createOrigin(): origins.FunctionUrlOrigin {
-    return new origins.FunctionUrlOrigin(this.functionUrl);
+  private createOrigin(): cloudfront.IOrigin {
+    return origins.FunctionUrlOrigin.withOriginAccessControl(this.functionUrl);
+  }
+
+  /**
+   * Lambda@Edge: POST/PUT リクエストのコンテンツハッシュを計算
+   * OAC + Lambda Function URL で POST を使うために必要
+   */
+  private createContentHashEdgeFunction(): cloudfront.experimental.EdgeFunction {
+    // esbuild で TypeScript をバンドル
+    const lambdaEdgeDir = path.join(__dirname, "..", "lambda-edge");
+    const distDir = path.join(lambdaEdgeDir, "dist");
+
+    execSync(
+      `npx esbuild index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js`,
+      { cwd: lambdaEdgeDir, stdio: "inherit" },
+    );
+
+    return new cloudfront.experimental.EdgeFunction(
+      this,
+      "ContentHashEdgeFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        handler: "index.handler",
+        code: lambda.Code.fromAsset(distDir),
+        description: "Calculate content hash for POST/PUT requests (OAC)",
+      },
+    );
+  }
+
+  /**
+   * オリジンリクエストポリシーを作成
+   * OAuth フローに必要なヘッダーと Cookie を転送
+   */
+  private createOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
+    return new cloudfront.OriginRequestPolicy(this, "OriginRequestPolicy", {
+      originRequestPolicyName: `${this.stackName}-origin-request`,
+      comment: "Forward headers and cookies for OAuth flow",
+      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Origin",
+        "Referer",
+        "X-Forwarded-Host",
+      ),
+      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+      cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
+    });
   }
 
   /**
@@ -245,47 +292,6 @@ export class RelayStack extends cdk.Stack {
     );
 
     return { assetsCachePolicy, dynamicCachePolicy };
-  }
-
-  /**
-   * オリジンリクエストポリシーを作成
-   */
-  private createOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
-    return new cloudfront.OriginRequestPolicy(this, "OriginRequestPolicy", {
-      originRequestPolicyName: `${this.stackName}-origin-request`,
-      comment: "Forward headers for OAuth flow",
-      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
-        "Accept",
-        "Accept-Language",
-        "Content-Type",
-        "Origin",
-        "Referer",
-        "X-Forwarded-Host",
-      ),
-      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
-      cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
-    });
-  }
-
-  /**
-   * X-Forwarded-Host ヘッダーを追加する CloudFront Functions を作成
-   */
-  private createForwardHostFunction(): cloudfront.Function {
-    return new cloudfront.Function(this, "ForwardHostFunction", {
-      functionName: `${this.stackName}-forward-host`,
-      comment: "Add X-Forwarded-Host header from viewer Host",
-      code: cloudfront.FunctionCode.fromInline(
-        `
-function handler(event) {
-  var request = event.request;
-  var host = request.headers.host ? request.headers.host.value : '';
-  request.headers['x-forwarded-host'] = { value: host };
-  return request;
-}
-      `.trim(),
-      ),
-      runtime: cloudfront.FunctionRuntime.JS_2_0,
-    });
   }
 
   /**

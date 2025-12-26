@@ -12,8 +12,10 @@
     "synth": "cdk synth"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.159",
     "@types/node": "^22.0.0",
     "aws-cdk": "^2.170.0",
+    "esbuild": "^0.27.2",
     "prettier": "^3.7.4",
     "ts-node": "^10.9.0",
     "typescript": "~5.7.0"

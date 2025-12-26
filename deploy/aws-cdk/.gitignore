@@ -14,3 +14,4 @@ config.ts
 
 # Lambda build artifacts
 lambda/bootstrap
+lambda-edge/dist/
