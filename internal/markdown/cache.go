@@ -29,7 +29,7 @@ func AppendCache(entry CacheEntry, cacheDir string) error {
 	if err != nil {
 		return fmt.Errorf("open cache file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	enc := json.NewEncoder(file)
 	if err := enc.Encode(entry); err != nil {

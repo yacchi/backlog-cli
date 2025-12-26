@@ -464,12 +464,8 @@ func isTableSeparator(line string) bool {
 	if trimmed == "" {
 		return false
 	}
-	if strings.HasPrefix(trimmed, "|") {
-		trimmed = strings.TrimPrefix(trimmed, "|")
-	}
-	if strings.HasSuffix(trimmed, "|") {
-		trimmed = strings.TrimSuffix(trimmed, "|")
-	}
+	trimmed = strings.TrimPrefix(trimmed, "|")
+	trimmed = strings.TrimSuffix(trimmed, "|")
 	if !strings.Contains(trimmed, "|") {
 		return false
 	}
@@ -503,12 +499,8 @@ func normalizeTableRow(line string) string {
 func tableColumnCount(line string) int {
 	trimmed := strings.TrimSpace(line)
 	trimmed = reTableHeaderMark.ReplaceAllString(trimmed, "|")
-	if strings.HasPrefix(trimmed, "|") {
-		trimmed = trimmed[1:]
-	}
-	if strings.HasSuffix(trimmed, "|") {
-		trimmed = trimmed[:len(trimmed)-1]
-	}
+	trimmed = strings.TrimPrefix(trimmed, "|")
+	trimmed = strings.TrimSuffix(trimmed, "|")
 	parts := strings.Split(trimmed, "|")
 	if len(parts) < 2 {
 		return 0

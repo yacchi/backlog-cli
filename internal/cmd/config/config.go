@@ -15,4 +15,7 @@ func init() {
 	ConfigCmd.AddCommand(setCmd)
 	ConfigCmd.AddCommand(listCmd)
 	ConfigCmd.AddCommand(pathCmd)
+	ConfigCmd.AddCommand(importCmd)
+	ConfigCmd.AddCommand(bundleCmd)
+	ConfigCmd.AddCommand(hashCmd)
 }

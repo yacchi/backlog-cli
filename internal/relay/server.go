@@ -18,6 +18,7 @@ type Server struct {
 	ipRestriction *IPRestriction
 	rateLimiter   *RateLimiter
 	auditLogger   *AuditLogger
+	bundleAuth    *BundleAuthMiddleware
 }
 
 // NewServer は新しいサーバーを作成する
@@ -49,12 +50,16 @@ func NewServer(cfg *config.Store) (*Server, error) {
 		return nil, fmt.Errorf("failed to create audit logger: %w", err)
 	}
 
+	// バンドル認証ミドルウェア
+	bundleAuth := NewBundleAuthMiddleware(cfg, auditLogger)
+
 	return &Server{
 		cfg:           cfg,
 		accessControl: accessControl,
 		ipRestriction: ipRestriction,
 		rateLimiter:   rateLimiter,
 		auditLogger:   auditLogger,
+		bundleAuth:    bundleAuth,
 	}, nil
 }
 
@@ -68,6 +73,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /auth/start", s.handleAuthStart)
 	mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
 	mux.HandleFunc("POST /auth/token", s.handleAuthToken)
+	mux.HandleFunc("GET /v1/relay/tenants/{domain}/info", s.handleRelayInfo)
+	mux.HandleFunc("GET /v1/relay/tenants/{domain}/certs", s.handleRelayCerts)
+	mux.HandleFunc("GET /v1/relay/tenants/{domain}/bundle", s.handleRelayBundle)
+
+	// ポータルエンドポイント
+	mux.HandleFunc("POST /api/v1/portal/verify", s.handlePortalVerify)
+	mux.HandleFunc("GET /api/v1/portal/{domain}/bundle", s.handlePortalBundle)
+	mux.HandleFunc("GET /portal/{domain}", s.handlePortalSPA)
+	mux.HandleFunc("GET /portal/{domain}/", s.handlePortalSPA)
+
+	// 静的アセット（ポータルSPA用）
+	mux.HandleFunc("GET /assets/", s.handleStaticAssets)
 
 	// ミドルウェアチェーン
 	// Note: Lambda環境ではレートリミッターは無効化される（インメモリのため）
@@ -77,6 +94,7 @@ func (s *Server) Handler() http.Handler {
 		LoggingMiddleware,
 		s.ipRestriction.Middleware,
 		s.rateLimiter.Middleware,
+		s.bundleAuth.Middleware,
 	)
 }
 

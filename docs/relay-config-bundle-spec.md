@@ -43,6 +43,7 @@ relay_url: https://relay.example.com
 allowed_domain: spaceid.backlogdomain
 issued_at: 2025-01-10T12:00:00Z
 expires_at: 2025-02-10T12:00:00Z
+bundle_token: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6IjIwMjUtMDEifQ...
 relay_keys:
   - key_id: 2025-01
     thumbprint: "..."
@@ -60,10 +61,55 @@ files:
 - `allowed_domain` (string, 必須): `spaceid.backlogdomain` 形式。
 - `issued_at` (RFC3339, 必須): バンドル発行時刻。
 - `expires_at` (RFC3339, 必須): バンドルの有効期限。
+- `bundle_token` (string, 必須): 自動更新用のアクセストークン (JWT)。
 - `relay_keys` (list, 必須): 許可された公開鍵の一覧。
   - `key_id` (string, 必須): サーバー側の署名鍵識別子 (JWKS の `kid`)。
   - `thumbprint` (string, 必須): RFC7638 の JWK Thumbprint (Base64URL)。
 - `files` (list, 必須): 追加ファイルのハッシュ一覧。
+
+## bundle_token 仕様
+
+### 目的
+
+`bundle_token` はバンドル自動更新時の認証に使用する JWT。
+ポータル経由でダウンロードしたバンドルには bundle_token が含まれ、CLI は以降の更新リクエストでこのトークンを使用する。
+
+### JWT 形式
+
+ヘッダー:
+```json
+{
+  "alg": "EdDSA",
+  "typ": "JWT",
+  "kid": "2025-01"
+}
+```
+
+ペイロード:
+```json
+{
+  "sub": "spaceid.backlogdomain",
+  "iat": 1736503200,
+  "nbf": 1736503200,
+  "jti": "ランダムな一意識別子"
+}
+```
+
+- `sub`: `allowed_domain` と一致する必要がある。
+- `iat`: 発行時刻 (Unix タイムスタンプ)。
+- `nbf`: 有効開始時刻 (Unix タイムスタンプ)。
+- `jti`: トークンの一意識別子。
+
+### 署名
+
+- アルゴリズム: Ed25519 (EdDSA)
+- 署名鍵: `server.tenants[*].active_keys` の最初の鍵で署名
+- 検証鍵: `/certs` で公開される JWKS の対応する公開鍵
+
+### トークンの有効期限
+
+`bundle_token` 自体に有効期限 (`exp`) は設定しない。
+鍵ローテーション時に古いトークンは検証に失敗し、自動的に無効化される。
 
 ## 署名仕様
 
@@ -101,6 +147,7 @@ client:
       - id: "spaceid.backlogdomain"
         relay_url: "https://relay.example.com"
         allowed_domain: "spaceid.backlogdomain"
+        bundle_token: "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6IjIwMjUtMDEifQ..."
         relay_keys:
           - key_id: "2025-01"
             thumbprint: "..."
@@ -134,7 +181,12 @@ client:
 
 ```
 GET /v1/relay/tenants/spaceid.backlogdomain/info
+Authorization: Bearer <bundle_token>
 ```
+
+### 認証
+
+`bundle_token` による認証が必須。
 
 ### レスポンス形式
 
@@ -214,15 +266,31 @@ GET /v1/relay/tenants/spaceid.backlogdomain/certs
 
 ### 必須設定
 
-- `TENANT_<DOMAIN>_ACTIVE_KEYS`: 署名鍵識別子。区切り文字で複数指定可能 (例: `2025-01,2025-02`)。
+サーバー設定 (`server.tenants`) に以下を設定する。
+
+- `allowed_domain`: `spaceid.backlogdomain` の一致確認用。
+- `jwks`: 秘密鍵を含む JWK セット (JSON 文字列)。
+- `active_keys`: 署名鍵識別子。区切り文字で複数指定可能 (例: `2025-01,2025-02`)。
   - 先頭をアクティブ鍵とみなす。
-- `TENANT_<DOMAIN>_JWKS`: 秘密鍵を含む JWK セット (JSON 文字列)。
-- `TENANT_<DOMAIN>_ALLOWED_DOMAIN`: `spaceid.backlogdomain` の一致確認用。
-- `TENANT_<DOMAIN>_INFO_TTL`: `info` の `expires_at` までの秒数。省略時は `600` (10分)。
+- `info_ttl`: `info` の `expires_at` までの秒数。省略時は `600` (10分)。
+- `passphrase_hash`: ポータル用パスフレーズの bcrypt ハッシュ（設定した場合のみポータル経由の取得を許可）。
+
+例:
+
+```yaml
+server:
+  tenants:
+    SPACEID_BACKLOG_JP:
+      allowed_domain: spaceid.backlog.jp
+      jwks: '{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"2025-01","x":"...","d":"..."}]}'
+      active_keys: "2025-01,2025-02"
+      info_ttl: 600
+      passphrase_hash: "$2a$12$..."
+```
 
 ### アクセス制御
 
-- テナントの許可/不許可は既存の `allowedSpaces` 等のアクセス制御で行う。
+- テナントの許可/不許可は既存の `allowed_spaces` 等のアクセス制御で行う。
 - 本仕様のテナント設定はプロビジョニング用であり、アクセス制御の代替ではない。
 
 ### URL 構成
@@ -231,9 +299,16 @@ GET /v1/relay/tenants/spaceid.backlogdomain/certs
 
 ### 挙動
 
-- `/v1/relay/tenants/{domain}/certs` は `TENANT_<DOMAIN>_JWKS` から `d` を削除した公開 JWKS を返す。
+- `/v1/relay/tenants/{domain}/certs` は `server.tenants[*].jwks` から `d` を削除した公開 JWKS を返す。
 - `/v1/relay/tenants/{domain}/info` は `relay_url` / `allowed_domain` / `issued_at` / `expires_at` を署名付きで返す。
-- `info` の署名は `TENANT_<DOMAIN>_ACTIVE_KEYS` の各鍵で生成する。
+- trust に設定がある場合、設定保存前に `/info` を取得して署名検証を行う。
+  - 検証に失敗した場合は設定保存を拒否する（Web設定フロー）。
+- trust に設定がある場合、認証開始前に `/info` を取得して署名検証を行う。
+  - 検証に失敗した場合は認証フローを開始しない。
+- `payload.update_before` が指定されており、`manifest.yaml.issued_at` がそれより古い場合は更新フローを開始する。
+  - 更新が必要な場合は設定保存/認証を中断し、バンドルの再インポートを促す。
+  - 自動更新に対応する場合は `/v1/relay/tenants/{domain}/bundle` を取得して再インポートする。
+- `info` の署名は `server.tenants[*].active_keys` の各鍵で生成する。
 - `allowed_domain` が設定と一致しない場合は 404 または 403 を返す。
 
 ## エラー方針
@@ -278,13 +353,40 @@ GET /v1/relay/tenants/spaceid.backlogdomain/certs
 - `relay_url` から `bundle` エンドポイントを取得し、更新を適用する。
 - 署名検証と `relay_keys` の照合に成功した場合のみ自動更新する。
 
-## バンドル取得エンドポイント
+## テナントエンドポイントの認証
+
+`/v1/relay/tenants/{domain}/` 配下のエンドポイント（`certs` を除く）は `bundle_token` による認証が必要。
+
+### 認証方法
+
+```
+GET /v1/relay/tenants/spaceid.backlogdomain/info
+Authorization: Bearer <bundle_token>
+```
+
+- `certs` エンドポイントは公開鍵配布用のため認証不要。
+- `info` と `bundle` エンドポイントは `bundle_token` が必須。
+- トークンは `Authorization: Bearer` ヘッダーで送信する。
+
+### 認証エラー
+
+| ステータス | 原因 |
+|-----------|------|
+| 401 Unauthorized | トークン未指定、形式不正、署名検証失敗 |
+| 404 Not Found | テナントが存在しない |
+
+## バンドル取得エンドポイント（自動更新用）
 
 ### エンドポイント
 
 ```
 GET /v1/relay/tenants/spaceid.backlogdomain/bundle
+Authorization: Bearer <bundle_token>
 ```
+
+### 認証
+
+`bundle_token` による認証が必須。初回ダウンロードはポータル経由で行う。
 
 ### レスポンス
 
@@ -325,10 +427,10 @@ GET /v1/relay/tenants/spaceid.backlogdomain/bundle
 - 新しい `manifest.yaml` は **既存の `relay_keys` のいずれかで署名検証に成功**すること。
 - `relay_url` と `allowed_domain` が既存設定と一致すること。
 - `relay_keys` は新しいバンドルの内容で置き換える。
-  - `TENANT_<DOMAIN>_ACTIVE_KEYS` の鍵は必ず `relay_keys` に含める。
+  - `server.tenants[*].active_keys` の鍵は必ず `relay_keys` に含める。
 
 これにより、異なるサーバーへの置き換えや未知の鍵のみでの更新を防止する。
 
 ### サーバー側の保証
 
-- バンドルの署名は `TENANT_<DOMAIN>_ACTIVE_KEYS` の各鍵で行う。
+- バンドルの署名は `server.tenants[*].active_keys` の各鍵で行う。

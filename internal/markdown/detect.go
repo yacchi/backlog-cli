@@ -62,8 +62,6 @@ func Detect(input string) DetectResult {
 		mode = ModeBacklog
 	case score <= -1:
 		mode = ModeMarkdown
-	default:
-		mode = ModeUnknown
 	}
 
 	return DetectResult{Mode: mode, Score: score}

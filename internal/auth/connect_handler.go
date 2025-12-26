@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -103,6 +104,60 @@ func (cs *CallbackServer) Configure(
 		resp.Msg.Error = stringPtr(fmt.Sprintf("このリレーサーバーは %s をサポートしていません（サポート: %s）",
 			domain, strings.Join(wellKnown.SupportedDomains, ", ")))
 		return resp, nil
+	}
+
+	allowedDomain := space + "." + domain
+	if bundle := config.FindTrustedBundle(cs.configStore, allowedDomain); bundle != nil {
+		cacheDir, cacheErr := cs.configStore.GetCacheDir()
+		if cacheErr != nil {
+			debug.Log("failed to resolve cache dir", "error", cacheErr)
+		}
+		resolved := cs.configStore.Resolved()
+		info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
+			CacheDir:      cacheDir,
+			CertsCacheTTL: resolved.Cache.CertsTTL,
+		})
+		if err != nil {
+			debug.Log("failed to verify relay info", "error", err)
+			resp.Msg.Success = false
+			resp.Msg.Error = stringPtr(fmt.Sprintf("リレーサーバーの検証に失敗しました: %v", err))
+			return resp, nil
+		}
+
+		if err := config.CheckBundleUpdate(info, bundle, time.Now().UTC(), cs.forceBundleUpdate); err != nil {
+			var updateErr *config.BundleUpdateRequiredError
+			if errors.As(err, &updateErr) {
+				bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, allowedDomain)
+				if urlErr != nil {
+					resp.Msg.Success = false
+					resp.Msg.Error = stringPtr(fmt.Sprintf("バンドルURLの生成に失敗しました: %v", urlErr))
+					return resp, nil
+				}
+				debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
+				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
+					CacheDir:          cacheDir,
+					CertsCacheTTL:     resolved.Cache.CertsTTL,
+					AllowNameMismatch: false,
+					NoDefaults:        true,
+				})
+				if updateErr != nil {
+					debug.Log("bundle update failed", "error", updateErr)
+					resp.Msg.Success = false
+					resp.Msg.Error = stringPtr(fmt.Sprintf("バンドル更新に失敗しました: %v", updateErr))
+					return resp, nil
+				}
+				debug.Log("bundle update completed", "allowed_domain", allowedDomain)
+			} else {
+				debug.Log("failed to check bundle update", "error", err)
+				resp.Msg.Success = false
+				resp.Msg.Error = stringPtr(fmt.Sprintf("バンドル更新の確認に失敗しました: %v", err))
+				return resp, nil
+			}
+		}
+
+		debug.Log("relay info verified", "allowed_domain", allowedDomain)
+	} else {
+		debug.Log("trusted bundle not found; skipping relay info check", "allowed_domain", allowedDomain)
 	}
 
 	// 設定保存

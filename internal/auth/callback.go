@@ -30,11 +30,12 @@ type CallbackResult struct {
 
 // CallbackServerOptions はコールバックサーバーのオプション
 type CallbackServerOptions struct {
-	Port        int
-	State       string          // CLI が生成した state
-	ConfigStore *config.Store   // 設定の読み書き用
-	Reuse       bool            // true の場合、確認画面をスキップして即座にリダイレクト
-	Ctx         context.Context // コマンドのContext（シグナル処理用）
+	Port              int
+	State             string          // CLI が生成した state
+	ConfigStore       *config.Store   // 設定の読み書き用
+	Reuse             bool            // true の場合、確認画面をスキップして即座にリダイレクト
+	ForceBundleUpdate bool            // バンドル更新チェックを強制する（デバッグ用）
+	Ctx               context.Context // コマンドのContext（シグナル処理用）
 }
 
 // Session は認証セッションを表す
@@ -50,15 +51,16 @@ type Session struct {
 
 // CallbackServer はCLIのローカルコールバックサーバー
 type CallbackServer struct {
-	port        int
-	server      *http.Server
-	result      chan CallbackResult
-	listener    net.Listener
-	once        sync.Once
-	state       string
-	configStore *config.Store
-	reuse       bool
-	ctx         context.Context // コマンドのContext
+	port              int
+	server            *http.Server
+	result            chan CallbackResult
+	listener          net.Listener
+	once              sync.Once
+	state             string
+	configStore       *config.Store
+	reuse             bool
+	forceBundleUpdate bool
+	ctx               context.Context // コマンドのContext
 
 	// セッション管理
 	session            *Session      // 現在のセッション（1サーバー1セッション）
@@ -103,15 +105,16 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 	}
 
 	cs := &CallbackServer{
-		port:         actualPort,
-		result:       make(chan CallbackResult, 1),
-		listener:     listener,
-		state:        opts.State,
-		configStore:  opts.ConfigStore,
-		reuse:        opts.Reuse,
-		ctx:          ctx,
-		cancelCheck:  make(chan struct{}),
-		statusNotify: make(chan struct{}, 1), // バッファ付き（ノンブロッキング通知用）
+		port:              actualPort,
+		result:            make(chan CallbackResult, 1),
+		listener:          listener,
+		state:             opts.State,
+		configStore:       opts.ConfigStore,
+		reuse:             opts.Reuse,
+		forceBundleUpdate: opts.ForceBundleUpdate,
+		ctx:               ctx,
+		cancelCheck:       make(chan struct{}),
+		statusNotify:      make(chan struct{}, 1), // バッファ付き（ノンブロッキング通知用）
 	}
 
 	debug.Log("callback server created", "port", actualPort, "address", addr)

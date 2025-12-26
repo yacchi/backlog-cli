@@ -2,92 +2,72 @@
  * Backlog OAuth アプリケーション設定
  */
 export interface BacklogAppConfig {
-  clientId: string;
-  clientSecret: string;
+  client_id: string;
+  client_secret: string;
+  domain?: string;
 }
 
 /**
- * 監査ログ設定
+ * テナント設定
  */
-export interface AuditConfig {
-  enabled: boolean;
-}
+export interface TenantConfig {
+  /** 許可するドメイン (spaceid.backlog.jp) */
+  allowed_domain: string;
 
-/**
- * インライン設定（設定値を直接指定）
- */
-export interface InlineConfig {
-  source: "inline";
+  /** 秘密鍵を含む JWK セット (JSON 文字列) */
+  jwks: string;
 
-  /** Backlog アプリケーション設定 */
-  backlog: {
-    jp?: BacklogAppConfig;
-    com?: BacklogAppConfig;
-  };
+  /** 署名に使う kid (カンマ区切り) */
+  active_keys: string;
 
-  /** 許可するスペース名（空配列 = 全て許可） */
-  allowedSpaces?: string[];
+  /** info の TTL (秒) */
+  info_ttl?: number;
 
-  /** 許可するプロジェクトキー（空配列 = 全て許可） */
-  allowedProjects?: string[];
-
-  /** 許可するホストパターン（セミコロン区切り、ワイルドカード対応）
-   * base_url未設定時、Hostヘッダーからコールバック URL を構築する際の検証に使用
-   * 例: "*.lambda-url.*.on.aws;*.run.app"
-   */
-  allowedHostPatterns?: string;
-
-  /** 監査ログ設定 */
-  audit?: AuditConfig;
+  /** ポータル用パスフレーズの bcrypt ハッシュ */
+  passphrase_hash?: string;
 }
 
 /**
  * Parameter Store 参照設定
  */
 export interface ParameterStoreConfig {
-  source: "parameter-store";
-
   /** SSM Parameter Store のパラメーター名 */
   parameterName: string;
 
-  /** パラメーターをデプロイ時に作成するか */
-  createParameter?: boolean;
-
-  /** createParameter=true の場合、格納する値 */
+  /** Parameter Store に格納する値 */
   parameterValue?: ParameterStoreValue;
+}
+
+export interface AccessControlConfig {
+  allowed_spaces?: string[];
+  allowed_projects?: string[];
+  allowed_cidrs?: string[];
+}
+
+export interface AuditConfig {
+  enabled: boolean;
+  output?: string;
+  file_path?: string;
+  webhook_url?: string;
+  webhook_timeout?: number;
+}
+
+export interface RelayServerConfig {
+  backlog?: Record<string, BacklogAppConfig>;
+  allowed_host_patterns?: string;
+  access_control?: AccessControlConfig;
+  audit?: AuditConfig;
+  tenants?: Record<string, TenantConfig>;
 }
 
 /**
  * Parameter Store に格納する JSON の型
  */
 export interface ParameterStoreValue {
-  backlog: {
-    jp?: BacklogAppConfig;
-    com?: BacklogAppConfig;
-  };
-  allowedSpaces?: string[];
-  allowedProjects?: string[];
-  allowedHostPatterns?: string;
-  audit?: AuditConfig;
+  server?: RelayServerConfig;
 }
 
 /**
  * リレーサーバー設定
  */
-export type RelayConfig = InlineConfig | ParameterStoreConfig;
-
-/**
- * 設定がインライン設定かどうかを判定
- */
-export function isInlineConfig(config: RelayConfig): config is InlineConfig {
-  return config.source === "inline";
-}
-
-/**
- * 設定が Parameter Store 参照かどうかを判定
- */
-export function isParameterStoreConfig(
-  config: RelayConfig,
-): config is ParameterStoreConfig {
-  return config.source === "parameter-store";
-}
+export type RelayConfig = ParameterStoreConfig;

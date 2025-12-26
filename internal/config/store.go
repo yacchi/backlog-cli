@@ -2,15 +2,18 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/yacchi/jubako"
+	"github.com/yacchi/jubako/document"
 	"github.com/yacchi/jubako/format/yaml"
 	"github.com/yacchi/jubako/layer"
 	"github.com/yacchi/jubako/layer/env"
 	"github.com/yacchi/jubako/layer/mapdata"
+	"github.com/yacchi/jubako/source"
 	"github.com/yacchi/jubako/source/bytes"
 	"github.com/yacchi/jubako/source/fs"
 )
@@ -539,6 +542,58 @@ func (s *Store) SetToLayer(layerName, key string, value any) error {
 	defer s.mu.Unlock()
 
 	return s.store.SetTo(layer.Name(layerName), DotToPointer(key), value)
+}
+
+// AddLayer は新しいレイヤーを追加し、設定を再読み込みする
+func (s *Store) AddLayer(ctx context.Context, layerName string, data map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.store.GetLayer(layer.Name(layerName)) != nil {
+		return fmt.Errorf("layer %s already exists", layerName)
+	}
+
+	if err := s.store.Add(
+		mapdata.New(layer.Name(layerName), data),
+		jubako.WithReadOnly(),
+		jubako.WithNoWatch(),
+	); err != nil {
+		return err
+	}
+
+	return s.store.Reload(ctx)
+}
+
+// AddLayerSource は Source/Document を指定してレイヤーを追加する
+func (s *Store) AddLayerSource(ctx context.Context, layerName string, src source.Source, doc document.Document, options ...jubako.AddOption) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.store.GetLayer(layer.Name(layerName)) != nil {
+		return fmt.Errorf("layer %s already exists", layerName)
+	}
+
+	opts := options
+	if len(opts) == 0 {
+		opts = []jubako.AddOption{
+			jubako.WithReadOnly(),
+			jubako.WithNoWatch(),
+		}
+	}
+
+	if err := s.store.Add(
+		layer.New(layer.Name(layerName), src, doc),
+		opts...,
+	); err != nil {
+		return err
+	}
+
+	return s.store.Reload(ctx)
+}
+
+// AddParameterStoreLayer は Parameter Store レイヤーを追加する
+func (s *Store) AddParameterStoreLayer(ctx context.Context, src source.Source, doc document.Document, options ...jubako.AddOption) error {
+	return s.AddLayerSource(ctx, LayerParameterStore, src, doc, options...)
 }
 
 // ====================

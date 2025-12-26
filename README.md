@@ -77,6 +77,158 @@ backlog auth login
 >
 > 中継サーバーの構築用コードは本リポジトリの `deploy/` ディレクトリに含まれています（AWS Lambda 用の CDK テンプレート）。
 
+#### Relay Config Bundle（組織向け）
+
+Relay Config Bundle は **中継サーバー側で作成・配布する前提** です。
+利用者はバンドルをダウンロードして `backlog config import` するだけになります。
+
+##### 1. 中継サーバーの環境変数を設定する
+
+`docs/relay-config-bundle-spec.md` の「サーバー側の設定と実装要件」に従って、
+サーバー設定 (`server.tenants`) を用意します。
+
+```yaml
+server:
+  tenants:
+    SPACEID_BACKLOG_JP:
+      allowed_domain: spaceid.backlog.jp
+      jwks: '{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"2025-01","x":"...","d":"..."}]}'
+      active_keys: "2025-01"
+      info_ttl: 600
+      passphrase_hash: "$2a$12$..."
+```
+
+JWKS の作成が必要な場合は、以下の Go スニペットで Ed25519 の
+「秘密JWK」「公開JWKS」「thumbprint」を生成できます。
+
+```bash
+cat <<'EOF' > /tmp/relay-keygen.go
+package main
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
+type jwk struct {
+	Kty string `json:"kty"`
+	Crv string `json:"crv"`
+	Kid string `json:"kid"`
+	X   string `json:"x"`
+	D   string `json:"d,omitempty"`
+}
+
+func main() {
+	kid := os.Getenv("KID")
+	if kid == "" {
+		kid = "2025-01"
+	}
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	x := base64.RawURLEncoding.EncodeToString(pub)
+	d := base64.RawURLEncoding.EncodeToString(priv.Seed())
+
+	privJWK := jwk{Kty: "OKP", Crv: "Ed25519", Kid: kid, X: x, D: d}
+	pubJWK := jwk{Kty: "OKP", Crv: "Ed25519", Kid: kid, X: x}
+
+	canonical := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s"}`, pubJWK.Crv, pubJWK.Kty, pubJWK.X)
+	sum := sha256.Sum256([]byte(canonical))
+	thumbprint := base64.RawURLEncoding.EncodeToString(sum[:])
+
+	privJSON, _ := json.MarshalIndent(privJWK, "", "  ")
+	pubJSON, _ := json.MarshalIndent(map[string][]jwk{"keys": {pubJWK}}, "", "  ")
+
+	fmt.Println("== Private JWK (keep secret) ==")
+	fmt.Println(string(privJSON))
+	fmt.Println("== Public JWKS ==")
+	fmt.Println(string(pubJSON))
+	fmt.Println("== Thumbprint ==")
+	fmt.Println(thumbprint)
+}
+EOF
+
+KID=2025-01 go run /tmp/relay-keygen.go
+```
+
+##### 2. パスフレーズハッシュの生成
+
+ポータル機能を使用する場合は、パスフレーズのbcryptハッシュを生成して設定に追加します：
+
+```bash
+# 引数で指定
+backlog config hash your-secret-passphrase
+
+# 対話的入力（パスワードが隠される）
+backlog config hash
+```
+
+生成されたハッシュを `passphrase_hash` に設定してください。
+
+##### 3. バンドルをダウンロードする
+
+**方法A: セルフサービスポータル（推奨）**
+
+中継サーバーのポータルURLにアクセスし、管理者から提供されたパスフレーズを入力してダウンロードします：
+
+```
+https://relay.example.com/portal/spaceid.backlog.jp
+```
+
+**方法B: API経由**
+
+```
+GET /v1/relay/tenants/<spaceid.backlogdomain>/bundle
+```
+
+ダウンロードした ZIP を `backlog config import` で取り込みます。
+
+```bash
+backlog config import spaceid.backlog.jp.backlog-cli.zip
+```
+
+#### セルフサービスポータル
+
+組織のメンバーが自分でバンドルをダウンロードできるポータル機能を提供しています。
+
+##### 機能
+
+- パスフレーズ認証によるアクセス制御
+- テナント情報（スペース、ドメイン、リレーサーバー）の表示
+- バンドルのダウンロードボタン
+
+##### ポータルURL
+
+```
+https://<relay-server>/portal/<spaceid.backlogdomain>
+```
+
+例: `https://relay.example.com/portal/myspace.backlog.jp`
+
+##### 管理者向け設定
+
+1. テナント設定にパスフレーズハッシュを追加:
+
+```yaml
+server:
+  tenants:
+    MYSPACE_BACKLOG_JP:
+      allowed_domain: myspace.backlog.jp
+      jwks: '{"keys":[...]}'
+      active_keys: "2025-01"
+      passphrase_hash: "$2a$12$..."  # backlog config hash で生成
+```
+
+2. パスフレーズをメンバーに共有
+
+3. メンバーはポータルURLにアクセスし、パスフレーズを入力してバンドルをダウンロード
+
 ### 3. プロジェクトの設定（オプション）
 
 リポジトリのルートで以下を実行すると、そのディレクトリでのデフォルトプロジェクトを設定できます：
@@ -216,12 +368,15 @@ backlog issue comment PROJ-123 --edit-last --editor
 
 ### 設定 (`config`)
 
-| コマンド                       | 説明           |
-|----------------------------|--------------|
-| `config get <KEY>`         | 設定値を取得       |
-| `config set <KEY> <VALUE>` | 設定値を変更       |
-| `config list`              | すべての設定を表示    |
-| `config path`              | 設定ファイルのパスを表示 |
+| コマンド                       | 説明                           |
+|----------------------------|------------------------------|
+| `config get <KEY>`         | 設定値を取得                       |
+| `config set <KEY> <VALUE>` | 設定値を変更                       |
+| `config list`              | すべての設定を表示                    |
+| `config path`              | 設定ファイルのパスを表示                 |
+| `config import <ZIP>`      | Relay Config Bundle を取り込む   |
+| `config hash [PASSPHRASE]` | bcryptハッシュを生成                |
+| `config bundle create`     | Relay Config Bundle を作成     |
 
 ### Markdown (`markdown`)
 

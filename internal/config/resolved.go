@@ -20,6 +20,9 @@ type ResolvedConfig struct {
 	// sensitive タグにより、このフィールドとその子はセンシティブレイヤーにのみ書き込み可能
 	Credentials map[string]*Credential `json:"credential" jubako:"/credential"`
 
+	// クライアント設定
+	Client ResolvedClient `json:"client"`
+
 	// プロジェクト設定
 	Project ResolvedProject `json:"project" jubako:"/project"`
 
@@ -40,9 +43,10 @@ type ResolvedConfig struct {
 // jubako tagでcache.*からマッピング
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedCache struct {
-	Enabled bool   `json:"enabled" jubako:"/cache/enabled,env:CACHE_ENABLED"`
-	Dir     string `json:"dir" jubako:"/cache/dir,env:CACHE_DIR"`
-	TTL     int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
+	Enabled  bool   `json:"enabled" jubako:"/cache/enabled,env:CACHE_ENABLED"`
+	Dir      string `json:"dir" jubako:"/cache/dir,env:CACHE_DIR"`
+	TTL      int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
+	CertsTTL int    `json:"certs_ttl" jubako:"/cache/certs_ttl,env:CACHE_CERTS_TTL"`
 }
 
 // GetCacheDir returns the cache directory.
@@ -150,9 +154,15 @@ type ResolvedServer struct {
 	// JWT設定 (server.jwt.*)
 	JWTExpiry int `json:"jwt_expiry" jubako:"/server/jwt/expiry,env:JWT_EXPIRY"`
 
+	// Certs設定 (server.certs.*)
+	CertsCacheTTL int `json:"certs_cache_ttl" jubako:"/server/certs/cache_ttl,env:CERTS_CACHE_TTL"`
+
 	// Backlogアプリ設定 (キーは識別子: jp, com)
 	// 動的キーのため環境変数マッピングは手動で行う
 	Backlog map[string]ResolvedBacklogApp `json:"backlog" jubako:"/server/backlog"`
+
+	// テナント設定 (キーは任意の識別子)
+	Tenants map[string]ResolvedTenant `json:"tenants" jubako:"/server/tenants"`
 
 	// アクセス制御 (server.access_control.*)
 	AllowedSpaces   []string `json:"allowed_spaces" jubako:"/server/access_control/allowed_spaces,env:ALLOWED_SPACES"`
@@ -287,6 +297,11 @@ func NewResolvedConfig() *ResolvedConfig {
 		ActiveProfile: DefaultProfile,
 		Profiles:      make(map[string]*ResolvedProfile),
 		Credentials:   make(map[string]*Credential),
+		Client: ResolvedClient{
+			Trust: ResolvedClientTrust{
+				Bundles: []TrustedBundle{},
+			},
+		},
 		Display: ResolvedDisplay{
 			IssueFieldConfig: make(map[string]ResolvedFieldConfig),
 			PRFieldConfig:    make(map[string]ResolvedFieldConfig),

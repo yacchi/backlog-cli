@@ -53,14 +53,14 @@ func writeWarningSummary(w io.Writer, result markdown.ConvertResult) {
 		return
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "---")
-	fmt.Fprintln(w, "Markdown Warning Summary")
-	fmt.Fprintf(w, "- item_type: %s\n", result.ItemType)
-	fmt.Fprintf(w, "- item_id: %d\n", result.ItemID)
-	fmt.Fprintf(w, "- detected_mode: %s\n", result.Mode)
-	fmt.Fprintf(w, "- score: %d\n", result.Score)
-	fmt.Fprintf(w, "- warnings: %s\n", strings.Join(pairs, ", "))
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "---")
+	_, _ = fmt.Fprintln(w, "Markdown Warning Summary")
+	_, _ = fmt.Fprintf(w, "- item_type: %s\n", result.ItemType)
+	_, _ = fmt.Fprintf(w, "- item_id: %d\n", result.ItemID)
+	_, _ = fmt.Fprintf(w, "- detected_mode: %s\n", result.Mode)
+	_, _ = fmt.Fprintf(w, "- score: %d\n", result.Score)
+	_, _ = fmt.Fprintf(w, "- warnings: %s\n", strings.Join(pairs, ", "))
 }
 
 func warningPairs(warnings map[markdown.WarningType]int) []string {

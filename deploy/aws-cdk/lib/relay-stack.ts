@@ -6,7 +6,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
 import * as path from "path";
 import { execSync } from "child_process";
-import { isInlineConfig, isParameterStoreConfig, RelayConfig } from "./types";
+import { ParameterStoreValue, RelayConfig } from "./types";
 
 export interface RelayStackProps extends cdk.StackProps {
   config: RelayConfig;
@@ -20,68 +20,30 @@ export class RelayStack extends cdk.Stack {
 
     const { config } = props;
 
-    // Lambda Function URL のホストパターン（リージョンを含む）
-    const lambdaFunctionUrlPattern = `*.lambda-url.${this.region}.on.aws`;
-
     // Lambda 用の環境変数を構築
     const environment: Record<string, string> = {
       // Lambda では $HOME が未設定のため、設定ファイルパス解決用に設定
       HOME: "/tmp",
-      BACKLOG_AUDIT_OUTPUT: "stdout",
-      // Lambda Function URL のホストパターンをデフォルトで設定
-      BACKLOG_ALLOWED_HOST_PATTERNS: lambdaFunctionUrlPattern,
     };
 
     // Parameter Store を使う場合
-    if (isParameterStoreConfig(config)) {
-      // パラメーターを作成する場合
-      if (config.createParameter && config.parameterValue) {
-        new ssm.StringParameter(this, "ConfigParameter", {
-          parameterName: config.parameterName,
-          stringValue: JSON.stringify(config.parameterValue),
-          description: "Backlog OAuth Relay Server configuration",
-          tier: ssm.ParameterTier.STANDARD,
-        });
-      }
+    let configParameterName: string | null = null;
 
-      environment["BACKLOG_CONFIG_PARAMETER"] = config.parameterName;
-    }
+    configParameterName = config.parameterName;
 
-    // インライン設定の場合
-    if (isInlineConfig(config)) {
-      // Note: ローカル .env ファイルと同じ形式（大文字ドメイン名）を使用
-      if (config.backlog.jp) {
-        environment["BACKLOG_CLIENT_ID_JP"] = config.backlog.jp.clientId;
-        environment["BACKLOG_CLIENT_SECRET_JP"] =
-          config.backlog.jp.clientSecret;
-      }
+    const parameterValue = JSON.stringify(
+      withLambdaFunctionUrlPattern(config.parameterValue ?? {}, this.region),
+    );
 
-      if (config.backlog.com) {
-        environment["BACKLOG_CLIENT_ID_COM"] = config.backlog.com.clientId;
-        environment["BACKLOG_CLIENT_SECRET_COM"] =
-          config.backlog.com.clientSecret;
-      }
+    new ssm.StringParameter(this, "ConfigParameter", {
+      parameterName: configParameterName,
+      stringValue: parameterValue,
+      description: "Backlog OAuth Relay Server configuration",
+      tier: ssm.ParameterTier.STANDARD,
+    });
 
-      if (config.allowedSpaces?.length) {
-        environment["BACKLOG_ALLOWED_SPACES"] = config.allowedSpaces.join(",");
-      }
-
-      if (config.allowedProjects?.length) {
-        environment["BACKLOG_ALLOWED_PROJECTS"] =
-          config.allowedProjects.join(",");
-      }
-
-      if (config.allowedHostPatterns) {
-        // ユーザー指定のパターンをデフォルトに追加
-        environment["BACKLOG_ALLOWED_HOST_PATTERNS"] =
-          `${lambdaFunctionUrlPattern};${config.allowedHostPatterns}`;
-      }
-
-      if (config.audit !== undefined) {
-        environment["BACKLOG_AUDIT_ENABLED"] = config.audit.enabled
-          ? "true"
-          : "false";
-      }
+    if (configParameterName) {
+      environment["BACKLOG_CONFIG_PARAMETER"] = configParameterName;
     }
 
     // Go バイナリをビルド
@@ -114,16 +76,14 @@ export class RelayStack extends cdk.Stack {
     });
 
     // Parameter Store から読み込む場合、読み取り権限を付与
-    if (isParameterStoreConfig(config)) {
-      fn.addToRolePolicy(
-        new cdk.aws_iam.PolicyStatement({
-          actions: ["ssm:GetParameter"],
-          resources: [
-            `arn:aws:ssm:${this.region}:${this.account}:parameter${config.parameterName}`,
-          ],
-        }),
-      );
-    }
+    fn.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter${configParameterName}`,
+        ],
+      }),
+    );
 
     // Function URL を作成
     this.functionUrl = fn.addFunctionUrl({
@@ -149,5 +109,42 @@ export class RelayStack extends cdk.Stack {
       value: `${this.functionUrl.url}auth/callback`,
       description: "OAuth callback URL (register this in Backlog)",
     });
+
+    new cdk.CfnOutput(this, "ConfigParameterName", {
+      value: configParameterName,
+      description: "SSM Parameter Store name for relay server config",
+    });
   }
+}
+
+function withLambdaFunctionUrlPattern(
+  value: ParameterStoreValue | Record<string, unknown>,
+  region: string,
+): Record<string, unknown> {
+  const pattern = `*.lambda-url.${region}.on.aws`;
+  const server =
+    (value as { server?: { allowed_host_patterns?: string } }).server ?? {};
+  const current =
+    typeof server.allowed_host_patterns === "string"
+      ? server.allowed_host_patterns
+      : "";
+  const merged = mergeAllowedHostPatterns(current, pattern);
+  return {
+    ...value,
+    server: {
+      ...server,
+      allowed_host_patterns: merged,
+    },
+  };
+}
+
+function mergeAllowedHostPatterns(current: string, pattern: string): string {
+  if (current.trim() === "") {
+    return pattern;
+  }
+  const items = current.split(";").map((item) => item.trim());
+  if (items.includes(pattern)) {
+    return current;
+  }
+  return `${current};${pattern}`;
 }

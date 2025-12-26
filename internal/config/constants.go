@@ -6,12 +6,13 @@ import (
 
 // レイヤー名定数（後方互換用）
 const (
-	LayerDefaults    = "defaults"
-	LayerUser        = "user"
-	LayerProject     = "project"
-	LayerEnv         = "env"
-	LayerCredentials = "credentials"
-	LayerArgs        = "args"
+	LayerDefaults       = "defaults"
+	LayerUser           = "user"
+	LayerProject        = "project"
+	LayerEnv            = "env"
+	LayerCredentials    = "credentials"
+	LayerParameterStore = "parameter_store"
+	LayerArgs           = "args"
 )
 
 //go:embed defaults.yaml

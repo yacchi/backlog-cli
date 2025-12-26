@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,13 +26,14 @@ const (
 )
 
 var (
-	loginDomain       string
-	loginSpace        string
-	loginNoBrowser    bool
-	loginCallbackPort int
-	loginTimeout      int
-	loginReuse        bool
-	loginWeb          bool
+	loginDomain            string
+	loginSpace             string
+	loginNoBrowser         bool
+	loginCallbackPort      int
+	loginTimeout           int
+	loginReuse             bool
+	loginWeb               bool
+	loginForceBundleUpdate bool
 )
 
 func init() {
@@ -42,6 +44,7 @@ func init() {
 	loginCmd.Flags().IntVar(&loginTimeout, "timeout", 0, "Timeout in seconds (default: 120)")
 	loginCmd.Flags().BoolVarP(&loginReuse, "reuse", "r", false, "Reuse previous login settings (method, space, domain) without prompts")
 	loginCmd.Flags().BoolVar(&loginWeb, "web", false, "Use web-based authentication (all prompts in browser)")
+	loginCmd.Flags().BoolVar(&loginForceBundleUpdate, "force-bundle-update", false, "Force bundle update check (debug)")
 }
 
 var loginCmd = &cobra.Command{
@@ -259,6 +262,13 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	opts := mergeLoginOptions(cfg)
 	debug.Log("login options merged", "callback_port", opts.callbackPort, "timeout", opts.timeout, "reuse", opts.reuse)
 
+	profile := cfg.CurrentProfile()
+	if profile != nil && profile.Space != "" && profile.Domain != "" && profile.RelayServer != "" {
+		if err := verifyRelayInfoIfTrusted(ctx, cfg, profile.RelayServer, profile.Space, profile.Domain, loginForceBundleUpdate); err != nil {
+			return err
+		}
+	}
+
 	// 1. state 生成
 	state, err := auth.GenerateState()
 	if err != nil {
@@ -269,11 +279,12 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	// 2. コールバックサーバー起動（設定UIハンドラー付き）
 	debug.Log("creating callback server", "requested_port", opts.callbackPort)
 	callbackServer, err := auth.NewCallbackServer(auth.CallbackServerOptions{
-		Port:        opts.callbackPort,
-		State:       state,
-		ConfigStore: cfg,
-		Reuse:       opts.reuse,
-		Ctx:         ctx,
+		Port:              opts.callbackPort,
+		State:             state,
+		ConfigStore:       cfg,
+		Reuse:             opts.reuse,
+		ForceBundleUpdate: loginForceBundleUpdate,
+		Ctx:               ctx,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start callback server: %w", err)
@@ -281,7 +292,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("callback server ready", "actual_port", callbackServer.Port())
 
 	go func() {
-		if err := callbackServer.Start(); err != nil && err != http.ErrServerClosed {
+		if err := callbackServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			debug.Log("callback server error", "error", err)
 		}
 	}()
@@ -323,7 +334,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	}
 
 	// 設定から space/domain/relayServer を取得
-	profile := cfg.CurrentProfile()
+	profile = cfg.CurrentProfile()
 	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
@@ -442,6 +453,13 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	opts := mergeLoginOptions(cfg)
 	debug.Log("login options merged", "callback_port", opts.callbackPort)
 
+	profile := cfg.CurrentProfile()
+	if profile != nil && profile.Space != "" && profile.Domain != "" && profile.RelayServer != "" {
+		if err := verifyRelayInfoIfTrusted(ctx, cfg, profile.RelayServer, profile.Space, profile.Domain, loginForceBundleUpdate); err != nil {
+			return err
+		}
+	}
+
 	// 1. state 生成
 	state, err := auth.GenerateState()
 	if err != nil {
@@ -452,11 +470,12 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	// 2. コールバックサーバー起動（設定UIハンドラー付き）
 	debug.Log("creating callback server", "requested_port", opts.callbackPort)
 	callbackServer, err := auth.NewCallbackServer(auth.CallbackServerOptions{
-		Port:        opts.callbackPort,
-		State:       state,
-		ConfigStore: cfg,
-		Reuse:       false, // --web モードでは常にブラウザで設定
-		Ctx:         ctx,
+		Port:              opts.callbackPort,
+		State:             state,
+		ConfigStore:       cfg,
+		Reuse:             false, // --web モードでは常にブラウザで設定
+		ForceBundleUpdate: loginForceBundleUpdate,
+		Ctx:               ctx,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start callback server: %w", err)
@@ -464,7 +483,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("callback server ready", "actual_port", callbackServer.Port())
 
 	go func() {
-		if err := callbackServer.Start(); err != nil && err != http.ErrServerClosed {
+		if err := callbackServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			debug.Log("callback server error", "error", err)
 		}
 	}()
@@ -515,7 +534,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	}
 
 	// OAuth 認証の場合はトークン交換が必要
-	profile := cfg.CurrentProfile()
+	profile = cfg.CurrentProfile()
 	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
@@ -573,5 +592,67 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 
 	fmt.Printf("Logged in to %s.%s\n", space, domain)
 
+	return nil
+}
+
+func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServer, space, domain string, forceUpdate bool) error {
+	allowedDomain := space + "." + domain
+	bundle := config.FindTrustedBundle(cfg, allowedDomain)
+	if bundle == nil {
+		debug.Log("trusted bundle not found; skipping relay info preflight", "allowed_domain", allowedDomain)
+		return nil
+	}
+
+	cacheDir, err := cfg.GetCacheDir()
+	if err != nil {
+		debug.Log("failed to resolve cache dir", "error", err)
+	}
+	resolved := cfg.Resolved()
+
+	infoURL, err := config.BuildRelayInfoURL(relayServer, allowedDomain)
+	if err != nil {
+		return fmt.Errorf("failed to build relay info url: %w", err)
+	}
+	debug.Log("verifying relay info", "url", infoURL, "allowed_domain", allowedDomain)
+
+	info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
+		CacheDir:      cacheDir,
+		CertsCacheTTL: resolved.Cache.CertsTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("relay info verification failed: %w", err)
+	}
+
+	if err := config.CheckBundleUpdate(info, bundle, time.Now().UTC(), forceUpdate); err != nil {
+		var updateErr *config.BundleUpdateRequiredError
+		if errors.As(err, &updateErr) {
+			bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, allowedDomain)
+			if urlErr != nil {
+				return fmt.Errorf("failed to build relay bundle url: %w", urlErr)
+			}
+			debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
+			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
+				CacheDir:          cacheDir,
+				CertsCacheTTL:     resolved.Cache.CertsTTL,
+				AllowNameMismatch: false,
+				NoDefaults:        true,
+			})
+			if updateErr != nil {
+				return fmt.Errorf("bundle update failed: %w", updateErr)
+			}
+			if err := cfg.Save(ctx); err != nil {
+				return fmt.Errorf("failed to save updated bundle: %w", err)
+			}
+			if err := cfg.Reload(ctx); err != nil {
+				return fmt.Errorf("failed to reload config after bundle update: %w", err)
+			}
+			fmt.Printf("Updated relay bundle for %s\n", updated.AllowedDomain)
+		} else {
+			return err
+		}
+	}
+
+	debug.Log("relay info verified", "allowed_domain", allowedDomain)
+	fmt.Printf("Verified trusted relay server for %s\n", allowedDomain)
 	return nil
 }

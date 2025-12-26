@@ -397,7 +397,6 @@ func runMigrateApply(cmd *cobra.Command, args []string) error {
 			item.UpdatedAt = current.Updated
 			if nameChanged {
 				item.ItemKey = current.Name
-				nameChanged = false
 			}
 			item.FetchedAt = time.Now().Format(time.RFC3339)
 			item.Path = path
@@ -926,7 +925,7 @@ func runMigrateLogs(cmd *cobra.Command, args []string) error {
 		}
 		return fmt.Errorf("open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
@@ -1270,6 +1269,8 @@ type processTarget struct {
 	Force       bool
 }
 
+var _ = processTarget{}
+
 type migrateMetadata struct {
 	ProjectKey  string `json:"project_key"`
 	ProjectName string `json:"project_name"`
@@ -1395,7 +1396,7 @@ func ensureGitignore(dir string) error {
 	if err != nil {
 		return fmt.Errorf("write gitignore: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := fmt.Fprintln(f, entry); err != nil {
 		return fmt.Errorf("append gitignore: %w", err)
 	}
@@ -1643,7 +1644,7 @@ func appendMigrateLog(dir string, entry migrateLogEntry) error {
 	if err != nil {
 		return fmt.Errorf("open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	enc := json.NewEncoder(file)
 	if err := enc.Encode(entry); err != nil {
 		return fmt.Errorf("write log entry: %w", err)
@@ -1954,8 +1955,6 @@ func writeItems(dir string, items []migrateItem) error {
 	if err != nil {
 		return fmt.Errorf("open items file: %w", err)
 	}
-	defer file.Close()
-
 	enc := json.NewEncoder(file)
 	for _, item := range items {
 		if err := enc.Encode(item); err != nil {
@@ -1977,7 +1976,7 @@ func readItems(dir string) ([]migrateItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open items file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
@@ -2246,23 +2245,27 @@ func printContentDiff(before, after string) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(beforeFile.Name())
+	defer func() { _ = os.Remove(beforeFile.Name()) }()
 	if _, err := beforeFile.WriteString(before); err != nil {
-		beforeFile.Close()
+		_ = beforeFile.Close()
 		return err
 	}
-	_ = beforeFile.Close()
+	if err := beforeFile.Close(); err != nil {
+		return err
+	}
 
 	afterFile, err := os.CreateTemp("", "backlog-md-after-*.md")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(afterFile.Name())
+	defer func() { _ = os.Remove(afterFile.Name()) }()
 	if _, err := afterFile.WriteString(after); err != nil {
-		afterFile.Close()
+		_ = afterFile.Close()
 		return err
 	}
-	_ = afterFile.Close()
+	if err := afterFile.Close(); err != nil {
+		return err
+	}
 
 	return printDiffFiles(beforeFile.Name(), afterFile.Name())
 }
@@ -2501,4 +2504,18 @@ func safePath(value string) string {
 		return "item"
 	}
 	return slugify(value)
+}
+
+var _ = []any{
+	gitMergeSquash,
+	gitResetSoftTo,
+	readItemsIfExists,
+	fetchAllComments,
+	isSourceMatch,
+	printChangeSummary,
+	formatRules,
+	buildAppliedIndex,
+	buildItemKey,
+	buildItemIndex,
+	inheritApplyState,
 }

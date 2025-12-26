@@ -55,7 +55,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		}
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	entries, err := readEntries(file, logsLimit)
 	if err != nil {

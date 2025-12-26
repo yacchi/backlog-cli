@@ -35,6 +35,11 @@ export default defineConfig({
         target: "http://localhost:52847",
         changeOrigin: true,
       },
+      // Portal API エンドポイント
+      "/api/v1/portal": {
+        target: "http://localhost:52847",
+        changeOrigin: true,
+      },
     },
   },
   build: {
