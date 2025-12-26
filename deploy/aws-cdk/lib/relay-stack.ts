@@ -20,33 +20,36 @@ export interface RelayStackProps extends cdk.StackProps {
 export class RelayStack extends cdk.Stack {
   public readonly functionUrl: lambda.FunctionUrl;
   public readonly distribution?: cloudfront.Distribution;
+  private configParameter: ssm.IParameter;
   private readonly config: RelayConfig;
+  private lambdaFunction: lambda.Function;
 
   constructor(scope: Construct, id: string, props: RelayStackProps) {
     super(scope, id, props);
 
     this.config = props.config;
+    const cloudFrontEnabled = this.config.cloudFront?.enabled ?? false;
 
     // SSM Parameter Store に設定を保存
-    const configParameterName = this.createConfigParameter();
+    this.configParameter = this.createConfigParameter();
 
     // Lambda 関数を作成
-    const fn = this.createLambdaFunction(configParameterName);
+    this.lambdaFunction = this.createLambdaFunction();
 
-    // Function URL を作成
-    this.functionUrl = this.createFunctionUrl(fn);
+    // Function URL を作成（CloudFront有効時はIAM認証）
+    this.functionUrl = this.createFunctionUrl(cloudFrontEnabled);
 
     // CloudFront ディストリビューションを作成
     this.distribution = this.createCloudFrontDistribution();
 
     // Outputs を作成
-    this.createOutputs(configParameterName);
+    this.createOutputs(cloudFrontEnabled);
   }
 
   /**
    * SSM Parameter Store に設定を保存
    */
-  private createConfigParameter(): string {
+  private createConfigParameter(): ssm.StringParameter {
     const parameterName = this.config.parameterName;
     const parameterValue = JSON.stringify(
       withLambdaFunctionUrlPattern(
@@ -55,20 +58,18 @@ export class RelayStack extends cdk.Stack {
       ),
     );
 
-    new ssm.StringParameter(this, "ConfigParameter", {
+    return new ssm.StringParameter(this, "ConfigParameter", {
       parameterName,
       stringValue: parameterValue,
       description: "Backlog OAuth Relay Server configuration",
       tier: ssm.ParameterTier.STANDARD,
     });
-
-    return parameterName;
   }
 
   /**
    * Lambda 関数を作成
    */
-  private createLambdaFunction(configParameterName: string): lambda.Function {
+  private createLambdaFunction(): lambda.Function {
     // Go バイナリをビルド
     const lambdaDir = path.join(__dirname, "..", "lambda");
     const outputPath = path.join(lambdaDir, "bootstrap");
@@ -86,36 +87,37 @@ export class RelayStack extends cdk.Stack {
       code: lambda.Code.fromAsset(lambdaDir, {
         exclude: ["*.go", "go.mod", "go.sum"],
       }),
-      memorySize: 128,
+      memorySize: 512,
       loggingFormat: LoggingFormat.JSON,
-      timeout: cdk.Duration.seconds(30),
+      timeout: cdk.Duration.seconds(10),
       environment: {
         HOME: "/tmp",
-        BACKLOG_CONFIG_PARAMETER: configParameterName,
+        BACKLOG_CONFIG_PARAMETER: this.configParameter.parameterName,
       },
-      logRetention: logs.RetentionDays.ONE_MONTH,
       description: "Backlog CLI OAuth Relay Server",
     });
 
+    new logs.LogGroup(this, "RelayFunctionLogGroup", {
+      logGroupName: `/aws/lambda/${fn.functionName}`,
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // Parameter Store の読み取り権限を付与
-    fn.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        actions: ["ssm:GetParameter"],
-        resources: [
-          `arn:aws:ssm:${this.region}:${this.account}:parameter${configParameterName}`,
-        ],
-      }),
-    );
+    this.configParameter.grantRead(fn);
 
     return fn;
   }
 
   /**
    * Function URL を作成
+   * CloudFront 有効時は IAM 認証を使用し、直接アクセスを防止
    */
-  private createFunctionUrl(fn: lambda.Function): lambda.FunctionUrl {
-    return fn.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE,
+  private createFunctionUrl(useIamAuth: boolean): lambda.FunctionUrl {
+    return this.lambdaFunction.addFunctionUrl({
+      authType: useIamAuth
+        ? lambda.FunctionUrlAuthType.AWS_IAM
+        : lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ["*"],
         allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
@@ -203,16 +205,10 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
-   * Lambda Function URL をオリジンとして作成
+   * Lambda Function URL をオリジンとして作成（OAC 自動設定）
    */
-  private createOrigin(): origins.HttpOrigin {
-    const functionUrlDomain = cdk.Fn.select(
-      2,
-      cdk.Fn.split("/", this.functionUrl.url),
-    );
-    return new origins.HttpOrigin(functionUrlDomain, {
-      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
-    });
+  private createOrigin(): origins.FunctionUrlOrigin {
+    return new origins.FunctionUrlOrigin(this.functionUrl);
   }
 
   /**
@@ -359,19 +355,23 @@ function handler(event) {
   /**
    * 基本の Outputs を作成
    */
-  private createOutputs(configParameterName: string): void {
-    new cdk.CfnOutput(this, "FunctionUrl", {
-      value: this.functionUrl.url,
-      description: "Relay server URL (Lambda Function URL)",
-    });
+  private createOutputs(cloudFrontEnabled: boolean): void {
+    // CloudFront 有効時は Function URL への直接アクセスが不可のため、
+    // CloudFront経由のURLのみを案内
+    if (!cloudFrontEnabled) {
+      new cdk.CfnOutput(this, "FunctionUrl", {
+        value: this.functionUrl.url,
+        description: "Relay server URL (Lambda Function URL)",
+      });
 
-    new cdk.CfnOutput(this, "CallbackUrl", {
-      value: `${this.functionUrl.url}auth/callback`,
-      description: "OAuth callback URL (register this in Backlog)",
-    });
+      new cdk.CfnOutput(this, "CallbackUrl", {
+        value: `${this.functionUrl.url}auth/callback`,
+        description: "OAuth callback URL (register this in Backlog)",
+      });
+    }
 
     new cdk.CfnOutput(this, "ConfigParameterName", {
-      value: configParameterName,
+      value: this.configParameter.parameterName,
       description: "SSM Parameter Store name for relay server config",
     });
   }
