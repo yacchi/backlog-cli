@@ -28,7 +28,17 @@ export const config: RelayConfig = {
       // tenants: {
       //   spaceid: {
       //     allowed_domain: "spaceid.backlog.jp",
-      //     jwks: '{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"2025-01","x":"...","d":"..."}]}',
+      //     jwks: {
+      //       keys: [
+      //         {
+      //           kty: "OKP",
+      //           crv: "Ed25519",
+      //           kid: "2025-01",
+      //           x: "...",  // 公開鍵
+      //           d: "...",  // 秘密鍵
+      //         },
+      //       ],
+      //     },
       //     active_keys: "2025-01",
       //     info_ttl: 600,
       //     passphrase_hash: "$2a$12$...",

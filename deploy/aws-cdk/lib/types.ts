@@ -1,4 +1,32 @@
 /**
+ * JWK (JSON Web Key)
+ */
+export interface JWK {
+  kty: string;
+  kid?: string;
+  use?: string;
+  alg?: string;
+  // OKP (Ed25519, X25519, etc.)
+  crv?: string;
+  x?: string;
+  d?: string;
+  // RSA
+  n?: string;
+  e?: string;
+  // EC
+  y?: string;
+  // その他のパラメータ
+  [key: string]: unknown;
+}
+
+/**
+ * JWKS (JSON Web Key Set)
+ */
+export interface JWKS {
+  keys: JWK[];
+}
+
+/**
  * Backlog OAuth アプリケーション設定
  */
 export interface BacklogAppConfig {
@@ -14,8 +42,11 @@ export interface TenantConfig {
   /** 許可するドメイン (spaceid.backlog.jp) */
   allowed_domain: string;
 
-  /** 秘密鍵を含む JWK セット (JSON 文字列) */
-  jwks: string;
+  /**
+   * 秘密鍵を含む JWK セット
+   * - JWKS オブジェクト: デプロイ時に JSON 文字列化
+   */
+  jwks: JWKS;
 
   /** 署名に使う kid (カンマ区切り) */
   active_keys: string;

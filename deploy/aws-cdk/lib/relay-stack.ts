@@ -68,8 +68,12 @@ export class RelayStack extends cdk.Stack {
       }
     }
 
+    // JWKS オブジェクトを文字列化してから、ホストパターンを追加
+    const serializedValue = serializeJwksInTenants(
+      this.config.parameterValue ?? {},
+    );
     const parameterValue = JSON.stringify(
-      withAllowedHostPatterns(this.config.parameterValue ?? {}, patterns),
+      withAllowedHostPatterns(serializedValue, patterns),
     );
 
     return new ssm.StringParameter(this, "ConfigParameter", {
@@ -427,6 +431,36 @@ function handler(event) {
 // ============================================================
 // ヘルパー関数
 // ============================================================
+
+/**
+ * テナント設定内の JWKS オブジェクトを JSON 文字列に変換する
+ * Parameter Store に格納する前に呼び出す
+ */
+function serializeJwksInTenants(
+  value: ParameterStoreValue,
+): Record<string, unknown> {
+  const result = { ...value } as Record<string, unknown>;
+
+  if (value.server?.tenants) {
+    const serializedTenants: Record<string, unknown> = {};
+
+    for (const [tenantId, tenantConfig] of Object.entries(
+      value.server.tenants,
+    )) {
+      serializedTenants[tenantId] = {
+        ...tenantConfig,
+        jwks: JSON.stringify(tenantConfig.jwks),
+      };
+    }
+
+    result.server = {
+      ...value.server,
+      tenants: serializedTenants,
+    };
+  }
+
+  return result;
+}
 
 /**
  * allowed_host_patterns にパターンを追加する
