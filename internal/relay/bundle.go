@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/domain"
 )
 
 // AuditAction constants for bundle
@@ -14,8 +15,8 @@ const (
 
 // handleRelayBundle は自動更新用のバンドルを返す
 func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
-	domain := strings.TrimSpace(r.PathValue("domain"))
-	if domain == "" {
+	allowedDomain := strings.TrimSpace(r.PathValue("domain"))
+	if allowedDomain == "" {
 		http.Error(w, "domain is required", http.StatusBadRequest)
 		return
 	}
@@ -25,11 +26,11 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		clientIP = ip.String()
 	}
 
-	tenant, ok := findTenantByAllowedDomain(s.cfg.Server().Tenants, domain)
+	tenant, ok := findTenantByAllowedDomain(s.cfg.Server().Tenants, allowedDomain)
 	if !ok {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionRelayBundle,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -40,11 +41,11 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relayURL := s.buildRelayURL(r)
-	bundleData, err := config.CreatePortalBundle(tenant, domain, relayURL)
+	bundleData, err := config.CreatePortalBundle(tenant, allowedDomain, relayURL)
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionRelayBundle,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -54,7 +55,7 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, backlogDomain := splitDomain(domain)
+	space, backlogDomain := domain.SplitDomain(allowedDomain)
 	s.auditLogger.Log(AuditEvent{
 		Action:    AuditActionRelayBundle,
 		Space:     space,
@@ -64,7 +65,7 @@ func (s *Server) handleRelayBundle(w http.ResponseWriter, r *http.Request) {
 		Result:    "success",
 	})
 
-	filename := domain + ".backlog-cli.zip"
+	filename := allowedDomain + ".backlog-cli.zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	_, _ = w.Write(bundleData)

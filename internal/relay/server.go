@@ -79,7 +79,7 @@ func (s *Server) Handler() http.Handler {
 
 	// ポータルエンドポイント
 	mux.HandleFunc("POST /api/v1/portal/verify", s.handlePortalVerify)
-	mux.HandleFunc("GET /api/v1/portal/{domain}/bundle", s.handlePortalBundle)
+	mux.HandleFunc("POST /api/v1/portal/{domain}/bundle", s.handlePortalBundle)
 	mux.HandleFunc("GET /portal/{domain}", s.handlePortalSPA)
 	mux.HandleFunc("GET /portal/{domain}/", s.handlePortalSPA)
 

@@ -77,7 +77,7 @@ func (m *BundleAuthMiddleware) Middleware(next http.Handler) http.Handler {
 
 		// トークン検証
 		if err := config.VerifyBundleTokenWithTenant(token, domain, tenant); err != nil {
-			m.logAuthFailure(r, domain, err.Error())
+			m.logAuthFailure(r, domain, "token verification failed")
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}

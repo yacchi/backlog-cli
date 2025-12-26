@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/yacchi/backlog-cli/internal/domain"
+	jwkutil "github.com/yacchi/backlog-cli/internal/jwk"
 )
 
 const relayInfoVersion = 1
@@ -53,13 +56,13 @@ type relayInfoProtected struct {
 }
 
 func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
-	domain := strings.TrimSpace(r.PathValue("domain"))
-	if domain == "" {
+	allowedDomain := strings.TrimSpace(r.PathValue("domain"))
+	if allowedDomain == "" {
 		http.Error(w, "domain is required", http.StatusBadRequest)
 		return
 	}
 
-	tenant, ok := findTenantByAllowedDomain(s.cfg.Server().Tenants, domain)
+	tenant, ok := findTenantByAllowedDomain(s.cfg.Server().Tenants, allowedDomain)
 	if !ok {
 		http.Error(w, "tenant not found", http.StatusNotFound)
 		return
@@ -72,7 +75,7 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	expiresAt := issuedAt.Add(time.Duration(ttl) * time.Second)
 
-	space, backlogDomain := splitDomain(tenant.AllowedDomain)
+	space, backlogDomain := domain.SplitDomain(tenant.AllowedDomain)
 	payload := relayInfoPayload{
 		Version:       relayInfoVersion,
 		RelayURL:      s.buildRelayURL(r),
@@ -130,7 +133,7 @@ func buildRelayInfoSignatures(payloadB64 []byte, jwksJSON string, activeKeys str
 		if !ok {
 			return nil, fmt.Errorf("jwks missing key: %s", kid)
 		}
-		privKey, err := jwkPrivateKey(jwk)
+		privKey, err := jwkutil.Ed25519PrivateKeyFromJWK(jwk.Kty, jwk.Crv, jwk.Kid, jwk.D)
 		if err != nil {
 			return nil, err
 		}
@@ -167,21 +170,4 @@ func splitKeyList(value string) []string {
 		}
 	}
 	return out
-}
-
-func jwkPrivateKey(jwk relayJWK) (ed25519.PrivateKey, error) {
-	if jwk.Kty != "OKP" || jwk.Crv != "Ed25519" {
-		return nil, fmt.Errorf("unsupported JWK: kty=%s crv=%s", jwk.Kty, jwk.Crv)
-	}
-	if jwk.D == "" {
-		return nil, fmt.Errorf("missing private key material for %s", jwk.Kid)
-	}
-	seed, err := base64.RawURLEncoding.DecodeString(jwk.D)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK d for %s: %w", jwk.Kid, err)
-	}
-	if len(seed) != ed25519.SeedSize {
-		return nil, fmt.Errorf("invalid JWK seed size for %s: %d", jwk.Kid, len(seed))
-	}
-	return ed25519.NewKeyFromSeed(seed), nil
 }

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/yacchi/backlog-cli/internal/config"
+	"github.com/yacchi/backlog-cli/internal/domain"
 	"github.com/yacchi/backlog-cli/internal/ui"
 )
 
@@ -64,7 +65,7 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 
 	var req PortalVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writePortalError(w, http.StatusBadRequest, "invalid_request")
+		s.writePortalError(w, http.StatusBadRequest, "invalid_request: "+err.Error())
 		return
 	}
 
@@ -112,7 +113,7 @@ func (s *Server) handlePortalVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, backlogDomain := splitDomain(req.Domain)
+	space, backlogDomain := domain.SplitDomain(req.Domain)
 	relayURL := s.buildRelayURL(r)
 
 	s.auditLogger.Log(AuditEvent{
@@ -141,19 +142,24 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		clientIP = ip.String()
 	}
 
-	domain := r.PathValue("domain")
-	passphrase := r.URL.Query().Get("passphrase")
+	allowedDomain := r.PathValue("domain")
+	var req PortalVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writePortalError(w, http.StatusBadRequest, "invalid_request: "+err.Error())
+		return
+	}
+	passphrase := req.Passphrase
 
-	if domain == "" || passphrase == "" {
+	if allowedDomain == "" || passphrase == "" {
 		s.writePortalError(w, http.StatusBadRequest, "domain and passphrase are required")
 		return
 	}
 
-	tenant := s.findTenantByDomain(domain)
+	tenant := s.findTenantByDomain(allowedDomain)
 	if tenant == nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -167,7 +173,7 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 	case PassphraseNotConfigured:
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -178,7 +184,7 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 	case PassphraseInvalid:
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -189,11 +195,11 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relayURL := s.buildRelayURL(r)
-	bundleData, err := config.CreatePortalBundle(tenant, domain, relayURL)
+	bundleData, err := config.CreatePortalBundle(tenant, allowedDomain, relayURL)
 	if err != nil {
 		s.auditLogger.Log(AuditEvent{
 			Action:    AuditActionPortalDownload,
-			Domain:    domain,
+			Domain:    allowedDomain,
 			ClientIP:  clientIP,
 			UserAgent: r.UserAgent(),
 			Result:    "error",
@@ -203,7 +209,7 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	space, backlogDomain := splitDomain(domain)
+	space, backlogDomain := domain.SplitDomain(allowedDomain)
 	s.auditLogger.Log(AuditEvent{
 		Action:    AuditActionPortalDownload,
 		Space:     space,
@@ -213,7 +219,7 @@ func (s *Server) handlePortalBundle(w http.ResponseWriter, r *http.Request) {
 		Result:    "success",
 	})
 
-	filename := domain + ".backlog-cli.zip"
+	filename := allowedDomain + ".backlog-cli.zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	_, _ = w.Write(bundleData)
@@ -272,15 +278,6 @@ func (s *Server) buildRelayURL(r *http.Request) string {
 	}
 
 	return scheme + "://" + host
-}
-
-// splitDomain はallowed_domainをspaceとbacklogDomainに分割する
-func splitDomain(domain string) (space, backlogDomain string) {
-	parts := strings.SplitN(domain, ".", 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-	return domain, ""
 }
 
 // writePortalError はポータルエラーレスポンスを書き込む

@@ -62,8 +62,12 @@ export default function Portal() {
     setError(null);
 
     try {
-      const url = `/api/v1/portal/${encodeURIComponent(domain)}/bundle?passphrase=${encodeURIComponent(passphrase)}`;
-      const response = await fetch(url);
+      const url = `/api/v1/portal/${encodeURIComponent(domain)}/bundle`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passphrase }),
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

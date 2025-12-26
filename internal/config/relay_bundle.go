@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yacchi/backlog-cli/internal/domain"
+	jwkutil "github.com/yacchi/backlog-cli/internal/jwk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -404,7 +406,7 @@ func buildAllowedKeys(jwks *relayBundleJWKS, keys []RelayBundleKey) (map[string]
 		if thumbprint != key.Thumbprint {
 			return nil, fmt.Errorf("thumbprint mismatch for key %s", key.KeyID)
 		}
-		publicKey, err := jwkPublicKey(jwk)
+		publicKey, err := jwkutil.Ed25519PublicKeyFromJWK(jwk.Kty, jwk.Crv, jwk.Kid, jwk.X)
 		if err != nil {
 			return nil, err
 		}
@@ -428,20 +430,6 @@ func jwkThumbprint(jwk relayBundleJWK) (string, error) {
 	canonical := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s"}`, jwk.Crv, jwk.Kty, jwk.X)
 	sum := sha256.Sum256([]byte(canonical))
 	return base64.RawURLEncoding.EncodeToString(sum[:]), nil
-}
-
-func jwkPublicKey(jwk relayBundleJWK) (ed25519.PublicKey, error) {
-	if jwk.Kty != "OKP" || jwk.Crv != "Ed25519" {
-		return nil, fmt.Errorf("unsupported JWK: kty=%s crv=%s", jwk.Kty, jwk.Crv)
-	}
-	keyBytes, err := base64.RawURLEncoding.DecodeString(jwk.X)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK x: %w", err)
-	}
-	if len(keyBytes) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("invalid Ed25519 public key size: %d", len(keyBytes))
-	}
-	return ed25519.PublicKey(keyBytes), nil
 }
 
 func verifyRelayBundleSignature(manifestBytes, sigBytes []byte, allowedKeys map[string]allowedKey) error {
@@ -566,7 +554,7 @@ func upsertTrustedBundle(store *Store, bundle TrustedBundle) error {
 }
 
 func applyRelayBundleDefaults(store *Store, manifest RelayBundleManifest) error {
-	space, domain, err := splitAllowedDomain(manifest.AllowedDomain)
+	space, backlogDomain, err := domain.SplitAllowedDomain(manifest.AllowedDomain)
 	if err != nil {
 		return err
 	}
@@ -576,16 +564,8 @@ func applyRelayBundleDefaults(store *Store, manifest RelayBundleManifest) error 
 	if err := store.Set("profile.default.space", space); err != nil {
 		return err
 	}
-	if err := store.Set("profile.default.domain", domain); err != nil {
+	if err := store.Set("profile.default.domain", backlogDomain); err != nil {
 		return err
 	}
 	return nil
-}
-
-func splitAllowedDomain(value string) (string, string, error) {
-	parts := strings.SplitN(value, ".", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("invalid allowed_domain: %s", value)
-	}
-	return parts[0], parts[1], nil
 }

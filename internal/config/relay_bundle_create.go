@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	jwkutil "github.com/yacchi/backlog-cli/internal/jwk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +43,7 @@ func GenerateBundleToken(allowedDomain string, jwkByKid map[string]relayBundleJW
 		return "", fmt.Errorf("JWKS missing key for token signing: %s", kid)
 	}
 
-	privKey, err := jwkPrivateKey(jwk)
+	privKey, err := jwkutil.Ed25519PrivateKeyFromJWK(jwk.Kty, jwk.Crv, jwk.Kid, jwk.D)
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +141,7 @@ func VerifyBundleToken(token string, allowedDomain string, jwks *relayBundleJWKS
 	var pubKey ed25519.PublicKey
 	for _, key := range jwks.Keys {
 		if key.Kid == header.Kid {
-			pubKey, err = jwkPublicKey(key)
+			pubKey, err = jwkutil.Ed25519PublicKeyFromJWK(key.Kty, key.Crv, key.Kid, key.X)
 			if err != nil {
 				return err
 			}
@@ -401,7 +402,7 @@ func signRelayBundleManifest(manifest []byte, jwkByKid map[string]relayBundleJWK
 		if !ok {
 			return nil, fmt.Errorf("JWKS missing key for signing: %s", kid)
 		}
-		privKey, err := jwkPrivateKey(jwk)
+		privKey, err := jwkutil.Ed25519PrivateKeyFromJWK(jwk.Kty, jwk.Crv, jwk.Kid, jwk.D)
 		if err != nil {
 			return nil, err
 		}
@@ -432,26 +433,6 @@ func signRelayBundleManifest(manifest []byte, jwkByKid map[string]relayBundleJWK
 	return out, nil
 }
 
-func jwkPrivateKey(jwk relayBundleJWK) (ed25519.PrivateKey, error) {
-	if jwk.Kty != "" && jwk.Kty != "OKP" {
-		return nil, fmt.Errorf("unsupported JWK: kty=%s", jwk.Kty)
-	}
-	if jwk.Crv != "" && jwk.Crv != "Ed25519" {
-		return nil, fmt.Errorf("unsupported JWK: crv=%s", jwk.Crv)
-	}
-	if jwk.D == "" {
-		return nil, fmt.Errorf("missing private key material for %s", jwk.Kid)
-	}
-	seed, err := base64.RawURLEncoding.DecodeString(jwk.D)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWK d for %s: %w", jwk.Kid, err)
-	}
-	if len(seed) != ed25519.SeedSize {
-		return nil, fmt.Errorf("invalid JWK seed size for %s: %d", jwk.Kid, len(seed))
-	}
-	return ed25519.NewKeyFromSeed(seed), nil
-}
-
 func normalizeRelayJWKS(jwks *relayBundleJWKS) error {
 	if jwks == nil {
 		return errors.New("jwks is nil")
@@ -462,7 +443,7 @@ func normalizeRelayJWKS(jwks *relayBundleJWKS) error {
 		if key.D == "" {
 			continue
 		}
-		privKey, err := jwkPrivateKey(*key)
+		privKey, err := jwkutil.Ed25519PrivateKeyFromJWK(key.Kty, key.Crv, key.Kid, key.D)
 		if err != nil {
 			return err
 		}
