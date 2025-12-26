@@ -38,6 +38,35 @@ export interface ParameterStoreConfig {
   parameterValue?: ParameterStoreValue;
 }
 
+/**
+ * CloudFront 設定
+ */
+export interface CloudFrontConfig {
+  /**
+   * CloudFront を有効化
+   * true の場合、CloudFront 経由でアクセス（キャッシュ有効）
+   */
+  enabled: boolean;
+
+  /**
+   * カスタムドメイン名 (例: relay.example.com)
+   * 未指定の場合は CloudFront デフォルトドメイン（*.cloudfront.net）を使用
+   */
+  domainName?: string;
+
+  /**
+   * ACM 証明書の ARN（us-east-1 リージョン）
+   * domainName を指定する場合は必須
+   */
+  certificateArn?: string;
+
+  /**
+   * Route 53 ホストゾーン ID（オプション）
+   * 指定すると DNS レコードを自動作成
+   */
+  hostedZoneId?: string;
+}
+
 export interface AccessControlConfig {
   allowed_spaces?: string[];
   allowed_projects?: string[];
@@ -70,4 +99,7 @@ export interface ParameterStoreValue {
 /**
  * リレーサーバー設定
  */
-export type RelayConfig = ParameterStoreConfig;
+export interface RelayConfig extends ParameterStoreConfig {
+  /** CloudFront 設定（オプション） */
+  cloudFront?: CloudFrontConfig;
+}

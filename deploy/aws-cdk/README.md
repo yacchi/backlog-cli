@@ -126,7 +126,95 @@ pnpm destroy
 | `server.audit.enabled`                | `true`           | 監査ログの有効化                 |
 | `server.tenants`                      | なし             | テナント設定（バンドル署名に必須） |
 
+## CloudFront 設定（オプション）
+
+CloudFront を使用すると、静的アセット（CSS/JS）がエッジでキャッシュされ高速に配信されます。
+
+### 構成パターン
+
+| パターン | 設定 | URL |
+|---------|------|-----|
+| CloudFront のみ | `enabled: true` | `https://d123xxx.cloudfront.net` |
+| カスタムドメイン | `enabled: true` + `domainName` + `certificateArn` | `https://relay.example.com` |
+
+### パターン1: CloudFront のみ（推奨）
+
+ACM 証明書やドメイン設定が不要で、すぐに使えます。
+
+```typescript
+export const config: RelayConfig = {
+  parameterName: "/backlog-relay/config",
+  parameterValue: { /* ... */ },
+
+  cloudFront: {
+    enabled: true,
+  },
+};
+```
+
+デプロイ後の出力：
+
+```
+Outputs:
+DistributionUrl = https://d1234567890abc.cloudfront.net
+DistributionCallbackUrl = https://d1234567890abc.cloudfront.net/auth/callback
+```
+
+`DistributionCallbackUrl` を Backlog OAuth アプリのリダイレクト URI に設定してください。
+
+### パターン2: カスタムドメイン
+
+#### 事前準備
+
+1. **ACM 証明書の発行（us-east-1 リージョン）**
+
+   ```bash
+   aws acm request-certificate \
+     --domain-name relay.example.com \
+     --validation-method DNS \
+     --region us-east-1
+   ```
+
+2. **Route 53 ホストゾーン ID の確認（オプション）**
+
+   ```bash
+   aws route53 list-hosted-zones --query "HostedZones[?Name=='example.com.'].Id"
+   ```
+
+#### 設定
+
+```typescript
+export const config: RelayConfig = {
+  parameterName: "/backlog-relay/config",
+  parameterValue: { /* ... */ },
+
+  cloudFront: {
+    enabled: true,
+    domainName: "relay.example.com",
+    certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/xxx",
+    hostedZoneId: "Z1234567890ABC",  // オプション: Route 53 使用時
+  },
+};
+```
+
+#### DNS 設定（Route 53 を使わない場合）
+
+`hostedZoneId` を指定しない場合は、手動で CNAME レコードを作成：
+
+```
+relay.example.com  CNAME  d1234567890abc.cloudfront.net
+```
+
+### キャッシュ設定
+
+| パス | キャッシュ TTL | 説明 |
+|------|---------------|------|
+| `/assets/*` | 1年 | 静的アセット（ファイル名にハッシュ含む） |
+| その他 | 0秒 | 動的コンテンツ（OAuth フロー等） |
+
 ## アーキテクチャ
+
+### 基本構成（Function URL のみ）
 
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
@@ -134,10 +222,26 @@ pnpm destroy
 │    CLI      │     │  (Function URL) │     │     API     │
 └─────────────┘     └─────────────────┘     └─────────────┘
                             │
-                            ▼ (オプション)
+                            ▼
                     ┌─────────────────┐
                     │ SSM Parameter   │
                     │     Store       │
+                    └─────────────────┘
+```
+
+### カスタムドメイン構成（CloudFront）
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌───────────┐
+│  Backlog    │────▶│   CloudFront    │────▶│     Lambda      │────▶│  Backlog  │
+│    CLI      │     │ (カスタムドメイン) │     │  (Function URL) │     │    API    │
+└─────────────┘     └─────────────────┘     └─────────────────┘     └───────────┘
+                            │
+                            │ /assets/* はエッジキャッシュ
+                            ▼
+                    ┌─────────────────┐
+                    │   Route 53      │
+                    │  (オプション)    │
                     └─────────────────┘
 ```
 
@@ -146,6 +250,7 @@ pnpm destroy
 - **AWS Lambda**: リクエストごとの課金（月100万リクエストまで無料）
 - **CloudWatch Logs**: 取り込みデータ量による課金
 - **SSM Parameter Store**: Standard パラメーターは無料
+- **CloudFront**（カスタムドメイン使用時）: 月1000万リクエストまで無料、以降 $0.90/100万リクエスト
 
 一般的な CLI 使用では AWS 無料利用枠内に収まります。
 

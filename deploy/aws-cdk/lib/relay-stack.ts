@@ -3,6 +3,11 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import { LoggingFormat } from "aws-cdk-lib/aws-lambda";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as route53 from "aws-cdk-lib/aws-route53";
+import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import { Construct } from "constructs";
 import * as path from "path";
 import { execSync } from "child_process";
@@ -14,49 +19,63 @@ export interface RelayStackProps extends cdk.StackProps {
 
 export class RelayStack extends cdk.Stack {
   public readonly functionUrl: lambda.FunctionUrl;
+  public readonly distribution?: cloudfront.Distribution;
+  private readonly config: RelayConfig;
 
   constructor(scope: Construct, id: string, props: RelayStackProps) {
     super(scope, id, props);
 
-    const { config } = props;
+    this.config = props.config;
 
-    // Lambda 用の環境変数を構築
-    const environment: Record<string, string> = {
-      // Lambda では $HOME が未設定のため、設定ファイルパス解決用に設定
-      HOME: "/tmp",
-    };
+    // SSM Parameter Store に設定を保存
+    const configParameterName = this.createConfigParameter();
 
-    // Parameter Store を使う場合
-    let configParameterName: string | null = null;
+    // Lambda 関数を作成
+    const fn = this.createLambdaFunction(configParameterName);
 
-    configParameterName = config.parameterName;
+    // Function URL を作成
+    this.functionUrl = this.createFunctionUrl(fn);
 
+    // CloudFront ディストリビューションを作成
+    this.distribution = this.createCloudFrontDistribution();
+
+    // Outputs を作成
+    this.createOutputs(configParameterName);
+  }
+
+  /**
+   * SSM Parameter Store に設定を保存
+   */
+  private createConfigParameter(): string {
+    const parameterName = this.config.parameterName;
     const parameterValue = JSON.stringify(
-      withLambdaFunctionUrlPattern(config.parameterValue ?? {}, this.region),
+      withLambdaFunctionUrlPattern(
+        this.config.parameterValue ?? {},
+        this.region,
+      ),
     );
 
     new ssm.StringParameter(this, "ConfigParameter", {
-      parameterName: configParameterName,
+      parameterName,
       stringValue: parameterValue,
       description: "Backlog OAuth Relay Server configuration",
       tier: ssm.ParameterTier.STANDARD,
     });
 
-    if (configParameterName) {
-      environment["BACKLOG_CONFIG_PARAMETER"] = configParameterName;
-    }
+    return parameterName;
+  }
 
+  /**
+   * Lambda 関数を作成
+   */
+  private createLambdaFunction(configParameterName: string): lambda.Function {
     // Go バイナリをビルド
     const lambdaDir = path.join(__dirname, "..", "lambda");
     const outputPath = path.join(lambdaDir, "bootstrap");
 
-    // GOWORK=off でビルド（go.work がある場合の対応）
     execSync(
       `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o ${outputPath} .`,
-      {
-        cwd: lambdaDir,
-        stdio: "inherit",
-      },
+      { cwd: lambdaDir, stdio: "inherit" },
     );
 
     // Lambda 関数
@@ -70,12 +89,15 @@ export class RelayStack extends cdk.Stack {
       memorySize: 128,
       loggingFormat: LoggingFormat.JSON,
       timeout: cdk.Duration.seconds(30),
-      environment,
+      environment: {
+        HOME: "/tmp",
+        BACKLOG_CONFIG_PARAMETER: configParameterName,
+      },
       logRetention: logs.RetentionDays.ONE_MONTH,
       description: "Backlog CLI OAuth Relay Server",
     });
 
-    // Parameter Store から読み込む場合、読み取り権限を付与
+    // Parameter Store の読み取り権限を付与
     fn.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         actions: ["ssm:GetParameter"],
@@ -85,8 +107,14 @@ export class RelayStack extends cdk.Stack {
       }),
     );
 
-    // Function URL を作成
-    this.functionUrl = fn.addFunctionUrl({
+    return fn;
+  }
+
+  /**
+   * Function URL を作成
+   */
+  private createFunctionUrl(fn: lambda.Function): lambda.FunctionUrl {
+    return fn.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ["*"],
@@ -94,15 +122,247 @@ export class RelayStack extends cdk.Stack {
         allowedHeaders: ["Content-Type"],
       },
     });
+  }
 
-    // Function URL を環境変数に設定（コールバック URL 構築用）
-    // Note: 循環参照を避けるため、Lambda は起動時に自身の URL を取得する必要がある
-    // または、カスタムドメインを使用する場合は事前に設定
+  /**
+   * CloudFront ディストリビューションを作成
+   */
+  private createCloudFrontDistribution(): cloudfront.Distribution | undefined {
+    const cloudFrontConfig = this.config.cloudFront;
+    if (!cloudFrontConfig?.enabled) {
+      return;
+    }
+    const { domainName, certificateArn, hostedZoneId } = cloudFrontConfig;
+    const useCustomDomain = domainName != null && certificateArn != null;
 
-    // Outputs
+    // オリジン: Lambda Function URL
+    const origin = this.createOrigin();
+
+    // キャッシュポリシー
+    const { assetsCachePolicy, dynamicCachePolicy } =
+      this.createCachePolicies();
+
+    // オリジンリクエストポリシー
+    const originRequestPolicy = this.createOriginRequestPolicy();
+
+    // CloudFront Functions
+    const forwardHostFunction = this.createForwardHostFunction();
+
+    // ディストリビューション
+    const distribution = new cloudfront.Distribution(this, "Distribution", {
+      ...(useCustomDomain && {
+        domainNames: [domainName!],
+        certificate: acm.Certificate.fromCertificateArn(
+          this,
+          "Certificate",
+          certificateArn!,
+        ),
+      }),
+      comment: useCustomDomain
+        ? `Backlog CLI OAuth Relay Server (${domainName})`
+        : "Backlog CLI OAuth Relay Server",
+      defaultBehavior: {
+        origin,
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: dynamicCachePolicy,
+        originRequestPolicy,
+        functionAssociations: [
+          {
+            function: forwardHostFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
+      },
+      additionalBehaviors: {
+        "/assets/*": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: assetsCachePolicy,
+          compress: true,
+        },
+      },
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
+    });
+
+    // Route 53 DNS レコード
+    if (useCustomDomain && hostedZoneId) {
+      this.createDnsRecords(distribution, domainName!, hostedZoneId);
+    }
+
+    // CloudFront 用 Outputs
+    this.createCloudFrontOutputs(
+      distribution,
+      useCustomDomain ? domainName : undefined,
+    );
+
+    return distribution;
+  }
+
+  /**
+   * Lambda Function URL をオリジンとして作成
+   */
+  private createOrigin(): origins.HttpOrigin {
+    const functionUrlDomain = cdk.Fn.select(
+      2,
+      cdk.Fn.split("/", this.functionUrl.url),
+    );
+    return new origins.HttpOrigin(functionUrlDomain, {
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+    });
+  }
+
+  /**
+   * キャッシュポリシーを作成
+   */
+  private createCachePolicies(): {
+    assetsCachePolicy: cloudfront.CachePolicy;
+    dynamicCachePolicy: cloudfront.CachePolicy;
+  } {
+    const assetsCachePolicy = new cloudfront.CachePolicy(
+      this,
+      "AssetsCachePolicy",
+      {
+        cachePolicyName: `${this.stackName}-assets`,
+        comment: "Cache policy for static assets with content hash",
+        defaultTtl: cdk.Duration.days(365),
+        maxTtl: cdk.Duration.days(365),
+        minTtl: cdk.Duration.days(1),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true,
+      },
+    );
+
+    const dynamicCachePolicy = new cloudfront.CachePolicy(
+      this,
+      "DynamicCachePolicy",
+      {
+        cachePolicyName: `${this.stackName}-dynamic`,
+        comment: "No cache policy for dynamic content",
+        defaultTtl: cdk.Duration.seconds(0),
+        maxTtl: cdk.Duration.seconds(0),
+        minTtl: cdk.Duration.seconds(0),
+      },
+    );
+
+    return { assetsCachePolicy, dynamicCachePolicy };
+  }
+
+  /**
+   * オリジンリクエストポリシーを作成
+   */
+  private createOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
+    return new cloudfront.OriginRequestPolicy(this, "OriginRequestPolicy", {
+      originRequestPolicyName: `${this.stackName}-origin-request`,
+      comment: "Forward headers for OAuth flow",
+      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Origin",
+        "Referer",
+        "X-Forwarded-Host",
+      ),
+      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
+      cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
+    });
+  }
+
+  /**
+   * X-Forwarded-Host ヘッダーを追加する CloudFront Functions を作成
+   */
+  private createForwardHostFunction(): cloudfront.Function {
+    return new cloudfront.Function(this, "ForwardHostFunction", {
+      functionName: `${this.stackName}-forward-host`,
+      comment: "Add X-Forwarded-Host header from viewer Host",
+      code: cloudfront.FunctionCode.fromInline(
+        `
+function handler(event) {
+  var request = event.request;
+  var host = request.headers.host ? request.headers.host.value : '';
+  request.headers['x-forwarded-host'] = { value: host };
+  return request;
+}
+      `.trim(),
+      ),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+  }
+
+  /**
+   * Route 53 DNS レコードを作成
+   */
+  private createDnsRecords(
+    distribution: cloudfront.Distribution,
+    domainName: string,
+    hostedZoneId: string,
+  ): void {
+    const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
+      this,
+      "HostedZone",
+      {
+        hostedZoneId,
+        zoneName: domainName.split(".").slice(-2).join("."),
+      },
+    );
+
+    new route53.ARecord(this, "AliasRecord", {
+      zone: hostedZone,
+      recordName: domainName,
+      target: route53.RecordTarget.fromAlias(
+        new route53Targets.CloudFrontTarget(distribution),
+      ),
+    });
+
+    new route53.AaaaRecord(this, "AliasRecordV6", {
+      zone: hostedZone,
+      recordName: domainName,
+      target: route53.RecordTarget.fromAlias(
+        new route53Targets.CloudFrontTarget(distribution),
+      ),
+    });
+  }
+
+  /**
+   * CloudFront 用の Outputs を作成
+   */
+  private createCloudFrontOutputs(
+    distribution: cloudfront.Distribution,
+    customDomainName?: string,
+  ): void {
+    new cdk.CfnOutput(this, "DistributionUrl", {
+      value: `https://${distribution.distributionDomainName}`,
+      description: "CloudFront distribution URL",
+    });
+
+    new cdk.CfnOutput(this, "DistributionCallbackUrl", {
+      value: `https://${distribution.distributionDomainName}/auth/callback`,
+      description: "OAuth callback URL (register this in Backlog)",
+    });
+
+    if (customDomainName) {
+      new cdk.CfnOutput(this, "CustomDomainUrl", {
+        value: `https://${customDomainName}`,
+        description: "Custom domain URL",
+      });
+
+      new cdk.CfnOutput(this, "CustomDomainCallbackUrl", {
+        value: `https://${customDomainName}/auth/callback`,
+        description: "OAuth callback URL for custom domain",
+      });
+    }
+  }
+
+  /**
+   * 基本の Outputs を作成
+   */
+  private createOutputs(configParameterName: string): void {
     new cdk.CfnOutput(this, "FunctionUrl", {
       value: this.functionUrl.url,
-      description: "Relay server URL",
+      description: "Relay server URL (Lambda Function URL)",
     });
 
     new cdk.CfnOutput(this, "CallbackUrl", {
@@ -116,6 +376,10 @@ export class RelayStack extends cdk.Stack {
     });
   }
 }
+
+// ============================================================
+// ヘルパー関数
+// ============================================================
 
 function withLambdaFunctionUrlPattern(
   value: ParameterStoreValue | Record<string, unknown>,
