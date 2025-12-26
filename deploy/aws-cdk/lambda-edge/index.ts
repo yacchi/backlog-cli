@@ -16,13 +16,20 @@ export const handler: CloudFrontRequestHandler = async (
   event: CloudFrontRequestEvent,
 ): Promise<CloudFrontRequestResult> => {
   const request = event.Records[0].cf.request;
+  const config = event.Records[0].cf.config;
 
   // X-Forwarded-Host ヘッダーを追加
-  // CloudFront の Host ヘッダー（カスタムドメインまたは *.cloudfront.net）を転送
-  const host = request.headers.host?.[0]?.value || "";
-  if (host) {
+  // origin-request 段階では host ヘッダーは既にオリジン（Lambda Function URL）に
+  // 変更されているため、CloudFront のドメインを config から取得
+  // カスタムドメインの場合は distributionDomainName ではなく
+  // viewer-request で設定されたヘッダーを使用
+  const existingForwardedHost = request.headers["x-forwarded-host"]?.[0]?.value;
+  const cloudFrontHost =
+    existingForwardedHost || config.distributionDomainName || "";
+
+  if (cloudFrontHost) {
     request.headers["x-forwarded-host"] = [
-      { key: "X-Forwarded-Host", value: host },
+      { key: "X-Forwarded-Host", value: cloudFrontHost },
     ];
   }
 
