@@ -47,7 +47,7 @@ type relayJWK struct {
 	Crv string `json:"crv"`
 	Kid string `json:"kid"`
 	X   string `json:"x"`
-	D   string `json:"d"`
+	D   string `json:"d,omitempty"`
 }
 
 type relayInfoProtected struct {

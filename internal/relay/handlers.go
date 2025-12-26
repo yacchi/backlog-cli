@@ -340,8 +340,11 @@ func (s *Server) buildCallbackURL(r *http.Request) string {
 			scheme = proto
 		}
 
-		// X-Forwarded-Host ヘッダーがあれば使用（プロキシ経由の場合）
-		if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
+		// X-Original-Host または X-Forwarded-Host ヘッダーがあれば使用（プロキシ経由の場合）
+		// X-Original-Host を優先（CloudFront Function で設定）
+		if origHost := r.Header.Get("X-Original-Host"); origHost != "" {
+			host = origHost
+		} else if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
 			host = fwdHost
 		}
 

@@ -273,7 +273,10 @@ func (s *Server) buildRelayURL(r *http.Request) string {
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
 		scheme = proto
 	}
-	if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
+	// X-Original-Host を優先（CloudFront Function で設定）
+	if origHost := r.Header.Get("X-Original-Host"); origHost != "" {
+		host = origHost
+	} else if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
 		host = fwdHost
 	}
 

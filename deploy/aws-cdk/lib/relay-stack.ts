@@ -51,11 +51,25 @@ export class RelayStack extends cdk.Stack {
    */
   private createConfigParameter(): ssm.StringParameter {
     const parameterName = this.config.parameterName;
+
+    // 許可するホストパターンを構築
+    const patterns: string[] = [];
+
+    // Lambda Function URL パターン（常に追加）
+    patterns.push(`*.lambda-url.${this.region}.on.aws`);
+
+    // CloudFront パターン（CloudFront 有効時）
+    if (this.config.cloudFront?.enabled) {
+      patterns.push("*.cloudfront.net");
+
+      // カスタムドメイン（設定されている場合）
+      if (this.config.cloudFront.domainName) {
+        patterns.push(this.config.cloudFront.domainName);
+      }
+    }
+
     const parameterValue = JSON.stringify(
-      withLambdaFunctionUrlPattern(
-        this.config.parameterValue ?? {},
-        this.region,
-      ),
+      withAllowedHostPatterns(this.config.parameterValue ?? {}, patterns),
     );
 
     return new ssm.StringParameter(this, "ConfigParameter", {
@@ -112,17 +126,21 @@ export class RelayStack extends cdk.Stack {
   /**
    * Function URL を作成
    * CloudFront 有効時は IAM 認証を使用し、直接アクセスを防止
+   * CloudFront 経由の場合、CORS は CloudFront 側で処理するため不要
    */
   private createFunctionUrl(useIamAuth: boolean): lambda.FunctionUrl {
     return this.lambdaFunction.addFunctionUrl({
       authType: useIamAuth
         ? lambda.FunctionUrlAuthType.AWS_IAM
         : lambda.FunctionUrlAuthType.NONE,
-      cors: {
-        allowedOrigins: ["*"],
-        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
-        allowedHeaders: ["Content-Type"],
-      },
+      // CloudFront 無効時のみ CORS を設定（直接アクセス用）
+      ...(!useIamAuth && {
+        cors: {
+          allowedOrigins: ["*"],
+          allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
+          allowedHeaders: ["Content-Type"],
+        },
+      }),
     });
   }
 
@@ -137,17 +155,21 @@ export class RelayStack extends cdk.Stack {
     const { domainName, certificateArn, hostedZoneId } = cloudFrontConfig;
     const useCustomDomain = domainName != null && certificateArn != null;
 
-    // オリジン: Lambda Function URL
+    // オリジン: Lambda Function URL (OAC 自動設定)
     const origin = this.createOrigin();
 
     // キャッシュポリシー
     const { assetsCachePolicy } = this.createCachePolicies();
 
-    // Lambda@Edge: POST/PUT リクエストのコンテンツハッシュを計算
-    const contentHashEdgeFunction = this.createContentHashEdgeFunction();
-
-    // オリジンリクエストポリシー: Cookie と全ヘッダーを転送（OAuth フロー用）
+    // オリジンリクエストポリシー: Content-* ヘッダーと Cookie を転送
     const originRequestPolicy = this.createOriginRequestPolicy();
+
+    // CloudFront Function: x-original-host ヘッダーを追加 (viewer-request)
+    const forwardHostFunction = this.createForwardHostFunction();
+
+    // Lambda@Edge: コンテンツハッシュを計算 (origin-request)
+    // OAC + Lambda Function URL で POST/PUT を使うために必要
+    const contentHashEdgeFunction = this.createContentHashEdgeFunction();
 
     // ディストリビューション
     const distribution = new cloudfront.Distribution(this, "Distribution", {
@@ -168,6 +190,12 @@ export class RelayStack extends cdk.Stack {
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy,
+        functionAssociations: [
+          {
+            function: forwardHostFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
         edgeLambdas: [
           {
             functionVersion: contentHashEdgeFunction.currentVersion,
@@ -238,20 +266,46 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
+   * CloudFront Function: x-original-host ヘッダーを追加
+   * Viewer Request で Host ヘッダーを x-original-host にコピー
+   * 注意: X-Forwarded-Host は予約ヘッダーのため使用不可
+   */
+  private createForwardHostFunction(): cloudfront.Function {
+    return new cloudfront.Function(this, "ForwardHostFunction", {
+      functionName: `${this.stackName}-forward-host`,
+      comment: "Add x-original-host header from viewer Host",
+      code: cloudfront.FunctionCode.fromInline(
+        `
+function handler(event) {
+  var request = event.request;
+  var host = request.headers.host ? request.headers.host.value : '';
+  request.headers['x-original-host'] = { value: host };
+  return request;
+}
+      `.trim(),
+      ),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+  }
+
+  /**
    * オリジンリクエストポリシーを作成
-   * OAuth フローに必要なヘッダーと Cookie を転送
+   * OAC + Lambda Function URL の署名検証に必要なヘッダーを転送
+   * 注意:
+   * - Lambda@Edge で x-amz-content-sha256 を計算するため、Cookie 転送が可能
+   * - X-Original-Host はアプリケーション用（CloudFront Function で設定）
    */
   private createOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
     return new cloudfront.OriginRequestPolicy(this, "OriginRequestPolicy", {
       originRequestPolicyName: `${this.stackName}-origin-request`,
-      comment: "Forward headers and cookies for OAuth flow",
+      comment: "Forward headers for OAC signature verification",
       headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
         "Accept",
         "Accept-Language",
         "Content-Type",
         "Origin",
         "Referer",
-        "X-Forwarded-Host",
+        "X-Original-Host",
       ),
       queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
       cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
@@ -263,7 +317,6 @@ export class RelayStack extends cdk.Stack {
    */
   private createCachePolicies(): {
     assetsCachePolicy: cloudfront.CachePolicy;
-    dynamicCachePolicy: cloudfront.CachePolicy;
   } {
     const assetsCachePolicy = new cloudfront.CachePolicy(
       this,
@@ -279,19 +332,7 @@ export class RelayStack extends cdk.Stack {
       },
     );
 
-    const dynamicCachePolicy = new cloudfront.CachePolicy(
-      this,
-      "DynamicCachePolicy",
-      {
-        cachePolicyName: `${this.stackName}-dynamic`,
-        comment: "No cache policy for dynamic content",
-        defaultTtl: cdk.Duration.seconds(0),
-        maxTtl: cdk.Duration.seconds(0),
-        minTtl: cdk.Duration.seconds(0),
-      },
-    );
-
-    return { assetsCachePolicy, dynamicCachePolicy };
+    return { assetsCachePolicy };
   }
 
   /**
@@ -387,34 +428,33 @@ export class RelayStack extends cdk.Stack {
 // ヘルパー関数
 // ============================================================
 
-function withLambdaFunctionUrlPattern(
+/**
+ * allowed_host_patterns にパターンを追加する
+ * CloudFront やカスタムドメインのパターンを含める
+ */
+function withAllowedHostPatterns(
   value: ParameterStoreValue | Record<string, unknown>,
-  region: string,
+  patterns: string[],
 ): Record<string, unknown> {
-  const pattern = `*.lambda-url.${region}.on.aws`;
   const server =
     (value as { server?: { allowed_host_patterns?: string } }).server ?? {};
   const current =
     typeof server.allowed_host_patterns === "string"
       ? server.allowed_host_patterns
       : "";
-  const merged = mergeAllowedHostPatterns(current, pattern);
+
+  // 既存パターンと新規パターンをマージ
+  const existingPatterns = current
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
+  const allPatterns = [...new Set([...existingPatterns, ...patterns])];
+
   return {
     ...value,
     server: {
       ...server,
-      allowed_host_patterns: merged,
+      allowed_host_patterns: allPatterns.join(";"),
     },
   };
-}
-
-function mergeAllowedHostPatterns(current: string, pattern: string): string {
-  if (current.trim() === "") {
-    return pattern;
-  }
-  const items = current.split(";").map((item) => item.trim());
-  if (items.includes(pattern)) {
-    return current;
-  }
-  return `${current};${pattern}`;
 }
