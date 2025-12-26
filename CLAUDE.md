@@ -9,17 +9,19 @@ GitHub CLI (gh) と同様のユーザー体験を目指します。
 
 - **言語**: Go 1.23+
 - **ツール管理**: mise
-- **ビルド**: GNU Make
+- **ビルド**: GNU Make, GoReleaser
+- **フロントエンド**: React + Vite (web/)
 
 ### 外部ライブラリ
 
-| 用途          | ライブラリ                              |
-|-------------|------------------------------------|
-| CLI フレームワーク | `github.com/spf13/cobra`           |
-| YAML パース    | `gopkg.in/yaml.v3`                 |
-| 対話的 UI      | `github.com/AlecAivazis/survey/v2` |
-| JWT         | `github.com/golang-jwt/jwt/v5`     |
-| ブラウザ起動      | `github.com/pkg/browser`           |
+| 用途            | ライブラリ                              |
+|---------------|------------------------------------|
+| CLI フレームワーク   | `github.com/spf13/cobra`           |
+| 設定管理          | `github.com/yacchi/jubako`         |
+| 対話的 UI        | `github.com/AlecAivazis/survey/v2` |
+| JWT           | `github.com/golang-jwt/jwt/v5`     |
+| ブラウザ起動        | `github.com/pkg/browser`           |
+| パスワードハッシュ     | `golang.org/x/crypto/bcrypt`       |
 
 ## ディレクトリ構成
 
@@ -29,32 +31,20 @@ backlog-cli/
 ├── internal/
 │   ├── cmd/              # コマンド定義 (cobra)
 │   ├── api/              # Backlog API クライアント
-│   ├── config/           # 設定管理
+│   ├── config/           # 設定管理 (jubako)
 │   ├── auth/             # OAuth認証 (CLI側)
 │   ├── relay/            # 中継サーバー
-│   └── ui/               # 対話的UI
-├── docs/plans/           # 実装プランファイル
+│   ├── domain/           # ドメイン操作ユーティリティ
+│   ├── jwk/              # JWK操作ユーティリティ
+│   └── ui/               # 対話的UI・Webアセット
+├── web/                  # React SPA (認証UI/ポータル)
+├── deploy/aws-cdk/       # AWS CDKデプロイ設定
+├── docs/                 # 設計ドキュメント
+├── version.txt           # リリースバージョン
 ├── .mise.toml
 ├── Makefile
 └── go.mod
 ```
-
-## 実装プラン
-
-`docs/plans/` ディレクトリに番号付きのプランファイルがあります。
-順番に読んで実装を進めてください。
-
-1. `00-overview.md` - 全体概要
-2. `01-foundation.md` - 基盤構築
-3. `02-config.md` - 設定管理
-4. `03-relay-server.md` - 中継サーバー基本
-5. `04-cli-auth.md` - CLI認証
-6. `05-relay-advanced.md` - 中継サーバー拡張
-7. `06-api-client.md` - APIクライアント
-7. `07-issue-commands.md` - issueコマンド
-8. `08-project-commands.md` - projectコマンド
-9. `09-additional-commands.md` - 追加コマンド
-10. `10-improvements.md` - 改善
 
 ## 開発コマンド
 
@@ -78,9 +68,21 @@ make serve
 make clean
 ```
 
+## リリース手順
+
+1. `version.txt` のバージョンを更新（例: `0.5.0` → `0.6.0`）
+2. master ブランチにプッシュ
+3. CI が自動で以下を実行:
+   - タグ `v{version}` を作成・プッシュ
+   - GoReleaser でビルド・リリース作成
+   - Homebrew tap を更新
+
+**注意**: タグはローカルで打たない。CI が `version.txt` を読んで自動生成する。
+
 ## 設計ドキュメント
 
 - `docs/oauth-relay-server-design.md` - OAuth中継サーバー設計書
+- `docs/relay-config-bundle-spec.md` - Relay Config Bundle仕様書
 
 ## 重要な設計判断
 
@@ -93,7 +95,7 @@ make clean
 ### 2. OAuth認証フロー
 
 CLIにClient Secretを持たせず、中継サーバー経由でトークンを取得します。
-詳細は `docs/plans/03-relay-server.md` と `docs/plans/04-cli-auth.md` を参照。
+詳細は `docs/oauth-relay-server-design.md` を参照。
 
 ### 3. 複数ドメイン対応
 
@@ -102,6 +104,11 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 ### 4. プロジェクトローカル設定
 
 `.backlog.yaml` をリポジトリルートに配置することで、Git リポジトリと Backlog プロジェクトを紐付け。
+
+### 5. Relay Config Bundle
+
+組織が配布する設定バンドル（ZIP）を信頼の起点とし、CLIが不正な中継サーバーへ接続しないことを保証。
+詳細は `docs/relay-config-bundle-spec.md` を参照。
 
 ## コーディング規約
 
@@ -115,4 +122,4 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 
 - 外部ライブラリは選定済みのもののみ使用
 - 標準ライブラリで実現可能なものは標準ライブラリを優先
-- セキュリティに関わる部分（トークン保存、Cookie署名等）は特に注意
+- セキュリティに関わる部分（トークン保存、Cookie署名、JWS署名等）は特に注意
