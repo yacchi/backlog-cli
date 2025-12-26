@@ -630,9 +630,8 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 			}
 			debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
 			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
-				CacheDir:          cacheDir,
-				AllowNameMismatch: false,
-				NoDefaults:        true,
+				CacheDir:   cacheDir,
+				NoDefaults: true,
 			})
 			if updateErr != nil {
 				return fmt.Errorf("bundle update failed: %w", updateErr)

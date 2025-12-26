@@ -134,9 +134,8 @@ func (cs *CallbackServer) Configure(
 				}
 				debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
 				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
-					CacheDir:          cacheDir,
-					AllowNameMismatch: false,
-					NoDefaults:        true,
+					CacheDir:   cacheDir,
+					NoDefaults: true,
 				})
 				if updateErr != nil {
 					debug.Log("bundle update failed", "error", updateErr)

@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yacchi/backlog-cli/internal/debug"
 	"github.com/yacchi/backlog-cli/internal/domain"
 	jwkutil "github.com/yacchi/backlog-cli/internal/jwk"
 	"gopkg.in/yaml.v3"
@@ -31,13 +32,27 @@ const (
 
 // BundleImportOptions はバンドルインポートのオプション
 type BundleImportOptions struct {
-	AllowNameMismatch bool
-	NoDefaults        bool
-	HTTPClient        *http.Client
-	Now               time.Time
+	ApprovalHandler BundleApprovalHandler
+	NoDefaults      bool
+	HTTPClient      *http.Client
+	Now             time.Time
 	// キャッシュディレクトリ（空の場合はキャッシュ無効）
 	CacheDir string
 }
+
+// BundleApprovalInfo は承認用に提示するバンドル情報
+type BundleApprovalInfo struct {
+	AllowedDomain string
+	RelayURL      string
+	IssuedAt      string
+	ExpiresAt     string
+	RelayKeyCount int
+	FileName      string
+	SHA256        string
+}
+
+// BundleApprovalHandler はバンドル取り込みの承認を確認する
+type BundleApprovalHandler func(ctx context.Context, info BundleApprovalInfo) (bool, error)
 
 // RelayBundleManifest はmanifest.yamlの構造
 type RelayBundleManifest struct {
@@ -97,30 +112,34 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		return nil, errors.New("config store is nil")
 	}
 
+	debug.Log("starting bundle import", "path", bundlePath)
+
 	now := opts.Now
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
 
+	debug.Log("reading bundle archive")
 	manifestBytes, sigBytes, files, err := readRelayBundle(bundlePath)
 	if err != nil {
 		return nil, err
 	}
+	debug.Log("bundle archive read", "manifest_size", len(manifestBytes), "sig_size", len(sigBytes), "files", len(files))
 
 	manifest := RelayBundleManifest{}
 	if err := yaml.Unmarshal(manifestBytes, &manifest); err != nil {
 		return nil, fmt.Errorf("failed to parse manifest.yaml: %w", err)
 	}
 
+	debug.Log("manifest parsed", "version", manifest.Version, "relay_url", manifest.RelayURL, "allowed_domain", manifest.AllowedDomain)
+
 	if err := validateRelayBundleManifest(&manifest); err != nil {
 		return nil, err
 	}
+	debug.Log("manifest validation passed")
 
-	expectedName := manifest.AllowedDomain + ".backlog-cli.zip"
 	actualName := filepath.Base(bundlePath)
-	if !opts.AllowNameMismatch && actualName != expectedName {
-		return nil, fmt.Errorf("bundle filename mismatch: expected %s, got %s", expectedName, actualName)
-	}
+	debug.Log("bundle filename resolved", "actual", actualName)
 
 	issuedAt, err := time.Parse(time.RFC3339, manifest.IssuedAt)
 	if err != nil {
@@ -137,11 +156,13 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 	if issuedAt.After(now.Add(maxIssuedAtSkew)) {
 		return nil, fmt.Errorf("issued_at is too far in the future: %s", manifest.IssuedAt)
 	}
+	debug.Log("timestamp validation passed", "issued_at", manifest.IssuedAt, "expires_at", manifest.ExpiresAt)
 
 	certsURL, err := buildRelayCertsURL(manifest.RelayURL, manifest.AllowedDomain)
 	if err != nil {
 		return nil, err
 	}
+	debug.Log("fetching JWKS", "url", certsURL)
 
 	// manifest.CertsCacheTTL が 0 または未指定の場合はキャッシュしない
 	// CDNから配信する場合など、クライアント側キャッシュより
@@ -151,23 +172,47 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 	if err != nil {
 		return nil, err
 	}
+	debug.Log("JWKS fetched", "keys", len(jwks.Keys))
 
 	allowedKeys, err := buildAllowedKeys(jwks, manifest.RelayKeys)
 	if err != nil {
 		return nil, err
 	}
+	debug.Log("allowed keys built", "count", len(allowedKeys))
 
+	debug.Log("verifying manifest signature")
 	if err := verifyRelayBundleSignature(manifestBytes, sigBytes, allowedKeys); err != nil {
 		return nil, err
 	}
+	debug.Log("manifest signature verified")
 
+	debug.Log("verifying bundle files", "file_refs", len(manifest.Files))
 	if err := verifyRelayBundleFiles(files, manifest.Files); err != nil {
 		return nil, err
 	}
+	debug.Log("bundle files verified")
 
 	bundleSHA, err := sha256File(bundlePath)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.ApprovalHandler != nil {
+		approved, err := opts.ApprovalHandler(ctx, BundleApprovalInfo{
+			AllowedDomain: manifest.AllowedDomain,
+			RelayURL:      manifest.RelayURL,
+			IssuedAt:      manifest.IssuedAt,
+			ExpiresAt:     manifest.ExpiresAt,
+			RelayKeyCount: len(manifest.RelayKeys),
+			FileName:      actualName,
+			SHA256:        bundleSHA,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("bundle approval failed: %w", err)
+		}
+		if !approved {
+			return nil, errors.New("bundle import cancelled")
+		}
 	}
 
 	trusted := TrustedBundle{
@@ -186,16 +231,19 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		ImportedAt: now.Format(time.RFC3339),
 	}
 
+	debug.Log("upserting trusted bundle", "id", trusted.ID)
 	if err := upsertTrustedBundle(store, trusted); err != nil {
 		return nil, err
 	}
 
 	if !opts.NoDefaults {
+		debug.Log("applying default profile values")
 		if err := applyRelayBundleDefaults(store, manifest); err != nil {
 			return nil, err
 		}
 	}
 
+	debug.Log("bundle import completed", "allowed_domain", trusted.AllowedDomain)
 	return &trusted, nil
 }
 
