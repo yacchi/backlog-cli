@@ -19,6 +19,7 @@ type TrustedBundle struct {
 	RelayKeys     []TrustedRelayKey `json:"relay_keys" yaml:"relay_keys"`
 	IssuedAt      string            `json:"issued_at" yaml:"issued_at"`
 	ExpiresAt     string            `json:"expires_at" yaml:"expires_at"`
+	CertsCacheTTL int               `json:"certs_cache_ttl" yaml:"certs_cache_ttl"`
 	Source        BundleSource      `json:"source" yaml:"source"`
 	ImportedAt    string            `json:"imported_at" yaml:"imported_at"`
 }

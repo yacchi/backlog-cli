@@ -112,10 +112,9 @@ func (cs *CallbackServer) Configure(
 		if cacheErr != nil {
 			debug.Log("failed to resolve cache dir", "error", cacheErr)
 		}
-		resolved := cs.configStore.Resolved()
 		info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
 			CacheDir:      cacheDir,
-			CertsCacheTTL: resolved.Cache.CertsTTL,
+			CertsCacheTTL: bundle.CertsCacheTTL,
 		})
 		if err != nil {
 			debug.Log("failed to verify relay info", "error", err)
@@ -136,7 +135,6 @@ func (cs *CallbackServer) Configure(
 				debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
 				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
 					CacheDir:          cacheDir,
-					CertsCacheTTL:     resolved.Cache.CertsTTL,
 					AllowNameMismatch: false,
 					NoDefaults:        true,
 				})

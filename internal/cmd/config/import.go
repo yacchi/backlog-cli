@@ -49,7 +49,6 @@ func runImport(cmd *cobra.Command, args []string) error {
 		AllowNameMismatch: allowNameMismatch,
 		NoDefaults:        noDefaults,
 		CacheDir:          cacheDir,
-		CertsCacheTTL:     cfg.Resolved().Cache.CertsTTL,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to import bundle: %w", err)

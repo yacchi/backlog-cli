@@ -607,8 +607,6 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 	if err != nil {
 		debug.Log("failed to resolve cache dir", "error", err)
 	}
-	resolved := cfg.Resolved()
-
 	infoURL, err := config.BuildRelayInfoURL(relayServer, allowedDomain)
 	if err != nil {
 		return fmt.Errorf("failed to build relay info url: %w", err)
@@ -617,7 +615,7 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 
 	info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
 		CacheDir:      cacheDir,
-		CertsCacheTTL: resolved.Cache.CertsTTL,
+		CertsCacheTTL: bundle.CertsCacheTTL,
 	})
 	if err != nil {
 		return fmt.Errorf("relay info verification failed: %w", err)
@@ -633,7 +631,6 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 			debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
 			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
 				CacheDir:          cacheDir,
-				CertsCacheTTL:     resolved.Cache.CertsTTL,
 				AllowNameMismatch: false,
 				NoDefaults:        true,
 			})

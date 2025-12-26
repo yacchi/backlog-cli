@@ -159,7 +159,6 @@ func VerifyRelayInfo(ctx context.Context, relayURL, allowedDomain, bundleToken s
 type BundleFetchOptions struct {
 	HTTPClient        *http.Client
 	CacheDir          string
-	CertsCacheTTL     int
 	AllowNameMismatch bool
 	NoDefaults        bool
 }
@@ -225,7 +224,6 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, allo
 		AllowNameMismatch: opts.AllowNameMismatch,
 		NoDefaults:        opts.NoDefaults,
 		CacheDir:          cacheDir,
-		CertsCacheTTL:     opts.CertsCacheTTL,
 	})
 }
 

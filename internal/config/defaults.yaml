@@ -388,8 +388,3 @@ cache:
   # キャッシュ有効期限 (秒)
   # 環境変数: BACKLOG_CACHE_TTL
   ttl: 300
-
-  # certsキャッシュ有効期限 (秒)
-  # JWKSは更新頻度が低いため長めに設定
-  # 環境変数: BACKLOG_CACHE_CERTS_TTL
-  certs_ttl: 86400

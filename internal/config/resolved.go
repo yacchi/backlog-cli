@@ -43,10 +43,9 @@ type ResolvedConfig struct {
 // jubako tagでcache.*からマッピング
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedCache struct {
-	Enabled  bool   `json:"enabled" jubako:"/cache/enabled,env:CACHE_ENABLED"`
-	Dir      string `json:"dir" jubako:"/cache/dir,env:CACHE_DIR"`
-	TTL      int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
-	CertsTTL int    `json:"certs_ttl" jubako:"/cache/certs_ttl,env:CACHE_CERTS_TTL"`
+	Enabled bool   `json:"enabled" jubako:"/cache/enabled,env:CACHE_ENABLED"`
+	Dir     string `json:"dir" jubako:"/cache/dir,env:CACHE_DIR"`
+	TTL     int    `json:"ttl" jubako:"/cache/ttl,env:CACHE_TTL"`
 }
 
 // GetCacheDir returns the cache directory.

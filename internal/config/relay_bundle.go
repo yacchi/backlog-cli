@@ -37,8 +37,6 @@ type BundleImportOptions struct {
 	Now               time.Time
 	// キャッシュディレクトリ（空の場合はキャッシュ無効）
 	CacheDir string
-	// certsキャッシュTTL（秒）
-	CertsCacheTTL int
 }
 
 // RelayBundleManifest はmanifest.yamlの構造
@@ -48,6 +46,7 @@ type RelayBundleManifest struct {
 	AllowedDomain string               `yaml:"allowed_domain"`
 	IssuedAt      string               `yaml:"issued_at"`
 	ExpiresAt     string               `yaml:"expires_at"`
+	CertsCacheTTL int                  `yaml:"certs_cache_ttl,omitempty"`
 	BundleToken   string               `yaml:"bundle_token,omitempty"`
 	RelayKeys     []RelayBundleKey     `yaml:"relay_keys"`
 	Files         []RelayBundleFileRef `yaml:"files"`
@@ -144,7 +143,10 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		return nil, err
 	}
 
-	cache := newCertsCache(opts.CacheDir, opts.CertsCacheTTL)
+	// manifest.CertsCacheTTL が 0 または未指定の場合はキャッシュしない
+	// CDNから配信する場合など、クライアント側キャッシュより
+	// サーバー側キャッシュを優先したい場合に有用
+	cache := newCertsCache(opts.CacheDir, manifest.CertsCacheTTL)
 	jwks, err := fetchRelayJWKS(ctx, certsURL, opts.HTTPClient, cache)
 	if err != nil {
 		return nil, err
@@ -176,6 +178,7 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		RelayKeys:     toTrustedRelayKeys(manifest.RelayKeys),
 		IssuedAt:      manifest.IssuedAt,
 		ExpiresAt:     manifest.ExpiresAt,
+		CertsCacheTTL: manifest.CertsCacheTTL,
 		Source: BundleSource{
 			FileName: actualName,
 			SHA256:   bundleSHA,
