@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/yacchi/backlog-cli/internal/config"
@@ -52,14 +51,15 @@ func (s *Server) handleRelayCerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// キャッシュTTL取得
-	cacheTTL := s.cfg.Server().CertsCacheTTL
+	cacheTTL := s.cfg.Server().CacheCertsTTL
 	if cacheTTL <= 0 {
 		cacheTTL = defaultCertsCacheTTL
 	}
 
 	// キャッシュヘッダー設定
+	// stale-while-revalidate: キャッシュ更新中も古いレスポンスを返す
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(cacheTTL))
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d", cacheTTL, cacheTTL/2))
 	w.Header().Set("ETag", etag)
 	_, _ = w.Write(redacted)
 }

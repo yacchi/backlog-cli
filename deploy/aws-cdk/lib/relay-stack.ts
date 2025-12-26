@@ -11,7 +11,31 @@ import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import { Construct } from "constructs";
 import * as path from "path";
 import { execSync } from "child_process";
-import { ParameterStoreValue, RelayConfig } from "./types";
+import {
+  CloudFrontCacheConfig,
+  ParameterStoreValue,
+  RelayConfig,
+} from "./types";
+
+// ============================================================
+// デフォルト設定値
+// ============================================================
+
+/**
+ * CloudFront キャッシュのデフォルト設定
+ *
+ * - assetsMaxAge: 静的アセットは長期キャッシュ（コンテンツハッシュで管理）
+ * - apiDefaultTtl: certs/info のデフォルトキャッシュ時間
+ * - apiMaxTtl: オリジンの max-age が大きくてもこの値でキャップ
+ * - apiMinTtl: Lambda 負荷軽減のため最低限キャッシュする時間
+ *              鍵ローテーションは移行期間を設けて行うため問題ない
+ */
+export const DEFAULT_CACHE_CONFIG: Required<CloudFrontCacheConfig> = {
+  assetsMaxAge: 365 * 24 * 60 * 60, // 365日
+  apiDefaultTtl: 60 * 60, // 1時間
+  apiMaxTtl: 24 * 60 * 60, // 24時間
+  apiMinTtl: 5 * 60, // 5分
+};
 
 export interface RelayStackProps extends cdk.StackProps {
   config: RelayConfig;
@@ -163,7 +187,7 @@ export class RelayStack extends cdk.Stack {
     const origin = this.createOrigin();
 
     // キャッシュポリシー
-    const { assetsCachePolicy } = this.createCachePolicies();
+    const { assetsCachePolicy, apiCachePolicy } = this.createCachePolicies();
 
     // オリジンリクエストポリシー: Content-* ヘッダーと Cookie を転送
     const originRequestPolicy = this.createOriginRequestPolicy();
@@ -217,8 +241,26 @@ export class RelayStack extends cdk.Stack {
           cachePolicy: assetsCachePolicy,
           compress: true,
         },
+        // certs/info エンドポイント: オリジンのCache-Controlを尊重
+        // ETagによる条件付きリクエストで更新を検知
+        "/v1/relay/tenants/*/certs": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: apiCachePolicy,
+          compress: true,
+        },
+        "/v1/relay/tenants/*/info": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: apiCachePolicy,
+          compress: true,
+        },
       },
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
     });
 
@@ -318,25 +360,46 @@ function handler(event) {
 
   /**
    * キャッシュポリシーを作成
+   * 設定値がない場合は DEFAULT_CACHE_CONFIG のデフォルト値を使用
    */
   private createCachePolicies(): {
     assetsCachePolicy: cloudfront.CachePolicy;
+    apiCachePolicy: cloudfront.CachePolicy;
   } {
+    // 設定とデフォルト値をマージ
+    const cacheConfig = {
+      ...DEFAULT_CACHE_CONFIG,
+      ...this.config.cloudFront?.cache,
+    };
+
     const assetsCachePolicy = new cloudfront.CachePolicy(
       this,
       "AssetsCachePolicy",
       {
         cachePolicyName: `${this.stackName}-assets`,
         comment: "Cache policy for static assets with content hash",
-        defaultTtl: cdk.Duration.days(365),
-        maxTtl: cdk.Duration.days(365),
+        defaultTtl: cdk.Duration.seconds(cacheConfig.assetsMaxAge),
+        maxTtl: cdk.Duration.seconds(cacheConfig.assetsMaxAge),
         minTtl: cdk.Duration.days(1),
         enableAcceptEncodingGzip: true,
         enableAcceptEncodingBrotli: true,
       },
     );
 
-    return { assetsCachePolicy };
+    // certs/info エンドポイント用キャッシュポリシー
+    // minTtl を設定してLambdaへのリクエスト集中を防止
+    // 鍵ローテーションは移行期間を設けて行うため、数分のキャッシュは問題ない
+    const apiCachePolicy = new cloudfront.CachePolicy(this, "ApiCachePolicy", {
+      cachePolicyName: `${this.stackName}-api`,
+      comment: "Cache policy for certs/info API",
+      defaultTtl: cdk.Duration.seconds(cacheConfig.apiDefaultTtl),
+      maxTtl: cdk.Duration.seconds(cacheConfig.apiMaxTtl),
+      minTtl: cdk.Duration.seconds(cacheConfig.apiMinTtl),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
+    });
+
+    return { assetsCachePolicy, apiCachePolicy };
   }
 
   /**
@@ -380,6 +443,11 @@ function handler(event) {
     distribution: cloudfront.Distribution,
     customDomainName?: string,
   ): void {
+    new cdk.CfnOutput(this, "DistributionId", {
+      value: distribution.distributionId,
+      description: "CloudFront distribution ID (for cache invalidation)",
+    });
+
     new cdk.CfnOutput(this, "DistributionUrl", {
       value: `https://${distribution.distributionDomainName}`,
       description: "CloudFront distribution URL",

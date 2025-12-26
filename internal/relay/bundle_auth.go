@@ -46,7 +46,8 @@ func (m *BundleAuthMiddleware) Middleware(next http.Handler) http.Handler {
 		domain := parts[0]
 
 		// certsエンドポイントは認証不要（公開鍵の配布用）
-		if len(parts) == 2 && parts[1] == "certs" {
+		// infoエンドポイントも認証不要（機密情報を含まず、CloudFrontキャッシュ可能にするため）
+		if len(parts) == 2 && (parts[1] == "certs" || parts[1] == "info") {
 			next.ServeHTTP(w, r)
 			return
 		}

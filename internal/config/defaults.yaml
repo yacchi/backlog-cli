@@ -181,11 +181,17 @@ server:
     # JWTトークン有効期限 (秒)
     expiry: 300
 
-  # certsエンドポイントのキャッシュ設定
-  certs:
-    # キャッシュ有効期限 (秒)
-    # 環境変数: BACKLOG_CERTS_CACHE_TTL
-    cache_ttl: 3600
+  # certs/info エンドポイントの HTTP キャッシュ設定
+  cache:
+    # certs エンドポイントの Cache-Control max-age (秒)
+    # 公開鍵は頻繁に変わらないため長めに設定可能
+    # 環境変数: BACKLOG_SERVER_CACHE_CERTS_TTL
+    certs_ttl: 86400
+
+    # info エンドポイントの Cache-Control max-age (秒)
+    # 署名付き情報のため、certsより短めを推奨
+    # 環境変数: BACKLOG_SERVER_CACHE_INFO_TTL
+    info_ttl: 300
 
 # ================================================
 # 表示設定

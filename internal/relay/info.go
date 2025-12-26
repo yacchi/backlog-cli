@@ -2,7 +2,9 @@ package relay
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 
 const relayInfoVersion = 1
 const relayInfoDefaultTTL = 600
+const relayInfoDefaultCacheTTL = 3600 // 1時間
 
 type relayInfoPayload struct {
 	Version       int    `json:"version"`
@@ -68,6 +71,16 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ETag生成（JWKS + ActiveKeys のハッシュ）
+	// JWKS や ActiveKeys が変わればレスポンスも変わる
+	etag := computeInfoETag(tenant.JWKS, tenant.ActiveKeys)
+
+	// If-None-Matchヘッダーでキャッシュ検証
+	if match := r.Header.Get("If-None-Match"); match == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	issuedAt := time.Now().UTC()
 	ttl := tenant.InfoTTL
 	if ttl <= 0 {
@@ -105,8 +118,30 @@ func (s *Server) handleRelayInfo(w http.ResponseWriter, r *http.Request) {
 		PayloadDecoded: payload,
 	}
 
+	respJSON, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to marshal response: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// キャッシュTTL取得（サーバー設定から）
+	cacheTTL := s.cfg.Server().CacheInfoTTL
+	if cacheTTL <= 0 {
+		cacheTTL = relayInfoDefaultCacheTTL
+	}
+
+	// キャッシュヘッダー設定
+	// stale-while-revalidate: キャッシュ更新中も古いレスポンスを返す
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, stale-while-revalidate=%d", cacheTTL, cacheTTL/2))
+	w.Header().Set("ETag", etag)
+	_, _ = w.Write(respJSON)
+}
+
+// computeInfoETag はJWKS + ActiveKeysのハッシュからETagを生成する
+func computeInfoETag(jwks, activeKeys string) string {
+	hash := sha256.Sum256([]byte(jwks + "|" + activeKeys))
+	return `"` + hex.EncodeToString(hash[:16]) + `"`
 }
 
 func buildRelayInfoSignatures(payloadB64 []byte, jwksJSON string, activeKeys string) ([]relayInfoSignature, error) {

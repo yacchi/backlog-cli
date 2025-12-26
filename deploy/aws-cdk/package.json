@@ -9,7 +9,8 @@
     "deploy": "cdk deploy",
     "destroy": "cdk destroy",
     "diff": "cdk diff",
-    "synth": "cdk synth"
+    "synth": "cdk synth",
+    "invalidate-cache": "./scripts/invalidate-cache.sh"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.159",

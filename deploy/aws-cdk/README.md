@@ -105,6 +105,9 @@ pnpm diff
 # CloudFormation テンプレートの生成
 pnpm synth
 
+# CloudFront キャッシュの無効化
+pnpm invalidate-cache
+
 # スタックの削除
 pnpm destroy
 ```
@@ -156,6 +159,7 @@ export const config: RelayConfig = {
 
 ```
 Outputs:
+DistributionId = E1234567890ABC
 DistributionUrl = https://d1234567890abc.cloudfront.net
 DistributionCallbackUrl = https://d1234567890abc.cloudfront.net/auth/callback
 ```
@@ -210,7 +214,37 @@ relay.example.com  CNAME  d1234567890abc.cloudfront.net
 | パス | キャッシュ TTL | 説明 |
 |------|---------------|------|
 | `/assets/*` | 1年 | 静的アセット（ファイル名にハッシュ含む） |
+| `/v1/relay/tenants/*/certs` | 1時間〜24時間 | 公開鍵（長めにキャッシュ可能） |
+| `/v1/relay/tenants/*/info` | 5分〜1時間 | 署名付き情報 |
 | その他 | 0秒 | 動的コンテンツ（OAuth フロー等） |
+
+キャッシュ TTL は `cloudFront.cache` で設定可能です：
+
+```typescript
+cloudFront: {
+  enabled: true,
+  cache: {
+    assetsMaxAge: 365 * 24 * 60 * 60,  // 静的アセット (デフォルト: 1年)
+    apiDefaultTtl: 60 * 60,            // certs/info デフォルト (デフォルト: 1時間)
+    apiMaxTtl: 24 * 60 * 60,           // certs/info 最大 (デフォルト: 24時間)
+    apiMinTtl: 5 * 60,                 // certs/info 最小 (デフォルト: 5分)
+  },
+},
+```
+
+### キャッシュの強制無効化
+
+鍵ローテーションや設定変更時にキャッシュを即座に無効化するには、以下のコマンドを使用します：
+
+```bash
+# 全キャッシュを無効化
+pnpm invalidate-cache
+
+# スタック名を指定する場合
+pnpm invalidate-cache MyCustomStackName
+```
+
+スクリプトは CloudFormation スタックから Distribution ID を自動取得し、キャッシュを無効化します。
 
 ## アーキテクチャ
 
