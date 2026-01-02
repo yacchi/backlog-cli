@@ -57,10 +57,10 @@ export function createBundleHandlers(
   const app = new Hono();
 
   /**
-   * GET /relay/bundle/:domain - Download configuration bundle.
+   * GET /v1/relay/tenants/:domain/bundle - Download configuration bundle.
    * This endpoint does not require authentication.
    */
-  app.get("/relay/bundle/:domain", async (c) => {
+  app.get("/v1/relay/tenants/:domain/bundle", async (c) => {
     const reqCtx = extractRequestContext(c);
     const allowedDomain = c.req.param("domain")?.trim();
 

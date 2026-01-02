@@ -12,7 +12,7 @@ import { ConsoleAuditLogger } from "./middleware/audit.js";
 import { createAuthHandlers } from "./handlers/auth.js";
 import { createTokenHandlers } from "./handlers/token.js";
 import { createWellKnownHandlers } from "./handlers/wellknown.js";
-import { createPortalHandlers } from "./handlers/portal.js";
+import { createPortalHandlers, type PortalAssets } from "./handlers/portal.js";
 import { createCertsHandlers } from "./handlers/certs.js";
 import { createInfoHandlers } from "./handlers/info.js";
 import { createBundleHandlers } from "./handlers/bundle.js";
@@ -55,6 +55,7 @@ export { createAuthHandlers } from "./handlers/auth.js";
 export { createTokenHandlers } from "./handlers/token.js";
 export { createWellKnownHandlers } from "./handlers/wellknown.js";
 export { createPortalHandlers } from "./handlers/portal.js";
+export type { PortalAssets } from "./handlers/portal.js";
 export { createCertsHandlers } from "./handlers/certs.js";
 export { createInfoHandlers } from "./handlers/info.js";
 export { createBundleHandlers } from "./handlers/bundle.js";
@@ -75,6 +76,8 @@ export interface CreateRelayAppOptions {
     domain: string,
     relayUrl: string
   ) => Promise<Uint8Array>;
+  /** Portal SPA assets (required for portal SPA serving) */
+  portalAssets?: PortalAssets;
 }
 
 /**
@@ -86,9 +89,9 @@ export interface CreateRelayAppOptions {
  * - GET /auth/start - Start OAuth flow
  * - GET /auth/callback - OAuth callback
  * - POST /auth/token - Token exchange/refresh
- * - GET /relay/certs/:domain - Get public JWKS
- * - GET /relay/info/:domain - Get signed relay info
- * - GET /relay/bundle/:domain - Download config bundle (no auth)
+ * - GET /v1/relay/tenants/:domain/certs - Get public JWKS
+ * - GET /v1/relay/tenants/:domain/info - Get signed relay info
+ * - GET /v1/relay/tenants/:domain/bundle - Download config bundle (no auth)
  * - POST /portal/verify - Verify portal passphrase (optional)
  * - POST /portal/bundle/:domain - Download config bundle with auth (optional)
  */
@@ -128,7 +131,8 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
         config,
         auditLogger,
         options.verifyPassphrase,
-        options.createBundle
+        options.createBundle,
+        options.portalAssets
       )
     );
   }

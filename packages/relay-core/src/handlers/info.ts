@@ -168,18 +168,39 @@ function buildRelayUrl(
 }
 
 /**
- * Sign payload with Ed25519 key.
- * Note: This requires Web Crypto API with Ed25519 support.
+ * Sign payload with Ed25519 key using Web Crypto API.
+ * Uses PKCS8 format to import the private key seed.
  */
 async function signEd25519(
-  _privateKeyBytes: Uint8Array,
-  _data: Uint8Array
+  seed: Uint8Array,
+  data: Uint8Array
 ): Promise<Uint8Array> {
-  // Web Crypto API doesn't fully support Ed25519 signing in all environments
-  // This is a placeholder that will need a polyfill or native support
-  throw new Error(
-    "Ed25519 signing not supported in this environment. Use a platform with Ed25519 support."
+  // Ed25519 PKCS8 format header
+  const pkcs8Header = new Uint8Array([
+    0x30, 0x2e, // SEQUENCE, length 46
+    0x02, 0x01, 0x00, // INTEGER 0 (version)
+    0x30, 0x05, // SEQUENCE, length 5
+    0x06, 0x03, 0x2b, 0x65, 0x70, // OID 1.3.101.112 (Ed25519)
+    0x04, 0x22, // OCTET STRING, length 34
+    0x04, 0x20, // OCTET STRING, length 32 (the seed)
+  ]);
+
+  const pkcs8Key = new Uint8Array(pkcs8Header.length + seed.length);
+  pkcs8Key.set(pkcs8Header);
+  pkcs8Key.set(seed, pkcs8Header.length);
+
+  // Import as PKCS8 private key
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    pkcs8Key,
+    { name: "Ed25519" },
+    false,
+    ["sign"]
   );
+
+  // Sign the data
+  const signature = await crypto.subtle.sign("Ed25519", privateKey, data);
+  return new Uint8Array(signature);
 }
 
 /**
@@ -252,9 +273,9 @@ export function createInfoHandlers(config: RelayConfig): Hono {
   const app = new Hono();
 
   /**
-   * GET /relay/info/:domain - Get signed relay info.
+   * GET /v1/relay/tenants/:domain/info - Get signed relay info.
    */
-  app.get("/relay/info/:domain", async (c) => {
+  app.get("/v1/relay/tenants/:domain/info", async (c) => {
     const allowedDomain = c.req.param("domain")?.trim();
     if (!allowedDomain) {
       return c.text("domain is required", 400);

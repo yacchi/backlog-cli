@@ -37,7 +37,9 @@ export function extractRequestContext(c: Context): RequestContext {
   const userAgent = req.header("user-agent") || "unknown";
 
   // Get host from headers
+  // x-original-host is used by CloudFront (x-forwarded-host is reserved)
   const host =
+    req.header("x-original-host") ||
     req.header("x-forwarded-host") ||
     req.header("host") ||
     new URL(req.url).host;

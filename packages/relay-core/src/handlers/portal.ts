@@ -28,6 +28,16 @@ interface PortalVerifyResponse {
 }
 
 /**
+ * SPA assets for portal.
+ */
+export interface PortalAssets {
+  /** HTML content for the SPA index page */
+  indexHtml: string;
+  /** Static assets by path (e.g., "assets/index-abc123.js" -> content) */
+  assets: Map<string, { content: Uint8Array; contentType: string }>;
+}
+
+/**
  * Create portal handlers with the given configuration.
  */
 export function createPortalHandlers(
@@ -38,9 +48,45 @@ export function createPortalHandlers(
     tenant: TenantConfig,
     domain: string,
     relayUrl: string
-  ) => Promise<Uint8Array>
+  ) => Promise<Uint8Array>,
+  portalAssets?: PortalAssets
 ): Hono {
   const app = new Hono();
+
+  // SPA handler for portal
+  if (portalAssets) {
+    /**
+     * GET /portal/:domain - Serve the portal SPA.
+     */
+    app.get("/portal/:domain", (c) => {
+      c.header("Content-Type", "text/html; charset=utf-8");
+      c.header("Cache-Control", "no-cache");
+      return c.body(portalAssets.indexHtml);
+    });
+
+    app.get("/portal/:domain/", (c) => {
+      c.header("Content-Type", "text/html; charset=utf-8");
+      c.header("Cache-Control", "no-cache");
+      return c.body(portalAssets.indexHtml);
+    });
+
+    /**
+     * GET /assets/* - Serve static assets.
+     */
+    app.get("/assets/*", (c) => {
+      const path = c.req.path.slice(1); // Remove leading /
+      const asset = portalAssets.assets.get(path);
+      if (!asset) {
+        return c.text("Not Found", 404);
+      }
+      return new Response(asset.content, {
+        headers: {
+          "Content-Type": asset.contentType,
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    });
+  }
 
   /**
    * Find tenant by allowed domain.
@@ -77,9 +123,9 @@ export function createPortalHandlers(
   }
 
   /**
-   * POST /portal/verify - Verify passphrase for tenant access.
+   * POST /api/v1/portal/verify - Verify passphrase for tenant access.
    */
-  app.post("/portal/verify", async (c) => {
+  app.post("/api/v1/portal/verify", async (c) => {
     const reqCtx = extractRequestContext(c);
 
     let req: PortalVerifyRequest;
@@ -182,9 +228,9 @@ export function createPortalHandlers(
   });
 
   /**
-   * POST /portal/bundle/:domain - Download configuration bundle.
+   * POST /api/v1/portal/:domain/bundle - Download configuration bundle.
    */
-  app.post("/portal/bundle/:domain", async (c) => {
+  app.post("/api/v1/portal/:domain/bundle", async (c) => {
     const reqCtx = extractRequestContext(c);
     const allowedDomain = c.req.param("domain");
 

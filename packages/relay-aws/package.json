@@ -3,18 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --external '@aws-sdk/*'",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "build:cdk": "tsc -p tsconfig.cdk.json",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth",
+    "invalidate-cache": "./scripts/invalidate-cache.sh",
+    "lint": "eslint lib/",
+    "lint:fix": "eslint lib/ --fix",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@backlog-cli/relay-core": "workspace:*",
-    "hono": "^4.7.11"
+    "aws-cdk-lib": "^2.170.0",
+    "bcryptjs": "^3.0.3",
+    "constructs": "^10.4.0",
+    "hono": "^4.7.11",
+    "jszip": "^3.10.1",
+    "source-map-support": "^0.5.21",
+    "yaml": "^2.8.2"
   },
   "peerDependencies": {
     "@aws-sdk/client-ssm": "^3.0.0"
@@ -26,9 +36,12 @@
   },
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.0.0",
-    "@types/aws-lambda": "^8.10.148",
+    "@types/aws-lambda": "^8.10.159",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.15.29",
-    "tsup": "^8.5.1",
+    "aws-cdk": "^2.170.0",
+    "esbuild": "^0.27.2",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vitest": "^3.2.4"
   }

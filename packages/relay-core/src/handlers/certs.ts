@@ -24,15 +24,51 @@ interface JWKS {
 }
 
 /**
- * Derive Ed25519 public key from seed.
- * Note: This requires Web Crypto API with Ed25519 support or a polyfill.
+ * Derive Ed25519 public key from private key seed using Web Crypto API.
+ * Uses PKCS8 format to import the private key, then exports to get the public key.
  */
-async function deriveEd25519PublicKey(_seed: Uint8Array): Promise<Uint8Array> {
-  // Web Crypto API doesn't support Ed25519 key derivation in all environments
-  // For now, we throw an error and expect the JWKS to already have public keys
-  throw new Error(
-    "Ed25519 public key derivation not supported. Ensure JWKS contains public keys."
-  );
+async function deriveEd25519PublicKey(seed: Uint8Array): Promise<Uint8Array> {
+  // Ed25519 PKCS8 format:
+  // SEQUENCE {
+  //   INTEGER 0 (version)
+  //   SEQUENCE { OID 1.3.101.112 (Ed25519) }
+  //   OCTET STRING { OCTET STRING { 32-byte seed } }
+  // }
+  const pkcs8Header = new Uint8Array([
+    0x30, 0x2e, // SEQUENCE, length 46
+    0x02, 0x01, 0x00, // INTEGER 0 (version)
+    0x30, 0x05, // SEQUENCE, length 5
+    0x06, 0x03, 0x2b, 0x65, 0x70, // OID 1.3.101.112 (Ed25519)
+    0x04, 0x22, // OCTET STRING, length 34
+    0x04, 0x20, // OCTET STRING, length 32 (the seed)
+  ]);
+
+  const pkcs8Key = new Uint8Array(pkcs8Header.length + seed.length);
+  pkcs8Key.set(pkcs8Header);
+  pkcs8Key.set(seed, pkcs8Header.length);
+
+  try {
+    // Import as PKCS8 private key
+    const privateKey = await crypto.subtle.importKey(
+      "pkcs8",
+      pkcs8Key,
+      { name: "Ed25519" },
+      true,
+      ["sign"]
+    );
+
+    // Export as JWK to get the public key (x)
+    const exportedJwk = await crypto.subtle.exportKey("jwk", privateKey);
+    if (!exportedJwk.x) {
+      throw new Error("Failed to derive public key from exported JWK");
+    }
+
+    return base64UrlDecode(exportedJwk.x);
+  } catch (e) {
+    throw new Error(
+      `Ed25519 public key derivation failed: ${(e as Error).message}. Ensure JWKS contains public keys (x field).`
+    );
+  }
 }
 
 /**
@@ -129,9 +165,9 @@ export function createCertsHandlers(config: RelayConfig): Hono {
   const app = new Hono();
 
   /**
-   * GET /relay/certs/:domain - Get public JWKS for a tenant.
+   * GET /v1/relay/tenants/:domain/certs - Get public JWKS for a tenant.
    */
-  app.get("/relay/certs/:domain", async (c) => {
+  app.get("/v1/relay/tenants/:domain/certs", async (c) => {
     const domain = c.req.param("domain")?.trim();
     if (!domain) {
       return c.text("domain is required", 400);

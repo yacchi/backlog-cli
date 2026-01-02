@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-cdk/
+*.js
+*.d.ts
+!jest.config.js
+
+# CDK
+cdk.out/
+
+# User config (contains secrets)
+config.ts
+
+# Lambda@Edge build artifacts
+lambda-edge/dist/
