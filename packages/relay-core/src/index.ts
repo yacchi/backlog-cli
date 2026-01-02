@@ -47,6 +47,8 @@ export {
   AuditActions,
   createAuditEvent,
 } from "./middleware/audit.js";
+export { createBundleAuthMiddleware } from "./middleware/bundle-auth.js";
+export type { BundleAuthOptions, BundleAuthTenantConfig } from "./middleware/bundle-auth.js";
 
 // Re-export handlers
 export { createAuthHandlers } from "./handlers/auth.js";
