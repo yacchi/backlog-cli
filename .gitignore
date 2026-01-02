@@ -35,12 +35,12 @@ config.yaml
 verification_targets.txt
 
 /.worktrees/
+/.multi-ai/
 
-# Frontend
-web/node_modules/
-internal/ui/dist/
-web/.vite/
-web/dist/
+# Frontend & Node.js
+**/node_modules/
+**/dist/
+**/.vite/
 
 # Markdown migration workspace
 backlog-markdown-migrate/
