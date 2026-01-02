@@ -3,12 +3,12 @@ package main
 import (
 	"os"
 
-	"github.com/yacchi/backlog-cli/internal/cmd"
+	"github.com/yacchi/backlog-cli/packages/backlog/app"
 )
 
 func main() {
-	if err := cmd.Execute(); err != nil {
-		exitCode := cmd.HandleError(err)
+	if err := app.Run(); err != nil {
+		exitCode := app.HandleError(err)
 		os.Exit(int(exitCode))
 	}
 }

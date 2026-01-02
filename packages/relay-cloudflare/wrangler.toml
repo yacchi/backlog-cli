@@ -1,0 +1,26 @@
+name = "backlog-relay"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (set via wrangler secret or dashboard)
+# RELAY_CONFIG: JSON string of RelayConfig
+
+[vars]
+# Default environment
+ENVIRONMENT = "production"
+
+# KV namespace for caching (optional)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "your-kv-namespace-id"
+
+# Example dev environment
+[env.dev]
+name = "backlog-relay-dev"
+vars = { ENVIRONMENT = "development" }
+
+# Example staging environment
+[env.staging]
+name = "backlog-relay-staging"
+vars = { ENVIRONMENT = "staging" }
