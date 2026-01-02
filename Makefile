@@ -129,3 +129,30 @@ build-all:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-amd64 ./cmd/backlog
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-arm64 ./cmd/backlog
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe ./cmd/backlog
+
+# ==== 中継サーバー (TypeScript) ====
+
+# 中継サーバー共通ライブラリのビルド
+.PHONY: build-relay-core
+build-relay-core:
+	pnpm --filter @backlog-cli/relay-core build
+
+# 中継サーバー（Docker）
+.PHONY: build-relay-docker
+build-relay-docker: build-relay-core
+	pnpm --filter @backlog-cli/relay-docker build
+	docker build -t backlog-relay packages/relay-docker
+
+# 中継サーバー（Cloudflare Workers）
+.PHONY: deploy-relay-cf
+deploy-relay-cf: build-relay-core
+	pnpm --filter @backlog-cli/relay-cloudflare deploy
+
+# 中継サーバー（AWS Lambda）
+.PHONY: build-relay-aws
+build-relay-aws: build-relay-core
+	pnpm --filter @backlog-cli/relay-aws build
+
+.PHONY: deploy-relay-aws
+deploy-relay-aws: build-relay-aws
+	pnpm --filter @backlog-cli/relay-aws deploy
