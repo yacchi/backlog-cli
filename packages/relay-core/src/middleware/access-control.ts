@@ -13,10 +13,10 @@ export class AccessControl {
 
   constructor(config?: AccessControlConfig) {
     this.allowedSpacePatterns = this.parsePatterns(
-      config?.allowedSpacePatterns
+      config?.allowed_space_patterns
     );
     this.allowedProjectPatterns = this.parsePatterns(
-      config?.allowedProjectPatterns
+      config?.allowed_project_patterns
     );
   }
 

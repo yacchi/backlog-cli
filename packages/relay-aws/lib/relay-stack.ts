@@ -12,13 +12,12 @@ import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import { Construct } from "constructs";
 import * as path from "path";
 import { execSync } from "child_process";
-import { fileURLToPath } from "url";
 import {
   CloudFrontCacheConfig,
-  ParameterStoreValue,
   RelayConfig,
-  TenantConfig,
+  serializeParameterValue,
 } from "./types.js";
+import type { RelayConfig as CoreRelayConfig } from "@backlog-cli/relay-core";
 
 // ============================================================
 // デフォルト設定値
@@ -94,13 +93,19 @@ export class RelayStack extends cdk.Stack {
       }
     }
 
-    // JWKS オブジェクトを文字列化してから、ホストパターンを追加
-    const serializedValue = serializeJwksInTenants(
-      this.config.parameterValue ?? {},
+    // JWKS オブジェクトを文字列化し、ホストパターンを追加
+    const baseValue = this.config.parameterValue ?? {
+      server: { port: 8080 },
+      backlog_apps: [],
+    };
+    const serializedValue = serializeParameterValue(baseValue);
+
+    // Add allowed host patterns
+    const valueWithPatterns = addAllowedHostPatterns(
+      serializedValue as CoreRelayConfig,
+      patterns
     );
-    const parameterValue = JSON.stringify(
-      withAllowedHostPatterns(serializedValue, patterns),
-    );
+    const parameterValue = JSON.stringify(valueWithPatterns);
 
     return new ssm.StringParameter(this, "ConfigParameter", {
       parameterName,
@@ -145,7 +150,7 @@ export class RelayStack extends cdk.Stack {
           beforeInstall(): string[] {
             return [];
           },
-          afterBundling(inputDir: string, outputDir: string): string[] {
+          afterBundling(_inputDir: string, outputDir: string): string[] {
             // Copy web assets to the Lambda bundle
             // The portal-assets.ts expects assets at web-dist/ relative to handler
             return [
@@ -519,55 +524,21 @@ function handler(event) {
 // ============================================================
 
 /**
- * テナント設定内の JWKS オブジェクトを JSON 文字列に変換する
- * Parameter Store に格納する前に呼び出す
+ * Add allowed_host_patterns to the configuration.
+ * Used to add CloudFront and custom domain patterns.
  */
-function serializeJwksInTenants(
-  value: ParameterStoreValue,
-): Record<string, unknown> {
-  const result = { ...value } as Record<string, unknown>;
-
-  if (value.server?.tenants) {
-    const serializedTenants: Record<string, unknown> = {};
-
-    for (const [tenantId, tenantConfig] of Object.entries(
-      value.server.tenants as Record<string, TenantConfig>,
-    )) {
-      serializedTenants[tenantId] = {
-        ...tenantConfig,
-        jwks: JSON.stringify(tenantConfig.jwks),
-      };
-    }
-
-    result.server = {
-      ...value.server,
-      tenants: serializedTenants,
-    };
-  }
-
-  return result;
-}
-
-/**
- * allowed_host_patterns にパターンを追加する
- * CloudFront やカスタムドメインのパターンを含める
- */
-function withAllowedHostPatterns(
-  value: ParameterStoreValue | Record<string, unknown>,
+function addAllowedHostPatterns(
+  value: CoreRelayConfig,
   patterns: string[],
-): Record<string, unknown> {
-  const server =
-    (value as { server?: { allowed_host_patterns?: string } }).server ?? {};
-  const current =
-    typeof server.allowed_host_patterns === "string"
-      ? server.allowed_host_patterns
-      : "";
+): CoreRelayConfig {
+  const server = value.server ?? { port: 8080 };
+  const current = server.allowed_host_patterns ?? "";
 
-  // 既存パターンと新規パターンをマージ
+  // Merge existing and new patterns
   const existingPatterns = current
     .split(";")
-    .map((p) => p.trim())
-    .filter((p) => p !== "");
+    .map((p: string) => p.trim())
+    .filter((p: string) => p !== "");
   const allPatterns = [...new Set([...existingPatterns, ...patterns])];
 
   return {

@@ -28,7 +28,7 @@ function findTenant(
   domain: string
 ): TenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowedDomain.toLowerCase() === domain.toLowerCase()
+    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
   );
 }
 
@@ -83,7 +83,7 @@ export function createBundleHandlers(
       return c.text("tenant not found", 404);
     }
 
-    const relayUrl = buildRelayUrl(config.server.baseUrl, reqCtx.baseUrl);
+    const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     try {
       const bundleData = await createBundle(tenant, allowedDomain, relayUrl);

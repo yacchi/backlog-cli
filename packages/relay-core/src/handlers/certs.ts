@@ -154,7 +154,7 @@ function findTenant(
   domain: string
 ): TenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowedDomain.toLowerCase() === domain.toLowerCase()
+    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
   );
 }
 

@@ -30,7 +30,7 @@ export function createWellKnownHandlers(config: RelayConfig): Hono {
     const response: WellKnownResponse = {
       version: "1.0",
       capabilities: ["oauth2", "token-exchange", "token-refresh"],
-      supported_domains: config.backlogApps.map((app) => app.domain),
+      supported_domains: config.backlog_apps.map((app) => app.domain),
     };
 
     // Set cache headers for discovery endpoint

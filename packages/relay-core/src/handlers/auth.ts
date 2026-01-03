@@ -30,28 +30,28 @@ export function createAuthHandlers(
   auditLogger: AuditLogger
 ): Hono {
   const app = new Hono();
-  const accessControl = new AccessControl(config.accessControl);
+  const accessControl = new AccessControl(config.access_control);
 
   /**
    * Find Backlog app configuration by domain.
    */
   function findBacklogApp(domain: string): BacklogAppConfig | undefined {
-    return config.backlogApps.find((app) => app.domain === domain);
+    return config.backlog_apps.find((app) => app.domain === domain);
   }
 
   /**
    * Build callback URL for OAuth redirect.
    */
   function buildCallbackUrl(c: Context): string {
-    if (config.server.baseUrl) {
-      return `${config.server.baseUrl}/auth/callback`;
+    if (config.server.base_url) {
+      return `${config.server.base_url}/auth/callback`;
     }
 
     const reqCtx = extractRequestContext(c);
 
     // Validate host if patterns are configured
-    if (config.server.allowedHostPatterns) {
-      if (!isHostAllowed(reqCtx.host, config.server.allowedHostPatterns)) {
+    if (config.server.allowed_host_patterns) {
+      if (!isHostAllowed(reqCtx.host, config.server.allowed_host_patterns)) {
         // Fall back to localhost
         return `http://localhost:${config.server.port}/auth/callback`;
       }
@@ -232,7 +232,7 @@ export function createAuthHandlers(
       `https://${space}.${domain}/OAuth2AccessRequest.action`
     );
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", backlogApp.clientId);
+    authUrl.searchParams.set("client_id", backlogApp.client_id);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", encodedState);
 

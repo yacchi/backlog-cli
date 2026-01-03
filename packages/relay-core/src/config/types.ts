@@ -1,5 +1,7 @@
 /**
  * Configuration types for the OAuth relay server.
+ *
+ * All property names use snake_case for JSON compatibility.
  */
 
 /**
@@ -9,9 +11,9 @@ export interface BacklogAppConfig {
   /** The Backlog domain (e.g., "backlog.jp", "backlog.com") */
   domain: string;
   /** OAuth client ID */
-  clientId: string;
+  client_id: string;
   /** OAuth client secret */
-  clientSecret: string;
+  client_secret: string;
 }
 
 /**
@@ -19,9 +21,15 @@ export interface BacklogAppConfig {
  */
 export interface TenantConfig {
   /** Allowed domain pattern (e.g., "myspace.backlog.jp") */
-  allowedDomain: string;
+  allowed_domain: string;
   /** Optional passphrase hash for portal access (bcrypt) */
-  passphraseHash?: string;
+  passphrase_hash?: string;
+  /** JWKS (JSON Web Key Set) for signing bundles */
+  jwks?: string;
+  /** Comma-separated list of active key IDs */
+  active_keys?: string;
+  /** Info endpoint TTL in seconds */
+  info_ttl?: number;
 }
 
 /**
@@ -29,9 +37,9 @@ export interface TenantConfig {
  */
 export interface AccessControlConfig {
   /** Allowed space patterns (e.g., "myspace;otherspace;*-dev") */
-  allowedSpacePatterns?: string;
+  allowed_space_patterns?: string;
   /** Allowed project patterns */
-  allowedProjectPatterns?: string;
+  allowed_project_patterns?: string;
 }
 
 /**
@@ -39,9 +47,9 @@ export interface AccessControlConfig {
  */
 export interface RateLimitConfig {
   /** Requests per minute per IP */
-  requestsPerMinute: number;
+  requests_per_minute: number;
   /** Burst size */
-  burstSize: number;
+  burst_size: number;
 }
 
 /**
@@ -49,9 +57,9 @@ export interface RateLimitConfig {
  */
 export interface ServerConfig {
   /** Base URL of the relay server (e.g., "https://relay.example.com") */
-  baseUrl?: string;
+  base_url?: string;
   /** Allowed host patterns for dynamic base URL construction */
-  allowedHostPatterns?: string;
+  allowed_host_patterns?: string;
   /** Port for local development */
   port: number;
 }
@@ -61,9 +69,9 @@ export interface ServerConfig {
  */
 export interface CacheConfig {
   /** Certificate cache TTL in seconds */
-  certsCacheTtl: number;
+  certs_cache_ttl: number;
   /** Info endpoint cache TTL in seconds */
-  infoCacheTtl: number;
+  info_cache_ttl: number;
 }
 
 /**
@@ -73,13 +81,13 @@ export interface RelayConfig {
   /** Server configuration */
   server: ServerConfig;
   /** Backlog app configurations by domain */
-  backlogApps: BacklogAppConfig[];
+  backlog_apps: BacklogAppConfig[];
   /** Tenant configurations for multi-tenant support */
   tenants?: TenantConfig[];
   /** Access control settings */
-  accessControl?: AccessControlConfig;
+  access_control?: AccessControlConfig;
   /** Rate limiting settings */
-  rateLimit?: RateLimitConfig;
+  rate_limit?: RateLimitConfig;
   /** Cache control settings */
   cache?: CacheConfig;
 }

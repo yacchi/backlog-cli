@@ -1,21 +1,29 @@
 /**
- * JWK (JSON Web Key)
+ * AWS CDK deployment configuration types.
+ *
+ * Runtime configuration types are imported from @backlog-cli/relay-core.
+ */
+
+import type { RelayConfig as CoreRelayConfig } from "@backlog-cli/relay-core";
+
+// Re-export core types for convenience
+export type { BacklogAppConfig, TenantConfig } from "@backlog-cli/relay-core";
+
+/**
+ * JWK (JSON Web Key) for CDK configuration.
+ * JWKS objects in config are serialized to JSON strings before storing in Parameter Store.
  */
 export interface JWK {
   kty: string;
   kid?: string;
   use?: string;
   alg?: string;
-  // OKP (Ed25519, X25519, etc.)
   crv?: string;
   x?: string;
   d?: string;
-  // RSA
   n?: string;
   e?: string;
-  // EC
   y?: string;
-  // その他のパラメータ
   [key: string]: unknown;
 }
 
@@ -27,170 +35,148 @@ export interface JWKS {
 }
 
 /**
- * Backlog OAuth アプリケーション設定
+ * Tenant configuration for CDK (allows JWKS as object).
+ * The JWKS object will be serialized to JSON string before storing in Parameter Store.
  */
-export interface BacklogAppConfig {
-  client_id: string;
-  client_secret: string;
-  domain?: string;
-}
-
-/**
- * テナント設定
- */
-export interface TenantConfig {
-  /** 許可するドメイン (spaceid.backlog.jp) */
+export interface TenantConfigWithJwksObject {
   allowed_domain: string;
-
-  /**
-   * 秘密鍵を含む JWK セット
-   * - JWKS オブジェクト: デプロイ時に JSON 文字列化
-   */
-  jwks: JWKS;
-
-  /** 署名に使う kid (カンマ区切り) */
-  active_keys: string;
-
-  /** info の TTL (秒) */
-  info_ttl?: number;
-
-  /** ポータル用パスフレーズの bcrypt ハッシュ */
   passphrase_hash?: string;
+  /** JWKS as object (will be serialized to JSON string) */
+  jwks?: JWKS;
+  active_keys?: string;
+  info_ttl?: number;
 }
 
 /**
- * Parameter Store 参照設定
- */
-export interface ParameterStoreConfig {
-  /** SSM Parameter Store のパラメーター名 */
-  parameterName: string;
-
-  /** Parameter Store に格納する値 */
-  parameterValue?: ParameterStoreValue;
-}
-
-/**
- * CloudFront キャッシュ設定
+ * CloudFront cache configuration.
  */
 export interface CloudFrontCacheConfig {
   /**
-   * 静的アセット (/assets/*) のキャッシュ TTL (秒)
-   * @default 31536000 (365日)
+   * Static assets (/assets/*) cache TTL in seconds
+   * @default 31536000 (365 days)
    */
   assetsMaxAge?: number;
 
   /**
-   * API (certs/info) のデフォルト TTL (秒)
-   * オリジンが Cache-Control を返さない場合に使用
-   * @default 3600 (1時間)
+   * API (certs/info) default TTL in seconds
+   * Used when origin doesn't return Cache-Control
+   * @default 3600 (1 hour)
    */
   apiDefaultTtl?: number;
 
   /**
-   * API (certs/info) の最大 TTL (秒)
-   * オリジンの max-age がこれを超えても、この値でキャップされる
-   * @default 86400 (24時間)
+   * API (certs/info) maximum TTL in seconds
+   * Caps the origin's max-age
+   * @default 86400 (24 hours)
    */
   apiMaxTtl?: number;
 
   /**
-   * API (certs/info) の最小 TTL (秒)
-   * Lambda への負荷軽減のため、最低限キャッシュする時間
-   * 鍵ローテーションは移行期間を設けて行うため、数分のキャッシュは問題ない
-   * @default 300 (5分)
+   * API (certs/info) minimum TTL in seconds
+   * Minimum cache time to reduce Lambda load
+   * @default 300 (5 minutes)
    */
   apiMinTtl?: number;
 }
 
 /**
- * CloudFront 設定
+ * CloudFront configuration.
  */
 export interface CloudFrontConfig {
   /**
-   * CloudFront を有効化
-   * true の場合、CloudFront 経由でアクセス（キャッシュ有効）
+   * Enable CloudFront
+   * If true, access via CloudFront (caching enabled)
    */
   enabled: boolean;
 
   /**
-   * カスタムドメイン名 (例: relay.example.com)
-   * 未指定の場合は CloudFront デフォルトドメイン（*.cloudfront.net）を使用
+   * Custom domain name (e.g., relay.example.com)
+   * If not specified, CloudFront default domain (*.cloudfront.net) is used
    */
   domainName?: string;
 
   /**
-   * ACM 証明書の ARN（us-east-1 リージョン）
-   * domainName を指定する場合は必須
+   * ACM certificate ARN (us-east-1 region)
+   * Required when domainName is specified
    */
   certificateArn?: string;
 
   /**
-   * Route 53 ホストゾーン ID（オプション）
-   * 指定すると DNS レコードを自動作成
+   * Route 53 hosted zone ID (optional)
+   * If specified, DNS records are automatically created
    */
   hostedZoneId?: string;
 
   /**
-   * キャッシュ設定
-   * 未指定の場合は推奨デフォルト値を使用
+   * Cache configuration
+   * Uses recommended defaults if not specified
    */
   cache?: CloudFrontCacheConfig;
 }
 
-export interface AccessControlConfig {
-  allowed_spaces?: string[];
-  allowed_projects?: string[];
-  allowed_cidrs?: string[];
-}
-
-export interface AuditConfig {
-  enabled: boolean;
-  output?: string;
-  file_path?: string;
-  webhook_url?: string;
-  webhook_timeout?: number;
-}
-
 /**
- * certs/info エンドポイントの HTTP キャッシュ設定
+ * Parameter Store configuration for CDK deployment.
  */
-export interface ServerCacheConfig {
-  /**
-   * certs エンドポイントの Cache-Control max-age (秒)
-   * 公開鍵は頻繁に変わらないため長めに設定可能
-   * @default 86400 (24時間)
-   */
-  certs_ttl?: number;
-
-  /**
-   * info エンドポイントの Cache-Control max-age (秒)
-   * 署名付き情報のため、certsより短めを推奨
-   * @default 3600 (1時間)
-   */
-  info_ttl?: number;
-}
-
-export interface RelayServerConfig {
-  backlog?: Record<string, BacklogAppConfig>;
-  allowed_host_patterns?: string;
-  access_control?: AccessControlConfig;
-  audit?: AuditConfig;
-  tenants?: Record<string, TenantConfig>;
-  /** certs/info エンドポイントの HTTP キャッシュ設定 */
-  cache?: ServerCacheConfig;
+export interface ParameterStoreConfig {
+  /** SSM Parameter Store parameter name */
+  parameterName: string;
+  /** Configuration value to store (will be JSON serialized) */
+  parameterValue?: ParameterStoreValue;
 }
 
 /**
- * Parameter Store に格納する JSON の型
+ * Parameter Store value format.
+ * This extends CoreRelayConfig but allows JWKS as objects (will be serialized).
  */
 export interface ParameterStoreValue {
-  server?: RelayServerConfig;
+  server: {
+    port?: number;
+    base_url?: string;
+    allowed_host_patterns?: string;
+  };
+  backlog_apps: Array<{
+    domain: string;
+    client_id: string;
+    client_secret: string;
+  }>;
+  tenants?: TenantConfigWithJwksObject[];
+  access_control?: {
+    allowed_space_patterns?: string;
+    allowed_project_patterns?: string;
+  };
+  rate_limit?: {
+    requests_per_minute: number;
+    burst_size: number;
+  };
+  cache?: {
+    certs_cache_ttl: number;
+    info_cache_ttl: number;
+  };
 }
 
 /**
- * リレーサーバー設定
+ * Relay server CDK configuration.
  */
 export interface RelayConfig extends ParameterStoreConfig {
-  /** CloudFront 設定（オプション） */
+  /** CloudFront configuration (optional) */
   cloudFront?: CloudFrontConfig;
+}
+
+/**
+ * Serialize JWKS objects to JSON strings in tenant configurations.
+ */
+export function serializeParameterValue(value: ParameterStoreValue): CoreRelayConfig {
+  const tenants = value.tenants?.map((tenant) => ({
+    ...tenant,
+    jwks: tenant.jwks ? JSON.stringify(tenant.jwks) : undefined,
+  }));
+
+  return {
+    server: value.server,
+    backlog_apps: value.backlog_apps,
+    tenants,
+    access_control: value.access_control,
+    rate_limit: value.rate_limit,
+    cache: value.cache,
+  } as CoreRelayConfig;
 }

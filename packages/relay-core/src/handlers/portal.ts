@@ -92,7 +92,7 @@ export function createPortalHandlers(
    * Find tenant by allowed domain.
    */
   function findTenant(domain: string): TenantConfig | undefined {
-    return config.tenants?.find((t) => t.allowedDomain === domain);
+    return config.tenants?.find((t) => t.allowed_domain === domain);
   }
 
   /**
@@ -166,7 +166,7 @@ export function createPortalHandlers(
       );
     }
 
-    if (!tenant.passphraseHash) {
+    if (!tenant.passphrase_hash) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_VERIFY,
@@ -183,7 +183,7 @@ export function createPortalHandlers(
       );
     }
 
-    const valid = await verifyPassphrase(tenant.passphraseHash, req.passphrase);
+    const valid = await verifyPassphrase(tenant.passphrase_hash, req.passphrase);
     if (!valid) {
       auditLogger.log(
         createAuditEvent({
@@ -205,7 +205,7 @@ export function createPortalHandlers(
     }
 
     const { space, backlogDomain } = splitDomain(req.domain);
-    const relayUrl = buildRelayUrl(config.server.baseUrl, reqCtx.baseUrl);
+    const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     auditLogger.log(
       createAuditEvent({
@@ -272,7 +272,7 @@ export function createPortalHandlers(
       );
     }
 
-    if (!tenant.passphraseHash) {
+    if (!tenant.passphrase_hash) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
@@ -289,7 +289,7 @@ export function createPortalHandlers(
       );
     }
 
-    const valid = await verifyPassphrase(tenant.passphraseHash, req.passphrase);
+    const valid = await verifyPassphrase(tenant.passphrase_hash, req.passphrase);
     if (!valid) {
       auditLogger.log(
         createAuditEvent({
@@ -310,7 +310,7 @@ export function createPortalHandlers(
       );
     }
 
-    const relayUrl = buildRelayUrl(config.server.baseUrl, reqCtx.baseUrl);
+    const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     try {
       const bundleData = await createBundle(tenant, allowedDomain, relayUrl);

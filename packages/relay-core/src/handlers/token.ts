@@ -56,15 +56,15 @@ export function createTokenHandlers(
    * Find Backlog app configuration by domain.
    */
   function findBacklogApp(domain: string): BacklogAppConfig | undefined {
-    return config.backlogApps.find((app) => app.domain === domain);
+    return config.backlog_apps.find((app) => app.domain === domain);
   }
 
   /**
    * Build callback URL for OAuth redirect (needed for code exchange).
    */
   function buildCallbackUrl(c: Context): string {
-    if (config.server.baseUrl) {
-      return `${config.server.baseUrl}/auth/callback`;
+    if (config.server.base_url) {
+      return `${config.server.base_url}/auth/callback`;
     }
 
     const reqCtx = extractRequestContext(c);
@@ -127,8 +127,8 @@ export function createTokenHandlers(
     params.set("grant_type", "authorization_code");
     params.set("code", code);
     params.set("redirect_uri", buildCallbackUrl(c));
-    params.set("client_id", backlogApp.clientId);
-    params.set("client_secret", backlogApp.clientSecret);
+    params.set("client_id", backlogApp.client_id);
+    params.set("client_secret", backlogApp.client_secret);
 
     return requestToken(backlogApp, space, params);
   }
@@ -144,8 +144,8 @@ export function createTokenHandlers(
     const params = new URLSearchParams();
     params.set("grant_type", "refresh_token");
     params.set("refresh_token", refreshTokenValue);
-    params.set("client_id", backlogApp.clientId);
-    params.set("client_secret", backlogApp.clientSecret);
+    params.set("client_id", backlogApp.client_id);
+    params.set("client_secret", backlogApp.client_secret);
 
     return requestToken(backlogApp, space, params);
   }

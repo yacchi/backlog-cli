@@ -68,12 +68,9 @@ interface ProtectedHeader {
 
 /**
  * Extended tenant config with JWK fields.
+ * Note: TenantConfig already includes these fields, but we keep this for clarity.
  */
-interface ExtendedTenantConfig extends TenantConfig {
-  jwks?: string;
-  activeKeys?: string;
-  infoTtl?: number;
-}
+type ExtendedTenantConfig = TenantConfig;
 
 /**
  * Base64URL encode.
@@ -153,8 +150,8 @@ function findTenant(
   domain: string
 ): ExtendedTenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowedDomain.toLowerCase() === domain.toLowerCase()
-  ) as ExtendedTenantConfig | undefined;
+    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
+  );
 }
 
 /**
@@ -287,7 +284,7 @@ export function createInfoHandlers(config: RelayConfig): Hono {
     }
 
     const jwks = tenant.jwks;
-    const activeKeys = tenant.activeKeys;
+    const activeKeys = tenant.active_keys;
     if (!jwks || !activeKeys) {
       return c.text("tenant not configured for info endpoint", 500);
     }
@@ -303,14 +300,14 @@ export function createInfoHandlers(config: RelayConfig): Hono {
 
     const reqCtx = extractRequestContext(c);
     const issuedAt = new Date();
-    const ttl = tenant.infoTtl || RELAY_INFO_DEFAULT_TTL;
+    const ttl = tenant.info_ttl || RELAY_INFO_DEFAULT_TTL;
     const expiresAt = new Date(issuedAt.getTime() + ttl * 1000);
 
-    const { space, backlogDomain } = splitDomain(tenant.allowedDomain);
+    const { space, backlogDomain } = splitDomain(tenant.allowed_domain);
     const payload: RelayInfoPayload = {
       version: RELAY_INFO_VERSION,
-      relay_url: buildRelayUrl(config.server.baseUrl, reqCtx.baseUrl),
-      allowed_domain: tenant.allowedDomain,
+      relay_url: buildRelayUrl(config.server.base_url, reqCtx.baseUrl),
+      allowed_domain: tenant.allowed_domain,
       space,
       domain: backlogDomain,
       issued_at: issuedAt.toISOString(),

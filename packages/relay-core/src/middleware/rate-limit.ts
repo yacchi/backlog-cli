@@ -13,8 +13,8 @@ export class RateLimiter {
   private cache?: CacheProvider;
 
   constructor(config?: RateLimitConfig, cache?: CacheProvider) {
-    this.requestsPerMinute = config?.requestsPerMinute ?? 60;
-    this.burstSize = config?.burstSize ?? 10;
+    this.requestsPerMinute = config?.requests_per_minute ?? 60;
+    this.burstSize = config?.burst_size ?? 10;
     this.cache = cache;
   }
 

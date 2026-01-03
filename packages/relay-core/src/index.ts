@@ -37,6 +37,8 @@ export { encodeState, decodeState, extractSessionId } from "./utils/state.js";
 export type { EncodedStateClaims } from "./utils/state.js";
 export { extractRequestContext } from "./utils/request.js";
 export type { RequestContext } from "./utils/request.js";
+export { createBundle } from "./utils/bundle.js";
+export { verifyPassphrase } from "./utils/passphrase.js";
 
 // Re-export middleware
 export { AccessControl } from "./middleware/access-control.js";
