@@ -38,6 +38,7 @@ function getContentType(filePath: string): string {
  */
 export function loadPortalAssets(): PortalAssets | undefined {
   // Assets directory relative to the handler
+  // NOTE: This name must match ASSETS_DIR_NAME in Makefile
   const assetsDir = path.join(import.meta.dirname, "web-dist");
 
   // Check if assets directory exists

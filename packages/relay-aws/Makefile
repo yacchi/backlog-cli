@@ -3,16 +3,19 @@
 # Paths
 ROOT_DIR := ../..
 WEB_DIST_DIR := $(ROOT_DIR)/packages/web/dist
-LOCAL_WEB_DIST := dist/web-dist
+
+# Asset directory name (must match portal-assets.ts expectation)
+ASSETS_DIR_NAME := web-dist
+LOCAL_ASSETS_DIR := dist/$(ASSETS_DIR_NAME)
 
 # Build: prepare assets for CDK bundling
 build: assets
 
-# Copy web assets to local dist/web-dist
+# Copy web assets to local staging directory
 assets:
 	$(MAKE) -C $(ROOT_DIR) build-web
-	@mkdir -p $(LOCAL_WEB_DIST)
-	rsync -av --delete $(WEB_DIST_DIR)/ $(LOCAL_WEB_DIST)/
+	@mkdir -p $(LOCAL_ASSETS_DIR)
+	rsync -av --delete $(WEB_DIST_DIR)/ $(LOCAL_ASSETS_DIR)/
 
 # Copy assets to Lambda bundle output directory
 # Called by CDK afterBundling with OUTPUT_DIR=<path>
@@ -21,7 +24,7 @@ copy-assets: assets
 ifndef OUTPUT_DIR
 	$(error OUTPUT_DIR is required. Usage: make copy-assets OUTPUT_DIR=/path/to/output)
 endif
-	cp -r $(LOCAL_WEB_DIST) $(OUTPUT_DIR)/web-dist
+	cp -r $(LOCAL_ASSETS_DIR) $(OUTPUT_DIR)/$(ASSETS_DIR_NAME)
 
 # CDK synth (includes asset build)
 synth: assets

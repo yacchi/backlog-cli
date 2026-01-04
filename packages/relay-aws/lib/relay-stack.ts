@@ -155,7 +155,6 @@ export class RelayStack extends cdk.Stack {
           },
           afterBundling(_inputDir: string, outputDir: string): string[] {
             // Copy pre-built web assets to the Lambda bundle via Makefile
-            // The portal-assets.ts expects assets at web-dist/ relative to handler
             return [`make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}"`];
           },
         },
