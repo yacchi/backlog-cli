@@ -26,7 +26,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 export const ENV_VARS = {
   RELAY_CONFIG: "RELAY_CONFIG",
-  PORT: "PORT",
   HOST: "HOST",
   WEB_DIST_PATH: "WEB_DIST_PATH",
 } as const;
@@ -87,7 +86,7 @@ export async function startServer(): Promise<void> {
     portalAssets,
   });
 
-  const port = parseInt(process.env[ENV_VARS.PORT] || "3000", 10);
+  const port = config.server.port
   const host = process.env[ENV_VARS.HOST] || "0.0.0.0";
 
   console.log(`Starting Backlog OAuth Relay Server on ${host}:${port}`);

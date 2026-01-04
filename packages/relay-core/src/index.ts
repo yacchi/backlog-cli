@@ -20,9 +20,11 @@ import { createBundleHandlers } from "./handlers/bundle.js";
 // Re-export types
 export type {
   RelayConfig,
+  RelayConfigInput,
   BacklogAppConfig,
   TenantConfig,
   ServerConfig,
+  ServerConfigInput,
   AccessControlConfig,
   RateLimitConfig,
   CacheConfig,
@@ -40,6 +42,7 @@ export {
   BacklogAppConfigSchema,
   TenantConfigSchema,
   ServerConfigSchema,
+  DEFAULT_SERVER_PORT,
 } from "./config/schema.js";
 
 // Re-export utilities

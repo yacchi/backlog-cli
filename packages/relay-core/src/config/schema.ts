@@ -44,12 +44,17 @@ export const RateLimitConfigSchema = z.object({
 });
 
 /**
+ * Default port for local development fallback.
+ */
+export const DEFAULT_SERVER_PORT = 8080;
+
+/**
  * Server configuration schema.
  */
 export const ServerConfigSchema = z.object({
   base_url: z.string().url().optional(),
   allowed_host_patterns: z.string().optional(),
-  port: z.number().int().min(1).max(65535),
+  port: z.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
 });
 
 /**
@@ -119,5 +124,56 @@ export function safeParseConfig(json: string): SafeParseConfigResult {
   }
 }
 
-// Re-export inferred types for convenience
-export type RelayConfigParsed = z.infer<typeof RelayConfigSchema>;
+// ============================================================
+// Inferred types from Zod schemas
+// ============================================================
+
+/**
+ * Input type for RelayConfig (before Zod parsing).
+ * Optional fields with defaults are optional here.
+ */
+export type RelayConfigInput = z.input<typeof RelayConfigSchema>;
+
+/**
+ * Output type for RelayConfig (after Zod parsing).
+ * Fields with defaults are required here.
+ */
+export type RelayConfig = z.output<typeof RelayConfigSchema>;
+
+/**
+ * Server configuration (output type, after parsing).
+ */
+export type ServerConfig = z.output<typeof ServerConfigSchema>;
+
+/**
+ * Server configuration input (before parsing).
+ */
+export type ServerConfigInput = z.input<typeof ServerConfigSchema>;
+
+/**
+ * Backlog app configuration.
+ */
+export type BacklogAppConfig = z.infer<typeof BacklogAppConfigSchema>;
+
+/**
+ * Tenant configuration.
+ */
+export type TenantConfig = z.infer<typeof TenantConfigSchema>;
+
+/**
+ * Access control configuration.
+ */
+export type AccessControlConfig = z.infer<typeof AccessControlConfigSchema>;
+
+/**
+ * Rate limit configuration.
+ */
+export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
+
+/**
+ * Cache configuration.
+ */
+export type CacheConfig = z.infer<typeof CacheConfigSchema>;
+
+// Legacy alias for backwards compatibility
+export type RelayConfigParsed = RelayConfig;

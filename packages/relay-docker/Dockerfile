@@ -9,10 +9,10 @@ COPY dist/ ./
 
 # Set environment
 ENV NODE_ENV=production
-ENV PORT=3000
 ENV WEB_DIST_PATH=/app/public
 
-EXPOSE 3000
+# Default port (configurable via RELAY_CONFIG server.port)
+EXPOSE 8080
 
 # Run the bundled server
 CMD ["index.js"]

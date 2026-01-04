@@ -4,7 +4,7 @@
  * Runtime configuration types are imported from @backlog-cli/relay-core.
  */
 
-import type { RelayConfig as CoreRelayConfig } from "@backlog-cli/relay-core";
+import type { RelayConfigInput as CoreRelayConfigInput } from "@backlog-cli/relay-core";
 
 // Re-export core types for convenience
 export type { BacklogAppConfig, TenantConfig } from "@backlog-cli/relay-core";
@@ -164,8 +164,9 @@ export interface RelayConfig extends ParameterStoreConfig {
 
 /**
  * Serialize JWKS objects to JSON strings in tenant configurations.
+ * Returns RelayConfigInput (before Zod parsing) since port has a default.
  */
-export function serializeParameterValue(value: ParameterStoreValue): CoreRelayConfig {
+export function serializeParameterValue(value: ParameterStoreValue): CoreRelayConfigInput {
   const tenants = value.tenants?.map((tenant) => ({
     ...tenant,
     jwks: tenant.jwks ? JSON.stringify(tenant.jwks) : undefined,
@@ -178,5 +179,5 @@ export function serializeParameterValue(value: ParameterStoreValue): CoreRelayCo
     access_control: value.access_control,
     rate_limit: value.rate_limit,
     cache: value.cache,
-  } as CoreRelayConfig;
+  };
 }

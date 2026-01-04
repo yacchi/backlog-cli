@@ -12,7 +12,7 @@
  *   pnpm deploy:dev    # 開発環境
  *   pnpm dev           # ローカル開発サーバー（.dev.vars を自動生成）
  */
-import type { RelayConfig } from "@backlog-cli/relay-core";
+import type { RelayConfigInput } from "@backlog-cli/relay-core";
 
 /**
  * Cloudflare Workers 固有の設定
@@ -32,13 +32,12 @@ export const cloudflareConfig: CloudflareConfig = {
 /**
  * Relay サーバー設定
  */
-export const config: RelayConfig = {
+export const config: RelayConfigInput = {
   server: {
     // Cloudflare Workers では base_url を設定するか、
     // allowed_host_patterns でホスト名を許可する必要があります
     // base_url: "https://your-worker.your-subdomain.workers.dev",
     allowed_host_patterns: "*.workers.dev",
-    port: 8787, // ローカル開発サーバーのポート
   },
   backlog_apps: [
     {

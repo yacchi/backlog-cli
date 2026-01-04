@@ -15,9 +15,7 @@ import { RelayConfig } from "./lib/types.js";
 export const config: RelayConfig = {
   parameterName: "/backlog-relay/config",
   parameterValue: {
-    server: {
-      port: 8080,
-    },
+    server: {},
     backlog_apps: [
       {
         domain: "backlog.jp",
