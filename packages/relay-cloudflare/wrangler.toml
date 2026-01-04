@@ -6,6 +6,32 @@ compatibility_flags = ["nodejs_compat"]
 # Environment variables (set via wrangler secret or dashboard)
 # RELAY_CONFIG: JSON string of RelayConfig
 
+# Static Assets configuration
+[assets]
+directory = "./public"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+# API routes should be handled by Worker first
+run_worker_first = [
+  "/api/*",
+  "/auth/*",
+  "/health",
+  "/.well-known/*",
+  "/v1/*"
+]
+
+# Workers Logs (dashboard で過去ログを確認可能)
+[observability.logs]
+enabled = true
+head_sampling_rate = 1       # 100% のリクエストをログ
+invocation_logs = true       # リクエスト/レスポンス詳細
+persist = true               # Workers Logs に永続保存
+
+[observability.traces]
+enabled = false              # 分散トレーシング（現在は不要）
+head_sampling_rate = 1
+persist = true
+
 [vars]
 # Default environment
 ENVIRONMENT = "production"

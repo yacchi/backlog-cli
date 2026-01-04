@@ -4,6 +4,8 @@
 
 import {
   createRelayApp,
+  createBundle,
+  verifyPassphrase,
   type RelayConfig,
   type AuditLogger,
   type AuditEvent,
@@ -60,6 +62,10 @@ export default {
     const app = createRelayApp({
       config,
       auditLogger,
+      verifyPassphrase,
+      createBundle,
+      // Note: portalAssets not available in Cloudflare Workers
+      // Portal SPA should be hosted separately (e.g., Cloudflare Pages)
     });
 
     return app.fetch(request, env, _ctx);
