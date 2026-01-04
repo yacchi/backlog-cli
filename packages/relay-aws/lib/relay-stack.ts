@@ -145,8 +145,6 @@ export class RelayStack extends cdk.Stack {
       bundling: {
         format: OutputFormat.ESM,
         target: "node24",
-        banner:
-          "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
         commandHooks: {
           beforeBundling(): string[] {
             return [];

@@ -2,7 +2,7 @@
  * Bundle creation utilities for portal configuration distribution.
  */
 
-import JSZip from "jszip";
+import { zipSync } from "fflate";
 import YAML from "yaml";
 import type { TenantConfig } from "../config/types.js";
 
@@ -403,16 +403,14 @@ export async function createBundle(
   const jwsJson = await signManifest(manifestBytes, jwkByKid, activeKeyIds);
   const jwsBytes = new TextEncoder().encode(jwsJson);
 
-  // Create ZIP
-  const zip = new JSZip();
-  zip.file(MANIFEST_NAME, manifestBytes);
-  zip.file(MANIFEST_SIG_NAME, jwsBytes);
-
-  const zipData = await zip.generateAsync({
-    type: "uint8array",
-    compression: "DEFLATE",
-    compressionOptions: { level: 6 },
-  });
+  // Create ZIP using fflate (ESM native)
+  const zipData = zipSync(
+    {
+      [MANIFEST_NAME]: manifestBytes,
+      [MANIFEST_SIG_NAME]: jwsBytes,
+    },
+    { level: 6 }
+  );
 
   return zipData;
 }
