@@ -159,7 +159,7 @@ export class RelayStack extends cdk.Stack {
           afterBundling(_inputDir: string, outputDir: string): string[] {
             // Copy pre-built web assets to the Lambda bundle via Makefile
             return [
-              `make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}" ASSETS_DIR_NAME="${assetsDirName}"`,
+              `make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}/${assetsDirName}"`,
             ];
           },
         },

@@ -3,10 +3,7 @@
 # Paths
 ROOT_DIR := ../..
 WEB_DIST_DIR := $(ROOT_DIR)/packages/web/dist
-
-# Asset directory name (can be overridden via command line)
-ASSETS_DIR_NAME ?= web-dist
-LOCAL_ASSETS_DIR := dist/$(ASSETS_DIR_NAME)
+LOCAL_ASSETS_DIR := dist/web-assets
 
 # Build: prepare assets for CDK bundling
 build: assets
@@ -18,13 +15,13 @@ assets:
 	rsync -av --delete $(WEB_DIST_DIR)/ $(LOCAL_ASSETS_DIR)/
 
 # Copy assets to Lambda bundle output directory
-# Called by CDK afterBundling with OUTPUT_DIR=<path> ASSETS_DIR_NAME=<name>
+# Called by CDK afterBundling with OUTPUT_DIR=<full-path>
 # Depends on assets to ensure they are built first
 copy-assets: assets
 ifndef OUTPUT_DIR
 	$(error OUTPUT_DIR is required)
 endif
-	cp -r $(LOCAL_ASSETS_DIR) $(OUTPUT_DIR)/$(ASSETS_DIR_NAME)
+	cp -r $(LOCAL_ASSETS_DIR) $(OUTPUT_DIR)
 
 # CDK synth (includes asset build)
 synth: assets
