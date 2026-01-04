@@ -125,6 +125,8 @@ export class RelayStack extends cdk.Stack {
   private createLambdaFunction(): lambda.Function {
     // Package directory (for make command)
     const packageDir = path.resolve(import.meta.dirname, "..");
+    // Asset directory name - single source of truth
+    const assetsDirName = "web-dist";
 
     const fn = new NodejsFunction(this, "RelayFunction", {
       entry: path.join(import.meta.dirname, "handler.ts"),
@@ -137,6 +139,7 @@ export class RelayStack extends cdk.Stack {
       environment: {
         HOME: "/tmp",
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
+        WEB_ASSETS_DIR: assetsDirName,
       },
       description: "Backlog CLI OAuth Relay Server (TypeScript)",
       bundling: {
@@ -155,7 +158,9 @@ export class RelayStack extends cdk.Stack {
           },
           afterBundling(_inputDir: string, outputDir: string): string[] {
             // Copy pre-built web assets to the Lambda bundle via Makefile
-            return [`make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}"`];
+            return [
+              `make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}" ASSETS_DIR_NAME="${assetsDirName}"`,
+            ];
           },
         },
       },
