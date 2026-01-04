@@ -164,10 +164,11 @@ build-relay-docker:
 # アセットコピーは packages/relay-cloudflare/Makefile で行う
 
 # 中継サーバー（AWS Lambda）
+# 注意: ビルド・デプロイは packages/relay-aws の責務
 .PHONY: build-relay-aws
-build-relay-aws: build-relay-core
-	pnpm --filter @backlog-cli/relay-aws build
+build-relay-aws:
+	$(MAKE) -C packages/relay-aws build
 
 .PHONY: deploy-relay-aws
-deploy-relay-aws: build-relay-aws
-	pnpm --filter @backlog-cli/relay-aws deploy
+deploy-relay-aws:
+	$(MAKE) -C packages/relay-aws deploy

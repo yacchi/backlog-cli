@@ -120,8 +120,10 @@ export class RelayStack extends cdk.Stack {
    * NodejsFunctionで自動的にesbuildバンドルを行う
    */
   private createLambdaFunction(): lambda.Function {
-    // Web assets source directory (relative to monorepo root)
-    const webDistDir = path.resolve(import.meta.dirname, "..", "..", "web", "dist");
+    // Package directory (for make command)
+    const packageDir = path.resolve(import.meta.dirname, "..");
+    // Web assets are pre-built by Makefile to dist/web-dist
+    const webDistDir = path.join(packageDir, "dist", "web-dist");
 
     const fn = new NodejsFunction(this, "RelayFunction", {
       entry: path.join(import.meta.dirname, "handler.ts"),
@@ -145,13 +147,14 @@ export class RelayStack extends cdk.Stack {
           "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
         commandHooks: {
           beforeBundling(): string[] {
-            return [];
+            // Build web assets via Makefile before bundling
+            return [`make -C "${packageDir}" assets`];
           },
           beforeInstall(): string[] {
             return [];
           },
           afterBundling(_inputDir: string, outputDir: string): string[] {
-            // Copy web assets to the Lambda bundle
+            // Copy pre-built web assets to the Lambda bundle
             // The portal-assets.ts expects assets at web-dist/ relative to handler
             return [
               `if [ -d "${webDistDir}" ]; then cp -r "${webDistDir}" "${outputDir}/web-dist"; fi`,
