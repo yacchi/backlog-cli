@@ -7,6 +7,7 @@ dist-cdk/
 *.js
 *.d.ts
 !jest.config.js
+!cloudfront-functions/*.js
 
 # CDK
 cdk.out/

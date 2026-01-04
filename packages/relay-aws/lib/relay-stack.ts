@@ -338,19 +338,16 @@ export class RelayStack extends cdk.Stack {
    * 注意: X-Forwarded-Host は予約ヘッダーのため使用不可
    */
   private createForwardHostFunction(): cloudfront.Function {
+    const functionPath = path.join(
+      import.meta.dirname,
+      "..",
+      "cloudfront-functions",
+      "forward-host.js",
+    );
+
     return new cloudfront.Function(this, "ForwardHostFunction", {
-      functionName: `${this.stackName}-forward-host`,
       comment: "Add x-original-host header from viewer Host",
-      code: cloudfront.FunctionCode.fromInline(
-        `
-function handler(event) {
-  var request = event.request;
-  var host = request.headers.host ? request.headers.host.value : '';
-  request.headers['x-original-host'] = { value: host };
-  return request;
-}
-      `.trim(),
-      ),
+      code: cloudfront.FunctionCode.fromFile({ filePath: functionPath }),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
     });
   }
