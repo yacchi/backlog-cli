@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:cdk": "tsc -p tsconfig.cdk.json",
     "cdk": "cdk",
     "deploy": "cdk deploy",
     "destroy": "cdk destroy",
@@ -12,6 +11,7 @@
     "synth": "cdk synth",
     "invalidate-cache": "./scripts/invalidate-cache.sh",
     "lint": "eslint lib/",
+    "lint:typecheck": "tsc",
     "lint:fix": "eslint lib/ --fix",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -19,12 +19,9 @@
   "dependencies": {
     "@backlog-cli/relay-core": "workspace:*",
     "aws-cdk-lib": "^2.170.0",
-    "bcryptjs": "^3.0.3",
     "constructs": "^10.4.0",
     "hono": "^4.7.11",
-    "jszip": "^3.10.1",
-    "source-map-support": "^0.5.21",
-    "yaml": "^2.8.2"
+    "source-map-support": "^0.5.21"
   },
   "peerDependencies": {
     "@aws-sdk/client-ssm": "^3.0.0"
@@ -37,7 +34,6 @@
   "devDependencies": {
     "@aws-sdk/client-ssm": "^3.0.0",
     "@types/aws-lambda": "^8.10.159",
-    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.15.29",
     "aws-cdk": "^2.170.0",
     "esbuild": "^0.27.2",

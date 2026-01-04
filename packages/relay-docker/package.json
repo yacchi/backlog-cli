@@ -10,6 +10,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint src/",
+    "lint:typecheck": "tsc",
     "lint:fix": "eslint src/ --fix",
     "test": "vitest run",
     "test:watch": "vitest"
