@@ -154,10 +154,10 @@ build-relay-core:
 	pnpm --filter @backlog-cli/relay-core build
 
 # 中継サーバー（Docker）
+# 注意: ビルドは packages/relay-docker の責務
 .PHONY: build-relay-docker
-build-relay-docker: build-relay-core
-	pnpm --filter @backlog-cli/relay-docker build
-	docker build -t backlog-relay packages/relay-docker
+build-relay-docker:
+	$(MAKE) -C packages/relay-docker build
 
 # 中継サーバー（Cloudflare Workers）
 # 注意: デプロイは packages/relay-cloudflare の責務
