@@ -1,6 +1,6 @@
-# Simple production image
-# All dependencies are bundled locally, no npm install needed
-FROM node:22-alpine
+# Minimal production image using distroless
+# All dependencies are bundled locally, no shell or package manager needed
+FROM gcr.io/distroless/nodejs24-debian12
 
 WORKDIR /app
 
@@ -15,4 +15,4 @@ ENV WEB_DIST_PATH=/app/public
 EXPOSE 3000
 
 # Run the bundled server
-CMD ["node", "index.js"]
+CMD ["index.js"]
