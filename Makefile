@@ -65,8 +65,8 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
-	rm -rf packages/web/dist packages/web/node_modules/.vite
 	rm -rf $(TMP_DIR)
+	$(MAKE) -C packages/web clean
 
 # Temporary directory for stamps
 TMP_DIR := .tmp
@@ -102,26 +102,19 @@ buf-lint:
 
 # ==== フロントエンド (packages/web) ====
 
-# Web sources for dependency tracking
-WEB_SOURCES := $(shell find packages/web/src -type f 2>/dev/null)
-WEB_INDEX := packages/web/dist/index.html
-
-# フロントエンドビルド（変更時のみ実行）
-# index.html をターゲットにすることで、ソースより古ければ再ビルド
-$(WEB_INDEX): $(WEB_SOURCES) packages/web/package.json $(GEN_STAMP)
-	cd packages/web && pnpm install --frozen-lockfile && pnpm build
-
-build-web: $(WEB_INDEX)
+# フロントエンドビルド（サブモジュールに委譲）
+# buf-generate の後に実行する必要がある
+build-web: $(GEN_STAMP)
+	$(MAKE) -C packages/web build
 
 # 強制的に再ビルド
 .PHONY: build-web-force
 build-web-force:
-	@rm -f $(WEB_INDEX)
-	@$(MAKE) build-web
+	$(MAKE) -C packages/web build-force
 
 # フロントエンド開発サーバー
 dev-web:
-	cd packages/web && pnpm dev
+	$(MAKE) -C packages/web dev
 
 # 開発用ビルド（フロントエンドビルドをスキップ）
 build-dev:
