@@ -145,8 +145,6 @@ export class RelayStack extends cdk.Stack {
       bundling: {
         format: OutputFormat.ESM,
         target: "node24",
-        externalModules: ["@aws-sdk/*"],
-        mainFields: ["module", "main"],
         banner:
           "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
         commandHooks: {
