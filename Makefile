@@ -104,20 +104,19 @@ buf-lint:
 
 # Web sources for dependency tracking
 WEB_SOURCES := $(shell find packages/web/src -type f 2>/dev/null)
-WEB_DIST_STAMP := $(TMP_DIR)/.web-dist-stamp
+WEB_INDEX := packages/web/dist/index.html
 
 # フロントエンドビルド（変更時のみ実行）
-$(WEB_DIST_STAMP): $(WEB_SOURCES) packages/web/package.json $(GEN_STAMP)
+# index.html をターゲットにすることで、ソースより古ければ再ビルド
+$(WEB_INDEX): $(WEB_SOURCES) packages/web/package.json $(GEN_STAMP)
 	cd packages/web && pnpm install --frozen-lockfile && pnpm build
-	@mkdir -p $(TMP_DIR)
-	@touch $@
 
-build-web: $(WEB_DIST_STAMP)
+build-web: $(WEB_INDEX)
 
 # 強制的に再ビルド
 .PHONY: build-web-force
 build-web-force:
-	@rm -f $(WEB_DIST_STAMP)
+	@rm -f $(WEB_INDEX)
 	@$(MAKE) build-web
 
 # フロントエンド開発サーバー
