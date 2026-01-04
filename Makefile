@@ -66,6 +66,7 @@ clean:
 	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
 	rm -rf packages/web/dist packages/web/node_modules/.vite
+	rm -rf $(TMP_DIR)
 
 # Temporary directory for stamps
 TMP_DIR := .tmp
