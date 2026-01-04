@@ -3,11 +3,13 @@
  * Deploy script for Cloudflare Workers
  *
  * このスクリプトは以下を実行します:
- * 1. web パッケージをビルド
- * 2. ビルド成果物を public/ にコピー
- * 3. config.ts から設定を読み込み
- * 4. RELAY_CONFIG シークレットを設定
- * 5. wrangler deploy を実行
+ * 1. public/ ディレクトリの存在を確認
+ * 2. config.ts から設定を読み込み
+ * 3. RELAY_CONFIG シークレットを設定
+ * 4. wrangler deploy を実行
+ *
+ * 注意: webアセットのビルドとコピーはMakefileで行います。
+ *   make deploy-relay-cf
  *
  * 使用方法:
  *   pnpm deploy        # 本番環境
@@ -15,54 +17,38 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, cpSync, rmSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(__dirname, "..");
-const monorepoRoot = resolve(packageRoot, "../..");
-const webDistPath = resolve(monorepoRoot, "packages/web/dist");
 const publicPath = resolve(packageRoot, "public");
 
 interface DeployOptions {
   environment?: string;
   skipSecrets?: boolean;
-  skipWebBuild?: boolean;
 }
 
 /**
- * Build web package and copy to public directory.
+ * Check that public directory exists with assets.
  */
-function buildAndCopyWeb(): void {
-  console.log("Building web package...");
-
-  // Build web package
-  const buildResult = spawnSync("pnpm", ["--filter", "web", "build"], {
-    cwd: monorepoRoot,
-    stdio: "inherit",
-  });
-
-  if (buildResult.status !== 0) {
-    console.error("Failed to build web package");
-    process.exit(buildResult.status ?? 1);
-  }
-
-  // Check if dist exists
-  if (!existsSync(webDistPath)) {
-    console.error(`Error: web dist not found at ${webDistPath}`);
+function checkPublicDir(): void {
+  if (!existsSync(publicPath)) {
+    console.error("Error: public/ directory not found");
+    console.error("");
+    console.error("Run 'make deploy-relay-cf' to build and copy web assets.");
+    console.error("Or run 'make relay-assets-cf' to copy assets only.");
     process.exit(1);
   }
 
-  // Clean and copy to public
-  console.log("Copying web assets to public/...");
-  if (existsSync(publicPath)) {
-    rmSync(publicPath, { recursive: true });
+  const indexHtml = resolve(publicPath, "index.html");
+  if (!existsSync(indexHtml)) {
+    console.error("Error: public/index.html not found");
+    console.error("");
+    console.error("Run 'make relay-assets-cf' to copy web assets.");
+    process.exit(1);
   }
-  mkdirSync(publicPath, { recursive: true });
-  cpSync(webDistPath, publicPath, { recursive: true });
-
-  console.log("Web assets copied successfully");
 }
 
 async function loadConfig(): Promise<{
@@ -154,24 +140,21 @@ async function main(): Promise<void> {
       options.environment = args[++i];
     } else if (arg === "--skip-secrets") {
       options.skipSecrets = true;
-    } else if (arg === "--skip-web-build") {
-      options.skipWebBuild = true;
     } else if (arg === "--help" || arg === "-h") {
       console.log("Usage: deploy.ts [options]");
       console.log("");
       console.log("Options:");
       console.log("  --env, -e <env>   Deploy to specific environment (dev, staging)");
       console.log("  --skip-secrets    Skip setting secrets (use existing)");
-      console.log("  --skip-web-build  Skip building web package");
       console.log("  --help, -h        Show this help");
+      console.log("");
+      console.log("Note: Web assets must be built first with 'make relay-assets-cf'");
       process.exit(0);
     }
   }
 
-  // Build web package and copy to public
-  if (!options.skipWebBuild) {
-    buildAndCopyWeb();
-  }
+  // Check public directory exists
+  checkPublicDir();
 
   // Load config
   const { config, cloudflareConfig } = await loadConfig();

@@ -9,7 +9,6 @@
     "dev": "pnpm dev:setup && wrangler dev",
     "deploy": "tsx scripts/deploy.ts",
     "deploy:dev": "tsx scripts/deploy.ts --env dev",
-    "deploy:skip-secrets": "tsx scripts/deploy.ts --skip-secrets",
     "build": "tsc --noEmit",
     "lint": "eslint src/ scripts/",
     "lint:typecheck": "tsc",

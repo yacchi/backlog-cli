@@ -99,9 +99,25 @@ buf-generate-force:
 buf-lint:
 	mise exec -- buf lint
 
-# フロントエンドビルド（packages/webにビルド結果が配置される）
-build-web: buf-generate
+# ==== フロントエンド (packages/web) ====
+
+# Web sources for dependency tracking
+WEB_SOURCES := $(shell find packages/web/src -type f 2>/dev/null)
+WEB_DIST_STAMP := $(TMP_DIR)/.web-dist-stamp
+
+# フロントエンドビルド（変更時のみ実行）
+$(WEB_DIST_STAMP): $(WEB_SOURCES) packages/web/package.json $(GEN_STAMP)
 	cd packages/web && pnpm install --frozen-lockfile && pnpm build
+	@mkdir -p $(TMP_DIR)
+	@touch $@
+
+build-web: $(WEB_DIST_STAMP)
+
+# 強制的に再ビルド
+.PHONY: build-web-force
+build-web-force:
+	@rm -f $(WEB_DIST_STAMP)
+	@$(MAKE) build-web
 
 # フロントエンド開発サーバー
 dev-web:
@@ -151,9 +167,16 @@ build-relay-docker: build-relay-core
 	docker build -t backlog-relay packages/relay-docker
 
 # 中継サーバー（Cloudflare Workers）
+# アセットコピー（rsyncで差分のみ）
+CF_PUBLIC_DIR := packages/relay-cloudflare/public
+.PHONY: relay-assets-cf
+relay-assets-cf: $(WEB_DIST_STAMP)
+	@mkdir -p $(CF_PUBLIC_DIR)
+	rsync -av --delete packages/web/dist/ $(CF_PUBLIC_DIR)/
+
 .PHONY: deploy-relay-cf
-deploy-relay-cf: build-relay-core
-	pnpm --filter @backlog-cli/relay-cloudflare deploy
+deploy-relay-cf: build-relay-core relay-assets-cf
+	pnpm --filter @backlog-cli/relay-cloudflare run deploy
 
 # 中継サーバー（AWS Lambda）
 .PHONY: build-relay-aws
