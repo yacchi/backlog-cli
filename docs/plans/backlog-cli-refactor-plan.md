@@ -79,7 +79,7 @@ backlog-cli/
 │
 ├── pnpm-workspace.yaml
 ├── package.json
-├── tsconfig.base.json
+├── tsconfig.json
 ├── Makefile
 └── version.txt
 ```
