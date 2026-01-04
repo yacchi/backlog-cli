@@ -167,16 +167,8 @@ build-relay-docker: build-relay-core
 	docker build -t backlog-relay packages/relay-docker
 
 # 中継サーバー（Cloudflare Workers）
-# アセットコピー（rsyncで差分のみ）
-CF_PUBLIC_DIR := packages/relay-cloudflare/public
-.PHONY: relay-assets-cf
-relay-assets-cf: $(WEB_DIST_STAMP)
-	@mkdir -p $(CF_PUBLIC_DIR)
-	rsync -av --delete packages/web/dist/ $(CF_PUBLIC_DIR)/
-
-.PHONY: deploy-relay-cf
-deploy-relay-cf: build-relay-core relay-assets-cf
-	pnpm --filter @backlog-cli/relay-cloudflare run deploy
+# 注意: デプロイは packages/relay-cloudflare の責務
+# アセットコピーは packages/relay-cloudflare/Makefile で行う
 
 # 中継サーバー（AWS Lambda）
 .PHONY: build-relay-aws

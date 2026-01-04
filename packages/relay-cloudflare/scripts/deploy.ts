@@ -8,8 +8,9 @@
  * 3. RELAY_CONFIG シークレットを設定
  * 4. wrangler deploy を実行
  *
- * 注意: webアセットのビルドとコピーはMakefileで行います。
- *   make deploy-relay-cf
+ * 注意: webアセットのビルドとコピーは事前に行う必要があります。
+ *   make assets   # このディレクトリで実行
+ *   make deploy   # アセットビルド + デプロイ
  *
  * 使用方法:
  *   pnpm deploy        # 本番環境
@@ -37,8 +38,8 @@ function checkPublicDir(): void {
   if (!existsSync(publicPath)) {
     console.error("Error: public/ directory not found");
     console.error("");
-    console.error("Run 'make deploy-relay-cf' to build and copy web assets.");
-    console.error("Or run 'make relay-assets-cf' to copy assets only.");
+    console.error("Run 'make assets' to build and copy web assets first.");
+    console.error("Or run 'make deploy' for full deploy with assets.");
     process.exit(1);
   }
 
@@ -46,7 +47,7 @@ function checkPublicDir(): void {
   if (!existsSync(indexHtml)) {
     console.error("Error: public/index.html not found");
     console.error("");
-    console.error("Run 'make relay-assets-cf' to copy web assets.");
+    console.error("Run 'make assets' to build and copy web assets.");
     process.exit(1);
   }
 }
@@ -148,7 +149,8 @@ async function main(): Promise<void> {
       console.log("  --skip-secrets    Skip setting secrets (use existing)");
       console.log("  --help, -h        Show this help");
       console.log("");
-      console.log("Note: Web assets must be built first with 'make relay-assets-cf'");
+      console.log("Note: Web assets must be built first with 'make assets'");
+      console.log("Or use 'make deploy' to build assets and deploy together.");
       process.exit(0);
     }
   }
