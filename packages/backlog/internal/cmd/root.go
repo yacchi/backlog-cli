@@ -11,7 +11,6 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/markdown"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/pr"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/project"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/serve"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/wiki"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
@@ -111,6 +110,5 @@ func init() {
 	rootCmd.AddCommand(markdown.MarkdownCmd)
 	rootCmd.AddCommand(pr.PRCmd)
 	rootCmd.AddCommand(project.ProjectCmd)
-	rootCmd.AddCommand(serve.ServeCmd)
 	rootCmd.AddCommand(wiki.WikiCmd)
 }
