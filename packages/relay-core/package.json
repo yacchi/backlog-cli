@@ -15,11 +15,16 @@
     "build": "tsup src/index.ts --format esm --dts --clean",
     "dev": "tsup src/index.ts --format esm --dts --watch",
     "lint": "eslint src/",
+    "lint:typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "hono": "^4.7.10"
+    "bcryptjs": "^3.0.3",
+    "hono": "^4.7.10",
+    "jszip": "^3.10.1",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.4"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

@@ -112,9 +112,16 @@ build-dev:
 	@mkdir -p $(BUILD_DIR)
 	go build -tags=dev $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/backlog
 
-# 中継サーバー起動（開発用、go run使用）
-serve:
-	go run ./cmd/backlog serve $(ARGS)
+# 中継サーバー起動（開発用、TypeScript実装）
+# Node.js 24+ の erasableSyntaxOnly により、TypeScript設定ファイルを直接読み込み
+# 設定はJSONに変換してRELAY_CONFIG環境変数として渡す（Docker/Lambda互換）
+serve: build-web build-relay-core
+	@if [ ! -f config.dev.ts ]; then \
+		echo "Error: config.dev.ts not found. Copy from config.dev.example.ts and configure."; \
+		exit 1; \
+	fi
+	$(eval RELAY_CONFIG := $(shell mise exec -- node -e "import('./config.dev.ts').then(m => console.log(JSON.stringify(m.config)))"))
+	RELAY_CONFIG='$(RELAY_CONFIG)' WEB_DIST_PATH=$(PWD)/packages/web/dist pnpm --filter @backlog-cli/relay-docker dev
 
 # インストール
 install: build

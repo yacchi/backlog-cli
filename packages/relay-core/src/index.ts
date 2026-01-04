@@ -32,6 +32,16 @@ export type {
   AuditLogger,
 } from "./config/types.js";
 
+// Re-export config validation
+export {
+  parseConfig,
+  safeParseConfig,
+  RelayConfigSchema,
+  BacklogAppConfigSchema,
+  TenantConfigSchema,
+  ServerConfigSchema,
+} from "./config/schema.js";
+
 // Re-export utilities
 export { encodeState, decodeState, extractSessionId } from "./utils/state.js";
 export type { EncodedStateClaims } from "./utils/state.js";

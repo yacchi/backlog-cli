@@ -1,5 +1,6 @@
 [tools]
 buf = "latest"
+node = "24"
 
 [env]
 GOCACHE = "{{config_root}}/.gocache"

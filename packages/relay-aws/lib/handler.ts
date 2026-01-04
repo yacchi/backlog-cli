@@ -7,6 +7,7 @@ import {
   createRelayApp,
   createBundle,
   verifyPassphrase,
+  parseConfig,
   type RelayConfig,
   type AuditLogger,
   type AuditEvent,
@@ -26,6 +27,7 @@ let cachedConfig: RelayConfig | null = null;
 
 /**
  * Parse relay configuration from environment or SSM.
+ * Uses Zod schema validation for runtime type safety.
  */
 async function getConfig(): Promise<RelayConfig> {
   if (cachedConfig) {
@@ -35,7 +37,7 @@ async function getConfig(): Promise<RelayConfig> {
   // First, try to read from environment variable
   const envConfig = process.env[ENV_VARS.RELAY_CONFIG];
   if (envConfig) {
-    cachedConfig = JSON.parse(envConfig) as RelayConfig;
+    cachedConfig = parseConfig(envConfig);
     return cachedConfig;
   }
 
@@ -57,7 +59,7 @@ async function getConfig(): Promise<RelayConfig> {
       throw new Error(`SSM parameter ${parameterName} not found or empty`);
     }
 
-    cachedConfig = JSON.parse(response.Parameter.Value) as RelayConfig;
+    cachedConfig = parseConfig(response.Parameter.Value);
     return cachedConfig;
   }
 

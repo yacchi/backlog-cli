@@ -29,6 +29,8 @@ go.work.sum
 
 # Config (ローカルテスト用)
 config.yaml
+config.dev.ts
+config.dev.json
 .env
 .backlog.yaml
 .backlog.yml
