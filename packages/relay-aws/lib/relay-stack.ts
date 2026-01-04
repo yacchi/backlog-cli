@@ -10,8 +10,8 @@ import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import { Construct } from "constructs";
-import * as path from "path";
-import { execSync } from "child_process";
+import * as path from "node:path";
+import { execSync } from "node:child_process";
 import {
   CloudFrontCacheConfig,
   RelayConfig,
@@ -118,17 +118,18 @@ export class RelayStack extends cdk.Stack {
   /**
    * Lambda 関数を作成
    * NodejsFunctionで自動的にesbuildバンドルを行う
+   *
+   * afterBundling で make copy-assets を呼び出し、
+   * Makefile 側でアセットのビルドと配置を一括管理
    */
   private createLambdaFunction(): lambda.Function {
     // Package directory (for make command)
     const packageDir = path.resolve(import.meta.dirname, "..");
-    // Web assets are pre-built by Makefile to dist/web-dist
-    const webDistDir = path.join(packageDir, "dist", "web-dist");
 
     const fn = new NodejsFunction(this, "RelayFunction", {
       entry: path.join(import.meta.dirname, "handler.ts"),
       handler: "handler",
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       memorySize: 512,
       loggingFormat: LoggingFormat.JSON,
@@ -140,25 +141,22 @@ export class RelayStack extends cdk.Stack {
       description: "Backlog CLI OAuth Relay Server (TypeScript)",
       bundling: {
         format: OutputFormat.ESM,
-        target: "node20",
+        target: "node24",
         externalModules: ["@aws-sdk/*"],
         mainFields: ["module", "main"],
         banner:
           "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
         commandHooks: {
           beforeBundling(): string[] {
-            // Build web assets via Makefile before bundling
-            return [`make -C "${packageDir}" assets`];
+            return [];
           },
           beforeInstall(): string[] {
             return [];
           },
           afterBundling(_inputDir: string, outputDir: string): string[] {
-            // Copy pre-built web assets to the Lambda bundle
+            // Copy pre-built web assets to the Lambda bundle via Makefile
             // The portal-assets.ts expects assets at web-dist/ relative to handler
-            return [
-              `if [ -d "${webDistDir}" ]; then cp -r "${webDistDir}" "${outputDir}/web-dist"; fi`,
-            ];
+            return [`make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}"`];
           },
         },
       },
@@ -520,6 +518,7 @@ function handler(event) {
       description: "SSM Parameter Store name for relay server config",
     });
   }
+
 }
 
 // ============================================================
