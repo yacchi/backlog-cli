@@ -2,7 +2,6 @@
 
 # Paths
 ROOT_DIR := ../..
-PUBLIC_DIR := public
 WEB_DIST_DIR := $(ROOT_DIR)/packages/web/dist
 IMAGE_NAME := backlog-relay
 
@@ -15,12 +14,12 @@ bundle:
 	$(MAKE) -C $(ROOT_DIR) build-relay-core
 	pnpm build
 
-# Copy web assets
+# Copy web assets to dist/public
 .PHONY: assets
 assets:
 	$(MAKE) -C $(ROOT_DIR) build-web
-	@mkdir -p $(PUBLIC_DIR)
-	rsync -av --delete $(WEB_DIST_DIR)/ $(PUBLIC_DIR)/
+	@mkdir -p dist/public
+	rsync -av --delete $(WEB_DIST_DIR)/ dist/public/
 
 # Check for native modules
 check-native:
@@ -38,4 +37,4 @@ dev:
 
 # Clean
 clean:
-	rm -rf dist $(PUBLIC_DIR)
+	rm -rf dist

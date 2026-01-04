@@ -4,11 +4,8 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy pre-bundled application
-COPY dist/index.js ./
-
-# Copy web assets
-COPY public/ ./public/
+# Copy pre-built dist directory (includes index.js and public/)
+COPY dist/ ./
 
 # Set environment
 ENV NODE_ENV=production
