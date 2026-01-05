@@ -1,5 +1,6 @@
 /**
  * AWS Lambda adapter for Backlog OAuth Relay Server.
+ * Updated: 2026-01-05 - Added landing page support
  */
 
 import { handle, type LambdaEvent, type LambdaContext } from "hono/aws-lambda";

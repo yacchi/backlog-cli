@@ -3,7 +3,6 @@
  */
 
 import { zipSync } from "fflate";
-import YAML from "yaml";
 import type { TenantConfig } from "../config/types.js";
 
 const MANIFEST_NAME = "manifest.yaml";
@@ -66,6 +65,67 @@ interface JWS {
   signatures: JWSSignature[];
 }
 
+
+/**
+ * Simple YAML stringifier for manifest.
+ * Handles basic types: string, number, boolean, array, object.
+ */
+function stringifyYaml(obj: unknown, indent = 0): string {
+  const spaces = "  ".repeat(indent);
+
+  if (obj === null || obj === undefined) {
+    return "null";
+  }
+
+  if (typeof obj === "string") {
+    // Quote strings that contain special characters
+    if (/[:\-#\[\]{}"'\n]/.test(obj) || obj === "") {
+      return JSON.stringify(obj);
+    }
+    return obj;
+  }
+
+  if (typeof obj === "number" || typeof obj === "boolean") {
+    return String(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return "[]";
+    return obj
+      .map((item) => {
+        const value = stringifyYaml(item, indent + 1);
+        if (typeof item === "object" && item !== null && !Array.isArray(item)) {
+          return `${spaces}- ${value.trimStart()}`;
+        }
+        return `${spaces}- ${value}`;
+      })
+      .join("\n");
+  }
+
+  if (typeof obj === "object") {
+    const entries = Object.entries(obj);
+    if (entries.length === 0) return "{}";
+    return entries
+      .map(([key, value]) => {
+        if (typeof value === "object" && value !== null) {
+          if (Array.isArray(value) && value.length === 0) {
+            return `${spaces}${key}: []`;
+          }
+          if (
+            !Array.isArray(value) &&
+            Object.keys(value as object).length === 0
+          ) {
+            return `${spaces}${key}: {}`;
+          }
+          return `${spaces}${key}:\n${stringifyYaml(value, indent + 1)}`;
+        }
+        return `${spaces}${key}: ${stringifyYaml(value, indent)}`;
+      })
+      .join("\n");
+  }
+
+  return String(obj);
+}
 
 /**
  * Base64URL encode.
@@ -395,8 +455,8 @@ export async function createBundle(
     files: [],
   };
 
-  // Serialize manifest to YAML
-  const manifestYaml = YAML.stringify(manifest);
+  // Serialize manifest to YAML (simple format, no external dependency)
+  const manifestYaml = stringifyYaml(manifest);
   const manifestBytes = new TextEncoder().encode(manifestYaml);
 
   // Sign manifest

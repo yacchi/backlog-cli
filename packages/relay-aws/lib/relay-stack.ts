@@ -1,6 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import { LoggingFormat } from "aws-cdk-lib/aws-lambda";
+import { LoggingFormat, AssetHashType } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as logs from "aws-cdk-lib/aws-logs";
@@ -140,6 +140,8 @@ export class RelayStack extends cdk.Stack {
         HOME: "/tmp",
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
         WEB_ASSETS_DIR: assetsDirName,
+        // Force update timestamp - change this to redeploy Lambda
+        DEPLOY_VERSION: "2026-01-05-landing-page-v4",
       },
       description: "Backlog CLI OAuth Relay Server (TypeScript)",
       bundling: {
@@ -406,6 +408,7 @@ export class RelayStack extends cdk.Stack {
     // 動的コンテンツ用（オリジンのCache-Controlを尊重）
     // minTtl = 0 でオリジンの no-cache/no-store を尊重
     // defaultTtl はオリジンがCache-Controlを返さない場合のフォールバック
+    // Accept-Language をキャッシュキーに含めて言語別にキャッシュ
     const dynamicContentsCachePolicy = new cloudfront.CachePolicy(
       this,
       "DynamicContentsCachePolicy",
@@ -417,6 +420,9 @@ export class RelayStack extends cdk.Stack {
         minTtl: cdk.Duration.seconds(cacheConfig.apiMinTtl),
         enableAcceptEncodingGzip: true,
         enableAcceptEncodingBrotli: true,
+        headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
+          "Accept-Language"
+        ),
       },
     );
 

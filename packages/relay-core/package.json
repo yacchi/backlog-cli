@@ -23,7 +23,6 @@
     "bcryptjs": "^3.0.3",
     "fflate": "^0.8.2",
     "hono": "^4.7.10",
-    "yaml": "^2.8.2",
     "zod": "^4.3.4"
   },
   "devDependencies": {
