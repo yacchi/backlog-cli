@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+public/
+
+# User config (contains secrets)
+config.ts
+
+# Wrangler local development
+.dev.vars
+.wrangler/

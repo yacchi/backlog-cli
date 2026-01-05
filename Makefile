@@ -7,9 +7,9 @@ BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # ビルドフラグ
 LDFLAGS := -ldflags "-s -w \
-	-X github.com/yacchi/backlog-cli/internal/cmd.Version=$(VERSION) \
-	-X github.com/yacchi/backlog-cli/internal/cmd.Commit=$(COMMIT) \
-	-X github.com/yacchi/backlog-cli/internal/cmd.BuildDate=$(BUILD_DATE)"
+	-X github.com/yacchi/backlog-cli/packages/backlog/internal/cmd.Version=$(VERSION) \
+	-X github.com/yacchi/backlog-cli/packages/backlog/internal/cmd.Commit=$(COMMIT) \
+	-X github.com/yacchi/backlog-cli/packages/backlog/internal/cmd.BuildDate=$(BUILD_DATE)"
 
 # 出力先
 BUILD_DIR := ./build
@@ -52,20 +52,21 @@ tidy:
 
 # OpenAPI コード生成
 generate:
-	go tool ogen --target internal/backlog --clean --package backlog api/openapi.yaml
+	go tool ogen --target packages/backlog/internal/backlog --clean --package backlog api/openapi.yaml
 	@echo "Applying post-generation fixes for null handling..."
 	@./scripts/fix-ogen-null.sh
 
 # OpenAPI コード生成（修正なし、デバッグ用）
 generate-raw:
-	go tool ogen --target internal/backlog --clean --package backlog api/openapi.yaml
+	go tool ogen --target packages/backlog/internal/backlog --clean --package backlog api/openapi.yaml
 
 # クリーン
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
-	rm -rf internal/ui/dist web/node_modules/.vite
+	rm -rf $(TMP_DIR)
+	$(MAKE) -C packages/web clean
 
 # Temporary directory for stamps
 TMP_DIR := .tmp
@@ -80,9 +81,9 @@ GEN_STAMP := $(TMP_DIR)/.buf-generate-stamp
 # Generate proto files only when sources change
 $(GEN_STAMP): $(PROTO_SOURCES) $(BUF_CONFIG)
 	mise exec -- buf generate
-	rm -rf web/src/gen
-	cp -r gen/ts web/src/gen
-	cd web && pnpm install --frozen-lockfile && pnpm exec prettier --write src/gen/
+	rm -rf packages/web/src/gen
+	cp -r gen/ts packages/web/src/gen
+	cd packages/web && pnpm install --frozen-lockfile && pnpm exec prettier --write src/gen/
 	@mkdir -p $(TMP_DIR)
 	@touch $@
 
@@ -99,24 +100,37 @@ buf-generate-force:
 buf-lint:
 	mise exec -- buf lint
 
-# フロントエンドビルド
-build-web: buf-generate
-	cd web && pnpm install --frozen-lockfile && pnpm build
-	rm -rf internal/ui/dist
-	cp -r web/dist internal/ui/dist
+# ==== フロントエンド (packages/web) ====
+
+# フロントエンドビルド（サブモジュールに委譲）
+# buf-generate の後に実行する必要がある
+build-web: $(GEN_STAMP)
+	$(MAKE) -C packages/web build
+
+# 強制的に再ビルド
+.PHONY: build-web-force
+build-web-force:
+	$(MAKE) -C packages/web build-force
 
 # フロントエンド開発サーバー
 dev-web:
-	cd web && pnpm dev
+	$(MAKE) -C packages/web dev
 
 # 開発用ビルド（フロントエンドビルドをスキップ）
 build-dev:
 	@mkdir -p $(BUILD_DIR)
 	go build -tags=dev $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/backlog
 
-# 中継サーバー起動（開発用、go run使用）
-serve:
-	go run ./cmd/backlog serve $(ARGS)
+# 中継サーバー起動（開発用、TypeScript実装）
+# Node.js 24+ の erasableSyntaxOnly により、TypeScript設定ファイルを直接読み込み
+# 設定はJSONに変換してRELAY_CONFIG環境変数として渡す（Docker/Lambda互換）
+serve: build-web build-relay-core
+	@if [ ! -f config.dev.ts ]; then \
+		echo "Error: config.dev.ts not found. Copy from config.dev.example.ts and configure."; \
+		exit 1; \
+	fi
+	$(eval RELAY_CONFIG := $(shell mise exec -- node -e "import('./config.dev.ts').then(m => console.log(JSON.stringify(m.config)))"))
+	RELAY_CONFIG='$(RELAY_CONFIG)' WEB_DIST_PATH=$(PWD)/packages/web/dist pnpm --filter @backlog-cli/relay-docker dev
 
 # インストール
 install: build
@@ -131,3 +145,30 @@ build-all:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-amd64 ./cmd/backlog
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-arm64 ./cmd/backlog
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe ./cmd/backlog
+
+# ==== 中継サーバー (TypeScript) ====
+
+# 中継サーバー共通ライブラリのビルド
+.PHONY: build-relay-core
+build-relay-core:
+	pnpm --filter @backlog-cli/relay-core build
+
+# 中継サーバー（Docker）
+# 注意: ビルドは packages/relay-docker の責務
+.PHONY: build-relay-docker
+build-relay-docker:
+	$(MAKE) -C packages/relay-docker build
+
+# 中継サーバー（Cloudflare Workers）
+# 注意: デプロイは packages/relay-cloudflare の責務
+# アセットコピーは packages/relay-cloudflare/Makefile で行う
+
+# 中継サーバー（AWS Lambda）
+# 注意: ビルド・デプロイは packages/relay-aws の責務
+.PHONY: build-relay-aws
+build-relay-aws:
+	$(MAKE) -C packages/relay-aws build
+
+.PHONY: deploy-relay-aws
+deploy-relay-aws:
+	$(MAKE) -C packages/relay-aws deploy

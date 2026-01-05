@@ -1,0 +1,17 @@
+{
+  "name": "backlog-cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter web build",
+    "build:relay": "pnpm --filter '@backlog-cli/relay-*' build",
+    "dev:web": "pnpm --filter web dev",
+    "dev:relay": "pnpm --filter @backlog-cli/relay-docker dev",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@backlog-cli/relay-core": "workspace:*"
+  }
+}

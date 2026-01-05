@@ -1,0 +1,31 @@
+{
+  "name": "@backlog-cli/relay-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev:setup": "tsx scripts/dev-setup.ts",
+    "dev": "pnpm dev:setup && wrangler dev",
+    "deploy": "tsx scripts/deploy.ts",
+    "deploy:dev": "tsx scripts/deploy.ts --env dev",
+    "build": "tsc --noEmit",
+    "lint": "eslint src/ scripts/",
+    "lint:typecheck": "tsc",
+    "lint:fix": "eslint src/ scripts/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@backlog-cli/relay-core": "workspace:*",
+    "hono": "^4.7.11"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250627.0",
+    "@types/node": "^22.15.29",
+    "tsx": "^4.20.4",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.20.0"
+  }
+}

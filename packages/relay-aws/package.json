@@ -1,0 +1,44 @@
+{
+  "name": "@backlog-cli/relay-aws",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth",
+    "invalidate-cache": "./scripts/invalidate-cache.sh",
+    "lint": "eslint lib/",
+    "lint:typecheck": "tsc",
+    "lint:fix": "eslint lib/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@backlog-cli/relay-core": "workspace:*",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0",
+    "hono": "^4.7.11",
+    "source-map-support": "^0.5.21"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-ssm": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-ssm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-ssm": "^3.0.0",
+    "@types/aws-lambda": "^8.10.159",
+    "@types/node": "^22.15.29",
+    "aws-cdk": "^2.170.0",
+    "esbuild": "^0.27.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
