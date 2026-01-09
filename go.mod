@@ -56,4 +56,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-tool github.com/ogen-go/ogen/cmd/ogen
+tool (
+	github.com/ogen-go/ogen/cmd/ogen
+	github.com/yacchi/jubako/cmd/jubako
+)
