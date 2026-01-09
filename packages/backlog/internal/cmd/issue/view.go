@@ -90,13 +90,55 @@ func runView(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
 
+	// コメント取得条件の決定
+	showComments := viewComments != ""
+	fetchAll := false
+	fetchCount := 0
+
+	if showComments {
+		switch viewComments {
+		case "default":
+			fetchCount = display.DefaultCommentCount
+			if fetchCount == 0 {
+				fetchCount = 10 // fallback
+			}
+		case "all", "0":
+			fetchAll = true
+		default:
+			// 数値として解析
+			if n, err := strconv.Atoi(viewComments); err == nil && n > 0 {
+				fetchCount = n
+			} else {
+				// 不正な値の場合はデフォルト
+				fetchCount = display.DefaultCommentCount
+				if fetchCount == 0 {
+					fetchCount = 10
+				}
+			}
+		}
+	}
+
+	// コメント取得
+	var comments []api.Comment
+	if fetchAll {
+		comments, _ = fetchAllComments(ctx, client, issueKey)
+	} else if fetchCount > 0 {
+		if fetchCount > 100 {
+			fetchCount = 100
+		}
+		comments, _ = client.GetComments(ctx, issueKey, &api.CommentListOptions{
+			Count: fetchCount,
+			Order: "desc",
+		})
+	}
+
 	// 出力
 	switch profile.Output {
 	case "json":
 		if viewBrief {
 			return outputBriefJSON(issue, profile)
 		}
-		return cmdutil.OutputJSONFromProfile(issue, profile)
+		return outputIssueJSON(issue, comments, showComments, profile)
 	default:
 		if viewBrief {
 			return renderIssueBrief(issue, profile)
@@ -107,7 +149,7 @@ func runView(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
 		projectKey := cmdutil.GetCurrentProject(cfg)
-		return renderIssueDetail(ctx, client, issue, profile, display, projectKey, markdownOpts, c.OutOrStdout())
+		return renderIssueDetail(issue, comments, showComments, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
@@ -175,7 +217,24 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 	return cmdutil.OutputJSONFromProfile(brief, profile)
 }
 
-func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
+// IssueWithComments is a wrapper for issue with comments for JSON output
+type IssueWithComments struct {
+	Issue    *backlog.Issue `json:"issue"`
+	Comments []api.Comment  `json:"comments,omitempty"`
+}
+
+// outputIssueJSON outputs issue with optional comments as JSON
+func outputIssueJSON(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile) error {
+	if showComments {
+		return cmdutil.OutputJSONFromProfile(IssueWithComments{
+			Issue:    issue,
+			Comments: comments,
+		}, profile)
+	}
+	return cmdutil.OutputJSONFromProfile(issue, profile)
+}
+
+func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
 	if viewSummaryWithComments {
 		viewSummary = true
@@ -253,62 +312,10 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		fmt.Printf("Milestone:  %s\n", strings.Join(milestones, ", "))
 	}
 
-	// コメント取得条件の決定
+	// AI要約用のコメント数設定
 	summaryCommentCount := display.SummaryCommentCount
 	if viewSummaryCommentCount >= 0 {
 		summaryCommentCount = viewSummaryCommentCount
-	}
-
-	// viewComments の解析: "", "default", "all", "0", or numeric
-	showComments := viewComments != ""
-	fetchAll := false
-	fetchCount := 0
-
-	if showComments {
-		switch viewComments {
-		case "default":
-			fetchCount = display.DefaultCommentCount
-			if fetchCount == 0 {
-				fetchCount = 10 // fallback
-			}
-		case "all", "0":
-			fetchAll = true
-		default:
-			// 数値として解析
-			if n, err := strconv.Atoi(viewComments); err == nil && n > 0 {
-				fetchCount = n
-			} else {
-				// 不正な値の場合はデフォルト
-				fetchCount = display.DefaultCommentCount
-				if fetchCount == 0 {
-					fetchCount = 10
-				}
-			}
-		}
-	}
-
-	// viewSummaryWithComments が有効な場合のみ、要約用のコメント取得を考慮する
-	if viewSummaryWithComments && summaryCommentCount > 0 {
-		if summaryCommentCount > fetchCount {
-			fetchCount = summaryCommentCount
-		}
-	}
-
-	// コメント取得
-	var comments []api.Comment
-	if fetchAll {
-		// 全件取得（ページネーション使用）
-		comments, _ = fetchAllComments(ctx, client, key)
-	} else if fetchCount > 0 {
-		// API上限(100)を超えないように制限
-		if fetchCount > 100 {
-			fetchCount = 100
-		}
-		comments, _ = client.GetComments(ctx, key, &api.CommentListOptions{
-			Count: fetchCount,
-			Order: "desc",
-		})
-		// コメント取得失敗は致命的ではないとする
 	}
 
 	// AI要約
