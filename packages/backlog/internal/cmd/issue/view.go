@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -27,14 +28,16 @@ If project is configured, you can omit the project prefix:
 Examples:
   backlog issue view PROJ-123
   backlog issue view 123       # uses configured project
-  backlog issue view PROJ-123 --comments
+  backlog issue view PROJ-123 -c           # show comments (default count)
+  backlog issue view PROJ-123 -c=50        # show 50 comments
+  backlog issue view PROJ-123 -c=all       # show all comments
   backlog issue view PROJ-123 --summary`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
 }
 
 var (
-	viewComments            bool
+	viewComments            string // empty: no comments, "default": use default count, number: specific count, "all": fetch all
 	viewWeb                 bool
 	viewSummary             bool
 	viewSummaryWithComments bool
@@ -47,7 +50,8 @@ var (
 )
 
 func init() {
-	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "Show comments")
+	viewCmd.Flags().StringVarP(&viewComments, "comments", "c", "", "Show comments: -c (default count), -c=N (N comments), -c=all (all comments)")
+	viewCmd.Flags().Lookup("comments").NoOptDefVal = "default"
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary (description only)")
 	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
@@ -255,13 +259,34 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		summaryCommentCount = viewSummaryCommentCount
 	}
 
+	// viewComments の解析: "", "default", "all", "0", or numeric
+	showComments := viewComments != ""
+	fetchAll := false
 	fetchCount := 0
-	if viewComments {
-		fetchCount = display.DefaultCommentCount
-		if fetchCount == 0 {
-			fetchCount = 10 // fallback
+
+	if showComments {
+		switch viewComments {
+		case "default":
+			fetchCount = display.DefaultCommentCount
+			if fetchCount == 0 {
+				fetchCount = 10 // fallback
+			}
+		case "all", "0":
+			fetchAll = true
+		default:
+			// 数値として解析
+			if n, err := strconv.Atoi(viewComments); err == nil && n > 0 {
+				fetchCount = n
+			} else {
+				// 不正な値の場合はデフォルト
+				fetchCount = display.DefaultCommentCount
+				if fetchCount == 0 {
+					fetchCount = 10
+				}
+			}
 		}
 	}
+
 	// viewSummaryWithComments が有効な場合のみ、要約用のコメント取得を考慮する
 	if viewSummaryWithComments && summaryCommentCount > 0 {
 		if summaryCommentCount > fetchCount {
@@ -269,14 +294,16 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 		}
 	}
 
-	// API上限(100)を超えないように制限
-	if fetchCount > 100 {
-		fetchCount = 100
-	}
-
 	// コメント取得
 	var comments []api.Comment
-	if fetchCount > 0 {
+	if fetchAll {
+		// 全件取得（ページネーション使用）
+		comments, _ = fetchAllComments(ctx, client, key)
+	} else if fetchCount > 0 {
+		// API上限(100)を超えないように制限
+		if fetchCount > 100 {
+			fetchCount = 100
+		}
 		comments, _ = client.GetComments(ctx, key, &api.CommentListOptions{
 			Count: fetchCount,
 			Order: "desc",
@@ -344,9 +371,9 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 	fmt.Printf("URL: %s\n", ui.Hyperlink(issueURL, ui.Cyan(issueURL)))
 
 	// コメント
-	if viewComments && len(comments) > 0 {
+	if showComments && len(comments) > 0 {
 		fmt.Println()
-		fmt.Println(ui.Bold("Recent Comments"))
+		fmt.Println(ui.Bold("Comments"))
 		fmt.Println(strings.Repeat("─", 60))
 
 		// 表示件数はオプションで制御されていないが、APIで20件取ってきているのでそれを表示
@@ -367,4 +394,43 @@ func renderIssueDetail(ctx context.Context, client *api.Client, issue *backlog.I
 	}
 
 	return nil
+}
+
+// fetchAllComments は課題の全コメントをページネーションで取得する
+func fetchAllComments(ctx context.Context, client *api.Client, issueKey string) ([]api.Comment, error) {
+	const batchSize = 100
+	var allComments []api.Comment
+	maxID := 0
+
+	for {
+		opts := &api.CommentListOptions{
+			Count: batchSize,
+			Order: "desc",
+		}
+		if maxID > 0 {
+			opts.MaxID = maxID
+		}
+
+		batch, err := client.GetComments(ctx, issueKey, opts)
+		if err != nil {
+			return allComments, err
+		}
+
+		if len(batch) == 0 {
+			break
+		}
+
+		allComments = append(allComments, batch...)
+
+		// 次のページ用に最小のIDを取得
+		lastComment := batch[len(batch)-1]
+		maxID = lastComment.ID
+
+		// 取得件数がbatchSizeより少なければ、これ以上ない
+		if len(batch) < batchSize {
+			break
+		}
+	}
+
+	return allComments, nil
 }
