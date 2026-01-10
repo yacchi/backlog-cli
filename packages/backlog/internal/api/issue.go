@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/backlog"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // Issue は課題情報

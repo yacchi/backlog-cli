@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	authv1 "github.com/yacchi/backlog-cli/gen/go/auth/v1"
-	"github.com/yacchi/backlog-cli/gen/go/auth/v1/authv1connect"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
+	authv1 "github.com/yacchi/backlog-cli/packages/backlog/internal/gen/auth/v1"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/auth/v1/authv1connect"
 )
 
 // CallbackServerがAuthServiceHandlerを実装していることをコンパイル時に検証

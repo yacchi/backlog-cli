@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/ogen-go/ogen/ogenerrors"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cache"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // Client は Backlog API クライアント

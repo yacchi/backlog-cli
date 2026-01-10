@@ -52,13 +52,13 @@ tidy:
 
 # OpenAPI コード生成
 generate:
-	go tool ogen --target packages/backlog/internal/backlog --clean --package backlog api/openapi.yaml
+	go tool ogen --target packages/backlog/internal/gen/backlog --clean --package backlog docs/api/openapi.yaml
 	@echo "Applying post-generation fixes for null handling..."
 	@./scripts/fix-ogen-null.sh
 
 # OpenAPI コード生成（修正なし、デバッグ用）
 generate-raw:
-	go tool ogen --target packages/backlog/internal/backlog --clean --package backlog api/openapi.yaml
+	go tool ogen --target packages/backlog/internal/gen/backlog --clean --package backlog docs/api/openapi.yaml
 
 # クリーン
 clean:
@@ -81,9 +81,7 @@ GEN_STAMP := $(TMP_DIR)/.buf-generate-stamp
 # Generate proto files only when sources change
 $(GEN_STAMP): $(PROTO_SOURCES) $(BUF_CONFIG)
 	mise exec -- buf generate
-	rm -rf packages/web/src/gen
-	cp -r gen/ts packages/web/src/gen
-	cd packages/web && pnpm install --frozen-lockfile && pnpm exec prettier --write src/gen/
+	cd packages/web && pnpm exec prettier --write src/gen/
 	@mkdir -p $(TMP_DIR)
 	@touch $@
 

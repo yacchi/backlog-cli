@@ -1501,6 +1501,69 @@ func (o OptNilInt) Or(d int) int {
 	return d
 }
 
+// NewOptNilNulabAccount returns new OptNilNulabAccount with value set to v.
+func NewOptNilNulabAccount(v NulabAccount) OptNilNulabAccount {
+	return OptNilNulabAccount{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilNulabAccount is optional nullable NulabAccount.
+type OptNilNulabAccount struct {
+	Value NulabAccount
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilNulabAccount was set.
+func (o OptNilNulabAccount) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilNulabAccount) Reset() {
+	var v NulabAccount
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilNulabAccount) SetTo(v NulabAccount) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilNulabAccount) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilNulabAccount) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v NulabAccount
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilNulabAccount) Get() (v NulabAccount, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilNulabAccount) Or(d NulabAccount) NulabAccount {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptNilResolution returns new OptNilResolution with value set to v.
 func NewOptNilResolution(v Resolution) OptNilResolution {
 	return OptNilResolution{
@@ -1684,52 +1747,6 @@ func (o OptNilUser) Get() (v User, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilUser) Or(d User) User {
-	if v, ok := o.Get(); ok {
-		return v
-	}
-	return d
-}
-
-// NewOptNulabAccount returns new OptNulabAccount with value set to v.
-func NewOptNulabAccount(v NulabAccount) OptNulabAccount {
-	return OptNulabAccount{
-		Value: v,
-		Set:   true,
-	}
-}
-
-// OptNulabAccount is optional NulabAccount.
-type OptNulabAccount struct {
-	Value NulabAccount
-	Set   bool
-}
-
-// IsSet returns true if OptNulabAccount was set.
-func (o OptNulabAccount) IsSet() bool { return o.Set }
-
-// Reset unsets value.
-func (o *OptNulabAccount) Reset() {
-	var v NulabAccount
-	o.Value = v
-	o.Set = false
-}
-
-// SetTo sets value to v.
-func (o *OptNulabAccount) SetTo(v NulabAccount) {
-	o.Set = true
-	o.Value = v
-}
-
-// Get returns value and boolean that denotes whether value was set.
-func (o OptNulabAccount) Get() (v NulabAccount, ok bool) {
-	if !o.Set {
-		return v, false
-	}
-	return o.Value, true
-}
-
-// Or returns value if set, or given parameter if does not.
-func (o OptNulabAccount) Or(d NulabAccount) NulabAccount {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -3163,14 +3180,14 @@ func (s *UpdateWikiReq) SetMailNotify(val OptString) {
 
 // Ref: #/components/schemas/User
 type User struct {
-	ID            OptInt          `json:"id"`
-	UserId        OptString       `json:"userId"`
-	Name          OptString       `json:"name"`
-	RoleType      OptInt          `json:"roleType"`
-	Lang          OptString       `json:"lang"`
-	MailAddress   OptString       `json:"mailAddress"`
-	NulabAccount  OptNulabAccount `json:"nulabAccount"`
-	LastLoginTime OptString       `json:"lastLoginTime"`
+	ID            OptInt             `json:"id"`
+	UserId        OptString          `json:"userId"`
+	Name          OptString          `json:"name"`
+	RoleType      OptInt             `json:"roleType"`
+	Lang          OptString          `json:"lang"`
+	MailAddress   OptString          `json:"mailAddress"`
+	NulabAccount  OptNilNulabAccount `json:"nulabAccount"`
+	LastLoginTime OptString          `json:"lastLoginTime"`
 }
 
 // GetID returns the value of ID.
@@ -3204,7 +3221,7 @@ func (s *User) GetMailAddress() OptString {
 }
 
 // GetNulabAccount returns the value of NulabAccount.
-func (s *User) GetNulabAccount() OptNulabAccount {
+func (s *User) GetNulabAccount() OptNilNulabAccount {
 	return s.NulabAccount
 }
 
@@ -3244,7 +3261,7 @@ func (s *User) SetMailAddress(val OptString) {
 }
 
 // SetNulabAccount sets the value of NulabAccount.
-func (s *User) SetNulabAccount(val OptNulabAccount) {
+func (s *User) SetNulabAccount(val OptNilNulabAccount) {
 	s.NulabAccount = val
 }
 

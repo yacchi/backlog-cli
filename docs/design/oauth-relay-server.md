@@ -1,4 +1,4 @@
-# OAuth 2.0 中継サーバー設計書
+# OAuth 2.0 中継サーバー設計書（Backlog OAuth Relay）
 
 ## 1. 概要
 
@@ -17,6 +17,12 @@ Secretを持たせずに認証を実現する。
 
 中継サーバーを設置し、Client ID/Secretを中継サーバー側で管理する。CLIは中継サーバー経由でトークンの取得・更新を行う。
 
+### 1.4 実装の所在（このリポジトリ）
+
+- Relay の中核ロジック: `packages/relay-core/`
+- AWS デプロイ（CDK 等）: `packages/relay-aws/`
+- CLI 側の利用（well-known / token / start）: `packages/backlog/internal/auth/*`
+
 ---
 
 ## 2. 設計方針
@@ -26,7 +32,7 @@ Secretを持たせずに認証を実現する。
 | 要素         | 採用方式            | 理由                       |
 |------------|-----------------|--------------------------|
 | 認証フロー開始    | CLI ローカルサーバー起点  | state管理がCLI側で完結、Cookie不要 |
-| ポート情報の保持   | stateに署名付き埋め込み  | 中継サーバーがステートレスになる         |
+| ポート情報の保持   | stateに情報をエンコード（非署名） | 中継サーバーがステートレスになる（Cookie不要） |
 | 認可コードの受け渡し | HTTPリダイレクト（302） | JavaScript不要で信頼性が高い      |
 | トークン取得・更新  | 統一エンドポイント       | OAuth標準に沿った設計、実装がシンプル    |
 | state検証    | CLI側（ローカルサーバー）  | セキュリティ責務の明確化             |
@@ -123,24 +129,24 @@ Secretを持たせずに認証を実現する。
      │                   │    → 中継サーバー      │                      │
      │                   │    /auth/start?port=52847&state=xxx&space=yyy&domain=zzz
      │                   │─────────────────────>│                      │
-     │                   │                      │                      │
-     │                   │                      │ 6. パラメータ検証     │
-     │                   │                      │    署名付きstate生成  │
-     │                   │                      │                      │
-     │                   │                      │ 7. 302 Redirect      │
-     │                   │                      │    → Backlog認可URL   │
-     │                   │                      │    state=signed(port:cli_state)
-     │                   │                      │─────────────────────>│
+	     │                   │                      │                      │
+	     │                   │                      │ 6. パラメータ検証     │
+	     │                   │                      │    stateをエンコード  │
+	     │                   │                      │                      │
+	     │                   │                      │ 7. 302 Redirect      │
+	     │                   │                      │    → Backlog認可URL   │
+	     │                   │                      │    state=encoded_state
+	     │                   │                      │─────────────────────>│
      │                   │                      │                      │
      │                   │                      │      8. ユーザー認可   │
      │                   │                      │                      │
-     │                   │                      │ 9. 302 Redirect      │
-     │                   │                      │    → /auth/callback  │
-     │                   │                      │    ?code=xxx&state=signed(...)
-     │                   │                      │<─────────────────────│
-     │                   │                      │                      │
-     │                   │                      │ 10. state署名検証     │
-     │                   │                      │     port, cli_state抽出
+	     │                   │                      │ 9. 302 Redirect      │
+	     │                   │                      │    → /auth/callback  │
+	     │                   │                      │    ?code=xxx&state=encoded_state
+	     │                   │                      │<─────────────────────│
+	     │                   │                      │                      │
+	     │                   │                      │ 10. stateをデコード   │
+	     │                   │                      │     port, cli_state抽出
      │                   │                      │                      │
      │                   │ 11. 302 Redirect     │                      │
      │                   │     → localhost:52847/callback?code=xxx&state=cli_state
@@ -206,12 +212,13 @@ Secretを持たせずに認証を実現する。
 
 | メソッド | パス                      | 説明                   |
 |------|-------------------------|----------------------|
-| GET  | `/.well-known/bl-relay` | サーバー情報・対応ドメイン        |
+| GET  | `/.well-known/backlog-oauth-relay` | サーバー情報・対応ドメイン |
 | GET  | `/auth/start`           | 認可開始（Backlogへリダイレクト） |
 | GET  | `/auth/callback`        | Backlogからのコールバック受信   |
 | POST | `/auth/token`           | トークン取得・更新            |
+| GET  | `/health`               | ヘルスチェック              |
 
-### 5.2 GET /.well-known/bl-relay
+### 5.2 GET /.well-known/backlog-oauth-relay
 
 中継サーバーの情報を返す。CLIが中継サーバーの対応ドメインを確認するために使用。
 
@@ -219,17 +226,15 @@ Secretを持たせずに認証を実現する。
 
 ```json
 {
-  "version": "1",
-  "supported_domains": [
-    "backlog.jp",
-    "backlog.com"
-  ]
+  "version": "1.0",
+  "capabilities": ["oauth2", "token-exchange", "token-refresh"],
+  "supported_domains": ["backlog.jp", "backlog.com"]
 }
 ```
 
 ### 5.3 GET /auth/start
 
-認可フローを開始する。CLIから受け取ったパラメータを検証し、署名付きstateを生成してBacklog認可画面へリダイレクトする。
+認可フローを開始する。CLIから受け取ったパラメータを検証し、stateをエンコードしてBacklog認可画面へリダイレクトする。
 
 #### リクエスト
 
@@ -248,35 +253,40 @@ GET /auth/start?port=52847&state=xxx&space=myspace&domain=backlog.jp
 
 ```
 HTTP/1.1 302 Found
-Location: https://{space}.{domain}/OAuth2AccessRequest.action?response_type=code&client_id=xxx&redirect_uri=xxx&state=signed_state
+Location: https://{space}.{domain}/OAuth2AccessRequest.action?response_type=code&client_id=xxx&redirect_uri=xxx&state=encoded_state
+
+※ 現行実装では state は署名しません（`packages/relay-core/src/utils/state.ts`）。
 ```
 
-#### 署名付きstateの構造
+#### state（encoded_state）の構造
 
 ```
-signed_state = base64url(json({
+encoded_state = base64url(json({
   "port": 52847,
   "cli_state": "original_state_from_cli",
   "space": "myspace",
   "domain": "backlog.jp",
-  "exp": 1234567890
-})) + "." + signature
+  "project": "PROJ" // optional
+}))
 ```
+
+注: CSRF保護は CLI が生成した `cli_state` を、ローカルサーバーの `/callback` で **完全一致** で検証することで担保します
+（`packages/backlog/internal/auth/callback.go`）。
 
 ### 5.4 GET /auth/callback
 
-Backlogからの認可コールバックを受信し、署名を検証後、CLIのローカルサーバーへリダイレクトする。
+Backlogからの認可コールバックを受信し、state をデコード後、CLIのローカルサーバーへリダイレクトする。
 
 #### リクエスト
 
 ```
-GET /auth/callback?code=xxx&state=signed_state
+GET /auth/callback?code=xxx&state=encoded_state
 ```
 
 | パラメータ | 型      | 必須  | 説明        |
 |-------|--------|-----|-----------|
 | code  | string | Yes | 認可コード     |
-| state | string | Yes | 署名付きstate |
+| state | string | Yes | encoded_state |
 
 #### レスポンス（成功時）
 
@@ -393,8 +403,7 @@ Content-Type: application/json
 | 項目            | 対策                      |
 |---------------|-------------------------|
 | 通信の暗号化        | HTTPS必須                 |
-| state署名       | HMAC-SHA256で署名、有効期限を含める |
-| 署名シークレット      | 環境変数で管理、定期的にローテーション     |
+| state（relay）  | base64url(JSON) でエンコード（非署名） |
 | CORS          | 不要（ブラウザからの直接アクセスはない）    |
 | Rate Limiting | 認可開始エンドポイントに適用推奨        |
 
@@ -433,8 +442,7 @@ Content-Type: application/json
 |---------------|-----------|-----------------|
 | 不正なport       | 400       | invalid_request |
 | 不正なdomain     | 400       | invalid_request |
-| state署名不正     | 400       | invalid_state   |
-| state有効期限切れ   | 400       | expired_state   |
+| state不正（デコード失敗） | 400       | invalid_request |
 | 認可コード無効       | 400       | invalid_grant   |
 | リフレッシュトークン無効  | 400       | invalid_grant   |
 | Backlog API障害 | 502       | upstream_error  |
@@ -465,16 +473,16 @@ Content-Type: application/json
 
 **採用: CLI起点方式**
 
-### 9.2 署名付きstate vs Cookie
+### 9.2 stateエンコード（非署名） vs Cookie
 
-| 観点     | 署名付きstate（採用） | Cookie             |
+| 観点     | stateエンコード（採用） | Cookie             |
 |--------|---------------|--------------------|
 | ブラウザ制限 | 影響なし          | サードパーティCookie制限の影響 |
-| 実装複雑度  | 中（署名ロジック必要）   | 低                  |
+| 実装複雑度  | 中（エンコード/デコード） | 低                  |
 | ステートレス | Yes           | No                 |
 | 将来性    | 高             | Cookie制限強化の傾向      |
 
-**採用: 署名付きstate方式**
+**採用: stateエンコード方式（非署名）**
 
 ### 9.3 HTTPリダイレクト vs 自動POST
 

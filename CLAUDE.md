@@ -81,8 +81,18 @@ make clean
 
 ## 設計ドキュメント
 
-- `docs/oauth-relay-server-design.md` - OAuth中継サーバー設計書
-- `docs/relay-config-bundle-spec.md` - Relay Config Bundle仕様書
+- `docs/design/oauth-relay-server.md` - OAuth中継サーバー設計書
+- `docs/design/relay-config-bundle.md` - Relay Config Bundle仕様書
+- `docs/design/backlog-gfm-conversion.md` - Backlog記法→GFM変換仕様
+
+## ドキュメント運用（プロジェクトメモリ）
+
+- `docs/design/`: 「現状の実装」を説明する設計書の置き場（参照用のソースオブトゥルース）
+  - 実装が変わったら必ず更新する（仕様・フロー・データ形式・セキュリティ前提・制約）
+  - 実装プランから固まった内容は、ここに分割して残す
+- `docs/plans/`: 「これから実装する」ための実装プランの置き場
+  - 実装が完了したプランは残さない（必要な内容は `docs/design/` 側に設計書として移す）
+  - 今後もプラン作成時は `docs/plans/` を使う
 
 ## 重要な設計判断
 
@@ -95,7 +105,7 @@ make clean
 ### 2. OAuth認証フロー
 
 CLIにClient Secretを持たせず、中継サーバー経由でトークンを取得します。
-詳細は `docs/oauth-relay-server-design.md` を参照。
+詳細は `docs/design/oauth-relay-server.md` を参照。
 
 ### 3. 複数ドメイン対応
 
@@ -108,7 +118,7 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 ### 5. Relay Config Bundle
 
 組織が配布する設定バンドル（ZIP）を信頼の起点とし、CLIが不正な中継サーバーへ接続しないことを保証。
-詳細は `docs/relay-config-bundle-spec.md` を参照。
+詳細は `docs/design/relay-config-bundle.md` を参照。
 
 ## コーディング規約
 

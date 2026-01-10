@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ogen-go/ogen/ogenerrors"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/backlog"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // User はユーザー情報

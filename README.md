@@ -84,7 +84,7 @@ Relay Config Bundle は **中継サーバー側で作成・配布する前提** 
 
 ##### 1. 中継サーバーの環境変数を設定する
 
-`docs/relay-config-bundle-spec.md` の「サーバー側の設定と実装要件」に従って、
+`docs/design/relay-config-bundle.md` の「サーバー側の設定と実装要件」に従って、
 サーバー設定 (`server.tenants`) を用意します。
 
 ```yaml

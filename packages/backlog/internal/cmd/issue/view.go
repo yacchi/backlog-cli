@@ -10,9 +10,9 @@ import (
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/summary"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )

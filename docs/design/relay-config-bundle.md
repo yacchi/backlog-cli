@@ -1,4 +1,4 @@
-# Relay Config Bundle 仕様
+# Relay Config Bundle 仕様（信頼バンドル）
 
 ## 目的
 

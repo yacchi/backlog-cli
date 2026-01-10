@@ -18,8 +18,8 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/markdown"
 )
 

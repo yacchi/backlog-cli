@@ -1,14 +1,14 @@
 version: v2
 plugins:
   - remote: buf.build/protocolbuffers/go
-    out: gen/go
+    out: packages/backlog/internal/gen
     opt: paths=source_relative
   - remote: buf.build/connectrpc/go
-    out: gen/go
+    out: packages/backlog/internal/gen
     opt: paths=source_relative
   - remote: buf.build/bufbuild/es
-    out: gen/ts
+    out: packages/web/src/gen
     opt: target=ts
   - remote: buf.build/connectrpc/es
-    out: gen/ts
+    out: packages/web/src/gen
     opt: target=ts

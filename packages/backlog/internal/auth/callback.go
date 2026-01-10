@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yacchi/backlog-cli/gen/go/auth/v1/authv1connect"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/auth/v1/authv1connect"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 	"github.com/yacchi/backlog-cli/packages/web"
 )

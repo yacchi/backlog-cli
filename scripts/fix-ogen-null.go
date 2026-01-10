@@ -14,7 +14,7 @@ import (
 // nullチェックを追加する必要がある
 
 func main() {
-	targetFile := "internal/backlog/oas_json_gen.go"
+	targetFile := "packages/backlog/internal/gen/backlog/oas_json_gen.go"
 
 	content, err := os.ReadFile(targetFile)
 	if err != nil {

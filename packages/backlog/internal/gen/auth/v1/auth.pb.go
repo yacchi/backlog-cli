@@ -548,7 +548,7 @@ const file_auth_v1_auth_proto_rawDesc = "" +
 	"\tGetConfig\x12\x19.auth.v1.GetConfigRequest\x1a\x1a.auth.v1.GetConfigResponse\x12B\n" +
 	"\tConfigure\x12\x19.auth.v1.ConfigureRequest\x1a\x1a.auth.v1.ConfigureResponse\x12P\n" +
 	"\x13SubscribeAuthEvents\x12#.auth.v1.SubscribeAuthEventsRequest\x1a\x12.auth.v1.AuthEvent0\x01\x12i\n" +
-	"\x16AuthenticateWithApiKey\x12&.auth.v1.AuthenticateWithApiKeyRequest\x1a'.auth.v1.AuthenticateWithApiKeyResponseB5Z3github.com/yacchi/backlog-cli/gen/go/auth/v1;authv1b\x06proto3"
+	"\x16AuthenticateWithApiKey\x12&.auth.v1.AuthenticateWithApiKeyRequest\x1a'.auth.v1.AuthenticateWithApiKeyResponseBLZJgithub.com/yacchi/backlog-cli/packages/backlog/internal/gen/auth/v1;authv1b\x06proto3"
 
 var (
 	file_auth_v1_auth_proto_rawDescOnce sync.Once
