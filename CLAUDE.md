@@ -120,6 +120,26 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 組織が配布する設定バンドル（ZIP）を信頼の起点とし、CLIが不正な中継サーバーへ接続しないことを保証。
 詳細は `docs/design/relay-config-bundle.md` を参照。
 
+### 6. Backlog API クライアント実装
+
+**必須ルール**: Backlog API を呼び出す際は、以下の手順に従う。
+
+1. **OpenAPI 定義を追加**: `docs/api/openapi.yaml` にエンドポイントを定義
+2. **ogen で生成**: **必ず `make generate` を実行**してクライアントコードを生成（直接 ogen コマンドを叩かない）
+3. **生成クライアントを使用**: `internal/gen/backlog/` の生成コードを `internal/api/` でラップ
+
+**禁止事項**:
+- `http.NewRequest` 等を使った直接的な HTTP リクエストの実装
+- ogen 生成コードをバイパスする API 呼び出し
+- `make generate` 以外の方法で ogen を実行すること
+
+**ディレクトリ構成**:
+```
+docs/api/openapi.yaml          # OpenAPI 定義（ソース）
+internal/gen/backlog/          # ogen 生成コード（自動生成、編集禁止）
+internal/api/                  # API ラッパー（コマンドから呼び出す層）
+```
+
 ## コーディング規約
 
 - Go の標準的なスタイルに従う
@@ -127,6 +147,18 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 - パッケージ間の依存は internal/ 内で完結させる
 - テストは `*_test.go` に記述
 - **internal/ 配下は破壊的変更可**: プロジェクト内でコンパイルが通れば後方互換性の維持は不要
+
+## 実装完了時の必須チェック
+
+コード変更を完了する前に、以下のチェックを**必ず**実行すること:
+
+```bash
+make lint   # リントエラーがないこと
+make test   # テストがパスすること
+make build  # ビルドが成功すること
+```
+
+**理由**: CIで失敗するとマージできないため、ローカルで事前に確認する。
 
 ## 注意事項
 
