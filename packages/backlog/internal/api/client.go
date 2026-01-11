@@ -249,6 +249,11 @@ func (c *Client) baseURL() string {
 	return fmt.Sprintf("https://%s.%s/api/v2", c.space, c.domain)
 }
 
+// RawBaseURL returns the base URL without the /api/v2 suffix
+func (c *Client) RawBaseURL() string {
+	return fmt.Sprintf("https://%s.%s", c.space, c.domain)
+}
+
 // ensureValidToken はトークンが有効か確認し、必要なら更新する
 func (c *Client) ensureValidToken(ctx context.Context) error {
 	if c.refreshToken == "" || c.relayServer == "" {
@@ -436,6 +441,46 @@ func (c *Client) Patch(ctx context.Context, path string, body interface{}) (*htt
 // Delete はDELETEリクエストを実行する
 func (c *Client) Delete(ctx context.Context, path string) (*http.Response, error) {
 	return c.Request(ctx, "DELETE", path, nil, nil)
+}
+
+// RawRequest は任意のパスに対してAPIリクエストを実行する（/api/v2 プレフィックスなし）
+// backlog api コマンドなど、任意のAPIバージョンにアクセスする場合に使用
+func (c *Client) RawRequest(ctx context.Context, method, path string, query url.Values, body io.Reader, contentType string) (*http.Response, error) {
+	// OAuth認証の場合のみトークン更新チェック
+	if c.apiKey == "" {
+		if err := c.ensureValidToken(ctx); err != nil {
+			return nil, fmt.Errorf("token refresh failed: %w", err)
+		}
+	}
+
+	u := c.RawBaseURL() + path
+
+	// クエリパラメータの構築
+	if query == nil {
+		query = url.Values{}
+	}
+	// API Key認証の場合はクエリパラメータに追加
+	if c.apiKey != "" {
+		query.Set("apiKey", c.apiKey)
+	}
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	// OAuth認証の場合のみAuthorizationヘッダーを設定
+	if c.apiKey == "" && c.accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	return c.httpClient.Do(req)
 }
 
 // DeleteWithForm はフォーム形式でDELETEする

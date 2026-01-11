@@ -484,11 +484,93 @@ components:
         name:
           type: string
 
+    Space:
+      type: object
+      properties:
+        spaceKey:
+          type: string
+        name:
+          type: string
+        ownerId:
+          type: integer
+        lang:
+          type: string
+        timezone:
+          type: string
+        reportSendTime:
+          type: string
+        textFormattingRule:
+          type: string
+        created:
+          type: string
+        updated:
+          type: string
+
+    CustomField:
+      type: object
+      properties:
+        id:
+          type: integer
+        typeId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        required:
+          type: boolean
+        applicableIssueTypes:
+          type: array
+          items:
+            type: integer
+        allowAddItem:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomFieldItem'
+
+    CustomFieldItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+
 security:
   - OAuth2: []
   - ApiKey: []
 
 paths:
+  /space:
+    get:
+      operationId: getSpace
+      summary: Get space information
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Space'
+
+  /users:
+    get:
+      operationId: getUsers
+      summary: Get all users
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
   /users/myself:
     get:
       operationId: getCurrentUser
@@ -518,6 +600,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+
+  /priorities:
+    get:
+      operationId: getPriorities
+      summary: Get all priorities
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Priority'
+
+  /resolutions:
+    get:
+      operationId: getResolutions
+      summary: Get all resolutions
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resolution'
 
   /projects:
     get:
@@ -595,6 +705,75 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Category'
+    post:
+      operationId: createCategory
+      summary: Create category
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /projects/{projectIdOrKey}/categories/{categoryId}:
+    delete:
+      operationId: deleteCategory
+      summary: Delete category
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /projects/{projectIdOrKey}/customFields:
+    get:
+      operationId: getCustomFields
+      summary: Get custom fields
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomField'
 
   /projects/{projectIdOrKey}/versions:
     get:

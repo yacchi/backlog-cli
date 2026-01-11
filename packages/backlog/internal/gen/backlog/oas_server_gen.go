@@ -14,6 +14,12 @@ type Handler interface {
 	//
 	// POST /issues/{issueIdOrKey}/comments
 	AddComment(ctx context.Context, req OptAddCommentReq, params AddCommentParams) (*Comment, error)
+	// CreateCategory implements createCategory operation.
+	//
+	// Create category.
+	//
+	// POST /projects/{projectIdOrKey}/categories
+	CreateCategory(ctx context.Context, req OptCreateCategoryReq, params CreateCategoryParams) (*Category, error)
 	// CreateIssue implements createIssue operation.
 	//
 	// Create issue.
@@ -26,6 +32,12 @@ type Handler interface {
 	//
 	// POST /wikis
 	CreateWiki(ctx context.Context, req OptCreateWikiReq) (*Wiki, error)
+	// DeleteCategory implements deleteCategory operation.
+	//
+	// Delete category.
+	//
+	// DELETE /projects/{projectIdOrKey}/categories/{categoryId}
+	DeleteCategory(ctx context.Context, params DeleteCategoryParams) (*Category, error)
 	// DeleteIssue implements deleteIssue operation.
 	//
 	// Delete issue.
@@ -68,6 +80,12 @@ type Handler interface {
 	//
 	// GET /users/myself
 	GetCurrentUser(ctx context.Context) (*User, error)
+	// GetCustomFields implements getCustomFields operation.
+	//
+	// Get custom fields.
+	//
+	// GET /projects/{projectIdOrKey}/customFields
+	GetCustomFields(ctx context.Context, params GetCustomFieldsParams) ([]CustomField, error)
 	// GetIssue implements getIssue operation.
 	//
 	// Get issue.
@@ -92,6 +110,12 @@ type Handler interface {
 	//
 	// GET /issues/count
 	GetIssuesCount(ctx context.Context, params GetIssuesCountParams) (*GetIssuesCountOK, error)
+	// GetPriorities implements getPriorities operation.
+	//
+	// Get all priorities.
+	//
+	// GET /priorities
+	GetPriorities(ctx context.Context) ([]Priority, error)
 	// GetProject implements getProject operation.
 	//
 	// Get project.
@@ -134,6 +158,18 @@ type Handler interface {
 	//
 	// GET /projects/{projectIdOrKey}/git/repositories
 	GetRepositories(ctx context.Context, params GetRepositoriesParams) ([]Repository, error)
+	// GetResolutions implements getResolutions operation.
+	//
+	// Get all resolutions.
+	//
+	// GET /resolutions
+	GetResolutions(ctx context.Context) ([]Resolution, error)
+	// GetSpace implements getSpace operation.
+	//
+	// Get space information.
+	//
+	// GET /space
+	GetSpace(ctx context.Context) (*Space, error)
 	// GetStatuses implements getStatuses operation.
 	//
 	// Get statuses.
@@ -146,6 +182,12 @@ type Handler interface {
 	//
 	// GET /users/{userId}
 	GetUser(ctx context.Context, params GetUserParams) (*User, error)
+	// GetUsers implements getUsers operation.
+	//
+	// Get all users.
+	//
+	// GET /users
+	GetUsers(ctx context.Context) ([]User, error)
 	// GetVersions implements getVersions operation.
 	//
 	// Get versions.
