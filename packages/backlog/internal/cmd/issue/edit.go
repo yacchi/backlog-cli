@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
 
@@ -35,14 +36,19 @@ Examples:
 }
 
 var (
-	editTitle    string
-	editBody     string
-	editBodyFile string
-	editStatusID int
-	editPriority int
-	editAssignee string
-	editDueDate  string
-	editComment  string
+	editTitle            string
+	editBody             string
+	editBodyFile         string
+	editStatusID         int
+	editPriority         int
+	editAssignee         string
+	editDueDate          string
+	editComment          string
+	editMilestones       string
+	editCategories       string
+	editAddCategories    string
+	editRemoveCategories string
+	editRemoveMilestone  bool
 )
 
 func init() {
@@ -54,6 +60,11 @@ func init() {
 	editCmd.Flags().StringVarP(&editAssignee, "assignee", "a", "", "Assignee (user ID or @me)")
 	editCmd.Flags().StringVar(&editDueDate, "due", "", "Due date (YYYY-MM-DD)")
 	editCmd.Flags().StringVarP(&editComment, "comment", "c", "", "Comment to add")
+	editCmd.Flags().StringVarP(&editMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
+	editCmd.Flags().StringVar(&editCategories, "category", "", "Category IDs or names (comma-separated)")
+	editCmd.Flags().StringVar(&editAddCategories, "add-category", "", "Add categories by name (comma-separated)")
+	editCmd.Flags().StringVar(&editRemoveCategories, "remove-category", "", "Remove categories by name (comma-separated)")
+	editCmd.Flags().BoolVar(&editRemoveMilestone, "remove-milestone", false, "Remove milestone from the issue")
 }
 
 func runEdit(c *cobra.Command, args []string) error {
@@ -117,6 +128,92 @@ func runEdit(c *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid assignee ID: %s", editAssignee)
 		}
 		input.AssigneeID = &assigneeID
+		hasUpdate = true
+	}
+
+	// マイルストーン・カテゴリの処理にはプロジェクトキーが必要
+	resolvedKey, projectKey := cmdutil.ResolveIssueKey(issueKey, cmdutil.GetCurrentProject(cfg))
+
+	// 差分操作が必要な場合は現在の課題情報を取得
+	needsFetch := editAddCategories != "" || editRemoveCategories != "" || editRemoveMilestone
+	var currentIssue *backlog.Issue
+	if needsFetch {
+		var err error
+		currentIssue, err = client.GetIssue(ctx, resolvedKey)
+		if err != nil {
+			return fmt.Errorf("failed to get current issue: %w", err)
+		}
+	}
+
+	// マイルストーン
+	if editRemoveMilestone {
+		// 空配列を設定してマイルストーンを解除
+		input.MilestoneIDs = []int{}
+		hasUpdate = true
+	} else if editMilestones != "" {
+		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, editMilestones)
+		if err != nil {
+			return fmt.Errorf("failed to resolve milestones: %w", err)
+		}
+		input.MilestoneIDs = milestoneIDs
+		hasUpdate = true
+	}
+
+	// カテゴリ（完全置換）
+	if editCategories != "" {
+		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, editCategories)
+		if err != nil {
+			return fmt.Errorf("failed to resolve categories: %w", err)
+		}
+		input.CategoryIDs = categoryIDs
+		hasUpdate = true
+	}
+
+	// カテゴリ追加（差分操作）
+	if editAddCategories != "" {
+		addIDs, err := resolveCategoryIDs(ctx, client, projectKey, editAddCategories)
+		if err != nil {
+			return fmt.Errorf("failed to resolve categories to add: %w", err)
+		}
+		// 現在のカテゴリIDを取得
+		currentIDs := make(map[int]bool)
+		for _, cat := range currentIssue.Category {
+			if cat.ID.IsSet() {
+				currentIDs[cat.ID.Value] = true
+			}
+		}
+		// 追加するIDをマージ
+		for _, id := range addIDs {
+			currentIDs[id] = true
+		}
+		// mapをsliceに変換
+		result := make([]int, 0, len(currentIDs))
+		for id := range currentIDs {
+			result = append(result, id)
+		}
+		input.CategoryIDs = result
+		hasUpdate = true
+	}
+
+	// カテゴリ削除（差分操作）
+	if editRemoveCategories != "" {
+		removeIDs, err := resolveCategoryIDs(ctx, client, projectKey, editRemoveCategories)
+		if err != nil {
+			return fmt.Errorf("failed to resolve categories to remove: %w", err)
+		}
+		// 削除するIDをset化
+		removeSet := make(map[int]bool)
+		for _, id := range removeIDs {
+			removeSet[id] = true
+		}
+		// 現在のカテゴリから削除対象を除外
+		var result []int
+		for _, cat := range currentIssue.Category {
+			if cat.ID.IsSet() && !removeSet[cat.ID.Value] {
+				result = append(result, cat.ID.Value)
+			}
+		}
+		input.CategoryIDs = result
 		hasUpdate = true
 	}
 

@@ -14,4 +14,5 @@ func init() {
 	WikiCmd.AddCommand(listCmd)
 	WikiCmd.AddCommand(viewCmd)
 	WikiCmd.AddCommand(createCmd)
+	WikiCmd.AddCommand(editCmd)
 }

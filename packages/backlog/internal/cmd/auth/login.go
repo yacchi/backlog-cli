@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -33,6 +35,7 @@ var (
 	loginTimeout           int
 	loginReuse             bool
 	loginWeb               bool
+	loginWithToken         bool
 	loginForceBundleUpdate bool
 )
 
@@ -42,8 +45,9 @@ func init() {
 	loginCmd.Flags().BoolVar(&loginNoBrowser, "no-browser", false, "Don't open browser, just print URL")
 	loginCmd.Flags().IntVar(&loginCallbackPort, "callback-port", 0, "Fixed port for callback server")
 	loginCmd.Flags().IntVar(&loginTimeout, "timeout", 0, "Timeout in seconds (default: 120)")
-	loginCmd.Flags().BoolVarP(&loginReuse, "reuse", "r", false, "Reuse previous login settings (method, space, domain) without prompts")
+	loginCmd.Flags().BoolVar(&loginReuse, "reuse", false, "Reuse previous login settings (method, space, domain) without prompts")
 	loginCmd.Flags().BoolVar(&loginWeb, "web", false, "Use web-based authentication (all prompts in browser)")
+	loginCmd.Flags().BoolVar(&loginWithToken, "with-token", false, "Read API Key from standard input (for non-interactive authentication)")
 	loginCmd.Flags().BoolVar(&loginForceBundleUpdate, "force-bundle-update", false, "Force bundle update check (debug)")
 }
 
@@ -78,6 +82,11 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// --with-token オプションが指定された場合は標準入力からAPIキーを読み取る
+	if loginWithToken {
+		return runWithTokenLogin(cmd.Context(), cfg, cmd.InOrStdin())
 	}
 
 	// --web オプションが指定された場合はWebベースの認証フローを使用
@@ -250,6 +259,65 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	}
 
 	fmt.Printf("Logged in to %s.%s\n", opts.space, opts.domain)
+	return nil
+}
+
+// runWithTokenLogin は標準入力からAPIキーを読み取って認証を実行する
+func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) error {
+	// --space と --domain は必須
+	if loginSpace == "" {
+		return fmt.Errorf("--space is required when using --with-token")
+	}
+	if loginDomain == "" {
+		return fmt.Errorf("--domain is required when using --with-token")
+	}
+
+	// サポートされているドメインを確認
+	supportedDomains := []string{"backlog.jp", "backlog.com"}
+	if !slices.Contains(supportedDomains, loginDomain) {
+		return fmt.Errorf("domain '%s' is not supported\nSupported: %v", loginDomain, supportedDomains)
+	}
+
+	// 標準入力からAPIキーを読み取る
+	reader := bufio.NewReader(stdin)
+	apiKey, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("failed to read API key from stdin: %w", err)
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return fmt.Errorf("API Key is required")
+	}
+
+	// API Keyの検証
+	apiClient := api.NewClient(loginSpace, loginDomain, "", api.WithAPIKey(apiKey))
+	user, err := apiClient.GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("API Key verification failed: %w", err)
+	}
+
+	// 認証情報保存
+	profileName := cfg.GetActiveProfile()
+	cred := &config.Credential{
+		AuthType: config.AuthTypeAPIKey,
+		APIKey:   apiKey,
+		UserID:   user.UserId.Value,
+		UserName: user.Name.Value,
+	}
+	_ = cfg.SetCredential(profileName, cred)
+
+	// 設定を保存
+	_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", loginSpace)
+	_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", loginDomain)
+
+	if err := cfg.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
+	}
+	if err := cfg.Save(ctx); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("Logged in to %s.%s as %s\n", loginSpace, loginDomain, user.Name.Value)
 	return nil
 }
 

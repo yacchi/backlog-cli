@@ -14,4 +14,8 @@ var PRCmd = &cobra.Command{
 func init() {
 	PRCmd.AddCommand(listCmd)
 	PRCmd.AddCommand(viewCmd)
+	PRCmd.AddCommand(createCmd)
+	PRCmd.AddCommand(editCmd)
+	PRCmd.AddCommand(closeCmd)
+	PRCmd.AddCommand(commentCmd)
 }

@@ -24,6 +24,7 @@ func TestJubakoStoreLoad(t *testing.T) {
 	resolved := store.Resolved()
 	if resolved == nil {
 		t.Fatal("Resolved returned nil")
+		return
 	}
 
 	// デフォルトプロファイルが存在することを確認
@@ -35,6 +36,7 @@ func TestJubakoStoreLoad(t *testing.T) {
 	server := store.Server()
 	if server == nil {
 		t.Fatal("Server returned nil")
+		return
 	}
 	if server.Port == 0 {
 		t.Error("Server.Port should have a default value")
@@ -66,6 +68,7 @@ func TestJubakoStoreEnvOverrides(t *testing.T) {
 	profile := store.CurrentProfile()
 	if profile == nil {
 		t.Fatal("CurrentProfile returned nil")
+		return
 	}
 
 	if profile.Space != "test-space-from-env" {
@@ -139,6 +142,7 @@ func TestEnvShortcuts(t *testing.T) {
 	profile := store.CurrentProfile()
 	if profile == nil {
 		t.Fatal("CurrentProfile returned nil")
+		return
 	}
 
 	if profile.Space != "shortcut-test-space" {
@@ -165,6 +169,7 @@ func TestEnvShortcutsPriority(t *testing.T) {
 	profile := store.CurrentProfile()
 	if profile == nil {
 		t.Fatal("CurrentProfile returned nil")
+		return
 	}
 
 	// 完全形式が優先される
@@ -189,6 +194,7 @@ func TestSetFlagsLayer(t *testing.T) {
 	profile := store.CurrentProfile()
 	if profile == nil {
 		t.Fatal("CurrentProfile returned nil")
+		return
 	}
 	t.Logf("Before: Project = %q", profile.Project)
 
@@ -204,6 +210,7 @@ func TestSetFlagsLayer(t *testing.T) {
 	project := store.Project()
 	if project == nil {
 		t.Fatal("Project returned nil after SetFlagsLayer")
+		return
 	}
 	t.Logf("After: Project = %q", project.Name)
 

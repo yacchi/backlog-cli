@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // Project はプロジェクト情報
@@ -202,6 +204,24 @@ func (c *Client) GetCategories(ctx context.Context, projectIDOrKey string) ([]Ca
 	return categories, nil
 }
 
+// CreateCategory はカテゴリーを作成する
+func (c *Client) CreateCategory(ctx context.Context, projectIDOrKey string, name string) (*backlog.Category, error) {
+	req := backlog.CreateCategoryReq{
+		Name: name,
+	}
+	return c.backlogClient.CreateCategory(ctx, backlog.NewOptCreateCategoryReq(req), backlog.CreateCategoryParams{
+		ProjectIdOrKey: projectIDOrKey,
+	})
+}
+
+// DeleteCategory はカテゴリーを削除する
+func (c *Client) DeleteCategory(ctx context.Context, projectIDOrKey string, categoryID int) (*backlog.Category, error) {
+	return c.backlogClient.DeleteCategory(ctx, backlog.DeleteCategoryParams{
+		ProjectIdOrKey: projectIDOrKey,
+		CategoryId:     categoryID,
+	})
+}
+
 // Version はバージョン/マイルストーン
 type Version struct {
 	ID             int    `json:"id"`
@@ -228,6 +248,102 @@ func (c *Client) GetVersions(ctx context.Context, projectIDOrKey string) ([]Vers
 	}
 
 	return versions, nil
+}
+
+// CreateVersionInput はバージョン作成の入力
+type CreateVersionInput struct {
+	Name           string
+	Description    string
+	StartDate      string // YYYY-MM-DD
+	ReleaseDueDate string // YYYY-MM-DD
+}
+
+// CreateVersion はバージョンを作成する
+func (c *Client) CreateVersion(ctx context.Context, projectIDOrKey string, input *CreateVersionInput) (*Version, error) {
+	data := url.Values{}
+	data.Set("name", input.Name)
+	if input.Description != "" {
+		data.Set("description", input.Description)
+	}
+	if input.StartDate != "" {
+		data.Set("startDate", input.StartDate)
+	}
+	if input.ReleaseDueDate != "" {
+		data.Set("releaseDueDate", input.ReleaseDueDate)
+	}
+
+	resp, err := c.PostForm(ctx, fmt.Sprintf("/projects/%s/versions", projectIDOrKey), data)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var version Version
+	if err := DecodeResponse(resp, &version); err != nil {
+		return nil, err
+	}
+
+	return &version, nil
+}
+
+// UpdateVersionInput はバージョン更新の入力
+type UpdateVersionInput struct {
+	Name           string // 必須
+	Description    *string
+	StartDate      *string // YYYY-MM-DD
+	ReleaseDueDate *string // YYYY-MM-DD
+	Archived       *bool
+}
+
+// UpdateVersion はバージョンを更新する
+func (c *Client) UpdateVersion(ctx context.Context, projectIDOrKey string, versionID int, input *UpdateVersionInput) (*Version, error) {
+	data := url.Values{}
+	data.Set("name", input.Name) // 必須
+	if input.Description != nil {
+		data.Set("description", *input.Description)
+	}
+	if input.StartDate != nil {
+		data.Set("startDate", *input.StartDate)
+	}
+	if input.ReleaseDueDate != nil {
+		data.Set("releaseDueDate", *input.ReleaseDueDate)
+	}
+	if input.Archived != nil {
+		if *input.Archived {
+			data.Set("archived", "true")
+		} else {
+			data.Set("archived", "false")
+		}
+	}
+
+	resp, err := c.PatchForm(ctx, fmt.Sprintf("/projects/%s/versions/%d", projectIDOrKey, versionID), data)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var version Version
+	if err := DecodeResponse(resp, &version); err != nil {
+		return nil, err
+	}
+
+	return &version, nil
+}
+
+// DeleteVersion はバージョンを削除する
+func (c *Client) DeleteVersion(ctx context.Context, projectIDOrKey string, versionID int) (*Version, error) {
+	resp, err := c.Delete(ctx, fmt.Sprintf("/projects/%s/versions/%d", projectIDOrKey, versionID))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var version Version
+	if err := DecodeResponse(resp, &version); err != nil {
+		return nil, err
+	}
+
+	return &version, nil
 }
 
 // Status はステータス

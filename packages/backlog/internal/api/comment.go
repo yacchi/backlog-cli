@@ -169,3 +169,19 @@ func (c *Client) UpdateComment(ctx context.Context, issueIDOrKey string, comment
 
 	return &comment, nil
 }
+
+// DeleteComment は課題のコメントを削除する
+func (c *Client) DeleteComment(ctx context.Context, issueIDOrKey string, commentID int) (*Comment, error) {
+	resp, err := c.Delete(ctx, fmt.Sprintf("/issues/%s/comments/%d", issueIDOrKey, commentID))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var comment Comment
+	if err := DecodeResponse(resp, &comment); err != nil {
+		return nil, err
+	}
+
+	return &comment, nil
+}
