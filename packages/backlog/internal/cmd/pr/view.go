@@ -31,6 +31,7 @@ Examples:
 var (
 	viewRepo          string
 	viewWeb           bool
+	viewComments      bool
 	viewMarkdown      bool
 	viewRaw           bool
 	viewMarkdownWarn  bool
@@ -38,8 +39,9 @@ var (
 )
 
 func init() {
-	viewCmd.Flags().StringVarP(&viewRepo, "repo", "r", "", "Repository name (required)")
+	viewCmd.Flags().StringVarP(&viewRepo, "repo", "R", "", "Repository name (required)")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
+	viewCmd.Flags().BoolVarP(&viewComments, "comments", "c", false, "View comments")
 	viewCmd.Flags().BoolVar(&viewMarkdown, "markdown", false, "Render markdown by converting Backlog notation to GFM")
 	viewCmd.Flags().BoolVar(&viewRaw, "raw", false, "Render raw content without markdown conversion")
 	viewCmd.Flags().BoolVar(&viewMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
@@ -73,10 +75,24 @@ func runView(c *cobra.Command, args []string) error {
 		return browser.OpenURL(url)
 	}
 
+	ctx := c.Context()
+
 	// PR取得
-	pr, err := client.GetPullRequest(c.Context(), projectKey, viewRepo, number)
+	pr, err := client.GetPullRequest(ctx, projectKey, viewRepo, number)
 	if err != nil {
 		return fmt.Errorf("failed to get pull request: %w", err)
+	}
+
+	// コメント取得（オプション指定時）
+	var comments []api.PRComment
+	if viewComments {
+		comments, err = client.GetPullRequestComments(ctx, projectKey, viewRepo, number, &api.PRCommentListOptions{
+			Count: 100,
+			Order: "asc",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get pull request comments: %w", err)
+		}
 	}
 
 	// 出力
@@ -84,6 +100,13 @@ func runView(c *cobra.Command, args []string) error {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
+		if viewComments {
+			// コメント付きでJSON出力
+			return enc.Encode(struct {
+				*api.PullRequest
+				Comments []api.PRComment `json:"comments"`
+			}{pr, comments})
+		}
 		return enc.Encode(pr)
 	default:
 		cacheDir, cacheErr := cfg.GetCacheDir()
@@ -91,11 +114,11 @@ func runView(c *cobra.Command, args []string) error {
 		if markdownOpts.Cache && cacheErr != nil {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
-		return renderPRDetail(pr, profile, display, projectKey, markdownOpts, c.OutOrStdout())
+		return renderPRDetail(pr, comments, profile, display, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
-func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
+func renderPRDetail(pr *api.PullRequest, comments []api.PRComment, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// ハイパーリンク設定
 	ui.SetHyperlinkEnabled(display.Hyperlink)
 
@@ -156,6 +179,42 @@ func renderPRDetail(pr *api.PullRequest, profile *config.ResolvedProfile, displa
 			content = rendered
 		}
 		fmt.Println(content)
+	}
+
+	// コメント表示
+	if len(comments) > 0 {
+		fmt.Println()
+		fmt.Println(ui.Bold(fmt.Sprintf("Comments (%d)", len(comments))))
+		fmt.Println(strings.Repeat("─", 60))
+		for i, comment := range comments {
+			if i > 0 {
+				fmt.Println()
+			}
+			// コメントヘッダー
+			fmt.Printf("%s - %s\n", ui.Bold(comment.CreatedUser.Name), ui.Gray(formatter.FormatDateTime(comment.Created, "created")))
+			// コメント内容
+			if comment.Content != "" {
+				content := comment.Content
+				if markdownOpts.Enable {
+					rendered, err := cmdutil.RenderMarkdownContent(content, markdownOpts, "pr_comment", pr.Number, comment.ID, projectKey, fmt.Sprintf("#%d", pr.Number), prURL, nil, out)
+					if err != nil {
+						return err
+					}
+					content = rendered
+				}
+				fmt.Println(content)
+			}
+			// 変更ログがある場合は表示
+			for _, cl := range comment.ChangeLog {
+				if cl.Field != "" {
+					if cl.OriginalValue != "" {
+						fmt.Printf("  %s: %s -> %s\n", ui.Gray(cl.Field), cl.OriginalValue, cl.NewValue)
+					} else {
+						fmt.Printf("  %s: %s\n", ui.Gray(cl.Field), cl.NewValue)
+					}
+				}
+			}
+		}
 	}
 
 	// URL（常に表示、ハイパーリンク化）

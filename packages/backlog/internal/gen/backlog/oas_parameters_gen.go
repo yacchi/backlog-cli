@@ -79,6 +79,189 @@ func decodeAddCommentParams(args [1]string, argsEscaped bool, r *http.Request) (
 	return params, nil
 }
 
+// CreateCategoryParams is parameters of createCategory operation.
+type CreateCategoryParams struct {
+	ProjectIdOrKey string
+}
+
+func unpackCreateCategoryParams(packed middleware.Parameters) (params CreateCategoryParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "path",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeCreateCategoryParams(args [1]string, argsEscaped bool, r *http.Request) (params CreateCategoryParams, _ error) {
+	// Decode path: projectIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DeleteCategoryParams is parameters of deleteCategory operation.
+type DeleteCategoryParams struct {
+	ProjectIdOrKey string
+	CategoryId     int
+}
+
+func unpackDeleteCategoryParams(packed middleware.Parameters) (params DeleteCategoryParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "path",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "categoryId",
+			In:   "path",
+		}
+		params.CategoryId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeDeleteCategoryParams(args [2]string, argsEscaped bool, r *http.Request) (params DeleteCategoryParams, _ error) {
+	// Decode path: projectIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: categoryId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "categoryId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.CategoryId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "categoryId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // DeleteIssueParams is parameters of deleteIssue operation.
 type DeleteIssueParams struct {
 	IssueIdOrKey string
@@ -720,6 +903,71 @@ func decodeGetCommentsCountParams(args [1]string, argsEscaped bool, r *http.Requ
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetCustomFieldsParams is parameters of getCustomFields operation.
+type GetCustomFieldsParams struct {
+	ProjectIdOrKey string
+}
+
+func unpackGetCustomFieldsParams(packed middleware.Parameters) (params GetCustomFieldsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "path",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetCustomFieldsParams(args [1]string, argsEscaped bool, r *http.Request) (params GetCustomFieldsParams, _ error) {
+	// Decode path: projectIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
 			In:   "path",
 			Err:  err,
 		}

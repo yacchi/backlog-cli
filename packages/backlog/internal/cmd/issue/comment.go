@@ -44,11 +44,13 @@ Examples:
 }
 
 var (
-	commentBody     string
-	commentBodyFile string
-	commentEditor   bool
-	editCommentID   int
-	editLast        bool
+	commentBody      string
+	commentBodyFile  string
+	commentEditor    bool
+	editCommentID    int
+	editLast         bool
+	deleteLast       bool
+	commentDeleteYes bool
 )
 
 func init() {
@@ -57,11 +59,18 @@ func init() {
 	commentCmd.Flags().BoolVarP(&commentEditor, "editor", "e", false, "Open editor to write the comment")
 	commentCmd.Flags().IntVar(&editCommentID, "edit", 0, "Edit an existing comment by ID")
 	commentCmd.Flags().BoolVar(&editLast, "edit-last", false, "Edit your last comment on the issue")
-	commentCmd.MarkFlagsMutuallyExclusive("edit", "edit-last")
+	commentCmd.Flags().BoolVar(&deleteLast, "delete-last", false, "Delete your last comment on the issue")
+	commentCmd.Flags().BoolVar(&commentDeleteYes, "yes", false, "Skip the delete confirmation prompt")
+	commentCmd.MarkFlagsMutuallyExclusive("edit", "edit-last", "delete-last")
 }
 
 func runComment(c *cobra.Command, args []string) error {
 	issueKey := args[0]
+
+	// 削除モードの判定
+	if deleteLast {
+		return runDeleteLastComment(c, issueKey)
+	}
 
 	// 編集モードの判定
 	isEditMode := editCommentID > 0 || editLast
@@ -208,4 +217,55 @@ func findMyLastComment(ctx context.Context, client *api.Client, issueKey string,
 	}
 
 	return nil, fmt.Errorf("no comments found by you on issue %s", issueKey)
+}
+
+// runDeleteLastComment は自分の最後のコメントを削除する
+func runDeleteLastComment(c *cobra.Command, issueKey string) error {
+	client, _, err := cmdutil.GetAPIClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Context()
+
+	// 自分の最後のコメントを探す
+	currentUser, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current user: %w", err)
+	}
+
+	comment, err := findMyLastComment(ctx, client, issueKey, currentUser.ID.Value)
+	if err != nil {
+		return err
+	}
+
+	// 確認プロンプト
+	if !commentDeleteYes {
+		// コメント内容を表示
+		fmt.Printf("Comment #%d:\n", comment.ID)
+		content := comment.Content
+		runes := []rune(content)
+		if len(runes) > 100 {
+			content = string(runes[:100]) + "..."
+		}
+		fmt.Printf("  %s\n\n", content)
+
+		confirmed, err := ui.Confirm("Delete this comment?", false)
+		if err != nil {
+			return fmt.Errorf("failed to confirm: %w", err)
+		}
+		if !confirmed {
+			fmt.Println("Cancelled")
+			return nil
+		}
+	}
+
+	// コメントを削除
+	_, err = client.DeleteComment(ctx, issueKey, comment.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete comment #%d: %w", comment.ID, err)
+	}
+
+	ui.Success("Deleted comment #%d from %s", comment.ID, issueKey)
+	return nil
 }

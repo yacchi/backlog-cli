@@ -1,6 +1,6 @@
 module github.com/yacchi/backlog-cli
 
-go 1.24.0
+go 1.25.0
 
 require (
 	connectrpc.com/connect v1.19.1
@@ -24,6 +24,8 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cli/go-gh/v2 v2.13.0 // indirect
+	github.com/cli/safeexec v1.0.0 // indirect
 	github.com/dcadenas/pagerank v0.0.0-20231224215204-32a14b9c24a7 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect

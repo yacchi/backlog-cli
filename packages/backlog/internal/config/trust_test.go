@@ -52,6 +52,7 @@ func TestFindTrustedBundle(t *testing.T) {
 		result := FindTrustedBundle(store, "test.backlog.jp")
 		if result == nil {
 			t.Fatal("expected to find bundle, got nil")
+			return
 		}
 		if result.AllowedDomain != "test.backlog.jp" {
 			t.Errorf("AllowedDomain = %q, want %q", result.AllowedDomain, "test.backlog.jp")
@@ -76,6 +77,7 @@ func TestFindTrustedBundle(t *testing.T) {
 		result := FindTrustedBundle(store, "copy.backlog.jp")
 		if result == nil {
 			t.Fatal("expected to find bundle, got nil")
+			return
 		}
 
 		// Modify the returned bundle
@@ -85,6 +87,7 @@ func TestFindTrustedBundle(t *testing.T) {
 		result2 := FindTrustedBundle(store, "copy.backlog.jp")
 		if result2 == nil {
 			t.Fatal("expected to find bundle again, got nil")
+			return
 		}
 		if result2.RelayURL != "https://original.example.com" {
 			t.Errorf("bundle should be unchanged, got RelayURL = %q", result2.RelayURL)

@@ -65,7 +65,7 @@ func runView(c *cobra.Command, args []string) error {
 	// 出力
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(project, profile)
+		return cmdutil.OutputJSONFromProfile(project, profile.JSONFields, profile.JQ)
 	default:
 		return renderProjectDetail(ctx, client, project, profile)
 	}

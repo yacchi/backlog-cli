@@ -108,10 +108,16 @@ func PathProfileOutput(key string) string {
 	return "/profile/" + jsonptr.Escape(key) + "/output"
 }
 
-// PathProfileFormat returns the JSONPointer path.
-// Path pattern: /profile/{key}/format
-func PathProfileFormat(key string) string {
-	return "/profile/" + jsonptr.Escape(key) + "/format"
+// PathProfileJsonFields returns the JSONPointer path.
+// Path pattern: /profile/{key}/json_fields
+func PathProfileJsonFields(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/json_fields"
+}
+
+// PathProfileJq returns the JSONPointer path.
+// Path pattern: /profile/{key}/jq
+func PathProfileJq(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/jq"
 }
 
 // PathProfileColor returns the JSONPointer path.

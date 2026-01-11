@@ -58,7 +58,7 @@ func runList(c *cobra.Command, args []string) error {
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(projects, profile)
+		return cmdutil.OutputJSONFromProfile(projects, profile.JSONFields, profile.JQ)
 	default:
 		outputProjectTable(projects, profile.Project)
 		return nil

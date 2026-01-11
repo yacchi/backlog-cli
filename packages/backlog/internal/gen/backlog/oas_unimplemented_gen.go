@@ -22,6 +22,15 @@ func (UnimplementedHandler) AddComment(ctx context.Context, req OptAddCommentReq
 	return r, ht.ErrNotImplemented
 }
 
+// CreateCategory implements createCategory operation.
+//
+// Create category.
+//
+// POST /projects/{projectIdOrKey}/categories
+func (UnimplementedHandler) CreateCategory(ctx context.Context, req OptCreateCategoryReq, params CreateCategoryParams) (r *Category, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // CreateIssue implements createIssue operation.
 //
 // Create issue.
@@ -37,6 +46,15 @@ func (UnimplementedHandler) CreateIssue(ctx context.Context, req OptCreateIssueR
 //
 // POST /wikis
 func (UnimplementedHandler) CreateWiki(ctx context.Context, req OptCreateWikiReq) (r *Wiki, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DeleteCategory implements deleteCategory operation.
+//
+// Delete category.
+//
+// DELETE /projects/{projectIdOrKey}/categories/{categoryId}
+func (UnimplementedHandler) DeleteCategory(ctx context.Context, params DeleteCategoryParams) (r *Category, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -103,6 +121,15 @@ func (UnimplementedHandler) GetCurrentUser(ctx context.Context) (r *User, _ erro
 	return r, ht.ErrNotImplemented
 }
 
+// GetCustomFields implements getCustomFields operation.
+//
+// Get custom fields.
+//
+// GET /projects/{projectIdOrKey}/customFields
+func (UnimplementedHandler) GetCustomFields(ctx context.Context, params GetCustomFieldsParams) (r []CustomField, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetIssue implements getIssue operation.
 //
 // Get issue.
@@ -136,6 +163,15 @@ func (UnimplementedHandler) GetIssues(ctx context.Context, params GetIssuesParam
 //
 // GET /issues/count
 func (UnimplementedHandler) GetIssuesCount(ctx context.Context, params GetIssuesCountParams) (r *GetIssuesCountOK, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetPriorities implements getPriorities operation.
+//
+// Get all priorities.
+//
+// GET /priorities
+func (UnimplementedHandler) GetPriorities(ctx context.Context) (r []Priority, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -202,6 +238,24 @@ func (UnimplementedHandler) GetRepositories(ctx context.Context, params GetRepos
 	return r, ht.ErrNotImplemented
 }
 
+// GetResolutions implements getResolutions operation.
+//
+// Get all resolutions.
+//
+// GET /resolutions
+func (UnimplementedHandler) GetResolutions(ctx context.Context) (r []Resolution, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetSpace implements getSpace operation.
+//
+// Get space information.
+//
+// GET /space
+func (UnimplementedHandler) GetSpace(ctx context.Context) (r *Space, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetStatuses implements getStatuses operation.
 //
 // Get statuses.
@@ -217,6 +271,15 @@ func (UnimplementedHandler) GetStatuses(ctx context.Context, params GetStatusesP
 //
 // GET /users/{userId}
 func (UnimplementedHandler) GetUser(ctx context.Context, params GetUserParams) (r *User, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetUsers implements getUsers operation.
+//
+// Get all users.
+//
+// GET /users
+func (UnimplementedHandler) GetUsers(ctx context.Context) (r []User, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

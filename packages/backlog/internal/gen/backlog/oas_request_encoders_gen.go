@@ -67,6 +67,36 @@ func encodeAddCommentRequest(
 	return nil
 }
 
+func encodeCreateCategoryRequest(
+	req OptCreateCategoryReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "name" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "name",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.StringToString(request.Name))
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeCreateIssueRequest(
 	req OptCreateIssueReq,
 	r *http.Request,

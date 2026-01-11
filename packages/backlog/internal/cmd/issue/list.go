@@ -46,6 +46,7 @@ Examples:
 
 var (
 	listAssignee            string
+	listAuthor              string
 	listState               string
 	listLimit               int
 	listSearch              string
@@ -58,10 +59,14 @@ var (
 	listRaw                 bool
 	listMarkdownWarn        bool
 	listMarkdownCache       bool
+	listCount               bool
+	listCategory            string
+	listMilestone           string
 )
 
 func init() {
 	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID or @me)")
+	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author/creator (user ID or @me)")
 	listCmd.Flags().StringVarP(&listState, "state", "s", "open", "Filter by state: {open|closed|all}")
 	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of issues to fetch")
 	listCmd.Flags().StringVarP(&listSearch, "search", "S", "", "Search issues with keyword")
@@ -74,6 +79,9 @@ func init() {
 	listCmd.Flags().BoolVar(&listRaw, "raw", false, "Render raw content without markdown conversion")
 	listCmd.Flags().BoolVar(&listMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
 	listCmd.Flags().BoolVar(&listMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
+	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of issues")
+	listCmd.Flags().StringVarP(&listCategory, "category", "l", "", "Filter by category IDs or names (comma-separated, like gh --label)")
+	listCmd.Flags().StringVarP(&listMilestone, "milestone", "m", "", "Filter by milestone IDs or names (comma-separated)")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -131,6 +139,39 @@ func runList(c *cobra.Command, args []string) error {
 		opts.AssigneeIDs = []int{assigneeID}
 	}
 
+	// 作成者フィルター
+	if listAuthor == "@me" {
+		me, err := client.GetCurrentUser(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+		opts.CreatedUserIDs = []int{me.ID.Value}
+	} else if listAuthor != "" {
+		authorID, err := strconv.Atoi(listAuthor)
+		if err != nil {
+			return fmt.Errorf("invalid author ID: %s", listAuthor)
+		}
+		opts.CreatedUserIDs = []int{authorID}
+	}
+
+	// カテゴリフィルター（--category オプション、ghの--labelに相当）
+	if listCategory != "" {
+		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, listCategory)
+		if err != nil {
+			return fmt.Errorf("failed to resolve categories: %w", err)
+		}
+		opts.CategoryIDs = categoryIDs
+	}
+
+	// マイルストーンフィルター（--milestone オプション）
+	if listMilestone != "" {
+		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, listMilestone)
+		if err != nil {
+			return fmt.Errorf("failed to resolve milestones: %w", err)
+		}
+		opts.MilestoneIDs = milestoneIDs
+	}
+
 	// ステータスフィルター（--state オプション）
 	switch listState {
 	case "open":
@@ -166,6 +207,16 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid state: %s (must be open, closed, or all)", listState)
 	}
 
+	// 件数のみ表示
+	if listCount {
+		count, err := client.GetIssuesCount(ctx, opts)
+		if err != nil {
+			return fmt.Errorf("failed to get issue count: %w", err)
+		}
+		fmt.Println(count)
+		return nil
+	}
+
 	// 課題取得
 	issues, err := client.GetIssues(ctx, opts)
 	if err != nil {
@@ -181,7 +232,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(issues, profile)
+		return cmdutil.OutputJSONFromProfile(issues, profile.JSONFields, profile.JQ)
 	default:
 		cacheDir, cacheErr := cfg.GetCacheDir()
 		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)

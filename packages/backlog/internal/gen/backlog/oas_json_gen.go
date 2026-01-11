@@ -548,6 +548,309 @@ func (s *Comment) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *CustomField) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CustomField) encodeFields(e *jx.Encoder) {
+	{
+		if s.ID.Set {
+			e.FieldStart("id")
+			s.ID.Encode(e)
+		}
+	}
+	{
+		if s.TypeId.Set {
+			e.FieldStart("typeId")
+			s.TypeId.Encode(e)
+		}
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.Required.Set {
+			e.FieldStart("required")
+			s.Required.Encode(e)
+		}
+	}
+	{
+		if s.ApplicableIssueTypes != nil {
+			e.FieldStart("applicableIssueTypes")
+			e.ArrStart()
+			for _, elem := range s.ApplicableIssueTypes {
+				e.Int(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.AllowAddItem.Set {
+			e.FieldStart("allowAddItem")
+			s.AllowAddItem.Encode(e)
+		}
+	}
+	{
+		if s.Items != nil {
+			e.FieldStart("items")
+			e.ArrStart()
+			for _, elem := range s.Items {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfCustomField = [8]string{
+	0: "id",
+	1: "typeId",
+	2: "name",
+	3: "description",
+	4: "required",
+	5: "applicableIssueTypes",
+	6: "allowAddItem",
+	7: "items",
+}
+
+// Decode decodes CustomField from json.
+func (s *CustomField) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CustomField to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "id":
+			if err := func() error {
+				s.ID.Reset()
+				if err := s.ID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"id\"")
+			}
+		case "typeId":
+			if err := func() error {
+				s.TypeId.Reset()
+				if err := s.TypeId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"typeId\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "required":
+			if err := func() error {
+				s.Required.Reset()
+				if err := s.Required.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"required\"")
+			}
+		case "applicableIssueTypes":
+			if err := func() error {
+				s.ApplicableIssueTypes = make([]int, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem int
+					v, err := d.Int()
+					elem = int(v)
+					if err != nil {
+						return err
+					}
+					s.ApplicableIssueTypes = append(s.ApplicableIssueTypes, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"applicableIssueTypes\"")
+			}
+		case "allowAddItem":
+			if err := func() error {
+				s.AllowAddItem.Reset()
+				if err := s.AllowAddItem.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"allowAddItem\"")
+			}
+		case "items":
+			if err := func() error {
+				s.Items = make([]CustomFieldItem, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem CustomFieldItem
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Items = append(s.Items, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"items\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CustomField")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CustomField) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CustomField) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *CustomFieldItem) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CustomFieldItem) encodeFields(e *jx.Encoder) {
+	{
+		if s.ID.Set {
+			e.FieldStart("id")
+			s.ID.Encode(e)
+		}
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.DisplayOrder.Set {
+			e.FieldStart("displayOrder")
+			s.DisplayOrder.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfCustomFieldItem = [3]string{
+	0: "id",
+	1: "name",
+	2: "displayOrder",
+}
+
+// Decode decodes CustomFieldItem from json.
+func (s *CustomFieldItem) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CustomFieldItem to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "id":
+			if err := func() error {
+				s.ID.Reset()
+				if err := s.ID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"id\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "displayOrder":
+			if err := func() error {
+				s.DisplayOrder.Reset()
+				if err := s.DisplayOrder.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"displayOrder\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CustomFieldItem")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CustomFieldItem) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CustomFieldItem) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *GetCommentsCountOK) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -3729,6 +4032,205 @@ func (s *SharedFile) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *SharedFile) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *Space) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *Space) encodeFields(e *jx.Encoder) {
+	{
+		if s.SpaceKey.Set {
+			e.FieldStart("spaceKey")
+			s.SpaceKey.Encode(e)
+		}
+	}
+	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
+		if s.OwnerId.Set {
+			e.FieldStart("ownerId")
+			s.OwnerId.Encode(e)
+		}
+	}
+	{
+		if s.Lang.Set {
+			e.FieldStart("lang")
+			s.Lang.Encode(e)
+		}
+	}
+	{
+		if s.Timezone.Set {
+			e.FieldStart("timezone")
+			s.Timezone.Encode(e)
+		}
+	}
+	{
+		if s.ReportSendTime.Set {
+			e.FieldStart("reportSendTime")
+			s.ReportSendTime.Encode(e)
+		}
+	}
+	{
+		if s.TextFormattingRule.Set {
+			e.FieldStart("textFormattingRule")
+			s.TextFormattingRule.Encode(e)
+		}
+	}
+	{
+		if s.Created.Set {
+			e.FieldStart("created")
+			s.Created.Encode(e)
+		}
+	}
+	{
+		if s.Updated.Set {
+			e.FieldStart("updated")
+			s.Updated.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfSpace = [9]string{
+	0: "spaceKey",
+	1: "name",
+	2: "ownerId",
+	3: "lang",
+	4: "timezone",
+	5: "reportSendTime",
+	6: "textFormattingRule",
+	7: "created",
+	8: "updated",
+}
+
+// Decode decodes Space from json.
+func (s *Space) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode Space to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "spaceKey":
+			if err := func() error {
+				s.SpaceKey.Reset()
+				if err := s.SpaceKey.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"spaceKey\"")
+			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
+		case "ownerId":
+			if err := func() error {
+				s.OwnerId.Reset()
+				if err := s.OwnerId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"ownerId\"")
+			}
+		case "lang":
+			if err := func() error {
+				s.Lang.Reset()
+				if err := s.Lang.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lang\"")
+			}
+		case "timezone":
+			if err := func() error {
+				s.Timezone.Reset()
+				if err := s.Timezone.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"timezone\"")
+			}
+		case "reportSendTime":
+			if err := func() error {
+				s.ReportSendTime.Reset()
+				if err := s.ReportSendTime.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"reportSendTime\"")
+			}
+		case "textFormattingRule":
+			if err := func() error {
+				s.TextFormattingRule.Reset()
+				if err := s.TextFormattingRule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"textFormattingRule\"")
+			}
+		case "created":
+			if err := func() error {
+				s.Created.Reset()
+				if err := s.Created.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"created\"")
+			}
+		case "updated":
+			if err := func() error {
+				s.Updated.Reset()
+				if err := s.Updated.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updated\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode Space")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *Space) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *Space) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

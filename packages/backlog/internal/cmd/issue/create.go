@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,14 +45,16 @@ Examples:
 }
 
 var (
-	createTitle    string
-	createBody     string
-	createBodyFile string
-	createTypeID   int
-	createPriority int
-	createAssignee string
-	createDueDate  string
-	createEditor   bool
+	createTitle      string
+	createBody       string
+	createBodyFile   string
+	createTypeID     int
+	createPriority   int
+	createAssignee   string
+	createDueDate    string
+	createEditor     bool
+	createMilestones string
+	createCategories string
 )
 
 func init() {
@@ -63,6 +66,8 @@ func init() {
 	createCmd.Flags().StringVarP(&createAssignee, "assignee", "a", "", "Assignee (user ID or @me)")
 	createCmd.Flags().StringVar(&createDueDate, "due", "", "Due date (YYYY-MM-DD)")
 	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor to write the body")
+	createCmd.Flags().StringVarP(&createMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
+	createCmd.Flags().StringVar(&createCategories, "category", "", "Category IDs or names (comma-separated)")
 }
 
 func runCreate(c *cobra.Command, args []string) error {
@@ -198,6 +203,24 @@ func runCreate(c *cobra.Command, args []string) error {
 		input.DueDate = createDueDate
 	}
 
+	// マイルストーン
+	if createMilestones != "" {
+		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, createMilestones)
+		if err != nil {
+			return fmt.Errorf("failed to resolve milestones: %w", err)
+		}
+		input.MilestoneIDs = milestoneIDs
+	}
+
+	// カテゴリ
+	if createCategories != "" {
+		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, createCategories)
+		if err != nil {
+			return fmt.Errorf("failed to resolve categories: %w", err)
+		}
+		input.CategoryIDs = categoryIDs
+	}
+
 	// 作成
 	fmt.Println("Creating issue...")
 	issue, err := client.CreateIssue(ctx, input)
@@ -212,6 +235,104 @@ func runCreate(c *cobra.Command, args []string) error {
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil
+}
+
+// resolveMilestoneIDs はマイルストーン指定を解決してIDリストを返す
+func resolveMilestoneIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
+	parts := strings.Split(input, ",")
+	var ids []int
+
+	// まず全てが数値かチェック
+	allNumeric := true
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if _, err := strconv.Atoi(p); err != nil {
+			allNumeric = false
+			break
+		}
+	}
+
+	if allNumeric {
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			id, _ := strconv.Atoi(p)
+			ids = append(ids, id)
+		}
+		return ids, nil
+	}
+
+	// 名前解決が必要
+	versions, err := client.GetVersions(ctx, projectKey)
+	if err != nil {
+		return nil, err
+	}
+
+	nameToID := make(map[string]int)
+	for _, v := range versions {
+		nameToID[v.Name] = v.ID
+	}
+
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if id, err := strconv.Atoi(p); err == nil {
+			ids = append(ids, id)
+		} else if id, ok := nameToID[p]; ok {
+			ids = append(ids, id)
+		} else {
+			return nil, fmt.Errorf("milestone not found: %s", p)
+		}
+	}
+
+	return ids, nil
+}
+
+// resolveCategoryIDs はカテゴリ指定を解決してIDリストを返す
+func resolveCategoryIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
+	parts := strings.Split(input, ",")
+	var ids []int
+
+	// まず全てが数値かチェック
+	allNumeric := true
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if _, err := strconv.Atoi(p); err != nil {
+			allNumeric = false
+			break
+		}
+	}
+
+	if allNumeric {
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			id, _ := strconv.Atoi(p)
+			ids = append(ids, id)
+		}
+		return ids, nil
+	}
+
+	// 名前解決が必要
+	categories, err := client.GetCategories(ctx, projectKey)
+	if err != nil {
+		return nil, err
+	}
+
+	nameToID := make(map[string]int)
+	for _, c := range categories {
+		nameToID[c.Name] = c.ID
+	}
+
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if id, err := strconv.Atoi(p); err == nil {
+			ids = append(ids, id)
+		} else if id, ok := nameToID[p]; ok {
+			ids = append(ids, id)
+		} else {
+			return nil, fmt.Errorf("category not found: %s", p)
+		}
+	}
+
+	return ids, nil
 }
 
 func openEditor(initial string) (string, error) {

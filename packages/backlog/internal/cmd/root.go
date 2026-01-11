@@ -4,13 +4,25 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	apicmd "github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/auth"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/category"
 	configcmd "github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/config"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/customfield"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/issue"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/issue_type"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/markdown"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/milestone"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/notification"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/pr"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/priority"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/project"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/repo"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/resolution"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/space"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/status"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/user"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/watching"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/wiki"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
@@ -75,10 +87,17 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 			setOptions = append(setOptions, jubako.String(config.PathProfileOutput(activeProfile), output))
 		}
 
-		// formatフラグはアクティブプロファイルに設定
-		if format, _ := cmd.Flags().GetString("format"); format != "" {
+		// jsonフラグはJSON出力を有効にし、フィールドを設定
+		if jsonFields, _ := cmd.Flags().GetString("json"); jsonFields != "" {
 			activeProfile := cfg.GetActiveProfile()
-			setOptions = append(setOptions, jubako.String(config.PathProfileFormat(activeProfile), format))
+			setOptions = append(setOptions, jubako.String(config.PathProfileOutput(activeProfile), "json"))
+			setOptions = append(setOptions, jubako.String(config.PathProfileJsonFields(activeProfile), jsonFields))
+		}
+
+		// jqフラグはアクティブプロファイルに設定
+		if jqFilter, _ := cmd.Flags().GetString("jq"); jqFilter != "" {
+			activeProfile := cfg.GetActiveProfile()
+			setOptions = append(setOptions, jubako.String(config.PathProfileJq(activeProfile), jqFilter))
 		}
 
 		if len(setOptions) > 0 {
@@ -97,18 +116,31 @@ func init() {
 	// グローバルフラグ
 	rootCmd.PersistentFlags().String("profile", "", "Configuration profile to use")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Backlog project key")
-	rootCmd.PersistentFlags().StringP("output", "o", "", "Output format (table, json)")
-	rootCmd.PersistentFlags().StringP("format", "f", "", "Format output using a Go template")
+	rootCmd.PersistentFlags().String("output", "", "Output format (table, json)")
+	rootCmd.PersistentFlags().String("json", "", "Output JSON with specified fields (comma-separated)")
+	rootCmd.PersistentFlags().String("jq", "", "Filter JSON output using a jq expression")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
 
 	// サブコマンド登録
+	rootCmd.AddCommand(apicmd.APICmd)
 	rootCmd.AddCommand(auth.AuthCmd)
+	rootCmd.AddCommand(category.CategoryCmd)
 	rootCmd.AddCommand(configcmd.ConfigCmd)
+	rootCmd.AddCommand(customfield.CustomFieldCmd)
 	rootCmd.AddCommand(issue.IssueCmd)
 	rootCmd.AddCommand(issue_type.IssueTypeCmd)
 	rootCmd.AddCommand(markdown.MarkdownCmd)
+	rootCmd.AddCommand(milestone.MilestoneCmd)
+	rootCmd.AddCommand(notification.NotificationCmd)
 	rootCmd.AddCommand(pr.PRCmd)
+	rootCmd.AddCommand(priority.PriorityCmd)
 	rootCmd.AddCommand(project.ProjectCmd)
+	rootCmd.AddCommand(repo.RepoCmd)
+	rootCmd.AddCommand(resolution.ResolutionCmd)
+	rootCmd.AddCommand(space.SpaceCmd)
+	rootCmd.AddCommand(status.StatusCmd)
+	rootCmd.AddCommand(user.UserCmd)
+	rootCmd.AddCommand(watching.WatchingCmd)
 	rootCmd.AddCommand(wiki.WikiCmd)
 }

@@ -18,11 +18,15 @@ var listCmd = &cobra.Command{
 
 Examples:
   backlog wiki list
-  backlog wiki list --project MYPROJECT`,
+  backlog wiki list --project MYPROJECT
+  backlog wiki list --count`,
 	RunE: runList,
 }
 
+var wikiListCount bool
+
 func init() {
+	listCmd.Flags().BoolVar(&wikiListCount, "count", false, "Show only the count of wiki pages")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -36,6 +40,16 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
+
+	// 件数のみ表示
+	if wikiListCount {
+		count, err := client.GetWikisCount(c.Context(), projectKey)
+		if err != nil {
+			return fmt.Errorf("failed to get wiki count: %w", err)
+		}
+		fmt.Println(count)
+		return nil
+	}
 
 	wikis, err := client.GetWikis(c.Context(), projectKey)
 	if err != nil {

@@ -18,4 +18,6 @@ func init() {
 	IssueCmd.AddCommand(closeCmd)
 	IssueCmd.AddCommand(reopenCmd)
 	IssueCmd.AddCommand(commentCmd)
+	IssueCmd.AddCommand(deleteCmd)
+	IssueCmd.AddCommand(statusCmd)
 }

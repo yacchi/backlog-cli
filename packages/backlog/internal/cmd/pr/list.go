@@ -3,6 +3,7 @@ package pr
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -35,17 +36,23 @@ Examples:
 }
 
 var (
-	listRepo  string
-	listState string
-	listLimit int
-	listWeb   bool
+	listRepo     string
+	listState    string
+	listLimit    int
+	listWeb      bool
+	listCount    bool
+	listAuthor   string
+	listAssignee string
 )
 
 func init() {
-	listCmd.Flags().StringVarP(&listRepo, "repo", "r", "", "Repository name (required)")
+	listCmd.Flags().StringVarP(&listRepo, "repo", "R", "", "Repository name (required)")
 	listCmd.Flags().StringVarP(&listState, "state", "s", "open", "Filter by state: {open|closed|merged|all}")
 	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of pull requests to fetch")
 	listCmd.Flags().BoolVarP(&listWeb, "web", "w", false, "Open pull request list in browser")
+	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of pull requests")
+	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author (user ID or @me)")
+	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID or @me)")
 	_ = listCmd.MarkFlagRequired("repo")
 }
 
@@ -87,7 +94,49 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid state: %s (must be open, closed, merged, or all)", listState)
 	}
 
-	prs, err := client.GetPullRequests(c.Context(), projectKey, listRepo, opts)
+	ctx := c.Context()
+
+	// 作成者フィルター
+	if listAuthor == "@me" {
+		me, err := client.GetCurrentUser(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+		opts.CreatedUserIDs = []int{me.ID.Value}
+	} else if listAuthor != "" {
+		authorID, err := strconv.Atoi(listAuthor)
+		if err != nil {
+			return fmt.Errorf("invalid author ID: %s", listAuthor)
+		}
+		opts.CreatedUserIDs = []int{authorID}
+	}
+
+	// 担当者フィルター
+	if listAssignee == "@me" {
+		me, err := client.GetCurrentUser(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+		opts.AssigneeIDs = []int{me.ID.Value}
+	} else if listAssignee != "" {
+		assigneeID, err := strconv.Atoi(listAssignee)
+		if err != nil {
+			return fmt.Errorf("invalid assignee ID: %s", listAssignee)
+		}
+		opts.AssigneeIDs = []int{assigneeID}
+	}
+
+	// 件数のみ表示
+	if listCount {
+		count, err := client.GetPullRequestsCount(ctx, projectKey, listRepo, opts)
+		if err != nil {
+			return fmt.Errorf("failed to get pull request count: %w", err)
+		}
+		fmt.Println(count)
+		return nil
+	}
+
+	prs, err := client.GetPullRequests(ctx, projectKey, listRepo, opts)
 	if err != nil {
 		return fmt.Errorf("failed to get pull requests: %w", err)
 	}
@@ -101,7 +150,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(prs, profile)
+		return cmdutil.OutputJSONFromProfile(prs, profile.JSONFields, profile.JQ)
 	default:
 		outputPRTable(prs, profile, display, projectKey, listRepo)
 		return nil

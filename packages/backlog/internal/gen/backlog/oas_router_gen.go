@@ -242,48 +242,50 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				}
 
-			case 'p': // Prefix: "projects"
+			case 'p': // Prefix: "pr"
 
-				if l := len("projects"); len(elem) >= l && elem[0:l] == "projects" {
+				if l := len("pr"); len(elem) >= l && elem[0:l] == "pr" {
 					elem = elem[l:]
 				} else {
 					break
 				}
 
 				if len(elem) == 0 {
-					switch r.Method {
-					case "GET":
-						s.handleGetProjectsRequest([0]string{}, elemIsEscaped, w, r)
-					default:
-						s.notAllowed(w, r, "GET")
-					}
-
-					return
+					break
 				}
 				switch elem[0] {
-				case '/': // Prefix: "/"
+				case 'i': // Prefix: "iorities"
 
-					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+					if l := len("iorities"); len(elem) >= l && elem[0:l] == "iorities" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
-					// Param: "projectIdOrKey"
-					// Match until "/"
-					idx := strings.IndexByte(elem, '/')
-					if idx < 0 {
-						idx = len(elem)
+					if len(elem) == 0 {
+						// Leaf node.
+						switch r.Method {
+						case "GET":
+							s.handleGetPrioritiesRequest([0]string{}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "GET")
+						}
+
+						return
 					}
-					args[0] = elem[:idx]
-					elem = elem[idx:]
+
+				case 'o': // Prefix: "ojects"
+
+					if l := len("ojects"); len(elem) >= l && elem[0:l] == "ojects" {
+						elem = elem[l:]
+					} else {
+						break
+					}
 
 					if len(elem) == 0 {
 						switch r.Method {
 						case "GET":
-							s.handleGetProjectRequest([1]string{
-								args[0],
-							}, elemIsEscaped, w, r)
+							s.handleGetProjectsRequest([0]string{}, elemIsEscaped, w, r)
 						default:
 							s.notAllowed(w, r, "GET")
 						}
@@ -299,77 +301,55 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							break
 						}
 
+						// Param: "projectIdOrKey"
+						// Match until "/"
+						idx := strings.IndexByte(elem, '/')
+						if idx < 0 {
+							idx = len(elem)
+						}
+						args[0] = elem[:idx]
+						elem = elem[idx:]
+
 						if len(elem) == 0 {
-							break
+							switch r.Method {
+							case "GET":
+								s.handleGetProjectRequest([1]string{
+									args[0],
+								}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
 						}
 						switch elem[0] {
-						case 'c': // Prefix: "categories"
+						case '/': // Prefix: "/"
 
-							if l := len("categories"); len(elem) >= l && elem[0:l] == "categories" {
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
 							if len(elem) == 0 {
-								// Leaf node.
-								switch r.Method {
-								case "GET":
-									s.handleGetCategoriesRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
-								}
-
-								return
-							}
-
-						case 'g': // Prefix: "git/repositories"
-
-							if l := len("git/repositories"); len(elem) >= l && elem[0:l] == "git/repositories" {
-								elem = elem[l:]
-							} else {
 								break
-							}
-
-							if len(elem) == 0 {
-								switch r.Method {
-								case "GET":
-									s.handleGetRepositoriesRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
-								}
-
-								return
 							}
 							switch elem[0] {
-							case '/': // Prefix: "/"
+							case 'c': // Prefix: "c"
 
-								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								if l := len("c"); len(elem) >= l && elem[0:l] == "c" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
-								// Param: "repoIdOrName"
-								// Match until "/"
-								idx := strings.IndexByte(elem, '/')
-								if idx < 0 {
-									idx = len(elem)
-								}
-								args[1] = elem[:idx]
-								elem = elem[idx:]
-
 								if len(elem) == 0 {
 									break
 								}
 								switch elem[0] {
-								case '/': // Prefix: "/pullRequests"
+								case 'a': // Prefix: "ategories"
 
-									if l := len("/pullRequests"); len(elem) >= l && elem[0:l] == "/pullRequests" {
+									if l := len("ategories"); len(elem) >= l && elem[0:l] == "ategories" {
 										elem = elem[l:]
 									} else {
 										break
@@ -378,12 +358,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									if len(elem) == 0 {
 										switch r.Method {
 										case "GET":
-											s.handleGetPullRequestsRequest([2]string{
+											s.handleGetCategoriesRequest([1]string{
 												args[0],
-												args[1],
+											}, elemIsEscaped, w, r)
+										case "POST":
+											s.handleCreateCategoryRequest([1]string{
+												args[0],
 											}, elemIsEscaped, w, r)
 										default:
-											s.notAllowed(w, r, "GET")
+											s.notAllowed(w, r, "GET,POST")
 										}
 
 										return
@@ -397,25 +380,174 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 											break
 										}
 
-										if len(elem) == 0 {
+										// Param: "categoryId"
+										// Leaf parameter, slashes are prohibited
+										idx := strings.IndexByte(elem, '/')
+										if idx >= 0 {
 											break
 										}
+										args[1] = elem
+										elem = ""
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch r.Method {
+											case "DELETE":
+												s.handleDeleteCategoryRequest([2]string{
+													args[0],
+													args[1],
+												}, elemIsEscaped, w, r)
+											default:
+												s.notAllowed(w, r, "DELETE")
+											}
+
+											return
+										}
+
+									}
+
+								case 'u': // Prefix: "ustomFields"
+
+									if l := len("ustomFields"); len(elem) >= l && elem[0:l] == "ustomFields" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "GET":
+											s.handleGetCustomFieldsRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "GET")
+										}
+
+										return
+									}
+
+								}
+
+							case 'g': // Prefix: "git/repositories"
+
+								if l := len("git/repositories"); len(elem) >= l && elem[0:l] == "git/repositories" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									switch r.Method {
+									case "GET":
+										s.handleGetRepositoriesRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
+
+									return
+								}
+								switch elem[0] {
+								case '/': // Prefix: "/"
+
+									if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									// Param: "repoIdOrName"
+									// Match until "/"
+									idx := strings.IndexByte(elem, '/')
+									if idx < 0 {
+										idx = len(elem)
+									}
+									args[1] = elem[:idx]
+									elem = elem[idx:]
+
+									if len(elem) == 0 {
+										break
+									}
+									switch elem[0] {
+									case '/': // Prefix: "/pullRequests"
+
+										if l := len("/pullRequests"); len(elem) >= l && elem[0:l] == "/pullRequests" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											switch r.Method {
+											case "GET":
+												s.handleGetPullRequestsRequest([2]string{
+													args[0],
+													args[1],
+												}, elemIsEscaped, w, r)
+											default:
+												s.notAllowed(w, r, "GET")
+											}
+
+											return
+										}
 										switch elem[0] {
-										case 'c': // Prefix: "count"
-											origElem := elem
-											if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+										case '/': // Prefix: "/"
+
+											if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 												elem = elem[l:]
 											} else {
 												break
 											}
 
 											if len(elem) == 0 {
+												break
+											}
+											switch elem[0] {
+											case 'c': // Prefix: "count"
+												origElem := elem
+												if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													// Leaf node.
+													switch r.Method {
+													case "GET":
+														s.handleGetPullRequestsCountRequest([2]string{
+															args[0],
+															args[1],
+														}, elemIsEscaped, w, r)
+													default:
+														s.notAllowed(w, r, "GET")
+													}
+
+													return
+												}
+
+												elem = origElem
+											}
+											// Param: "number"
+											// Leaf parameter, slashes are prohibited
+											idx := strings.IndexByte(elem, '/')
+											if idx >= 0 {
+												break
+											}
+											args[2] = elem
+											elem = ""
+
+											if len(elem) == 0 {
 												// Leaf node.
 												switch r.Method {
 												case "GET":
-													s.handleGetPullRequestsCountRequest([2]string{
+													s.handleGetPullRequestRequest([3]string{
 														args[0],
 														args[1],
+														args[2],
 													}, elemIsEscaped, w, r)
 												default:
 													s.notAllowed(w, r, "GET")
@@ -424,125 +556,100 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												return
 											}
 
-											elem = origElem
-										}
-										// Param: "number"
-										// Leaf parameter, slashes are prohibited
-										idx := strings.IndexByte(elem, '/')
-										if idx >= 0 {
-											break
-										}
-										args[2] = elem
-										elem = ""
-
-										if len(elem) == 0 {
-											// Leaf node.
-											switch r.Method {
-											case "GET":
-												s.handleGetPullRequestRequest([3]string{
-													args[0],
-													args[1],
-													args[2],
-												}, elemIsEscaped, w, r)
-											default:
-												s.notAllowed(w, r, "GET")
-											}
-
-											return
 										}
 
 									}
 
 								}
 
-							}
+							case 'i': // Prefix: "issueTypes"
 
-						case 'i': // Prefix: "issueTypes"
-
-							if l := len("issueTypes"); len(elem) >= l && elem[0:l] == "issueTypes" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch r.Method {
-								case "GET":
-									s.handleGetIssueTypesRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
+								if l := len("issueTypes"); len(elem) >= l && elem[0:l] == "issueTypes" {
+									elem = elem[l:]
+								} else {
+									break
 								}
 
-								return
-							}
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleGetIssueTypesRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
 
-						case 's': // Prefix: "statuses"
-
-							if l := len("statuses"); len(elem) >= l && elem[0:l] == "statuses" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch r.Method {
-								case "GET":
-									s.handleGetStatusesRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
+									return
 								}
 
-								return
-							}
+							case 's': // Prefix: "statuses"
 
-						case 'u': // Prefix: "users"
-
-							if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch r.Method {
-								case "GET":
-									s.handleGetProjectUsersRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
+								if l := len("statuses"); len(elem) >= l && elem[0:l] == "statuses" {
+									elem = elem[l:]
+								} else {
+									break
 								}
 
-								return
-							}
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleGetStatusesRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
 
-						case 'v': // Prefix: "versions"
-
-							if l := len("versions"); len(elem) >= l && elem[0:l] == "versions" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch r.Method {
-								case "GET":
-									s.handleGetVersionsRequest([1]string{
-										args[0],
-									}, elemIsEscaped, w, r)
-								default:
-									s.notAllowed(w, r, "GET")
+									return
 								}
 
-								return
+							case 'u': // Prefix: "users"
+
+								if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleGetProjectUsersRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
+
+									return
+								}
+
+							case 'v': // Prefix: "versions"
+
+								if l := len("versions"); len(elem) >= l && elem[0:l] == "versions" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "GET":
+										s.handleGetVersionsRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "GET")
+									}
+
+									return
+								}
+
 							}
 
 						}
@@ -551,31 +658,115 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 				}
 
-			case 'u': // Prefix: "users/"
+			case 'r': // Prefix: "resolutions"
 
-				if l := len("users/"); len(elem) >= l && elem[0:l] == "users/" {
+				if l := len("resolutions"); len(elem) >= l && elem[0:l] == "resolutions" {
 					elem = elem[l:]
 				} else {
 					break
 				}
 
 				if len(elem) == 0 {
+					// Leaf node.
+					switch r.Method {
+					case "GET":
+						s.handleGetResolutionsRequest([0]string{}, elemIsEscaped, w, r)
+					default:
+						s.notAllowed(w, r, "GET")
+					}
+
+					return
+				}
+
+			case 's': // Prefix: "space"
+
+				if l := len("space"); len(elem) >= l && elem[0:l] == "space" {
+					elem = elem[l:]
+				} else {
 					break
 				}
+
+				if len(elem) == 0 {
+					// Leaf node.
+					switch r.Method {
+					case "GET":
+						s.handleGetSpaceRequest([0]string{}, elemIsEscaped, w, r)
+					default:
+						s.notAllowed(w, r, "GET")
+					}
+
+					return
+				}
+
+			case 'u': // Prefix: "users"
+
+				if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					switch r.Method {
+					case "GET":
+						s.handleGetUsersRequest([0]string{}, elemIsEscaped, w, r)
+					default:
+						s.notAllowed(w, r, "GET")
+					}
+
+					return
+				}
 				switch elem[0] {
-				case 'm': // Prefix: "myself"
-					origElem := elem
-					if l := len("myself"); len(elem) >= l && elem[0:l] == "myself" {
+				case '/': // Prefix: "/"
+
+					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 						elem = elem[l:]
 					} else {
 						break
 					}
 
 					if len(elem) == 0 {
+						break
+					}
+					switch elem[0] {
+					case 'm': // Prefix: "myself"
+						origElem := elem
+						if l := len("myself"); len(elem) >= l && elem[0:l] == "myself" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handleGetCurrentUserRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
+						elem = origElem
+					}
+					// Param: "userId"
+					// Leaf parameter, slashes are prohibited
+					idx := strings.IndexByte(elem, '/')
+					if idx >= 0 {
+						break
+					}
+					args[0] = elem
+					elem = ""
+
+					if len(elem) == 0 {
 						// Leaf node.
 						switch r.Method {
 						case "GET":
-							s.handleGetCurrentUserRequest([0]string{}, elemIsEscaped, w, r)
+							s.handleGetUserRequest([1]string{
+								args[0],
+							}, elemIsEscaped, w, r)
 						default:
 							s.notAllowed(w, r, "GET")
 						}
@@ -583,29 +774,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 
-					elem = origElem
-				}
-				// Param: "userId"
-				// Leaf parameter, slashes are prohibited
-				idx := strings.IndexByte(elem, '/')
-				if idx >= 0 {
-					break
-				}
-				args[0] = elem
-				elem = ""
-
-				if len(elem) == 0 {
-					// Leaf node.
-					switch r.Method {
-					case "GET":
-						s.handleGetUserRequest([1]string{
-							args[0],
-						}, elemIsEscaped, w, r)
-					default:
-						s.notAllowed(w, r, "GET")
-					}
-
-					return
 				}
 
 			case 'w': // Prefix: "wikis"
@@ -1024,9 +1192,521 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 
 				}
 
-			case 'p': // Prefix: "projects"
+			case 'p': // Prefix: "pr"
 
-				if l := len("projects"); len(elem) >= l && elem[0:l] == "projects" {
+				if l := len("pr"); len(elem) >= l && elem[0:l] == "pr" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					break
+				}
+				switch elem[0] {
+				case 'i': // Prefix: "iorities"
+
+					if l := len("iorities"); len(elem) >= l && elem[0:l] == "iorities" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						// Leaf node.
+						switch method {
+						case "GET":
+							r.name = GetPrioritiesOperation
+							r.summary = "Get all priorities"
+							r.operationID = "getPriorities"
+							r.operationGroup = ""
+							r.pathPattern = "/priorities"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+
+				case 'o': // Prefix: "ojects"
+
+					if l := len("ojects"); len(elem) >= l && elem[0:l] == "ojects" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						switch method {
+						case "GET":
+							r.name = GetProjectsOperation
+							r.summary = "Get projects"
+							r.operationID = "getProjects"
+							r.operationGroup = ""
+							r.pathPattern = "/projects"
+							r.args = args
+							r.count = 0
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						// Param: "projectIdOrKey"
+						// Match until "/"
+						idx := strings.IndexByte(elem, '/')
+						if idx < 0 {
+							idx = len(elem)
+						}
+						args[0] = elem[:idx]
+						elem = elem[idx:]
+
+						if len(elem) == 0 {
+							switch method {
+							case "GET":
+								r.name = GetProjectOperation
+								r.summary = "Get project"
+								r.operationID = "getProject"
+								r.operationGroup = ""
+								r.pathPattern = "/projects/{projectIdOrKey}"
+								r.args = args
+								r.count = 1
+								return r, true
+							default:
+								return
+							}
+						}
+						switch elem[0] {
+						case '/': // Prefix: "/"
+
+							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								break
+							}
+							switch elem[0] {
+							case 'c': // Prefix: "c"
+
+								if l := len("c"); len(elem) >= l && elem[0:l] == "c" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									break
+								}
+								switch elem[0] {
+								case 'a': // Prefix: "ategories"
+
+									if l := len("ategories"); len(elem) >= l && elem[0:l] == "ategories" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										switch method {
+										case "GET":
+											r.name = GetCategoriesOperation
+											r.summary = "Get categories"
+											r.operationID = "getCategories"
+											r.operationGroup = ""
+											r.pathPattern = "/projects/{projectIdOrKey}/categories"
+											r.args = args
+											r.count = 1
+											return r, true
+										case "POST":
+											r.name = CreateCategoryOperation
+											r.summary = "Create category"
+											r.operationID = "createCategory"
+											r.operationGroup = ""
+											r.pathPattern = "/projects/{projectIdOrKey}/categories"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+									switch elem[0] {
+									case '/': // Prefix: "/"
+
+										if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										// Param: "categoryId"
+										// Leaf parameter, slashes are prohibited
+										idx := strings.IndexByte(elem, '/')
+										if idx >= 0 {
+											break
+										}
+										args[1] = elem
+										elem = ""
+
+										if len(elem) == 0 {
+											// Leaf node.
+											switch method {
+											case "DELETE":
+												r.name = DeleteCategoryOperation
+												r.summary = "Delete category"
+												r.operationID = "deleteCategory"
+												r.operationGroup = ""
+												r.pathPattern = "/projects/{projectIdOrKey}/categories/{categoryId}"
+												r.args = args
+												r.count = 2
+												return r, true
+											default:
+												return
+											}
+										}
+
+									}
+
+								case 'u': // Prefix: "ustomFields"
+
+									if l := len("ustomFields"); len(elem) >= l && elem[0:l] == "ustomFields" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "GET":
+											r.name = GetCustomFieldsOperation
+											r.summary = "Get custom fields"
+											r.operationID = "getCustomFields"
+											r.operationGroup = ""
+											r.pathPattern = "/projects/{projectIdOrKey}/customFields"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+
+								}
+
+							case 'g': // Prefix: "git/repositories"
+
+								if l := len("git/repositories"); len(elem) >= l && elem[0:l] == "git/repositories" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									switch method {
+									case "GET":
+										r.name = GetRepositoriesOperation
+										r.summary = "Get git repositories"
+										r.operationID = "getRepositories"
+										r.operationGroup = ""
+										r.pathPattern = "/projects/{projectIdOrKey}/git/repositories"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+								switch elem[0] {
+								case '/': // Prefix: "/"
+
+									if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									// Param: "repoIdOrName"
+									// Match until "/"
+									idx := strings.IndexByte(elem, '/')
+									if idx < 0 {
+										idx = len(elem)
+									}
+									args[1] = elem[:idx]
+									elem = elem[idx:]
+
+									if len(elem) == 0 {
+										break
+									}
+									switch elem[0] {
+									case '/': // Prefix: "/pullRequests"
+
+										if l := len("/pullRequests"); len(elem) >= l && elem[0:l] == "/pullRequests" {
+											elem = elem[l:]
+										} else {
+											break
+										}
+
+										if len(elem) == 0 {
+											switch method {
+											case "GET":
+												r.name = GetPullRequestsOperation
+												r.summary = "Get pull requests"
+												r.operationID = "getPullRequests"
+												r.operationGroup = ""
+												r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests"
+												r.args = args
+												r.count = 2
+												return r, true
+											default:
+												return
+											}
+										}
+										switch elem[0] {
+										case '/': // Prefix: "/"
+
+											if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+												elem = elem[l:]
+											} else {
+												break
+											}
+
+											if len(elem) == 0 {
+												break
+											}
+											switch elem[0] {
+											case 'c': // Prefix: "count"
+												origElem := elem
+												if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													// Leaf node.
+													switch method {
+													case "GET":
+														r.name = GetPullRequestsCountOperation
+														r.summary = "Get pull requests count"
+														r.operationID = "getPullRequestsCount"
+														r.operationGroup = ""
+														r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count"
+														r.args = args
+														r.count = 2
+														return r, true
+													default:
+														return
+													}
+												}
+
+												elem = origElem
+											}
+											// Param: "number"
+											// Leaf parameter, slashes are prohibited
+											idx := strings.IndexByte(elem, '/')
+											if idx >= 0 {
+												break
+											}
+											args[2] = elem
+											elem = ""
+
+											if len(elem) == 0 {
+												// Leaf node.
+												switch method {
+												case "GET":
+													r.name = GetPullRequestOperation
+													r.summary = "Get pull request"
+													r.operationID = "getPullRequest"
+													r.operationGroup = ""
+													r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}"
+													r.args = args
+													r.count = 3
+													return r, true
+												default:
+													return
+												}
+											}
+
+										}
+
+									}
+
+								}
+
+							case 'i': // Prefix: "issueTypes"
+
+								if l := len("issueTypes"); len(elem) >= l && elem[0:l] == "issueTypes" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = GetIssueTypesOperation
+										r.summary = "Get issue types"
+										r.operationID = "getIssueTypes"
+										r.operationGroup = ""
+										r.pathPattern = "/projects/{projectIdOrKey}/issueTypes"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							case 's': // Prefix: "statuses"
+
+								if l := len("statuses"); len(elem) >= l && elem[0:l] == "statuses" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = GetStatusesOperation
+										r.summary = "Get statuses"
+										r.operationID = "getStatuses"
+										r.operationGroup = ""
+										r.pathPattern = "/projects/{projectIdOrKey}/statuses"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							case 'u': // Prefix: "users"
+
+								if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = GetProjectUsersOperation
+										r.summary = "Get project users"
+										r.operationID = "getProjectUsers"
+										r.operationGroup = ""
+										r.pathPattern = "/projects/{projectIdOrKey}/users"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							case 'v': // Prefix: "versions"
+
+								if l := len("versions"); len(elem) >= l && elem[0:l] == "versions" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = GetVersionsOperation
+										r.summary = "Get versions"
+										r.operationID = "getVersions"
+										r.operationGroup = ""
+										r.pathPattern = "/projects/{projectIdOrKey}/versions"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							}
+
+						}
+
+					}
+
+				}
+
+			case 'r': // Prefix: "resolutions"
+
+				if l := len("resolutions"); len(elem) >= l && elem[0:l] == "resolutions" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					// Leaf node.
+					switch method {
+					case "GET":
+						r.name = GetResolutionsOperation
+						r.summary = "Get all resolutions"
+						r.operationID = "getResolutions"
+						r.operationGroup = ""
+						r.pathPattern = "/resolutions"
+						r.args = args
+						r.count = 0
+						return r, true
+					default:
+						return
+					}
+				}
+
+			case 's': // Prefix: "space"
+
+				if l := len("space"); len(elem) >= l && elem[0:l] == "space" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					// Leaf node.
+					switch method {
+					case "GET":
+						r.name = GetSpaceOperation
+						r.summary = "Get space information"
+						r.operationID = "getSpace"
+						r.operationGroup = ""
+						r.pathPattern = "/space"
+						r.args = args
+						r.count = 0
+						return r, true
+					default:
+						return
+					}
+				}
+
+			case 'u': // Prefix: "users"
+
+				if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
 					elem = elem[l:]
 				} else {
 					break
@@ -1035,11 +1715,11 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 				if len(elem) == 0 {
 					switch method {
 					case "GET":
-						r.name = GetProjectsOperation
-						r.summary = "Get projects"
-						r.operationID = "getProjects"
+						r.name = GetUsersOperation
+						r.summary = "Get all users"
+						r.operationID = "getUsers"
 						r.operationGroup = ""
-						r.pathPattern = "/projects"
+						r.pathPattern = "/users"
 						r.args = args
 						r.count = 0
 						return r, true
@@ -1056,23 +1736,55 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						break
 					}
 
-					// Param: "projectIdOrKey"
-					// Match until "/"
-					idx := strings.IndexByte(elem, '/')
-					if idx < 0 {
-						idx = len(elem)
+					if len(elem) == 0 {
+						break
 					}
-					args[0] = elem[:idx]
-					elem = elem[idx:]
+					switch elem[0] {
+					case 'm': // Prefix: "myself"
+						origElem := elem
+						if l := len("myself"); len(elem) >= l && elem[0:l] == "myself" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = GetCurrentUserOperation
+								r.summary = "Get current user"
+								r.operationID = "getCurrentUser"
+								r.operationGroup = ""
+								r.pathPattern = "/users/myself"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
+						elem = origElem
+					}
+					// Param: "userId"
+					// Leaf parameter, slashes are prohibited
+					idx := strings.IndexByte(elem, '/')
+					if idx >= 0 {
+						break
+					}
+					args[0] = elem
+					elem = ""
 
 					if len(elem) == 0 {
+						// Leaf node.
 						switch method {
 						case "GET":
-							r.name = GetProjectOperation
-							r.summary = "Get project"
-							r.operationID = "getProject"
+							r.name = GetUserOperation
+							r.summary = "Get user"
+							r.operationID = "getUser"
 							r.operationGroup = ""
-							r.pathPattern = "/projects/{projectIdOrKey}"
+							r.pathPattern = "/users/{userId}"
 							r.args = args
 							r.count = 1
 							return r, true
@@ -1080,353 +1792,7 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							return
 						}
 					}
-					switch elem[0] {
-					case '/': // Prefix: "/"
 
-						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-							elem = elem[l:]
-						} else {
-							break
-						}
-
-						if len(elem) == 0 {
-							break
-						}
-						switch elem[0] {
-						case 'c': // Prefix: "categories"
-
-							if l := len("categories"); len(elem) >= l && elem[0:l] == "categories" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch method {
-								case "GET":
-									r.name = GetCategoriesOperation
-									r.summary = "Get categories"
-									r.operationID = "getCategories"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/categories"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-
-						case 'g': // Prefix: "git/repositories"
-
-							if l := len("git/repositories"); len(elem) >= l && elem[0:l] == "git/repositories" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								switch method {
-								case "GET":
-									r.name = GetRepositoriesOperation
-									r.summary = "Get git repositories"
-									r.operationID = "getRepositories"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/git/repositories"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-							switch elem[0] {
-							case '/': // Prefix: "/"
-
-								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-									elem = elem[l:]
-								} else {
-									break
-								}
-
-								// Param: "repoIdOrName"
-								// Match until "/"
-								idx := strings.IndexByte(elem, '/')
-								if idx < 0 {
-									idx = len(elem)
-								}
-								args[1] = elem[:idx]
-								elem = elem[idx:]
-
-								if len(elem) == 0 {
-									break
-								}
-								switch elem[0] {
-								case '/': // Prefix: "/pullRequests"
-
-									if l := len("/pullRequests"); len(elem) >= l && elem[0:l] == "/pullRequests" {
-										elem = elem[l:]
-									} else {
-										break
-									}
-
-									if len(elem) == 0 {
-										switch method {
-										case "GET":
-											r.name = GetPullRequestsOperation
-											r.summary = "Get pull requests"
-											r.operationID = "getPullRequests"
-											r.operationGroup = ""
-											r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests"
-											r.args = args
-											r.count = 2
-											return r, true
-										default:
-											return
-										}
-									}
-									switch elem[0] {
-									case '/': // Prefix: "/"
-
-										if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
-											elem = elem[l:]
-										} else {
-											break
-										}
-
-										if len(elem) == 0 {
-											break
-										}
-										switch elem[0] {
-										case 'c': // Prefix: "count"
-											origElem := elem
-											if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
-												elem = elem[l:]
-											} else {
-												break
-											}
-
-											if len(elem) == 0 {
-												// Leaf node.
-												switch method {
-												case "GET":
-													r.name = GetPullRequestsCountOperation
-													r.summary = "Get pull requests count"
-													r.operationID = "getPullRequestsCount"
-													r.operationGroup = ""
-													r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count"
-													r.args = args
-													r.count = 2
-													return r, true
-												default:
-													return
-												}
-											}
-
-											elem = origElem
-										}
-										// Param: "number"
-										// Leaf parameter, slashes are prohibited
-										idx := strings.IndexByte(elem, '/')
-										if idx >= 0 {
-											break
-										}
-										args[2] = elem
-										elem = ""
-
-										if len(elem) == 0 {
-											// Leaf node.
-											switch method {
-											case "GET":
-												r.name = GetPullRequestOperation
-												r.summary = "Get pull request"
-												r.operationID = "getPullRequest"
-												r.operationGroup = ""
-												r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}"
-												r.args = args
-												r.count = 3
-												return r, true
-											default:
-												return
-											}
-										}
-
-									}
-
-								}
-
-							}
-
-						case 'i': // Prefix: "issueTypes"
-
-							if l := len("issueTypes"); len(elem) >= l && elem[0:l] == "issueTypes" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch method {
-								case "GET":
-									r.name = GetIssueTypesOperation
-									r.summary = "Get issue types"
-									r.operationID = "getIssueTypes"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/issueTypes"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-
-						case 's': // Prefix: "statuses"
-
-							if l := len("statuses"); len(elem) >= l && elem[0:l] == "statuses" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch method {
-								case "GET":
-									r.name = GetStatusesOperation
-									r.summary = "Get statuses"
-									r.operationID = "getStatuses"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/statuses"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-
-						case 'u': // Prefix: "users"
-
-							if l := len("users"); len(elem) >= l && elem[0:l] == "users" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch method {
-								case "GET":
-									r.name = GetProjectUsersOperation
-									r.summary = "Get project users"
-									r.operationID = "getProjectUsers"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/users"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-
-						case 'v': // Prefix: "versions"
-
-							if l := len("versions"); len(elem) >= l && elem[0:l] == "versions" {
-								elem = elem[l:]
-							} else {
-								break
-							}
-
-							if len(elem) == 0 {
-								// Leaf node.
-								switch method {
-								case "GET":
-									r.name = GetVersionsOperation
-									r.summary = "Get versions"
-									r.operationID = "getVersions"
-									r.operationGroup = ""
-									r.pathPattern = "/projects/{projectIdOrKey}/versions"
-									r.args = args
-									r.count = 1
-									return r, true
-								default:
-									return
-								}
-							}
-
-						}
-
-					}
-
-				}
-
-			case 'u': // Prefix: "users/"
-
-				if l := len("users/"); len(elem) >= l && elem[0:l] == "users/" {
-					elem = elem[l:]
-				} else {
-					break
-				}
-
-				if len(elem) == 0 {
-					break
-				}
-				switch elem[0] {
-				case 'm': // Prefix: "myself"
-					origElem := elem
-					if l := len("myself"); len(elem) >= l && elem[0:l] == "myself" {
-						elem = elem[l:]
-					} else {
-						break
-					}
-
-					if len(elem) == 0 {
-						// Leaf node.
-						switch method {
-						case "GET":
-							r.name = GetCurrentUserOperation
-							r.summary = "Get current user"
-							r.operationID = "getCurrentUser"
-							r.operationGroup = ""
-							r.pathPattern = "/users/myself"
-							r.args = args
-							r.count = 0
-							return r, true
-						default:
-							return
-						}
-					}
-
-					elem = origElem
-				}
-				// Param: "userId"
-				// Leaf parameter, slashes are prohibited
-				idx := strings.IndexByte(elem, '/')
-				if idx >= 0 {
-					break
-				}
-				args[0] = elem
-				elem = ""
-
-				if len(elem) == 0 {
-					// Leaf node.
-					switch method {
-					case "GET":
-						r.name = GetUserOperation
-						r.summary = "Get user"
-						r.operationID = "getUser"
-						r.operationGroup = ""
-						r.pathPattern = "/users/{userId}"
-						r.args = args
-						r.count = 1
-						return r, true
-					default:
-						return
-					}
 				}
 
 			case 'w': // Prefix: "wikis"

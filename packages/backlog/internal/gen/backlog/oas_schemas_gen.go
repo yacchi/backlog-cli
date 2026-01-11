@@ -277,6 +277,20 @@ func (s *Comment) SetNotifications(val []Notification) {
 	s.Notifications = val
 }
 
+type CreateCategoryReq struct {
+	Name string `json:"name"`
+}
+
+// GetName returns the value of Name.
+func (s *CreateCategoryReq) GetName() string {
+	return s.Name
+}
+
+// SetName sets the value of Name.
+func (s *CreateCategoryReq) SetName(val string) {
+	s.Name = val
+}
+
 type CreateIssueReq struct {
 	ProjectId      int        `json:"projectId"`
 	Summary        string     `json:"summary"`
@@ -479,6 +493,135 @@ func (s *CreateWikiReq) SetContent(val string) {
 // SetMailNotify sets the value of MailNotify.
 func (s *CreateWikiReq) SetMailNotify(val OptString) {
 	s.MailNotify = val
+}
+
+// Ref: #/components/schemas/CustomField
+type CustomField struct {
+	ID                   OptInt            `json:"id"`
+	TypeId               OptInt            `json:"typeId"`
+	Name                 OptString         `json:"name"`
+	Description          OptString         `json:"description"`
+	Required             OptBool           `json:"required"`
+	ApplicableIssueTypes []int             `json:"applicableIssueTypes"`
+	AllowAddItem         OptBool           `json:"allowAddItem"`
+	Items                []CustomFieldItem `json:"items"`
+}
+
+// GetID returns the value of ID.
+func (s *CustomField) GetID() OptInt {
+	return s.ID
+}
+
+// GetTypeId returns the value of TypeId.
+func (s *CustomField) GetTypeId() OptInt {
+	return s.TypeId
+}
+
+// GetName returns the value of Name.
+func (s *CustomField) GetName() OptString {
+	return s.Name
+}
+
+// GetDescription returns the value of Description.
+func (s *CustomField) GetDescription() OptString {
+	return s.Description
+}
+
+// GetRequired returns the value of Required.
+func (s *CustomField) GetRequired() OptBool {
+	return s.Required
+}
+
+// GetApplicableIssueTypes returns the value of ApplicableIssueTypes.
+func (s *CustomField) GetApplicableIssueTypes() []int {
+	return s.ApplicableIssueTypes
+}
+
+// GetAllowAddItem returns the value of AllowAddItem.
+func (s *CustomField) GetAllowAddItem() OptBool {
+	return s.AllowAddItem
+}
+
+// GetItems returns the value of Items.
+func (s *CustomField) GetItems() []CustomFieldItem {
+	return s.Items
+}
+
+// SetID sets the value of ID.
+func (s *CustomField) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetTypeId sets the value of TypeId.
+func (s *CustomField) SetTypeId(val OptInt) {
+	s.TypeId = val
+}
+
+// SetName sets the value of Name.
+func (s *CustomField) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDescription sets the value of Description.
+func (s *CustomField) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetRequired sets the value of Required.
+func (s *CustomField) SetRequired(val OptBool) {
+	s.Required = val
+}
+
+// SetApplicableIssueTypes sets the value of ApplicableIssueTypes.
+func (s *CustomField) SetApplicableIssueTypes(val []int) {
+	s.ApplicableIssueTypes = val
+}
+
+// SetAllowAddItem sets the value of AllowAddItem.
+func (s *CustomField) SetAllowAddItem(val OptBool) {
+	s.AllowAddItem = val
+}
+
+// SetItems sets the value of Items.
+func (s *CustomField) SetItems(val []CustomFieldItem) {
+	s.Items = val
+}
+
+// Ref: #/components/schemas/CustomFieldItem
+type CustomFieldItem struct {
+	ID           OptInt    `json:"id"`
+	Name         OptString `json:"name"`
+	DisplayOrder OptInt    `json:"displayOrder"`
+}
+
+// GetID returns the value of ID.
+func (s *CustomFieldItem) GetID() OptInt {
+	return s.ID
+}
+
+// GetName returns the value of Name.
+func (s *CustomFieldItem) GetName() OptString {
+	return s.Name
+}
+
+// GetDisplayOrder returns the value of DisplayOrder.
+func (s *CustomFieldItem) GetDisplayOrder() OptInt {
+	return s.DisplayOrder
+}
+
+// SetID sets the value of ID.
+func (s *CustomFieldItem) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetName sets the value of Name.
+func (s *CustomFieldItem) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetDisplayOrder sets the value of DisplayOrder.
+func (s *CustomFieldItem) SetDisplayOrder(val OptInt) {
+	s.DisplayOrder = val
 }
 
 type GetCommentsCountOK struct {
@@ -1093,6 +1236,52 @@ func (o OptBool) Get() (v bool, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptBool) Or(d bool) bool {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCreateCategoryReq returns new OptCreateCategoryReq with value set to v.
+func NewOptCreateCategoryReq(v CreateCategoryReq) OptCreateCategoryReq {
+	return OptCreateCategoryReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCreateCategoryReq is optional CreateCategoryReq.
+type OptCreateCategoryReq struct {
+	Value CreateCategoryReq
+	Set   bool
+}
+
+// IsSet returns true if OptCreateCategoryReq was set.
+func (o OptCreateCategoryReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCreateCategoryReq) Reset() {
+	var v CreateCategoryReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCreateCategoryReq) SetTo(v CreateCategoryReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCreateCategoryReq) Get() (v CreateCategoryReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCreateCategoryReq) Or(d CreateCategoryReq) CreateCategoryReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2828,6 +3017,109 @@ func (s *SharedFile) SetUpdatedUser(val OptUser) {
 
 // SetUpdated sets the value of Updated.
 func (s *SharedFile) SetUpdated(val OptString) {
+	s.Updated = val
+}
+
+// Ref: #/components/schemas/Space
+type Space struct {
+	SpaceKey           OptString `json:"spaceKey"`
+	Name               OptString `json:"name"`
+	OwnerId            OptInt    `json:"ownerId"`
+	Lang               OptString `json:"lang"`
+	Timezone           OptString `json:"timezone"`
+	ReportSendTime     OptString `json:"reportSendTime"`
+	TextFormattingRule OptString `json:"textFormattingRule"`
+	Created            OptString `json:"created"`
+	Updated            OptString `json:"updated"`
+}
+
+// GetSpaceKey returns the value of SpaceKey.
+func (s *Space) GetSpaceKey() OptString {
+	return s.SpaceKey
+}
+
+// GetName returns the value of Name.
+func (s *Space) GetName() OptString {
+	return s.Name
+}
+
+// GetOwnerId returns the value of OwnerId.
+func (s *Space) GetOwnerId() OptInt {
+	return s.OwnerId
+}
+
+// GetLang returns the value of Lang.
+func (s *Space) GetLang() OptString {
+	return s.Lang
+}
+
+// GetTimezone returns the value of Timezone.
+func (s *Space) GetTimezone() OptString {
+	return s.Timezone
+}
+
+// GetReportSendTime returns the value of ReportSendTime.
+func (s *Space) GetReportSendTime() OptString {
+	return s.ReportSendTime
+}
+
+// GetTextFormattingRule returns the value of TextFormattingRule.
+func (s *Space) GetTextFormattingRule() OptString {
+	return s.TextFormattingRule
+}
+
+// GetCreated returns the value of Created.
+func (s *Space) GetCreated() OptString {
+	return s.Created
+}
+
+// GetUpdated returns the value of Updated.
+func (s *Space) GetUpdated() OptString {
+	return s.Updated
+}
+
+// SetSpaceKey sets the value of SpaceKey.
+func (s *Space) SetSpaceKey(val OptString) {
+	s.SpaceKey = val
+}
+
+// SetName sets the value of Name.
+func (s *Space) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetOwnerId sets the value of OwnerId.
+func (s *Space) SetOwnerId(val OptInt) {
+	s.OwnerId = val
+}
+
+// SetLang sets the value of Lang.
+func (s *Space) SetLang(val OptString) {
+	s.Lang = val
+}
+
+// SetTimezone sets the value of Timezone.
+func (s *Space) SetTimezone(val OptString) {
+	s.Timezone = val
+}
+
+// SetReportSendTime sets the value of ReportSendTime.
+func (s *Space) SetReportSendTime(val OptString) {
+	s.ReportSendTime = val
+}
+
+// SetTextFormattingRule sets the value of TextFormattingRule.
+func (s *Space) SetTextFormattingRule(val OptString) {
+	s.TextFormattingRule = val
+}
+
+// SetCreated sets the value of Created.
+func (s *Space) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *Space) SetUpdated(val OptString) {
 	s.Updated = val
 }
 
