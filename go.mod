@@ -5,11 +5,12 @@ go 1.25.0
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/cli/go-gh/v2 v2.13.0
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.2.0
+	github.com/google/uuid v1.6.0
 	github.com/ogen-go/ogen v1.18.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/ramenjuniti/lexrankmmr v0.0.0-20190322132754-572a7e47c7a5
 	github.com/spf13/cobra v1.10.2
 	github.com/yacchi/jubako v0.5.0
 	github.com/yacchi/jubako/format/yaml v0.5.0
@@ -24,20 +25,16 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cli/go-gh/v2 v2.13.0 // indirect
-	github.com/cli/safeexec v1.0.0 // indirect
-	github.com/dcadenas/pagerank v0.0.0-20231224215204-32a14b9c24a7 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/gaspiman/cosine_similarity v0.0.0-20150401203709-3a4668276fe3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-	github.com/ikawaha/kagome v1.11.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/itchyny/gojq v0.12.15 // indirect
+	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

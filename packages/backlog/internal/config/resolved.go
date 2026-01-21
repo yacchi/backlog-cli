@@ -37,6 +37,9 @@ type ResolvedConfig struct {
 
 	// キャッシュ設定
 	Cache ResolvedCache `json:"cache"`
+
+	// AI要約設定
+	AISummary ResolvedAISummary `json:"ai_summary"`
 }
 
 // ResolvedCache はマージ済みのキャッシュ設定
@@ -311,6 +314,9 @@ func NewResolvedConfig() *ResolvedConfig {
 			IssueFieldConfig: make(map[string]ResolvedFieldConfig),
 			PRFieldConfig:    make(map[string]ResolvedFieldConfig),
 		},
+		AISummary: ResolvedAISummary{
+			Providers: make(map[string]ResolvedAISummaryProvider),
+		},
 	}
 }
 
@@ -370,4 +376,93 @@ func (c *Credential) NeedsRefresh(marginSeconds int) bool {
 		return false
 	}
 	return time.Now().Add(time.Duration(marginSeconds) * time.Second).After(c.ExpiresAt)
+}
+
+// ResolvedAISummary はマージ済みのAI要約設定
+// jubako tagでai_summary.*からマッピング
+// env: ディレクティブで環境変数からの自動マッピングを定義
+type ResolvedAISummary struct {
+	Enabled      bool                                 `json:"enabled" jubako:"/ai_summary/enabled,env:AI_SUMMARY_ENABLED"`
+	Provider     string                               `json:"provider" jubako:"/ai_summary/provider,env:AI_SUMMARY_PROVIDER"`
+	Timeout      int                                  `json:"timeout" jubako:"/ai_summary/timeout,env:AI_SUMMARY_TIMEOUT"`
+	BatchSize    int                                  `json:"batch_size" jubako:"/ai_summary/batch_size,env:AI_SUMMARY_BATCH_SIZE"`
+	Concurrency  int                                  `json:"concurrency" jubako:"/ai_summary/concurrency,env:AI_SUMMARY_CONCURRENCY"`
+	RetryCount   int                                  `json:"retry_count" jubako:"/ai_summary/retry_count,env:AI_SUMMARY_RETRY_COUNT"`
+	RetryDelay   int                                  `json:"retry_delay" jubako:"/ai_summary/retry_delay,env:AI_SUMMARY_RETRY_DELAY"`
+	Providers    map[string]ResolvedAISummaryProvider `json:"providers" jubako:"/ai_summary/providers"`
+	Prompts      ResolvedAISummaryPrompts             `json:"prompts" jubako:"/ai_summary/prompts"`
+	Optimization ResolvedPromptOptimization           `json:"optimization" jubako:"/ai_summary/optimization"`
+}
+
+// TimeoutDuration はタイムアウトをtime.Durationで返す
+func (a *ResolvedAISummary) TimeoutDuration() time.Duration {
+	return time.Duration(a.Timeout) * time.Second
+}
+
+// GetProvider は指定されたプロバイダーを取得する
+// 存在しない場合はnilを返す
+func (a *ResolvedAISummary) GetProvider(name string) *ResolvedAISummaryProvider {
+	if name == "" {
+		name = a.Provider
+	}
+	if p, ok := a.Providers[name]; ok {
+		return &p
+	}
+	return nil
+}
+
+// GetActiveProvider はアクティブなプロバイダーを取得する
+func (a *ResolvedAISummary) GetActiveProvider() *ResolvedAISummaryProvider {
+	return a.GetProvider(a.Provider)
+}
+
+// GetBatchSize はバッチサイズを取得する
+// Provider固有設定 > グローバル設定 の優先順位で解決
+func (a *ResolvedAISummary) GetBatchSize() int {
+	provider := a.GetActiveProvider()
+	if provider != nil && provider.BatchSize > 0 {
+		return provider.BatchSize
+	}
+	return a.BatchSize
+}
+
+// GetConcurrency は並列実行数を取得する
+// Provider固有設定 > グローバル設定 の優先順位で解決
+func (a *ResolvedAISummary) GetConcurrency() int {
+	provider := a.GetActiveProvider()
+	if provider != nil && provider.Concurrency > 0 {
+		return provider.Concurrency
+	}
+	return a.Concurrency
+}
+
+// ResolvedAISummaryProvider はAIプロバイダー設定
+type ResolvedAISummaryProvider struct {
+	Command     string   `json:"command" jubako:"command"`
+	Args        []string `json:"args" jubako:"args"`
+	UseStdin    bool     `json:"use_stdin" jubako:"use_stdin"`
+	UseStdout   bool     `json:"use_stdout" jubako:"use_stdout"`
+	BatchSize   int      `json:"batch_size" jubako:"batch_size"`
+	Concurrency int      `json:"concurrency" jubako:"concurrency"`
+}
+
+// ResolvedAISummaryPrompts はプロンプトテンプレート
+type ResolvedAISummaryPrompts struct {
+	IssueList string `json:"issue_list" jubako:"issue_list"`
+	IssueView string `json:"issue_view" jubako:"issue_view"`
+}
+
+// ResolvedPromptOptimization はプロンプト最適化の設定
+// jubako tagでai_summary.optimization.*からマッピング
+// env: ディレクティブで環境変数からの自動マッピングを定義
+type ResolvedPromptOptimization struct {
+	EvaluationProvider    string   `json:"evaluation_provider" jubako:"evaluation_provider,env:AI_SUMMARY_OPTIMIZATION_EVALUATION_PROVIDER"`
+	ScoreThreshold        int      `json:"score_threshold" jubako:"score_threshold,env:AI_SUMMARY_OPTIMIZATION_SCORE_THRESHOLD"`
+	MaxIterations         int      `json:"max_iterations" jubako:"max_iterations,env:AI_SUMMARY_OPTIMIZATION_MAX_ITERATIONS"`
+	EvaluationTimeout     int      `json:"evaluation_timeout" jubako:"evaluation_timeout,env:AI_SUMMARY_OPTIMIZATION_EVALUATION_TIMEOUT"`
+	CandidateCount        int      `json:"candidate_count" jubako:"candidate_count,env:AI_SUMMARY_OPTIMIZATION_CANDIDATE_COUNT"`
+	SampleCount           int      `json:"sample_count" jubako:"sample_count,env:AI_SUMMARY_OPTIMIZATION_SAMPLE_COUNT"`
+	TargetProjects        []string `json:"target_projects" jubako:"target_projects,env:AI_SUMMARY_OPTIMIZATION_TARGET_PROJECTS"`
+	OutputModelContext    string   `json:"output_model_context" jubako:"output_model_context"`
+	PromptEngineeringTips string   `json:"prompt_engineering_tips" jubako:"prompt_engineering_tips"`
 }

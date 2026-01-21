@@ -402,3 +402,155 @@ cache:
   # キャッシュ有効期限 (秒)
   # 環境変数: BACKLOG_CACHE_TTL
   ttl: 300
+
+# ================================================
+# AI要約設定
+# ================================================
+ai_summary:
+  # AI要約を有効化
+  # 環境変数: BACKLOG_AI_SUMMARY_ENABLED
+  enabled: true
+
+  # 使用するプロバイダー名
+  # 環境変数: BACKLOG_AI_SUMMARY_PROVIDER
+  provider: claude
+
+  # タイムアウト（秒）
+  # 環境変数: BACKLOG_AI_SUMMARY_TIMEOUT
+  timeout: 60
+
+  # 1回のAI呼び出しで処理する課題数
+  # 大量の課題を要約する際にタイムアウトを防ぐため、バッチに分割して処理
+  # 環境変数: BACKLOG_AI_SUMMARY_BATCH_SIZE
+  batch_size: 5
+
+  # 同時実行数の上限
+  # 複数バッチを並列で処理する際の最大同時実行数
+  # 環境変数: BACKLOG_AI_SUMMARY_CONCURRENCY
+  concurrency: 3
+
+  # リトライ回数
+  # 要約取得に失敗した課題をリトライする回数
+  # 環境変数: BACKLOG_AI_SUMMARY_RETRY_COUNT
+  retry_count: 2
+
+  # リトライ間隔（秒）
+  # リトライ前に待機する時間
+  # 環境変数: BACKLOG_AI_SUMMARY_RETRY_DELAY
+  retry_delay: 1
+
+  # プロバイダー定義
+  # 各プロバイダーでbatch_size/concurrencyを個別設定可能
+  # 未設定の場合はグローバルデフォルト（上記）を使用
+  providers:
+    claude-opus:
+      command: "claude"
+      args: ["-p", "--model", "opus", "--dangerously-skip-permissions", "--no-session-persistence"]
+      use_stdin: true
+      use_stdout: true
+    claude:
+      command: "claude"
+      args: ["-p", "--model", "haiku", "--no-session-persistence"]
+      use_stdin: true
+      use_stdout: true
+      # Haikuは高速
+      batch_size: 10
+      concurrency: 3
+    gemini:
+      command: "gemini"
+      args: ["-y"]  # YOLOモードで自動承認
+      use_stdin: true
+      use_stdout: true
+    codex:
+      command: "codex"
+      args: ["exec", "-", "--model", "gpt-5.2"]  # stdin から読み込み
+      use_stdin: true
+      use_stdout: true
+    copilot:
+      command: "copilot"
+      args: ["-p", "", "-s", "--model", "gpt-4.1", "--no-auto-update"]
+      use_stdin: true
+      use_stdout: true
+
+  # プロンプトテンプレート
+  prompts:
+    # 課題一覧用（1行要約）
+    issue_list: |
+      以下の課題一覧を要約してください。
+      各課題につき1行（50文字以内）で要点をまとめてください。
+      タイトルに対して補完的な情報を提供するようにしてください。
+
+      出力形式:
+      === 課題キー ===
+      要約文
+
+    # 課題詳細用（複数行要約）
+    issue_view: |
+      以下の課題を3文程度で要約してください。
+      背景、現状、次のアクションが分かるように、タイトルに対して補完的な情報を提供するようにしてください。
+
+      出力形式:
+      === 課題キー ===
+      要約文（複数行可）
+
+  # プロンプト最適化設定
+  optimization:
+    # 評価モデルプロバイダー（評価・課題選定・改善提案を担当）
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_EVALUATION_PROVIDER
+    evaluation_provider: claude-opus
+
+    # 終了条件のスコア閾値 (1-10)
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_SCORE_THRESHOLD
+    score_threshold: 9
+
+    # 最大反復回数
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_MAX_ITERATIONS
+    max_iterations: 5
+
+    # 評価モデルのタイムアウト（秒）
+    # 評価・改善タスクは複雑なため、通常の要約より長い時間が必要
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_EVALUATION_TIMEOUT
+    evaluation_timeout: 300
+
+    # 候補課題の取得件数（最大100件、評価モデルがここから選定）
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_CANDIDATE_COUNT
+    candidate_count: 100
+
+    # 実際に評価に使用する課題数（候補から評価モデルが選定）
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_SAMPLE_COUNT
+    sample_count: 5
+
+    # 課題選定の対象プロジェクト（空の場合は全プロジェクトから選定）
+    # 複数指定可能
+    # 環境変数: BACKLOG_AI_SUMMARY_OPTIMIZATION_TARGET_PROJECTS（カンマ区切り）
+    target_projects: []
+
+    # 出力モデル情報テンプレート（評価モデルへのコンテキスト提供用）
+    output_model_context: |
+      出力モデル: {provider_name}
+      コマンド: {command} {args}
+
+    # プロンプトエンジニアリングのヒント
+    # 評価モデルがプロンプト改善時に参照するモデル固有の知識
+    # Web検索では得られない内部知識やベストプラクティスを記述
+    prompt_engineering_tips: |
+      ## モデル固有のヒント
+
+      ### Claude系モデル
+      - XMLタグ（<task>, <input>, <output>, <example>等）を使用すると構造化された出力が得られやすい
+      - システムプロンプトで役割を明確に定義する
+      - 「まず〜を行い、次に〜」のように段階的な指示が効果的
+
+      ### GPT系モデル
+      - Markdown形式の構造化が効果的
+      - Few-shot例を含めると精度向上
+      - JSON出力を求める場合はスキーマを明示
+
+      ### Gemini系モデル
+      - 明確な出力形式の指定が重要
+      - コンテキストは簡潔に保つ
+
+      ## 一般的なベストプラクティス
+      - 出力形式を具体例で示す
+      - 制約条件（文字数、行数等）を明確に
+      - 曖昧な表現を避ける

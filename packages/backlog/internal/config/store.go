@@ -281,6 +281,14 @@ func (s *Store) Display() *ResolvedDisplay {
 	return &resolved.Display
 }
 
+// AISummary はAI要約設定を取得する
+func (s *Store) AISummary() *ResolvedAISummary {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	resolved := s.store.Get()
+	return &resolved.AISummary
+}
+
 // Auth は認証設定を取得する
 func (s *Store) Auth() *ResolvedAuth {
 	s.mu.RLock()
@@ -411,7 +419,9 @@ func (s *Store) SetProjectValue(layerName, field string, value any) error {
 	return s.store.SetTo(layer.Name(layerName), path, value)
 }
 
-// Set はドット区切りのキーで値を設定する（ユーザーレイヤー）
+// Set はキーで値を設定する（ユーザーレイヤー）
+// ドット区切り（例: "ai_summary.prompts.issue_list"）または
+// JSON Pointer形式（例: "/ai_summary/prompts/issue_list"）のどちらでも使用可能
 func (s *Store) Set(key string, value any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

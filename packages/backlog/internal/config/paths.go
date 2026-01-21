@@ -53,7 +53,12 @@ func defaultCacheDir() (string, error) {
 }
 
 // DotToPointer converts a dot-separated path to a JSON Pointer.
+// If the path already starts with "/", it is returned as-is (already a JSON Pointer).
 // Example: "profile.default.space" -> "/profile/default/space"
+// Example: "/ai_summary/prompts/issue_list" -> "/ai_summary/prompts/issue_list"
 func DotToPointer(dotPath string) string {
+	if strings.HasPrefix(dotPath, "/") {
+		return dotPath
+	}
 	return "/" + strings.ReplaceAll(dotPath, ".", "/")
 }

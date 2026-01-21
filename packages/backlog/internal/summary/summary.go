@@ -1,127 +1,278 @@
 package summary
 
 import (
+	"context"
 	"fmt"
-	"regexp"
-	"strings"
-	"unicode/utf8"
+	"sync"
+	"time"
 
-	"github.com/ramenjuniti/lexrankmmr"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
 )
 
-var (
-	// Markdownの見出し、リスト、引用などの記号を除去するための正規表現
-	// 行頭の #, *, -, > を削除
-	reMarkdownHead = regexp.MustCompile(`(?m)^[\s#\*\->]+`)
+// Summarizer はAI要約を行う構造体
+type Summarizer struct {
+	provider Provider
+	config   *config.ResolvedAISummary
+}
 
-	// 強調記号 **, __, ~~ を削除
-	reMarkdownDeco = regexp.MustCompile(`[\*~_]{2,}`)
-
-	// URLを除去
-	reURL = regexp.MustCompile(`https?://[\w!?/+\-_~=;.,*&@#$%()'[\\\]]+`)
-
-	// コードブロック（```...```）の除去は難しいが、``` だけの行は削除したい
-	reCodeFence = regexp.MustCompile("`{3,}`")
-
-	// 記号のみの行判定（英数字・ひらがな・カタカナ・漢字が含まれていない）
-	reSymbolOnly = regexp.MustCompile(`^[[:punct:][:space:]]*$`)
-)
-
-// Summarize summarises the given text into `sentenceCount` sentences.
-func Summarize(text string, sentenceCount int) (string, error) {
-	if strings.TrimSpace(text) == "" {
-		return "", nil
+// NewSummarizer は設定からSummarizerを作成する
+func NewSummarizer(cfg *config.ResolvedAISummary) (*Summarizer, error) {
+	if !cfg.Enabled {
+		return nil, fmt.Errorf("AI summary is not enabled")
 	}
 
-	// テキストの正規化とクリーニング
-	cleanText := normalizeText(text)
-	if cleanText == "" {
-		return "", nil
-	}
-
-	// LexRankMMRの初期化
-	options := []lexrankmmr.Option{
-		lexrankmmr.MaxLines(sentenceCount),
-		lexrankmmr.MaxCharacters(100000),
-	}
-
-	data, err := lexrankmmr.New(options...)
+	provider, err := NewCommandProvider(cfg)
 	if err != nil {
-		return "", fmt.Errorf("failed to initialize lexrankmmr: %w", err)
+		return nil, err
 	}
 
-	// 要約実行
-	if err := data.Summarize(cleanText); err != nil {
-		return "", fmt.Errorf("summarization failed: %w", err)
-	}
-
-	// 結果取得
-	var summaries []string
-	for _, score := range data.LineLimitedSummary {
-		summaries = append(summaries, score.Sentence)
-	}
-
-	if len(summaries) == 0 {
-		return "", nil
-	}
-
-	return strings.Join(summaries, ""), nil
+	return &Summarizer{
+		provider: provider,
+		config:   cfg,
+	}, nil
 }
 
-func normalizeText(text string) string {
-	// 1. URL除去
-	text = reURL.ReplaceAllString(text, "")
+// SummarizeBatch は複数の課題を一括で要約する
+// バッチサイズと並列実行数を考慮して処理する
+// 要約取得に失敗した課題はリトライする
+func (s *Summarizer) SummarizeBatch(ctx context.Context, issues []IssueInput) (map[string]string, error) {
+	if len(issues) == 0 {
+		return make(map[string]string), nil
+	}
 
-	// 2. コードフェンス除去
-	text = reCodeFence.ReplaceAllString(text, "")
+	// 設定から各パラメータを取得
+	batchSize := s.config.GetBatchSize()
+	concurrency := s.config.GetConcurrency()
+	retryCount := s.config.RetryCount
+	retryDelay := time.Duration(s.config.RetryDelay) * time.Second
 
-	// 3. Markdown装飾除去 (行頭)
-	text = reMarkdownHead.ReplaceAllString(text, "")
+	// 入力課題のキーを収集（リトライ対象の特定に使用）
+	issueMap := make(map[string]IssueInput, len(issues))
+	for _, issue := range issues {
+		issueMap[issue.Key] = issue
+	}
 
-	// 4. Markdown強調除去 (文中)
-	text = reMarkdownDeco.ReplaceAllString(text, "")
+	// 初回実行
+	results, err := s.summarizeBatchWithConcurrency(ctx, issues, batchSize, concurrency)
+	if err != nil {
+		return nil, err
+	}
 
-	// 改行や区切り文字を統一的な区切り（改行）に置換
-	replacer := strings.NewReplacer(
-		"\r\n", "\n",
-		"\r", "\n",
-		"。", "\n",
-		"！", "\n",
-		"？", "\n",
-		"!", "\n",
-		"?", "\n",
+	// リトライ処理
+	for retry := 0; retry < retryCount; retry++ {
+		// 失敗した課題（結果が取れなかった課題）を特定
+		var failedIssues []IssueInput
+		for key, issue := range issueMap {
+			if _, ok := results[key]; !ok {
+				failedIssues = append(failedIssues, issue)
+			}
+		}
+
+		// 全て取得できていればリトライ不要
+		if len(failedIssues) == 0 {
+			break
+		}
+
+		debug.Log("AI summary: retrying failed issues",
+			"retry", retry+1,
+			"max_retries", retryCount,
+			"failed_count", len(failedIssues),
+		)
+
+		// リトライ前に待機
+		select {
+		case <-ctx.Done():
+			return results, ctx.Err()
+		case <-time.After(retryDelay):
+		}
+
+		// 失敗した課題をリトライ
+		retryResults, retryErr := s.summarizeBatchWithConcurrency(ctx, failedIssues, batchSize, concurrency)
+		if retryErr != nil {
+			debug.Log("AI summary: retry failed",
+				"retry", retry+1,
+				"error", retryErr,
+			)
+			continue
+		}
+
+		// リトライ結果をマージ
+		for k, v := range retryResults {
+			results[k] = v
+		}
+	}
+
+	// 最終的に取得できなかった課題をログ出力
+	var finalFailedKeys []string
+	for key := range issueMap {
+		if _, ok := results[key]; !ok {
+			finalFailedKeys = append(finalFailedKeys, key)
+		}
+	}
+	if len(finalFailedKeys) > 0 {
+		debug.Log("AI summary: some issues could not be summarized",
+			"failed_keys", finalFailedKeys,
+		)
+	}
+
+	return results, nil
+}
+
+// summarizeBatchWithConcurrency は並列処理でバッチ要約を実行する
+func (s *Summarizer) summarizeBatchWithConcurrency(ctx context.Context, issues []IssueInput, batchSize, concurrency int) (map[string]string, error) {
+	// バッチサイズ以下なら従来通り一括処理
+	if len(issues) <= batchSize {
+		return s.summarizeBatchInternal(ctx, issues)
+	}
+
+	debug.Log("AI summary: batch processing",
+		"total_issues", len(issues),
+		"batch_size", batchSize,
+		"concurrency", concurrency,
 	)
-	text = replacer.Replace(text)
 
-	// 改行で分割し、フィルタリング
-	lines := strings.Split(text, "\n")
-	var validLines []string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	// バッチに分割
+	batches := splitIntoBatches(issues, batchSize)
 
-		// 空行除去
-		if line == "" {
-			continue
-		}
+	// 結果格納
+	results := make(map[string]string)
+	var mu sync.Mutex
 
-		// 記号のみの行を除去
-		if reSymbolOnly.MatchString(line) {
-			continue
-		}
+	// セマフォ（並列実行数制限）
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
 
-		// 短すぎる行を除去（例: 5文字未満）
-		// LexRankの品質向上のため、ある程度の情報量がある文のみを通す。
-		if utf8.RuneCountInString(line) < 5 {
-			continue
-		}
+	// エラー収集（部分的な失敗を許容）
+	var errors []error
+	var errMu sync.Mutex
 
-		validLines = append(validLines, line)
+	for i, batch := range batches {
+		batch := batch
+		batchNum := i + 1
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// セマフォ取得
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			debug.Log("AI summary: processing batch",
+				"batch", batchNum,
+				"total_batches", len(batches),
+				"issues_in_batch", len(batch),
+			)
+
+			// 各バッチを処理
+			batchResult, err := s.summarizeBatchInternal(ctx, batch)
+			if err != nil {
+				errMu.Lock()
+				errors = append(errors, fmt.Errorf("batch %d failed: %w", batchNum, err))
+				errMu.Unlock()
+				return
+			}
+
+			// 結果をマージ
+			mu.Lock()
+			for k, v := range batchResult {
+				results[k] = v
+			}
+			mu.Unlock()
+
+			debug.Log("AI summary: batch completed",
+				"batch", batchNum,
+				"results", len(batchResult),
+			)
+		}()
 	}
 
-	if len(validLines) == 0 {
-		return ""
+	wg.Wait()
+
+	// 全バッチ失敗の場合のみエラーを返す
+	if len(errors) > 0 && len(results) == 0 {
+		return nil, fmt.Errorf("all batches failed: %v", errors)
 	}
 
-	// LexRankMMRへ渡すために「。」で結合し、末尾にも「。」をつける。
-	return strings.Join(validLines, "。") + "。"
+	// 部分的な失敗はログに記録するが処理続行
+	if len(errors) > 0 {
+		debug.Log("AI summary: some batches failed",
+			"failed_count", len(errors),
+			"errors", errors,
+		)
+	}
+
+	return results, nil
 }
+
+// summarizeBatchInternal は単一バッチの課題を要約する（内部用）
+func (s *Summarizer) summarizeBatchInternal(ctx context.Context, issues []IssueInput) (map[string]string, error) {
+	// 入力をフォーマット
+	input := FormatInput(issues)
+
+	// プロンプトテンプレート取得
+	prompt := s.config.Prompts.IssueList
+	if prompt == "" {
+		prompt = defaultIssueListPrompt
+	}
+
+	// AI呼び出し
+	output, err := s.provider.Summarize(ctx, prompt, input)
+	if err != nil {
+		return nil, fmt.Errorf("AI summarization failed: %w", err)
+	}
+
+	// 出力をパース
+	return ParseOutput(output), nil
+}
+
+// splitIntoBatches は課題リストを指定サイズのバッチに分割する
+func splitIntoBatches(issues []IssueInput, batchSize int) [][]IssueInput {
+	var batches [][]IssueInput
+	for i := 0; i < len(issues); i += batchSize {
+		end := i + batchSize
+		if end > len(issues) {
+			end = len(issues)
+		}
+		batches = append(batches, issues[i:end])
+	}
+	return batches
+}
+
+// SummarizeSingle は単一の課題を要約する
+// プロンプトテンプレートを使用して、課題詳細を要約する
+func (s *Summarizer) SummarizeSingle(ctx context.Context, issue IssueInput) (string, error) {
+	// 入力をフォーマット
+	input := FormatSingleInput(issue)
+
+	// プロンプトテンプレート取得
+	prompt := s.config.Prompts.IssueView
+	if prompt == "" {
+		prompt = defaultIssueViewPrompt
+	}
+
+	// AI呼び出し
+	output, err := s.provider.Summarize(ctx, prompt, input)
+	if err != nil {
+		return "", fmt.Errorf("AI summarization failed: %w", err)
+	}
+
+	// 出力をパース（単一課題）
+	return ParseSingleOutput(output, issue.Key), nil
+}
+
+// デフォルトのプロンプトテンプレート
+const defaultIssueListPrompt = `以下の課題一覧を要約してください。
+各課題につき1行（50文字以内）で要点をまとめてください。
+
+出力形式:
+=== 課題キー ===
+要約文`
+
+const defaultIssueViewPrompt = `以下の課題を3文程度で要約してください。
+背景、現状、次のアクションがわかるように。
+
+出力形式:
+=== 課題キー ===
+要約文（複数行可）`

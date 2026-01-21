@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/ai"
 	apicmd "github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/auth"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/category"
@@ -123,6 +124,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
 
 	// サブコマンド登録
+	rootCmd.AddCommand(ai.AICmd)
 	rootCmd.AddCommand(apicmd.APICmd)
 	rootCmd.AddCommand(auth.AuthCmd)
 	rootCmd.AddCommand(category.CategoryCmd)

@@ -12,6 +12,7 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/summary"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
@@ -149,7 +150,7 @@ func runView(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
 		projectKey := cmdutil.GetCurrentProject(cfg)
-		return renderIssueDetail(issue, comments, showComments, profile, display, projectKey, markdownOpts, c.OutOrStdout())
+		return renderIssueDetail(issue, comments, showComments, profile, display, cfg, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
@@ -234,7 +235,7 @@ func outputIssueJSON(issue *backlog.Issue, comments []api.Comment, showComments 
 	return cmdutil.OutputJSONFromProfile(issue, profile.JSONFields, profile.JQ)
 }
 
-func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
+func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile, display *config.ResolvedDisplay, cfg *config.Store, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
 	if viewSummaryWithComments {
 		viewSummary = true
@@ -324,35 +325,62 @@ func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComment
 		fmt.Println(ui.Bold("AI Summary"))
 		fmt.Println(strings.Repeat("─", 60))
 
-		fullText := ""
-		if issue.Description.IsSet() {
-			fullText += issue.Description.Value + "\n"
-		}
+		aiCfg := cfg.AISummary()
+		if !aiCfg.Enabled {
+			fmt.Println(ui.Gray("(AI summary is not enabled. Use 'backlog config set ai_summary.enabled true' to enable.)"))
+		} else {
+			debug.Log("AI summary: starting",
+				"provider", aiCfg.Provider,
+				"issue_key", key,
+				"with_comments", viewSummaryWithComments,
+			)
 
-		// 要約に使用するコメントを抽出
-		// viewSummaryWithComments が有効な場合のみコメントを含める
-		if viewSummaryWithComments {
-			// APIからは新しい順(desc)で取得している
-			// 古い順に結合したいので逆順にループ
-			for i := len(comments) - 1; i >= 0; i-- {
-				// summaryCommentCount の制限チェック
-				if i >= summaryCommentCount {
-					continue
+			summarizer, err := summary.NewSummarizer(aiCfg)
+			if err != nil {
+				fmt.Printf("AI summary unavailable: %v\n", err)
+			} else {
+				// 入力データを準備
+				input := summary.IssueInput{
+					Key:   key,
+					Title: issue.Summary.Value,
+				}
+				if issue.Description.IsSet() {
+					input.Description = issue.Description.Value
 				}
 
-				if comments[i].Content != "" {
-					fullText += comments[i].Content + "\n"
+				// 要約に使用するコメントを抽出
+				if viewSummaryWithComments {
+					for i := len(comments) - 1; i >= 0; i-- {
+						if i >= summaryCommentCount {
+							continue
+						}
+						if comments[i].Content != "" {
+							input.Comments = append(input.Comments, comments[i].Content)
+						}
+					}
+				}
+
+				debug.Log("AI summary: prepared input",
+					"description_length", len(input.Description),
+					"comment_count", len(input.Comments),
+				)
+
+				ctx := context.Background()
+				stopProgress := ui.StartProgress("AI要約を生成中...")
+				s, err := summarizer.SummarizeSingle(ctx, input)
+				stopProgress()
+
+				if err != nil {
+					fmt.Printf("Failed to generate summary: %v\n", err)
+				} else if s != "" {
+					debug.Log("AI summary: completed",
+						"output_length", len(s),
+					)
+					fmt.Println(s)
+				} else {
+					fmt.Println(ui.Gray("(No summary available)"))
 				}
 			}
-		}
-
-		s, err := summary.Summarize(fullText, 3)
-		if err != nil {
-			fmt.Printf("Failed to generate summary: %v\n", err)
-		} else if s != "" {
-			fmt.Println(s)
-		} else {
-			fmt.Println(ui.Gray("(No summary available)"))
 		}
 	}
 

@@ -191,3 +191,25 @@ func HexBgColor(hex, text string) string {
 	r, g, b := parseHex(hex)
 	return fmt.Sprintf("\033[48;2;%d;%d;%dm%s%s", r, g, b, text, reset)
 }
+
+// IsStderrTTY はstderrがTTY（対話的ターミナル）かどうかを返す
+func IsStderrTTY() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+// StartProgress は進捗メッセージをstderrに表示する（TTYの場合のみ）
+// 戻り値の関数を呼ぶとメッセージをクリアする
+func StartProgress(message string) func() {
+	if !IsStderrTTY() {
+		return func() {} // no-op
+	}
+	// メッセージを表示（改行なしでカーソルを行頭に戻す準備）
+	displayMsg := Gray(message)
+	fmt.Fprint(os.Stderr, displayMsg)
+	// 表示した文字数を記録（エスケープシーケンスを除いた実際の表示文字数）
+	msgLen := len(message)
+	return func() {
+		// カーソルを行頭に戻し、スペースで上書きしてから再度行頭に戻る
+		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", msgLen))
+	}
+}

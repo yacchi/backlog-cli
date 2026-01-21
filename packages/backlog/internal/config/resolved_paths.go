@@ -13,69 +13,88 @@ import (
 
 // Path constants for static configuration paths.
 const (
-	PathActiveProfile                      = "/active_profile"
-	PathProfile                            = "/profile"
-	PathCredential                         = "/credential"
-	PathClientTrustBundles                 = "/client/trust/bundles"
-	PathProjectProfile                     = "/project/profile"
-	PathProjectSpace                       = "/project/space"
-	PathProjectDomain                      = "/project/domain"
-	PathProjectName                        = "/project/name"
-	PathServerHost                         = "/server/host"
-	PathServerPort                         = "/server/port"
-	PathServerBaseUrl                      = "/server/base_url"
-	PathServerAllowedHostPatterns          = "/server/allowed_host_patterns"
-	PathServerHttpReadTimeout              = "/server/http/read_timeout"
-	PathServerHttpWriteTimeout             = "/server/http/write_timeout"
-	PathServerHttpIdleTimeout              = "/server/http/idle_timeout"
-	PathServerJwtExpiry                    = "/server/jwt/expiry"
-	PathServerCacheShortTtl                = "/server/cache/short_ttl"
-	PathServerCacheLongTtl                 = "/server/cache/long_ttl"
-	PathServerCacheStaticTtl               = "/server/cache/static_ttl"
-	PathServerBacklog                      = "/server/backlog"
-	PathServerTenants                      = "/server/tenants"
-	PathServerAccessControlAllowedSpaces   = "/server/access_control/allowed_spaces"
-	PathServerAccessControlAllowedProjects = "/server/access_control/allowed_projects"
-	PathServerAccessControlAllowedCidrs    = "/server/access_control/allowed_cidrs"
-	PathServerRateLimitEnabled             = "/server/rate_limit/enabled"
-	PathServerRateLimitRequestsPerMinute   = "/server/rate_limit/requests_per_minute"
-	PathServerRateLimitBurst               = "/server/rate_limit/burst"
-	PathServerRateLimitCleanupInterval     = "/server/rate_limit/cleanup_interval"
-	PathServerRateLimitEntryTtl            = "/server/rate_limit/entry_ttl"
-	PathServerAuditEnabled                 = "/server/audit/enabled"
-	PathServerAuditOutput                  = "/server/audit/output"
-	PathServerAuditFilePath                = "/server/audit/file_path"
-	PathServerAuditWebhookUrl              = "/server/audit/webhook_url"
-	PathServerAuditWebhookTimeout          = "/server/audit/webhook_timeout"
-	PathDisplaySummaryMaxLength            = "/display/summary_max_length"
-	PathDisplaySummaryCommentCount         = "/display/summary_comment_count"
-	PathDisplayDefaultCommentCount         = "/display/default_comment_count"
-	PathDisplayDefaultIssueLimit           = "/display/default_issue_limit"
-	PathDisplayTimezone                    = "/display/timezone"
-	PathDisplayDateFormat                  = "/display/date_format"
-	PathDisplayDatetimeFormat              = "/display/datetime_format"
-	PathDisplayHyperlink                   = "/display/hyperlink"
-	PathDisplayMarkdownView                = "/display/markdown_view"
-	PathDisplayMarkdownWarn                = "/display/markdown_warn"
-	PathDisplayMarkdownCache               = "/display/markdown_cache"
-	PathDisplayMarkdownCacheRaw            = "/display/markdown_cache_raw"
-	PathDisplayMarkdownCacheExcerpt        = "/display/markdown_cache_excerpt"
-	PathDisplayMarkdownUnsafeRules         = "/display/markdown_unsafe_rules"
-	PathDisplayIssueListFields             = "/display/issue_list_fields"
-	PathDisplayIssueFieldConfig            = "/display/issue_field_config"
-	PathDisplayPrListFields                = "/display/pr_list_fields"
-	PathDisplayPrFieldConfig               = "/display/pr_field_config"
-	PathAuthMinCallbackPort                = "/auth/min_callback_port"
-	PathAuthMaxCallbackPort                = "/auth/max_callback_port"
-	PathAuthSessionCheckInterval           = "/auth/session/check_interval"
-	PathAuthSessionTimeout                 = "/auth/session/timeout"
-	PathAuthKeepaliveInterval              = "/auth/keepalive/interval"
-	PathAuthKeepaliveTimeout               = "/auth/keepalive/timeout"
-	PathAuthKeepaliveConnectTimeout        = "/auth/keepalive/connect_timeout"
-	PathAuthKeepaliveGracePeriod           = "/auth/keepalive/grace_period"
-	PathCacheEnabled                       = "/cache/enabled"
-	PathCacheDir                           = "/cache/dir"
-	PathCacheTtl                           = "/cache/ttl"
+	PathActiveProfile                              = "/active_profile"
+	PathProfile                                    = "/profile"
+	PathCredential                                 = "/credential"
+	PathClientTrustBundles                         = "/client/trust/bundles"
+	PathProjectProfile                             = "/project/profile"
+	PathProjectSpace                               = "/project/space"
+	PathProjectDomain                              = "/project/domain"
+	PathProjectName                                = "/project/name"
+	PathServerHost                                 = "/server/host"
+	PathServerPort                                 = "/server/port"
+	PathServerBaseUrl                              = "/server/base_url"
+	PathServerAllowedHostPatterns                  = "/server/allowed_host_patterns"
+	PathServerHttpReadTimeout                      = "/server/http/read_timeout"
+	PathServerHttpWriteTimeout                     = "/server/http/write_timeout"
+	PathServerHttpIdleTimeout                      = "/server/http/idle_timeout"
+	PathServerJwtExpiry                            = "/server/jwt/expiry"
+	PathServerCacheShortTtl                        = "/server/cache/short_ttl"
+	PathServerCacheLongTtl                         = "/server/cache/long_ttl"
+	PathServerCacheStaticTtl                       = "/server/cache/static_ttl"
+	PathServerBacklog                              = "/server/backlog"
+	PathServerTenants                              = "/server/tenants"
+	PathServerAccessControlAllowedSpaces           = "/server/access_control/allowed_spaces"
+	PathServerAccessControlAllowedProjects         = "/server/access_control/allowed_projects"
+	PathServerAccessControlAllowedCidrs            = "/server/access_control/allowed_cidrs"
+	PathServerRateLimitEnabled                     = "/server/rate_limit/enabled"
+	PathServerRateLimitRequestsPerMinute           = "/server/rate_limit/requests_per_minute"
+	PathServerRateLimitBurst                       = "/server/rate_limit/burst"
+	PathServerRateLimitCleanupInterval             = "/server/rate_limit/cleanup_interval"
+	PathServerRateLimitEntryTtl                    = "/server/rate_limit/entry_ttl"
+	PathServerAuditEnabled                         = "/server/audit/enabled"
+	PathServerAuditOutput                          = "/server/audit/output"
+	PathServerAuditFilePath                        = "/server/audit/file_path"
+	PathServerAuditWebhookUrl                      = "/server/audit/webhook_url"
+	PathServerAuditWebhookTimeout                  = "/server/audit/webhook_timeout"
+	PathDisplaySummaryMaxLength                    = "/display/summary_max_length"
+	PathDisplaySummaryCommentCount                 = "/display/summary_comment_count"
+	PathDisplayDefaultCommentCount                 = "/display/default_comment_count"
+	PathDisplayDefaultIssueLimit                   = "/display/default_issue_limit"
+	PathDisplayTimezone                            = "/display/timezone"
+	PathDisplayDateFormat                          = "/display/date_format"
+	PathDisplayDatetimeFormat                      = "/display/datetime_format"
+	PathDisplayHyperlink                           = "/display/hyperlink"
+	PathDisplayMarkdownView                        = "/display/markdown_view"
+	PathDisplayMarkdownWarn                        = "/display/markdown_warn"
+	PathDisplayMarkdownCache                       = "/display/markdown_cache"
+	PathDisplayMarkdownCacheRaw                    = "/display/markdown_cache_raw"
+	PathDisplayMarkdownCacheExcerpt                = "/display/markdown_cache_excerpt"
+	PathDisplayMarkdownUnsafeRules                 = "/display/markdown_unsafe_rules"
+	PathDisplayIssueListFields                     = "/display/issue_list_fields"
+	PathDisplayIssueFieldConfig                    = "/display/issue_field_config"
+	PathDisplayPrListFields                        = "/display/pr_list_fields"
+	PathDisplayPrFieldConfig                       = "/display/pr_field_config"
+	PathAuthMinCallbackPort                        = "/auth/min_callback_port"
+	PathAuthMaxCallbackPort                        = "/auth/max_callback_port"
+	PathAuthSessionCheckInterval                   = "/auth/session/check_interval"
+	PathAuthSessionTimeout                         = "/auth/session/timeout"
+	PathAuthKeepaliveInterval                      = "/auth/keepalive/interval"
+	PathAuthKeepaliveTimeout                       = "/auth/keepalive/timeout"
+	PathAuthKeepaliveConnectTimeout                = "/auth/keepalive/connect_timeout"
+	PathAuthKeepaliveGracePeriod                   = "/auth/keepalive/grace_period"
+	PathCacheEnabled                               = "/cache/enabled"
+	PathCacheDir                                   = "/cache/dir"
+	PathCacheTtl                                   = "/cache/ttl"
+	PathAiSummaryEnabled                           = "/ai_summary/enabled"
+	PathAiSummaryProvider                          = "/ai_summary/provider"
+	PathAiSummaryTimeout                           = "/ai_summary/timeout"
+	PathAiSummaryBatchSize                         = "/ai_summary/batch_size"
+	PathAiSummaryConcurrency                       = "/ai_summary/concurrency"
+	PathAiSummaryRetryCount                        = "/ai_summary/retry_count"
+	PathAiSummaryRetryDelay                        = "/ai_summary/retry_delay"
+	PathAiSummaryProviders                         = "/ai_summary/providers"
+	PathAiSummaryPromptsIssueList                  = "/ai_summary/prompts/issue_list"
+	PathAiSummaryPromptsIssueView                  = "/ai_summary/prompts/issue_view"
+	PathAiSummaryOptimizationEvaluationProvider    = "/ai_summary/optimization/evaluation_provider"
+	PathAiSummaryOptimizationScoreThreshold        = "/ai_summary/optimization/score_threshold"
+	PathAiSummaryOptimizationMaxIterations         = "/ai_summary/optimization/max_iterations"
+	PathAiSummaryOptimizationEvaluationTimeout     = "/ai_summary/optimization/evaluation_timeout"
+	PathAiSummaryOptimizationCandidateCount        = "/ai_summary/optimization/candidate_count"
+	PathAiSummaryOptimizationSampleCount           = "/ai_summary/optimization/sample_count"
+	PathAiSummaryOptimizationTargetProjects        = "/ai_summary/optimization/target_projects"
+	PathAiSummaryOptimizationOutputModelContext    = "/ai_summary/optimization/output_model_context"
+	PathAiSummaryOptimizationPromptEngineeringTips = "/ai_summary/optimization/prompt_engineering_tips"
 )
 
 // PathProfileRelayServer returns the JSONPointer path.
@@ -376,4 +395,40 @@ func PathDisplayPrFieldConfigMaxWidth(key string) string {
 // Path pattern: /display/pr_field_config/{key}/time_format
 func PathDisplayPrFieldConfigTimeFormat(key string) string {
 	return "/display/pr_field_config/" + jsonptr.Escape(key) + "/time_format"
+}
+
+// PathAiSummaryProvidersCommand returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/command
+func PathAiSummaryProvidersCommand(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/command"
+}
+
+// PathAiSummaryProvidersArgs returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/args
+func PathAiSummaryProvidersArgs(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/args"
+}
+
+// PathAiSummaryProvidersUseStdin returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/use_stdin
+func PathAiSummaryProvidersUseStdin(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/use_stdin"
+}
+
+// PathAiSummaryProvidersUseStdout returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/use_stdout
+func PathAiSummaryProvidersUseStdout(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/use_stdout"
+}
+
+// PathAiSummaryProvidersBatchSize returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/batch_size
+func PathAiSummaryProvidersBatchSize(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/batch_size"
+}
+
+// PathAiSummaryProvidersConcurrency returns the JSONPointer path.
+// Path pattern: /ai_summary/providers/{key}/concurrency
+func PathAiSummaryProvidersConcurrency(key string) string {
+	return "/ai_summary/providers/" + jsonptr.Escape(key) + "/concurrency"
 }

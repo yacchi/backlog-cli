@@ -12,6 +12,7 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/summary"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
@@ -239,12 +240,12 @@ func runList(c *cobra.Command, args []string) error {
 		if markdownOpts.Cache && cacheErr != nil {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
-		outputTable(ctx, client, issues, profile, display, projectKey, markdownOpts)
+		outputTable(ctx, client, issues, profile, display, cfg, projectKey, markdownOpts)
 		return nil
 	}
 }
 
-func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) {
+func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, cfg *config.Store, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) {
 	// フラグ調整
 	if listSummaryWithComments {
 		listSummary = true
@@ -290,10 +291,16 @@ func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue
 	// ベースURL生成
 	baseURL := fmt.Sprintf("https://%s.%s", profile.Space, profile.Domain)
 
+	// AI要約を一括取得
+	summaryMap := make(map[string]string)
+	if listSummary {
+		summaryMap = fetchAISummaries(ctx, client, issues, cfg, summaryCommentCount, listSummaryWithComments, projectKey, baseURL, markdownOpts)
+	}
+
 	for _, issue := range issues {
 		row := make([]string, len(fields))
 		for i, f := range fields {
-			row[i] = getIssueFieldValue(ctx, client, issue, f, formatter, baseURL, summaryCommentCount, listSummaryWithComments, projectKey, markdownOpts)
+			row[i] = getIssueFieldValue(ctx, client, issue, f, formatter, baseURL, summaryMap, projectKey, markdownOpts)
 		}
 		table.AddRow(row...)
 	}
@@ -301,7 +308,98 @@ func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue
 	table.RenderWithColor(os.Stdout, ui.IsColorEnabled())
 }
 
-func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryCommentCount int, withComments bool, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) string {
+// fetchAISummaries はAI要約を一括取得する
+func fetchAISummaries(ctx context.Context, client *api.Client, issues []backlog.Issue, cfg *config.Store, summaryCommentCount int, withComments bool, projectKey, baseURL string, markdownOpts cmdutil.MarkdownViewOptions) map[string]string {
+	aiCfg := cfg.AISummary()
+	if !aiCfg.Enabled {
+		// AI要約が無効な場合は空のマップを返す
+		fmt.Fprintln(os.Stderr, "Warning: AI summary is not enabled. Use 'backlog config set ai_summary.enabled true' to enable.")
+		return make(map[string]string)
+	}
+
+	debug.Log("AI summary: starting",
+		"provider", aiCfg.Provider,
+		"issue_count", len(issues),
+		"with_comments", withComments,
+	)
+
+	// Summarizerを作成
+	summarizer, err := summary.NewSummarizer(aiCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: AI summary unavailable: %v\n", err)
+		return make(map[string]string)
+	}
+
+	// 課題データを準備
+	inputs := make([]summary.IssueInput, 0, len(issues))
+	for _, issue := range issues {
+		input := summary.IssueInput{
+			Key:   issue.IssueKey.Value,
+			Title: issue.Summary.Value,
+		}
+
+		if issue.Description.IsSet() {
+			input.Description = issue.Description.Value
+		}
+
+		// コメント取得
+		if withComments && summaryCommentCount > 0 {
+			fetchCount := summaryCommentCount
+			if fetchCount > 100 {
+				fetchCount = 100
+			}
+			comments, err := client.GetComments(ctx, issue.IssueKey.Value, &api.CommentListOptions{
+				Count: fetchCount,
+				Order: "desc",
+			})
+			if err == nil {
+				for i := len(comments) - 1; i >= 0; i-- {
+					if comments[i].Content != "" {
+						input.Comments = append(input.Comments, comments[i].Content)
+					}
+				}
+			}
+		}
+
+		// Markdown変換
+		if markdownOpts.Enable {
+			issueID := 0
+			if issue.ID.IsSet() {
+				issueID = issue.ID.Value
+			}
+			issueKey := issue.IssueKey.Value
+			issueURL := fmt.Sprintf("%s/view/%s", baseURL, issueKey)
+			converted, err := cmdutil.RenderMarkdownContent(input.Description, markdownOpts, "issue", issueID, 0, projectKey, issueKey, issueURL, nil, nil)
+			if err == nil {
+				input.Description = converted
+			}
+		}
+
+		inputs = append(inputs, input)
+	}
+
+	debug.Log("AI summary: prepared inputs",
+		"input_count", len(inputs),
+	)
+
+	// 一括要約（進捗表示付き）
+	stopProgress := ui.StartProgress("AI要約を生成中...")
+	result, err := summarizer.SummarizeBatch(ctx, inputs)
+	stopProgress()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: AI summary failed: %v\n", err)
+		return make(map[string]string)
+	}
+
+	debug.Log("AI summary: completed",
+		"result_count", len(result),
+	)
+
+	return result
+}
+
+func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.Issue, field string, f *ui.FieldFormatter, baseURL string, summaryMap map[string]string, projectKey string, markdownOpts cmdutil.MarkdownViewOptions) string {
 	switch field {
 	case "key":
 		key := issue.IssueKey.Value
@@ -325,58 +423,13 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 	case "summary":
 		return f.FormatString(issue.Summary.Value, field)
 	case "ai_summary":
-		issueID := 0
-		if issue.ID.IsSet() {
-			issueID = issue.ID.Value
-		}
-		fullText := ""
-		if issue.Description.IsSet() {
-			fullText = issue.Description.Value
-		}
-
-		if withComments && summaryCommentCount > 0 {
-			fetchCount := summaryCommentCount
-			if fetchCount > 100 {
-				fetchCount = 100
-			}
-			comments, err := client.GetComments(ctx, issue.IssueKey.Value, &api.CommentListOptions{
-				Count: fetchCount,
-				Order: "desc",
-			})
-			if err == nil {
-				for i := len(comments) - 1; i >= 0; i-- {
-					if comments[i].Content != "" {
-						fullText += "\n" + comments[i].Content
-					}
-				}
-			}
-		}
-
-		if markdownOpts.Enable {
-			issueKey := issue.IssueKey.Value
-			issueURL := fmt.Sprintf("%s/view/%s", baseURL, issueKey)
-			converted, err := cmdutil.RenderMarkdownContent(fullText, markdownOpts, "issue", issueID, 0, projectKey, issueKey, issueURL, nil, nil)
-			if err == nil {
-				fullText = converted
-			}
-		}
-
-		if strings.TrimSpace(fullText) == "" {
+		// 事前に取得した要約マップから取得
+		s, ok := summaryMap[issue.IssueKey.Value]
+		if !ok || s == "" {
 			return "-"
 		}
-
-		s, err := summary.Summarize(fullText, 1)
-		if err != nil {
-			return ""
-		}
-		// 改行を除去
-		s = strings.ReplaceAll(s, "\n", " ")
 		// 長すぎる場合は省略（テーブル表示のため）
-		runes := []rune(s)
-		if len(runes) > 50 {
-			return string(runes[:50]) + "..."
-		}
-		return s
+		return summary.TruncateSummary(s, 50)
 	case "type":
 		if issue.IssueType.IsSet() && issue.IssueType.Value.Name.IsSet() {
 			return issue.IssueType.Value.Name.Value
