@@ -39,6 +39,12 @@ Examples:
   # Search issues
   backlog issue list --search "bug fix"
 
+  # Filter by issue type
+  backlog issue list --type Bug
+
+  # Sort by priority
+  backlog issue list --sort priority --order asc
+
   # Open issue list in browser
   backlog issue list --web`,
 	RunE: runList,
@@ -62,6 +68,9 @@ var (
 	listCount               bool
 	listCategory            string
 	listMilestone           string
+	listIssueType           string
+	listSort                string
+	listOrder               string
 )
 
 func init() {
@@ -82,6 +91,9 @@ func init() {
 	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of issues")
 	listCmd.Flags().StringVarP(&listCategory, "category", "l", "", "Filter by category IDs or names (comma-separated, like gh --label)")
 	listCmd.Flags().StringVarP(&listMilestone, "milestone", "m", "", "Filter by milestone IDs or names (comma-separated)")
+	listCmd.Flags().StringVarP(&listIssueType, "type", "T", "", "Filter by issue type name (e.g., Bug, タスク)")
+	listCmd.Flags().StringVar(&listSort, "sort", "updated", "Sort field: created, updated, issueType, category, priority, dueDate, etc.")
+	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -114,8 +126,8 @@ func runList(c *cobra.Command, args []string) error {
 	opts := &api.IssueListOptions{
 		ProjectIDs: []int{project.ID},
 		Count:      listLimit,
-		Sort:       "updated",
-		Order:      "desc",
+		Sort:       listSort,
+		Order:      listOrder,
 	}
 
 	if listSearch != "" {
@@ -170,6 +182,15 @@ func runList(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve milestones: %w", err)
 		}
 		opts.MilestoneIDs = milestoneIDs
+	}
+
+	// 課題種別フィルター（--type オプション）
+	if listIssueType != "" {
+		issueTypeIDs, err := resolveIssueTypeIDs(ctx, client, projectKey, listIssueType)
+		if err != nil {
+			return fmt.Errorf("failed to resolve issue types: %w", err)
+		}
+		opts.IssueTypeIDs = issueTypeIDs
 	}
 
 	// ステータスフィルター（--state オプション）

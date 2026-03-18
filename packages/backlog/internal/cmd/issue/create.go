@@ -335,6 +335,55 @@ func resolveCategoryIDs(ctx context.Context, client *api.Client, projectKey, inp
 	return ids, nil
 }
 
+// resolveIssueTypeIDs は課題種別指定を解決してIDリストを返す
+func resolveIssueTypeIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
+	parts := strings.Split(input, ",")
+	var ids []int
+
+	// まず全てが数値かチェック
+	allNumeric := true
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if _, err := strconv.Atoi(p); err != nil {
+			allNumeric = false
+			break
+		}
+	}
+
+	if allNumeric {
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			id, _ := strconv.Atoi(p)
+			ids = append(ids, id)
+		}
+		return ids, nil
+	}
+
+	// 名前解決が必要
+	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
+	if err != nil {
+		return nil, err
+	}
+
+	nameToID := make(map[string]int)
+	for _, t := range issueTypes {
+		nameToID[t.Name] = t.ID
+	}
+
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if id, err := strconv.Atoi(p); err == nil {
+			ids = append(ids, id)
+		} else if id, ok := nameToID[p]; ok {
+			ids = append(ids, id)
+		} else {
+			return nil, fmt.Errorf("issue type not found: %s", p)
+		}
+	}
+
+	return ids, nil
+}
+
 func openEditor(initial string) (string, error) {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
