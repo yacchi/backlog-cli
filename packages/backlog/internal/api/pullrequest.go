@@ -348,6 +348,33 @@ const PRStatusClosed = 2
 // PRStatusMerged はマージ済み状態
 const PRStatusMerged = 3
 
+// MergePullRequestInput はPRマージの入力
+type MergePullRequestInput struct {
+	Comment string
+}
+
+// MergePullRequest はプルリクエストをマージする
+func (c *Client) MergePullRequest(ctx context.Context, projectIDOrKey, repoIDOrName string, number int, input *MergePullRequestInput) (*PullRequest, error) {
+	data := url.Values{}
+	data.Set("statusId", strconv.Itoa(PRStatusMerged))
+	if input != nil && input.Comment != "" {
+		data.Set("comment", input.Comment)
+	}
+
+	resp, err := c.PatchForm(ctx, fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d", projectIDOrKey, repoIDOrName, number), data)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var pr PullRequest
+	if err := DecodeResponse(resp, &pr); err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
+}
+
 // ClosePullRequestInput はPRクローズの入力
 type ClosePullRequestInput struct {
 	Comment string
