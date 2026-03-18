@@ -29,9 +29,9 @@ If project is configured, you can omit the project prefix:
 Examples:
   backlog issue view PROJ-123
   backlog issue view 123       # uses configured project
-  backlog issue view PROJ-123 -c           # show comments (default count)
-  backlog issue view PROJ-123 -c=50        # show 50 comments
-  backlog issue view PROJ-123 -c=all       # show all comments
+  backlog issue view PROJ-123 -c default   # show comments (default count)
+  backlog issue view PROJ-123 -c 50        # show 50 comments
+  backlog issue view PROJ-123 -c all       # show all comments
   backlog issue view PROJ-123 --summary`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
@@ -51,8 +51,7 @@ var (
 )
 
 func init() {
-	viewCmd.Flags().StringVarP(&viewComments, "comments", "c", "", "Show comments: -c (default count), -c=N (N comments), -c=all (all comments)")
-	viewCmd.Flags().Lookup("comments").NoOptDefVal = "default"
+	viewCmd.Flags().StringVarP(&viewComments, "comments", "c", "", "Show comments: -c default (default count), -c N (N comments), -c all (all comments)")
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary (description only)")
 	viewCmd.Flags().BoolVar(&viewSummaryWithComments, "summary-with-comments", false, "Include comments in AI summary")
