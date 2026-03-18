@@ -46,6 +46,12 @@ Examples:
   # Sort by priority
   backlog issue list --sort priority --order asc
 
+  # Fetch up to 100 issues
+  backlog issue list -L 100
+
+  # Fetch all issues (auto-pagination)
+  backlog issue list -L 0
+
   # Open issue list in browser
   backlog issue list --web`,
 	RunE: runList,
@@ -239,11 +245,42 @@ func runList(c *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// 課題取得
-	issues, err := client.GetIssues(ctx, opts)
-	if err != nil {
-		return fmt.Errorf("failed to get issues: %w", err)
+	// 課題取得（ページネーション対応）
+	var allIssues []backlog.Issue
+	batchSize := 100
+	remaining := listLimit
+	if remaining == 0 {
+		remaining = -1 // unlimited
 	}
+
+	for {
+		fetchCount := batchSize
+		if remaining > 0 && remaining < batchSize {
+			fetchCount = remaining
+		}
+		opts.Count = fetchCount
+		opts.Offset = len(allIssues)
+
+		batch, err := client.GetIssues(ctx, opts)
+		if err != nil {
+			return fmt.Errorf("failed to get issues: %w", err)
+		}
+
+		allIssues = append(allIssues, batch...)
+
+		// 終了条件
+		if len(batch) < fetchCount {
+			break // これ以上ない
+		}
+		if remaining > 0 {
+			remaining -= len(batch)
+			if remaining <= 0 {
+				break
+			}
+		}
+	}
+
+	issues := allIssues
 
 	if len(issues) == 0 {
 		fmt.Println("No issues found")
