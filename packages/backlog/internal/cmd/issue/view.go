@@ -32,7 +32,9 @@ Examples:
   backlog issue view PROJ-123 -c default   # show comments (default count)
   backlog issue view PROJ-123 -c 50        # show 50 comments
   backlog issue view PROJ-123 -c all       # show all comments
-  backlog issue view PROJ-123 --summary`,
+  backlog issue view PROJ-123 --summary
+  backlog issue view PROJ-123 -c default --comments-order asc  # oldest first
+  backlog issue view PROJ-123 -c all --comments-since 12345    # comments after ID 12345`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
 }
@@ -48,6 +50,8 @@ var (
 	viewRaw                 bool
 	viewMarkdownWarn        bool
 	viewMarkdownCache       bool
+	viewCommentsOrder       string
+	viewCommentsSince       int
 )
 
 func init() {
@@ -61,6 +65,8 @@ func init() {
 	viewCmd.Flags().BoolVar(&viewRaw, "raw", false, "Render raw content without markdown conversion")
 	viewCmd.Flags().BoolVar(&viewMarkdownWarn, "markdown-warn", false, "Show markdown conversion warnings")
 	viewCmd.Flags().BoolVar(&viewMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
+	viewCmd.Flags().StringVar(&viewCommentsOrder, "comments-order", "desc", "Comment sort order: asc or desc")
+	viewCmd.Flags().IntVar(&viewCommentsSince, "comments-since", 0, "Show comments after this comment ID")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -121,15 +127,19 @@ func runView(c *cobra.Command, args []string) error {
 	// コメント取得
 	var comments []api.Comment
 	if fetchAll {
-		comments, _ = fetchAllComments(ctx, client, issueKey)
+		comments, _ = fetchAllComments(ctx, client, issueKey, viewCommentsOrder, viewCommentsSince)
 	} else if fetchCount > 0 {
 		if fetchCount > 100 {
 			fetchCount = 100
 		}
-		comments, _ = client.GetComments(ctx, issueKey, &api.CommentListOptions{
+		opts := &api.CommentListOptions{
 			Count: fetchCount,
-			Order: "desc",
-		})
+			Order: viewCommentsOrder,
+		}
+		if viewCommentsSince > 0 {
+			opts.MinID = viewCommentsSince
+		}
+		comments, _ = client.GetComments(ctx, issueKey, opts)
 	}
 
 	// 出力
@@ -431,7 +441,7 @@ func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComment
 }
 
 // fetchAllComments は課題の全コメントをページネーションで取得する
-func fetchAllComments(ctx context.Context, client *api.Client, issueKey string) ([]api.Comment, error) {
+func fetchAllComments(ctx context.Context, client *api.Client, issueKey string, order string, sinceID int) ([]api.Comment, error) {
 	const batchSize = 100
 	var allComments []api.Comment
 	maxID := 0
@@ -439,10 +449,13 @@ func fetchAllComments(ctx context.Context, client *api.Client, issueKey string) 
 	for {
 		opts := &api.CommentListOptions{
 			Count: batchSize,
-			Order: "desc",
+			Order: order,
 		}
 		if maxID > 0 {
 			opts.MaxID = maxID
+		}
+		if sinceID > 0 {
+			opts.MinID = sinceID
 		}
 
 		batch, err := client.GetComments(ctx, issueKey, opts)
