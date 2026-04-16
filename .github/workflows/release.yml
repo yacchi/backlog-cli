@@ -87,6 +87,10 @@ jobs:
         if: steps.check_release.outputs.exists == 'false'
         run: make build
 
+      - name: Reset generated file changes
+        if: steps.check_release.outputs.exists == 'false'
+        run: git checkout -- .
+
       - name: Run tests
         if: steps.check_release.outputs.exists == 'false'
         run: make test
