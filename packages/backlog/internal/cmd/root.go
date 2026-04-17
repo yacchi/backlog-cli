@@ -11,6 +11,7 @@ import (
 	configcmd "github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/customfield"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/document"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/file"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/issue"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/issue_type"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/markdown"
@@ -132,6 +133,7 @@ func init() {
 	rootCmd.AddCommand(configcmd.ConfigCmd)
 	rootCmd.AddCommand(customfield.CustomFieldCmd)
 	rootCmd.AddCommand(document.DocumentCmd)
+	rootCmd.AddCommand(file.FileCmd)
 	rootCmd.AddCommand(issue.IssueCmd)
 	rootCmd.AddCommand(issue_type.IssueTypeCmd)
 	rootCmd.AddCommand(markdown.MarkdownCmd)
