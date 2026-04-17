@@ -1,14 +1,13 @@
 package document
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
 	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
 
 var attachmentCmd = &cobra.Command{
@@ -48,88 +47,9 @@ func runAttachmentDownload(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	// 出力先を決定
-	var outPath string
-	useStdout := attachmentOutput == "-"
-
-	var w *os.File
-	if useStdout {
-		w = os.Stdout
-	} else {
-		// ファイル名は DL 後に確定するので一時的に nil; 後で決定
-		w = nil
-	}
-
-	if useStdout {
-		_, _, err = client.DownloadDocumentAttachment(c.Context(), documentID, attachmentID, w)
-		return err
-	}
-
-	// 一旦バッファなしで tmpFile に書き込み、ファイル名が確定したらリネーム
-	tmpFile, err := os.CreateTemp("", "backlog-attachment-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpName := tmpFile.Name()
-	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpName)
-	}()
-
-	filename, _, err := client.DownloadDocumentAttachment(c.Context(), documentID, attachmentID, tmpFile)
-	if err != nil {
-		return fmt.Errorf("failed to download attachment: %w", err)
-	}
-	_ = tmpFile.Close()
-
-	// 出力パス決定
-	if attachmentOutput != "" {
-		outPath = attachmentOutput
-	} else if filename != "" {
-		outPath = filename
-	} else {
-		outPath = fmt.Sprintf("attachment-%d", attachmentID)
-	}
-
-	if err := os.Rename(tmpName, outPath); err != nil {
-		// Rename に失敗したら (cross-device) コピー
-		if copyErr := copyFile(tmpName, outPath); copyErr != nil {
-			return fmt.Errorf("failed to save attachment: %w", copyErr)
-		}
-	}
-
-	abs, _ := filepath.Abs(outPath)
-	ui.Success("Downloaded: %s", abs)
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = out.Close() }()
-
-	buf := make([]byte, 32*1024)
-	for {
-		n, readErr := in.Read(buf)
-		if n > 0 {
-			if _, writeErr := out.Write(buf[:n]); writeErr != nil {
-				return writeErr
-			}
-		}
-		if readErr != nil {
-			if readErr.Error() == "EOF" {
-				break
-			}
-			return readErr
-		}
-	}
-	return nil
+	fallback := fmt.Sprintf("attachment-%d", attachmentID)
+	return cmdutil.RunAttachmentDownload(c.Context(), attachmentOutput, fallback,
+		func(ctx context.Context, w io.Writer) (string, int64, error) {
+			return client.DownloadDocumentAttachment(ctx, documentID, attachmentID, w)
+		})
 }
