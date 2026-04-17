@@ -22,6 +22,12 @@ Examples:
   # Add a comment with body
   backlog pr comment 123 --repo myrepo --body "LGTM!"
 
+  # Read comment from file
+  backlog pr comment 123 --repo myrepo --body-file review.md
+
+  # Read comment from stdin
+  cat comment.md | backlog pr comment 123 --repo myrepo --body-file -
+
   # Interactive mode
   backlog pr comment 123 --repo myrepo`,
 	Args: cobra.ExactArgs(1),
@@ -29,13 +35,15 @@ Examples:
 }
 
 var (
-	commentRepo string
-	commentBody string
+	commentRepo     string
+	commentBody     string
+	commentBodyFile string
 )
 
 func init() {
 	commentCmd.Flags().StringVarP(&commentRepo, "repo", "R", "", "Repository name (required)")
 	commentCmd.Flags().StringVarP(&commentBody, "body", "b", "", "Comment body")
+	commentCmd.Flags().StringVarP(&commentBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	_ = commentCmd.MarkFlagRequired("repo")
 }
 
@@ -57,14 +65,25 @@ func runComment(c *cobra.Command, args []string) error {
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
 
-	// 対話モード: bodyが未指定の場合
-	if commentBody == "" {
-		prompt := &survey.Multiline{
-			Message: "Comment body:",
-		}
-		if err := survey.AskOne(prompt, &commentBody, survey.WithValidator(survey.Required)); err != nil {
-			return err
-		}
+	// body解決: body > body-file > interactive
+	commentBody, err = cmdutil.ResolveBody(
+		commentBody,
+		commentBodyFile,
+		false,
+		nil,
+		func() (string, error) {
+			var body string
+			prompt := &survey.Multiline{
+				Message: "Comment body:",
+			}
+			if err := survey.AskOne(prompt, &body, survey.WithValidator(survey.Required)); err != nil {
+				return "", err
+			}
+			return body, nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get comment body: %w", err)
 	}
 
 	// コメント追加

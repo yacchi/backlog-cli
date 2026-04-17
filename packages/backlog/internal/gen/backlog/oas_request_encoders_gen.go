@@ -67,6 +67,48 @@ func encodeAddCommentRequest(
 	return nil
 }
 
+func encodeAddDocumentTagsRequest(
+	req OptAddDocumentTagsReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "tagNames[]" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "tagNames[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if request.TagNames != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range request.TagNames {
+						if err := func() error {
+							return e.EncodeValue(conv.StringToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeCreateCategoryRequest(
 	req OptCreateCategoryReq,
 	r *http.Request,
@@ -88,6 +130,116 @@ func encodeCreateCategoryRequest(
 		}
 		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
 			return e.EncodeValue(conv.StringToString(request.Name))
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCreateDocumentRequest(
+	req OptCreateDocumentReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "projectId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "projectId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.IntToString(request.ProjectId))
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "title" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "title",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := request.Title.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "content" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "content",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := request.Content.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "emoji" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "emoji",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := request.Emoji.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "parentId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "parentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := request.ParentId.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "addLast" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "addLast",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := request.AddLast.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
 		}); err != nil {
 			return errors.Wrap(err, "encode query")
 		}
@@ -414,6 +566,48 @@ func encodeCreateWikiRequest(
 		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := request.MailNotify.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeRemoveDocumentTagsRequest(
+	req OptRemoveDocumentTagsReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "tagNames[]" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "tagNames[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if request.TagNames != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range request.TagNames {
+						if err := func() error {
+							return e.EncodeValue(conv.StringToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
 			}
 			return nil
 		}); err != nil {

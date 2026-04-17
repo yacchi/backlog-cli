@@ -1,0 +1,5237 @@
+openapi: 3.0.3
+info:
+  title: Backlog API
+  version: 2.0.0
+  description: Backlog API specification for backlog-cli
+servers:
+- url: https://{space}.{domain}/api/v2
+  variables:
+    space:
+      default: example
+      description: Space Key
+    domain:
+      default: backlog.com
+      description: Domain (backlog.com or backlog.jp)
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://example.com/OAuth2AccessRequest.action
+          tokenUrl: https://example.com/api/v2/oauth2/token
+          scopes: {}
+    ApiKey:
+      type: apiKey
+      in: query
+      name: apiKey
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        roleType:
+          type: integer
+        lang:
+          type: string
+        mailAddress:
+          type: string
+        nulabAccount:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/NulabAccount'
+        lastLoginTime:
+          type: string
+    NulabAccount:
+      type: object
+      properties:
+        nulabId:
+          type: string
+        name:
+          type: string
+        uniqueId:
+          type: string
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectKey:
+          type: string
+        name:
+          type: string
+        chartEnabled:
+          type: boolean
+        useResolvedForChart:
+          type: boolean
+        subtaskingEnabled:
+          type: boolean
+        projectLeaderCanEditProjectLeader:
+          type: boolean
+        useWiki:
+          type: boolean
+        useFileSharing:
+          type: boolean
+        useWikiTreeView:
+          type: boolean
+        useOriginalImageSizeAtWiki:
+          type: boolean
+        textFormattingRule:
+          type: string
+        archived:
+          type: boolean
+        displayOrder:
+          type: integer
+        useDevAttributes:
+          type: boolean
+    IssueType:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        displayOrder:
+          type: integer
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+    Version:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          nullable: true
+        releaseDueDate:
+          type: string
+          nullable: true
+        archived:
+          type: boolean
+        displayOrder:
+          type: integer
+    Status:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        displayOrder:
+          type: integer
+    Priority:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Resolution:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        size:
+          type: integer
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+    SharedFile:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        dir:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+    Star:
+      type: object
+      properties:
+        id:
+          type: integer
+        comment:
+          type: string
+          nullable: true
+        url:
+          type: string
+        title:
+          type: string
+        presenter:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+    Issue:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        issueKey:
+          type: string
+        keyId:
+          type: integer
+        issueType:
+          $ref: '#/components/schemas/IssueType'
+        summary:
+          type: string
+        description:
+          type: string
+        resolution:
+          allOf:
+          - $ref: '#/components/schemas/Resolution'
+          nullable: true
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/Status'
+        assignee:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          nullable: true
+        category:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Version'
+        milestone:
+          type: array
+          items:
+            $ref: '#/components/schemas/Version'
+        startDate:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        estimatedHours:
+          type: number
+          nullable: true
+        actualHours:
+          type: number
+          nullable: true
+        parentIssueId:
+          type: integer
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        sharedFiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedFile'
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        changeLog:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeLog'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updated:
+          type: string
+          nullable: true
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+    ChangeLog:
+      type: object
+      properties:
+        field:
+          type: string
+        newValue:
+          type: string
+          nullable: true
+        originalValue:
+          type: string
+          nullable: true
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        alreadyRead:
+          type: boolean
+        reason:
+          type: integer
+        user:
+          $ref: '#/components/schemas/User'
+        resourceAlreadyRead:
+          type: boolean
+    Wiki:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/WikiTag'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        sharedFiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedFile'
+        stars:
+          type: array
+          items:
+            $ref: '#/components/schemas/Star'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+    WikiTag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Repository:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        hookUrl:
+          type: string
+          nullable: true
+        httpUrl:
+          type: string
+        sshUrl:
+          type: string
+        displayOrder:
+          type: integer
+        pushedAt:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+    PullRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        repositoryId:
+          type: integer
+        number:
+          type: integer
+        summary:
+          type: string
+        description:
+          type: string
+        base:
+          type: string
+        branch:
+          type: string
+        status:
+          $ref: '#/components/schemas/PRStatus'
+        assignee:
+          $ref: '#/components/schemas/User'
+        issue:
+          $ref: '#/components/schemas/Issue'
+        baseCommit:
+          type: string
+        branchCommit:
+          type: string
+        closeAt:
+          type: string
+          nullable: true
+        mergeAt:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          $ref: '#/components/schemas/User'
+        updated:
+          type: string
+    PRStatus:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Space:
+      type: object
+      properties:
+        spaceKey:
+          type: string
+        name:
+          type: string
+        ownerId:
+          type: integer
+        lang:
+          type: string
+        timezone:
+          type: string
+        reportSendTime:
+          type: string
+        textFormattingRule:
+          type: string
+        created:
+          type: string
+        updated:
+          type: string
+    CustomField:
+      type: object
+      properties:
+        id:
+          type: integer
+        typeId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        required:
+          type: boolean
+        applicableIssueTypes:
+          type: array
+          items:
+            type: integer
+        allowAddItem:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomFieldItem'
+    CustomFieldItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+    DocumentTag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: integer
+        title:
+          type: string
+        statusId:
+          type: integer
+        emoji:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTag'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+    DocumentDetail:
+      allOf:
+      - $ref: '#/components/schemas/Document'
+      - type: object
+        properties:
+          plain:
+            type: string
+            nullable: true
+          json:
+            type: string
+            nullable: true
+    DocumentTreeNode:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        emoji:
+          type: string
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTreeNode'
+    DocumentTree:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        activeTree:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/DocumentTreeNode'
+        trashTree:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/DocumentTreeNode'
+    DocumentComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: string
+        statusId:
+          type: integer
+        content:
+          type: string
+          nullable: true
+        plain:
+          type: string
+          nullable: true
+        commentType:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+security:
+- OAuth2: []
+- ApiKey: []
+paths:
+  /activities/{activityId}:
+    get:
+      operationId: getActivity
+      summary: アクティビティの取得
+      description: アクティビティの詳細を返します。
+      parameters:
+      - name: activityId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents:
+    get:
+      operationId: getDocumentList
+      summary: ドキュメント一覧の取得
+      description: "ドキュメントページの一覧を取得します。 \nAPIを実行するユーザーが参加しているプロジェクトのドキュメントのみ取得できます。\
+        \ \n projectId[] パラメーターで指定したプロジェクトに参加していない場合、そのプロジェクトのドキュメントは取得結果に含まれません。"
+      parameters:
+      - name: projectId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+        description: プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。
+      - name: keyword
+        in: query
+        schema:
+          type: string
+        description: 検索キーワード
+      - name: sort
+        in: query
+        schema:
+          type: string
+        description: created updated
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: '一覧の並び順。指定が無い場合はdescが使われます。 asc: 昇順 desc: 降順'
+      - name: offset(必須)
+        in: query
+        schema:
+          type: string
+        required: true
+        description: 取得開始位置。0以上の整数を指定してください。
+      - name: count
+        in: query
+        schema:
+          type: string
+        description: 件数の上限。1〜100の範囲で指定してください。指定が無い場合は20が使われます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addDocument
+      summary: ドキュメントの追加
+      description: "ドキュメントを追加します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。 \n参加していないプロジェクトを指定した場合、エラーが返されます。"
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                projectId(必須):
+                  type: string
+                  description: プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。
+                title:
+                  type: string
+                  description: ドキュメントのタイトル。
+                content:
+                  type: string
+                  description: ドキュメントの内容。Markdown形式で記述できます。
+                emoji:
+                  type: string
+                  description: ドキュメントタイトル横に表示される絵文字。
+                parentId:
+                  type: string
+                  description: 親ドキュメントのID。このIDを指定した場合、ドキュメントはツリー上でparentIdのドキュメントの子として作成されます。
+                addLast:
+                  type: boolean
+                  description: trueにした場合、ドキュメントはツリー上の兄弟ドキュメントの中で末尾に作成されます。デフォルトはfalseで先頭に追加されます。
+              required:
+              - projectId(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/count:
+    get:
+      operationId: countDocument
+      summary: ドキュメント数の取得
+      description: "プロジェクト内のドキュメントの数を取得します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトを指定した場合、エラーが返されます。"
+      parameters:
+      - name: projectIdOrKey(必須)
+        in: query
+        schema:
+          type: string
+        required: true
+        description: プロジェクトのID またはプロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/tree:
+    get:
+      operationId: getDocumentTree
+      summary: ドキュメントツリーの取得
+      description: "ドキュメントツリーを取得します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。 \n\
+        参加していないプロジェクトを指定した場合、エラーが返されます。"
+      parameters:
+      - name: projectIdOrKey(必須)
+        in: query
+        schema:
+          type: string
+        required: true
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/{documentId}:
+    get:
+      operationId: getDocument
+      summary: ドキュメント情報の取得
+      description: "ドキュメントページの情報を取得します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。"
+      parameters:
+      - name: documentId(必須)
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ドキュメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteDocument
+      summary: ドキュメントの削除
+      description: "ドキュメントを削除します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。"
+      parameters:
+      - name: documentId(必須)
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ドキュメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/{documentId}/attachments/{attachmentId}:
+    get:
+      operationId: getDocumentAttachments
+      summary: ドキュメント添付ファイルの取得
+      description: ドキュメントの添付ファイルをダウンロードします。
+      parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/{documentId}/comments:
+    get:
+      operationId: getDocumentComment
+      summary: ドキュメントコメントの取得
+      description: "ドキュメントのコメントの一覧を取得します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。"
+      parameters:
+      - name: documentId(必須)
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ドキュメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /documents/{documentId}/tags:
+    post:
+      operationId: addDocumentTag
+      summary: ドキュメントタグの追加
+      description: "ドキュメントにタグを追加します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。"
+      parameters:
+      - name: documentId(必須)
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ドキュメントのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                tagNames(複数指定可):
+                  type: array
+                  items:
+                    type: string
+                  description: 追加するタグ名
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: removeDocumentTag
+      summary: ドキュメントタグの削除
+      description: "ドキュメントからタグを削除します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。\
+        \ \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。"
+      parameters:
+      - name: documentId(必須)
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ドキュメントのID
+      - name: tagNames(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+        description: 削除するタグ名
+      responses:
+        '204':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues:
+    post:
+      operationId: addIssue
+      summary: 課題の追加
+      description: "参加しているプロジェクトに新しい課題を追加します。 \n新しい課題を子課題として追加する場合は、 parentIssueId\
+        \ に親課題のIDを指定してください。 \n自分が参加しているプロジェクトの一覧は プロジェクトの状態一覧の取得 から取得できます。"
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: integer
+                  description: 課題を登録するプロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。
+                summary:
+                  type: string
+                  description: 課題の件名
+                parentIssueId:
+                  type: integer
+                  description: 課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。
+                description:
+                  type: string
+                  description: 課題の詳細
+                startDate:
+                  type: string
+                  description: 課題の開始日 (yyyy-MM-dd)
+                dueDate:
+                  type: string
+                  description: 課題の期限日 (yyyy-MM-dd)
+                estimatedHours:
+                  type: integer
+                  description: 課題の予定時間
+                actualHours:
+                  type: integer
+                  description: 課題の実績時間
+                issueTypeId:
+                  type: integer
+                  description: 課題の種別のID。 課題種別のIDは 種別一覧の取得 から取得できます。
+                categoryId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。
+                versionId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+                milestoneId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のマイルストーンのID。 マイルストーンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+                priorityId:
+                  type: integer
+                  description: 課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。
+                assigneeId:
+                  type: integer
+                  description: 課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+                notifiedUserId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題の追加の通知を受け取るユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+                attachmentId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイル送信 が返すID
+              required:
+              - projectId
+              - summary
+              - issueTypeId
+              - priorityId
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    get:
+      operationId: getIssueList
+      summary: 課題一覧の取得
+      description: "参加しているプロジェクトから課題を取得します。 \nクエリパラメーターで指定された条件で、取得する課題を絞り込むことができます。\
+        \ \n自分が参加しているプロジェクトの一覧は プロジェクトの状態一覧の取得 から取得できます。"
+      parameters:
+      - name: projectId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。
+      - name: issueTypeId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の種別のID。 種別のIDは 種別一覧の取得 から取得できます。
+      - name: categoryId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。
+      - name: versionId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+      - name: milestoneId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のマイルストーンのID。 マイルストーンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+      - name: statusId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の状態のID。 状態のIDは プロジェクトの状態一覧の取得 から取得できます。
+      - name: priorityId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。
+      - name: assigneeId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+      - name: createdUserId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の登録者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+      - name: resolutionId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の完了理由のID。 完了理由のIDは 完了理由一覧の取得 から取得できます。
+      - name: parentChild
+        in: query
+        schema:
+          type: integer
+        description: '親子課題の条件。指定が無い場合は0が使われます。 0: すべて 1: 子課題以外の課題 2: 子課題 3: 親課題でも子課題でもない課題
+          4: 親課題'
+      - name: attachment
+        in: query
+        schema:
+          type: boolean
+        description: 課題が添付ファイルを含むかどうか。 true：添付ファイルを含む課題 false：添付ファイルを含まない課題
+      - name: sharedFile
+        in: query
+        schema:
+          type: boolean
+        description: 課題が共有ファイルを含むかどうか。 true：共有ファイルを含む課題 false：共有ファイルを含まない課題
+      - name: sort
+        in: query
+        schema:
+          type: string
+        description: '課題一覧の並び順に使用する属性。 issueType category version milestone summary
+          status priority attachment sharedFile created createdUser '
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: '課題一覧の並び順。指定が無い場合はdescが使われます。 asc: 昇順 desc: 降順'
+      - name: offset
+        in: query
+        schema:
+          type: integer
+        description: 課題の取得開始位置。0以上の整数を指定してください。
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 課題の件数の上限。1〜100の範囲で指定してください。指定が無い場合は20が使われます。
+      - name: createdSince
+        in: query
+        schema:
+          type: string
+        description: 課題の登録日の期間の開始（yyyy-MM-dd）
+      - name: createdUntil
+        in: query
+        schema:
+          type: string
+        description: 課題の登録日の期間の終了（yyyy-MM-dd）
+      - name: updatedSince
+        in: query
+        schema:
+          type: string
+        description: 課題の更新日の期間の開始（yyyy-MM-dd）
+      - name: updatedUntil
+        in: query
+        schema:
+          type: string
+        description: 課題の更新日の期間の終了（yyyy-MM-dd）
+      - name: startDateSince
+        in: query
+        schema:
+          type: string
+        description: 課題の開始日の期間の開始（yyyy-MM-dd）
+      - name: startDateUntil
+        in: query
+        schema:
+          type: string
+        description: 課題の開始日の期間の終了（yyyy-MM-dd）
+      - name: dueDateSince
+        in: query
+        schema:
+          type: string
+        description: 課題の期限日の期間の開始（yyyy-MM-dd）
+      - name: dueDateUntil
+        in: query
+        schema:
+          type: string
+        description: 課題の期限日の期間の終了（yyyy-MM-dd）
+      - name: hasDueDate
+        in: query
+        schema:
+          type: boolean
+        description: falseを指定すると、期限日が設定されていない課題を返します。trueの指定はサポートされておらず、エラーが返されます。
+      - name: id[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のID。 課題のIDは 課題情報の取得 から取得できます。
+      - name: parentIssueId[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。
+      - name: keyword
+        in: query
+        schema:
+          type: string
+        description: 検索キーワード
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/count:
+    get:
+      operationId: countIssue
+      summary: 課題数の取得
+      description: 課題の数を取得します。
+      parameters:
+      - name: projectId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: プロジェクトのID
+      - name: issueTypeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 種別のID
+      - name: categoryId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: カテゴリーのID
+      - name: versionId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 発生バージョンのID
+      - name: milestoneId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: マイルストーンのID
+      - name: statusId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 状態のID
+      - name: priorityId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 優先度のID
+      - name: assigneeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 担当者のID
+      - name: createdUserId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 登録者のID
+      - name: resolutionId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 完了理由のID
+      - name: parentChild
+        in: query
+        schema:
+          type: integer
+        description: '親子課題の条件 0: すべて 1: 子課題以外 2: 子課題 3: 親課題でも子課題でもない課題 4: 親課題'
+      - name: attachment
+        in: query
+        schema:
+          type: boolean
+        description: 添付ファイルを含む場合はtrue
+      - name: sharedFile
+        in: query
+        schema:
+          type: boolean
+        description: 共有ファイルを含む場合はtrue
+      - name: sort
+        in: query
+        schema:
+          type: string
+        description: 課題一覧のソートに使用する属性名 ”issueType" "category" "version" "milestone"
+          "summary" "status" "priority" "attachment" "sharedFile" "c
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: createdSince
+        in: query
+        schema:
+          type: string
+        description: 登録日 (yyyy-MM-dd)
+      - name: createdUntil
+        in: query
+        schema:
+          type: string
+        description: 登録日 (yyyy-MM-dd)
+      - name: updatedSince
+        in: query
+        schema:
+          type: string
+        description: 更新日 (yyyy-MM-dd)
+      - name: updatedUntil
+        in: query
+        schema:
+          type: string
+        description: 更新日 (yyyy-MM-dd)
+      - name: startDateSince
+        in: query
+        schema:
+          type: string
+        description: 開始日 (yyyy-MM-dd)
+      - name: startDateUntil
+        in: query
+        schema:
+          type: string
+        description: 開始日 (yyyy-MM-dd)
+      - name: dueDateSince
+        in: query
+        schema:
+          type: string
+        description: 期限日 (yyyy-MM-dd)
+      - name: dueDateUntil
+        in: query
+        schema:
+          type: string
+        description: 期限日 (yyyy-MM-dd)
+      - name: hasDueDate
+        in: query
+        schema:
+          type: boolean
+        description: falseを指定すると、期限日が設定されていない課題を返します。trueの指定はサポートされておらず、エラーが返されます。
+      - name: id(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のID
+      - name: parentIssueId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 親課題のID
+      - name: keyword
+        in: query
+        schema:
+          type: string
+        description: 検索キーワード
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}:
+    get:
+      operationId: getIssue
+      summary: 課題情報の取得
+      description: "参加しているプロジェクトから課題の情報を取得します。 \n課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は\
+        \ プロジェクト一覧の取得 から取得できます。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateIssue
+      summary: 課題情報の更新
+      description: "参加しているプロジェクトの課題を更新します。 \n更新したい課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は\
+        \ プロジェクトの状態一覧の取得 から取得できます。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                summary:
+                  type: string
+                  description: 課題の件名
+                parentIssueId:
+                  type: integer
+                  description: 課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。
+                description:
+                  type: string
+                  description: 課題の詳細
+                statusId:
+                  type: integer
+                  description: 課題の状態のID。 状態のIDは プロジェクトの状態一覧の取得 から取得できます。
+                resolutionId:
+                  type: integer
+                  description: 課題の完了理由のID。 完了理由のIDは 完了理由一覧の取得 から取得できます。
+                startDate:
+                  type: string
+                  description: 課題の開始日（yyyy-MM-dd）
+                dueDate:
+                  type: string
+                  description: 課題の期限日（yyyy-MM-dd）
+                estimatedHours:
+                  type: integer
+                  description: 課題の予定時間
+                actualHours:
+                  type: integer
+                  description: 課題の実績時間
+                issueTypeId:
+                  type: integer
+                  description: 課題の種別のID。 種別のIDは 種別一覧の取得 から取得できます。
+                categoryId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。
+                versionId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+                milestoneId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題のマイルストーンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。
+                priorityId:
+                  type: integer
+                  description: 課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。
+                assigneeId:
+                  type: integer
+                  description: 課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+                notifiedUserId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題の追加の通知を受け取るユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。
+                attachmentId:
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイル送信 が返すID
+                comment:
+                  type: string
+                  description: コメント
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteIssue
+      summary: 課題の削除
+      description: "参加しているプロジェクトの課題を削除します。 \n削除したい課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は\
+        \ プロジェクト一覧の取得 から取得できます。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/attachments:
+    get:
+      operationId: getListOfIssueAttachments
+      summary: 課題添付ファイル一覧の取得
+      description: 課題の添付ファイルの一覧を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/attachments/{attachmentId}:
+    get:
+      operationId: getIssueAttachment
+      summary: 課題添付ファイルのダウンロード
+      description: 課題の添付ファイルをダウンロードします。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteIssueAttachment
+      summary: 課題添付ファイルの削除
+      description: 課題の添付ファイルを削除します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/comments:
+    get:
+      operationId: getCommentList
+      summary: 課題コメントの取得
+      description: 課題に登録されているコメントの一覧を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addComment
+      summary: 課題コメントの追加
+      description: 課題に新しいコメントを追加します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                content(必須):
+                  type: string
+                  description: コメントの本文
+                notifiedUserId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: コメント登録の通知を受け取るユーザーID
+                attachmentId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイルの送信APIが返すID
+              required:
+              - content(必須)
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/comments/count:
+    get:
+      operationId: countComment
+      summary: 課題コメント数の取得
+      description: 課題に登録されているコメントの数を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/comments/{commentId}:
+    get:
+      operationId: getComment
+      summary: 課題コメント情報の取得
+      description: 課題コメントの詳細を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteComment
+      summary: 課題コメントの削除
+      description: 課題コメントを削除します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateComment
+      summary: 課題コメント情報の更新
+      description: 課題コメントの情報を更新します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: コメントの本文
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/comments/{commentId}/notifications:
+    get:
+      operationId: getListOfCommentNotifications
+      summary: 課題コメントのお知らせ一覧の取得
+      description: 課題コメントのお知らせ一覧を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addCommentNotification
+      summary: 課題コメントにお知らせを追加
+      description: コメントにお知らせを追加します
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                notifiedUserId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 課題の登録の通知を受け取るユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/participants:
+    get:
+      operationId: getIssueParticipantList
+      summary: ''
+      description: 課題の参加者一覧を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/sharedFiles:
+    get:
+      operationId: getListOfLinkedSharedFiles
+      summary: 課題共有ファイル一覧の取得
+      description: 課題にリンクされた共有ファイルの一覧を取得します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: linkSharedFilesToIssue
+      summary: 課題に共有ファイルをリンク
+      description: 課題に共有ファイルをリンクします。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                fileId(必須):
+                  type: array
+                  items:
+                    type: integer
+                  description: 共有ファイルのID
+              required:
+              - fileId(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/sharedFiles/{id}:
+    delete:
+      operationId: removeLinkToSharedFileFromIssue
+      summary: 課題の共有ファイルのリンクを解除
+      description: 課題にリンクされた共有ファイルのリンクを解除します。
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 課題のID または 課題キー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 共有ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /notifications:
+    get:
+      operationId: getNotification
+      summary: お知らせ一覧の取得
+      description: 自分の受け取ったお知らせの一覧を取得します。
+      parameters:
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: senderId
+        in: query
+        schema:
+          type: integer
+        description: 送信者ID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /notifications/count:
+    get:
+      operationId: countNotification
+      summary: お知らせ数の取得
+      description: 自分の受け取ったお知らせの数を取得します。
+      parameters:
+      - name: alreadyRead
+        in: query
+        schema:
+          type: boolean
+      - name: resourceAlreadyRead
+        in: query
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /notifications/markAsRead:
+    post:
+      operationId: resetUnreadNotificationCount
+      summary: お知らせ数のリセット
+      description: 自分の受け取ったお知らせの未読数をリセットします。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /notifications/{id}/markAsRead:
+    post:
+      operationId: readNotification
+      summary: お知らせの既読化
+      description: お知らせを既読にします。
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: お知らせのID
+      responses:
+        '204':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /priorities:
+    get:
+      operationId: getPriorityList
+      summary: 優先度一覧の取得
+      description: 課題に設定できる優先度の一覧を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects:
+    get:
+      operationId: getProjectList
+      summary: プロジェクト一覧の取得
+      description: プロジェクトの一覧を取得します。
+      parameters:
+      - name: archived
+        in: query
+        schema:
+          type: boolean
+        description: 省略された場合は全てのプロジェクト、falseの場合はアーカイブされていないプロジェクト、trueの場合はアーカイブされたプロジェクトを返します。
+      - name: all
+        in: query
+        schema:
+          type: boolean
+        description: ユーザが管理者権限の場合のみ有効なパラメータです。trueの場合はすべてのプロジェクト、falseの場合は参加しているプロジェクトのみを返します。初期値はfalse。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addProject
+      summary: プロジェクトの追加
+      description: 新しいプロジェクトを追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: プロジェクト名
+                key(必須):
+                  type: string
+                  description: プロジェクトキー(半角英大文字と半角数字とアンダースコアが使用できます)
+                chartEnabled:
+                  type: boolean
+                  description: チャートを使用するかどうか
+                useResolvedForChart:
+                  type: boolean
+                  description: 「処理済み」以降を「完了」とみなすどうか
+                subtaskingEnabled:
+                  type: boolean
+                  description: 親子課題を使用するかどうか
+                projectLeaderCanEditProjectLeader:
+                  type: boolean
+                  description: プロジェクト管理者も他のプロジェクト管理者を指定可能にする
+                useWiki:
+                  type: boolean
+                  description: Wikiを使用するかどうか
+                useFileSharing:
+                  type: boolean
+                  description: 共有ファイルを使用するかどうか
+                useWikiTreeView:
+                  type: boolean
+                  description: Wikiツリー表示を有効にするかどうか
+                useSubversion:
+                  type: boolean
+                  description: Subversionを使用するかどうか
+                useGit:
+                  type: boolean
+                  description: Gitを使用するかどうか
+                useOriginalImageSizeAtWiki:
+                  type: boolean
+                  description: Wikiの画像をオリジナルのサイズで表示するかどうか
+                textFormattingRule:
+                  type: string
+                  description: テキスト整形のルール backlog または markdown
+                useDevAttributes:
+                  type: boolean
+                  description: 優先度、マイルストーン、発生バージョンを使用するかどうか
+              required:
+              - name(必須)
+              - key(必須)
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}:
+    get:
+      operationId: getProject
+      summary: プロジェクト情報の取得
+      description: プロジェクトの情報を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateProject
+      summary: プロジェクト情報の更新
+      description: プロジェクトの情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: プロジェクト名
+                key:
+                  type: string
+                  description: プロジェクトキー
+                chartEnabled:
+                  type: boolean
+                  description: チャートを使用するかどうか
+                useResolvedForChart:
+                  type: boolean
+                  description: 「処理済み」以降を「完了」とみなすどうか
+                subtaskingEnabled:
+                  type: boolean
+                  description: 親子課題を使用するかどうか
+                projectLeaderCanEditProjectLeader:
+                  type: boolean
+                  description: プロジェクト管理者も他のプロジェクト管理者を指定可能にする
+                useWiki:
+                  type: boolean
+                  description: Wikiを使用するかどうか
+                useFileSharing:
+                  type: boolean
+                  description: 共有ファイルを使用するかどうか
+                useWikiTreeView:
+                  type: boolean
+                  description: Wikiツリー表示を有効にするかどうか
+                useSubversion:
+                  type: boolean
+                  description: Subversionを使用するかどうか
+                useGit:
+                  type: boolean
+                  description: Gitを使用するかどうか
+                useOriginalImageSizeAtWiki:
+                  type: boolean
+                  description: Wikiの画像をオリジナルのサイズで表示するかどうか
+                textFormattingRule:
+                  type: string
+                  description: テキスト整形のルール backlog または markdown
+                archived:
+                  type: boolean
+                  description: プロジェクトの一覧に表示するかどうか
+                useDevAttributes:
+                  type: boolean
+                  description: 優先度、マイルストーン、発生バージョンを使用するかどうか
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteProject
+      summary: プロジェクトの削除
+      description: プロジェクトを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/activities:
+    get:
+      operationId: getProjectRecentUpdates
+      summary: プロジェクトの最近の活動の取得
+      description: プロジェクト上の最近の活動の一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: activityTypeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: type(1-26)
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/administrators:
+    post:
+      operationId: addProjectAdministrator
+      summary: プロジェクト管理者の追加
+      description: プロジェクトユーザーにプロジェクト管理者権限を追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  description: 追加するユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    get:
+      operationId: getListOfProjectAdministrators
+      summary: プロジェクト管理者一覧の取得
+      description: プロジェクト管理者に設定されているユーザーの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteProjectAdministrator
+      summary: プロジェクト管理者の削除
+      description: プロジェクトユーザーからプロジェクト管理者権限を削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: userId
+        in: query
+        schema:
+          type: integer
+        description: 削除するユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/categories:
+    get:
+      operationId: getCategoryList
+      summary: カテゴリー一覧の取得
+      description: プロジェクトに登録されているカテゴリーの一覧を返します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addCategory
+      summary: カテゴリーの追加
+      description: プロジェクトにカテゴリーを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: カテゴリーの名前
+              required:
+              - name(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/categories/{id}:
+    patch:
+      operationId: updateCategory
+      summary: カテゴリー情報の更新
+      description: カテゴリーの情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カテゴリーのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: カテゴリーの名前
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteCategory
+      summary: カテゴリーの削除
+      description: カテゴリーを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カテゴリーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/customFields:
+    get:
+      operationId: getCustomFieldList
+      summary: カスタム属性一覧の取得
+      description: 参加しているプロジェクトのカスタム属性一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addCustomField
+      summary: カスタム属性の追加
+      description: プロジェクトに新しいカスタム属性を追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                typeId(必須):
+                  type: integer
+                  description: 'カスタム属性の形式 1: 文字列 2: 文章 3: 数値 4: 日付 5: 単一リスト 6: 複数リスト
+                    7: チェックボックス 8: ラジオ'
+                name(必須):
+                  type: string
+                  description: カスタム属性の名前
+                applicableIssueTypes(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: カスタム属性を有効にする種別ID 空の場合、すべての課題種別で有効
+                description:
+                  type: string
+                  description: カスタム属性の説明
+                required:
+                  type: boolean
+                  description: 必須な属性とする場合はtrue
+              required:
+              - typeId(必須)
+              - name(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/customFields/{id}:
+    patch:
+      operationId: updateCustomField
+      summary: カスタム属性の更新
+      description: カスタム属性を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カスタム属性のID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: カスタム属性の名前
+                applicableIssueTypes(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: カスタム属性を有効にする種別ID 空の場合、すべての課題種別で有効
+                description:
+                  type: string
+                  description: カスタム属性の説明
+                required:
+                  type: boolean
+                  description: 必須な属性とする場合はtrue
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteCustomField
+      summary: カスタム属性の削除
+      description: カスタム属性を削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カスタム属性のID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/customFields/{id}/items:
+    post:
+      operationId: addListItemForListTypeCustomField
+      summary: 選択リストカスタム属性のリスト項目の追加
+      description: '自分が参加しているプロジェクトのカスタム属性（選択リスト）に、新しい選択肢を追加します。
+
+        「課題の追加/編集時に選択肢を追加できる」の設定が無効な場合は管理者権限のユーザーのみ呼び出せます。
+
+        指定されたカスタム属性が選択リスト形式でない場合はエラーになります。'
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カスタム属性のID カスタム属性のIDは「 カスタム属性一覧の取得 」から取得できます。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 追加するリスト項目の名前
+              required:
+              - name
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/customFields/{id}/items/{itemId}:
+    patch:
+      operationId: updateListItemForListTypeCustomField
+      summary: 選択リストカスタム属性のリスト項目の更新
+      description: '選択リスト形式のカスタム属性のリスト項目を更新します。
+
+        指定されたカスタム属性が選択リスト形式でない場合はエラーになります。'
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カスタム属性のID
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: リスト項目のID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: リスト項目の名前
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteListItemForListTypeCustomField
+      summary: 選択リストカスタム属性のリスト項目の削除
+      description: '選択リスト形式のカスタム属性のリスト項目を削除します。
+
+        指定されたカスタム属性が選択リスト形式でない場合はエラーになります。'
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: カスタム属性のID
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: リスト項目のID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/diskUsage:
+    get:
+      operationId: getProjectDiskUsage
+      summary: プロジェクトの容量使用状況の取得
+      description: プロジェクトの容量使用状況の情報を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/files/metadata/{path}:
+    get:
+      operationId: getListOfSharedFiles
+      summary: 共有ファイル一覧の取得
+      description: 共有ファイルの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ディレクトリのパス
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-1000) 指定が無い場合は1000
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/files/{sharedFileId}:
+    get:
+      operationId: getFile
+      summary: 共有ファイルのダウンロード
+      description: 共有ファイルを取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 共有ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories:
+    get:
+      operationId: getListOfGitRepositories
+      summary: Gitリポジトリ一覧の取得
+      description: Gitリポジトリの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}:
+    get:
+      operationId: getGitRepository
+      summary: Gitリポジトリの取得
+      description: Gitリポジトリを取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests:
+    get:
+      operationId: getPullRequestList
+      summary: プルリクエスト一覧の取得
+      description: プルリクエストの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: statusId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 状態のID
+      - name: assigneeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 担当者のID
+      - name: issueId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 関連課題のID
+      - name: createdUserId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 登録者のID
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addPullRequest
+      summary: プルリクエストの追加
+      description: プルリクエストを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                summary(必須):
+                  type: string
+                  description: プルリクエストの件名
+                description(必須):
+                  type: string
+                  description: プルリクエストの詳細
+                base(必須):
+                  type: string
+                  description: マージ先のブランチ名
+                branch(必須):
+                  type: string
+                  description: マージされるブランチ名
+                issueId:
+                  type: integer
+                  description: 関連課題のID
+                assigneeId:
+                  type: integer
+                  description: プルリクエストの担当者のID
+                notifiedUserId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: プルリクエストの登録の通知を受け取るユーザーのID
+                attachmentId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイルの送信APIが返すID
+              required:
+              - summary(必須)
+              - description(必須)
+              - base(必須)
+              - branch(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count:
+    get:
+      operationId: getNumberOfPullRequests
+      summary: プルリクエスト数の取得
+      description: プルリクエストの数を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: statusId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 状態のID
+      - name: assigneeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 担当者のID
+      - name: issueId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 関連課題のID
+      - name: createdUserId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 登録者のID
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}:
+    get:
+      operationId: getPullRequest
+      summary: プルリクエストの取得
+      description: プルリクエストを取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updatePullRequest
+      summary: プルリクエストの更新
+      description: プルリクエストを更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                summary:
+                  type: string
+                  description: プルリクエストの件名
+                description:
+                  type: string
+                  description: プルリクエストの詳細
+                issueId:
+                  type: integer
+                  description: 関連課題のID
+                assigneeId:
+                  type: integer
+                  description: プルリクエストの担当者のID
+                notifiedUserId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: プルリクエストの登録の通知を受け取るユーザーのID
+                comment:
+                  type: string
+                  description: コメント
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments:
+    get:
+      operationId: getListOfPullRequestAttachment
+      summary: プルリクエスト添付ファイル一覧の取得
+      description: プルリクエストの添付ファイルの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}:
+    get:
+      operationId: downloadPullRequestAttachment
+      summary: プルリクエスト添付ファイルのダウンロード
+      description: プルリクエストの添付ファイルをダウンロードします。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deletePullRequestAttachments
+      summary: プルリクエスト添付ファイルの削除
+      description: プルリクエストの添付ファイルを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments:
+    get:
+      operationId: getPullRequestComment
+      summary: プルリクエストコメントの取得
+      description: プルリクエストのコメントの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addPullRequestComment
+      summary: プルリクエストコメントの追加
+      description: プルリクエストにコメントを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                content(必須):
+                  type: string
+                  description: コメントの本文
+                attachmentId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイルの送信APIが返すID
+                notifiedUserId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: コメント登録の通知を受け取るユーザーID
+              required:
+              - content(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments/count:
+    get:
+      operationId: getNumberOfPullRequestComments
+      summary: プルリクエストコメント数の取得
+      description: プルリクエストに登録されているコメントの数を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments/{commentId}:
+    patch:
+      operationId: updatePullRequestCommentInformation
+      summary: プルリクエストコメント情報の更新
+      description: プルリクエストコメントの情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: repoIdOrName
+        in: path
+        required: true
+        schema:
+          type: string
+        description: リポジトリのID または リポジトリ名
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: プルリクエストの番号
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: コメントのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: コメントの本文
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/image:
+    get:
+      operationId: getProjectIcon
+      summary: プロジェクトアイコンの取得
+      description: プロジェクトのアイコン画像を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/issueTypes:
+    get:
+      operationId: getIssueTypeList
+      summary: 種別一覧の取得
+      description: 参加しているプロジェクトの課題種別一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addIssueType
+      summary: 種別の追加
+      description: プロジェクトに種別を追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: 種別の名前
+                color(必須):
+                  type: string
+                  description: 種別の背景色：以下から指定 ”#e30000" "#990000" "#934981" "#814fbc"
+                    "#2779ca" "#007e9a" "#7ea800" "#ff9200" "#ff3265" "#666665”
+                templateSummary:
+                  type: string
+                  description: 課題テンプレートの件名
+                templateDescription:
+                  type: string
+                  description: 課題テンプレートの詳細
+              required:
+              - name(必須)
+              - color(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/issueTypes/{id}:
+    patch:
+      operationId: updateIssueType
+      summary: 種別情報の更新
+      description: 種別の情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 種別のID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 種別の名前
+                color:
+                  type: string
+                  description: 種別の背景色
+                templateSummary:
+                  type: string
+                  description: 課題テンプレートの件名
+                templateDescription:
+                  type: string
+                  description: 課題テンプレートの詳細
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteIssueType
+      summary: 種別の削除
+      description: プロジェクトから種別を削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 種別のID
+      - name: substituteIssueTypeId(必須)
+        in: query
+        schema:
+          type: integer
+        required: true
+        description: 紐づく課題を付け替える先の種別のID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/statuses:
+    get:
+      operationId: getStatusListOfProject
+      summary: プロジェクトの状態一覧の取得
+      description: プロジェクト固有の課題に設定できる状態一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project ID or Project Key
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addStatus
+      summary: 状態の追加
+      description: 'プロジェクトに状態を追加します。
+
+        1プロジェクトにつき8個まで状態を追加できます。 標準の4つの状態と合わせると、合計12個の状態を設定できます。'
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: 状態の名前
+                color(必須):
+                  type: string
+                  description: 状態の背景色：以下から指定 ”#ea2c00" "#e87758" "#e07b9a" "#868cb7"
+                    "#3b9dbd" "#4caf93" "#b0be3c" "#eda62a" "#f42858" "#393939”
+              required:
+              - name(必須)
+              - color(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/statuses/updateDisplayOrder:
+    patch:
+      operationId: updateOrderOfStatus
+      summary: 状態の並び替え
+      description: 状態の表示順を変更します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                statusId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 表示順に並べた、状態のIDのリスト。そのプロジェクトで使える全ての状態を渡してください。表示順には以下の制限があります
+                    未対応は先頭にあること 完了は末尾にあること 処理中は処理済みよりも前にあること
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/statuses/{id}:
+    patch:
+      operationId: updateStatus
+      summary: 状態情報の更新
+      description: 追加した状態の情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 状態のID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 状態の名前
+                color:
+                  type: string
+                  description: 状態の背景色；以下から指定 ”#ea2c00" "#e87758" "#e07b9a" "#868cb7"
+                    "#3b9dbd" "#4caf93" "#b0be3c" "#eda62a" "#f42858" "#393939”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteStatus
+      summary: 状態の削除
+      description: プロジェクトから状態を削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 状態のID
+      - name: substituteStatusId(必須)
+        in: query
+        schema:
+          type: integer
+        required: true
+        description: 紐づく課題を付け替える先の状態のID。 削除対象の状態が設定されている課題がある場合、このパラメーターで指定した状態へ一括変更します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/teams:
+    get:
+      operationId: getProjectTeamList
+      summary: プロジェクトチーム一覧の取得
+      description: プロジェクトのチームの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addProjectTeam
+      summary: プロジェクトチームの追加
+      description: プロジェクトにチームを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                teamId:
+                  type: integer
+                  description: 追加するチームのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteProjectTeam
+      summary: プロジェクトチームの削除
+      description: プロジェクトからチームを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: teamId
+        in: query
+        schema:
+          type: integer
+        description: 削除するチームのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/users:
+    post:
+      operationId: addProjectUser
+      summary: プロジェクトユーザーの追加
+      description: プロジェクトにユーザーを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  description: 追加するユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    get:
+      operationId: getProjectUserList
+      summary: プロジェクトユーザー一覧の取得
+      description: プロジェクトのユーザーの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: excludeGroupMembers
+        in: query
+        schema:
+          type: boolean
+        description: グループを介してプロジェクトに参加しているメンバーを除く
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteProjectUser
+      summary: プロジェクトユーザーの削除
+      description: プロジェクトからユーザーを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: userId
+        in: query
+        schema:
+          type: integer
+        description: 削除するユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/versions:
+    get:
+      operationId: getVersionMilestoneList
+      summary: バージョン(マイルストーン)一覧の取得
+      description: プロジェクトに登録されているバージョン(マイルストーン)の一覧を返します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addVersionMilestone
+      summary: バージョン(マイルストーン)の追加
+      description: プロジェクトにバージョン(マイルストーン)を追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: バージョンの名前
+                description:
+                  type: string
+                  description: バージョンの説明
+                startDate:
+                  type: string
+                  description: バージョンの開始日 (yyyy-MM-dd)
+                releaseDueDate:
+                  type: string
+                  description: バージョンのリリース予定日 (yyyy-MM-dd)
+              required:
+              - name(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/versions/{id}:
+    patch:
+      operationId: updateVersionMilestone
+      summary: バージョン(マイルストーン)情報の更新
+      description: バージョン(マイルストーン)の情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: バージョンのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: バージョンの名前
+                description:
+                  type: string
+                  description: バージョンの説明
+                startDate:
+                  type: string
+                  description: バージョンの開始日 (yyyy-MM-dd)
+                releaseDueDate:
+                  type: string
+                  description: バージョンのリリース予定日 (yyyy-MM-dd)
+                archived:
+                  type: boolean
+                  description: プロジェクトホームに表示しない場合はtrue
+              required:
+              - name(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteVersion
+      summary: バージョン(マイルストーン)の削除
+      description: バージョン(マイルストーン)を削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: バージョンのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/webhooks:
+    get:
+      operationId: getListOfWebhooks
+      summary: Webhook一覧の取得
+      description: Webhookの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addWebhook
+      summary: Webhookの追加
+      description: Webhookを追加します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 名前
+                description:
+                  type: string
+                  description: 詳細
+                hookUrl:
+                  type: string
+                  description: hook URL
+                allEvent:
+                  type: boolean
+                  description: 全てのイベントを通知
+                activityTypeIds(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 通知するイベントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /projects/{projectIdOrKey}/webhooks/{webhookId}:
+    get:
+      operationId: getWebhook
+      summary: Webhookの取得
+      description: Webhookの情報を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: webhookId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: WebhookのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateWebhook
+      summary: Webhookの更新
+      description: Webhookの情報を更新します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: webhookId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: WebhookのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 名前
+                description:
+                  type: string
+                  description: 詳細
+                hookUrl:
+                  type: string
+                  description: hook URL
+                allEvent:
+                  type: boolean
+                  description: 全てのイベントを通知
+                activityTypeIds(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 通知するイベントのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteWebhook
+      summary: Webhookの削除
+      description: Webhookを削除します。
+      parameters:
+      - name: projectIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: webhookId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: WebhookのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /rateLimit:
+    get:
+      operationId: getRateLimit
+      summary: レート制限情報の取得
+      description: 使用中のAPIキーに対応するユーザーに対して、現在設定されているレート制限に関する情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /resolutions:
+    get:
+      operationId: getResolutionList
+      summary: 完了理由一覧の取得
+      description: 課題に設定できる完了理由の一覧を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space:
+    get:
+      operationId: getSpace
+      summary: スペース情報の取得
+      description: スペースの情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/activities:
+    get:
+      operationId: getRecentUpdates
+      summary: 最近の更新の取得
+      description: スペース上で行われた最近の更新の一覧を取得します。
+      parameters:
+      - name: activityTypeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: type(1-26)
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/attachment:
+    post:
+      operationId: postAttachmentFile
+      summary: 添付ファイルの送信
+      description: 課題やコメント、Wikiにファイルを添付するために、Backlogスペースにファイルをアップロードします。アップロードが成功すると、添付ファイルのIDが返されます。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+              required:
+              - file
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/diskUsage:
+    get:
+      operationId: getSpaceDiskUsage
+      summary: スペースの容量使用状況の取得
+      description: スペースの容量使用状況の情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/image:
+    get:
+      operationId: getSpaceLogo
+      summary: スペースアイコン画像の取得
+      description: スペースのアイコン画像を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/licence:
+    get:
+      operationId: getLicence
+      summary: ライセンス情報の取得
+      description: ライセンスの情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /space/notification:
+    get:
+      operationId: getSpaceNotification
+      summary: スペースのお知らせの取得
+      description: スペースのお知らせの情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    put:
+      operationId: updateSpaceNotification
+      summary: スペースのお知らせの更新
+      description: スペースのお知らせの情報を更新します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /stars:
+    post:
+      operationId: addStar
+      summary: スターの追加
+      description: 課題、コメント、Wikiにスターを1つ追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                issueId:
+                  type: integer
+                  description: 課題のID
+                commentId:
+                  type: integer
+                  description: コメントのID
+                wikiId:
+                  type: integer
+                  description: WikiページのID
+                pullRequestId:
+                  type: integer
+                  description: プルリクエストのID
+                pullRequestCommentId:
+                  type: integer
+                  description: プルリクエストコメントのID
+      responses:
+        '204':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /stars/{starId}:
+    delete:
+      operationId: removeStar
+      summary: スターの削除
+      description: 課題、コメント、Wikiのスターを1つ削除します。
+      parameters:
+      - name: starId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: スターのID
+      responses:
+        '204':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /teams:
+    get:
+      operationId: getListOfTeams
+      summary: チーム一覧の取得
+      description: チームの一覧を取得します。
+      parameters:
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addTeam
+      summary: チームの追加
+      description: "チームを追加します。\n 新プラン のスペースではこのAPIを利用できません。"
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name(必須):
+                  type: string
+                  description: グループ名
+                members(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: グループに含めるユーザーID
+              required:
+              - name(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /teams/{teamId}:
+    get:
+      operationId: getTeam
+      summary: チーム情報の取得
+      description: チームの情報を取得します。
+      parameters:
+      - name: teamId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: チームのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateTeam
+      summary: チーム情報の更新
+      description: "チームの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。"
+      parameters:
+      - name: teamId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: チームのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: チーム名
+                members(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: チームに含めるユーザーID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteTeam
+      summary: チームの削除
+      description: "チームを削除します。\n 新プラン のスペースではこのAPIを利用できません。"
+      parameters:
+      - name: teamId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: チームのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /teams/{teamId}/icon:
+    get:
+      operationId: getTeamIcon
+      summary: チームアイコンの取得
+      description: チームアイコン画像を取得します。
+      parameters:
+      - name: teamId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: チームのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users:
+    get:
+      operationId: getUserList
+      summary: ユーザー一覧の取得
+      description: スペースのユーザーの一覧を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addUser
+      summary: ユーザーの追加
+      description: "スペースに新しいユーザーを追加します。\nプロジェクト管理者は管理者権限のユーザを追加することは出来ません。\n 新プラン\
+        \ のスペースではこのAPIを利用できません。"
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                userId(必須):
+                  type: string
+                  description: ユーザID
+                password(必須):
+                  type: string
+                  description: パスワード
+                name(必須):
+                  type: string
+                  description: ハンドルネーム
+                mailAddress(必須):
+                  type: string
+                  description: メールアドレス
+                roleType(必須):
+                  type: integer
+                  description: 管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)
+              required:
+              - userId(必須)
+              - password(必須)
+              - name(必須)
+              - mailAddress(必須)
+              - roleType(必須)
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/myself:
+    get:
+      operationId: getOwnUser
+      summary: 認証ユーザー情報の取得
+      description: APIとの認証に使用しているユーザーの情報を取得します。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/myself/recentlyViewedIssues:
+    get:
+      operationId: getListOfRecentlyViewedIssues
+      summary: 自分が最近見た課題一覧の取得
+      description: APIとの認証に使用しているユーザーが最近見た課題の一覧を取得します。
+      parameters:
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addRecentlyViewedIssue
+      summary: 自分が最近見た課題の追加
+      description: APIとの認証に使用しているユーザーが最近見た課題を追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                issueIdOrKey(必須):
+                  type: string
+                  description: 課題のID または 課題キー
+              required:
+              - issueIdOrKey(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/myself/recentlyViewedProjects:
+    get:
+      operationId: getListOfRecentlyViewedProjects
+      summary: 自分が最近見たプロジェクト一覧の取得
+      description: APIとの認証に使用しているユーザーが最近見たプロジェクトの一覧を取得します。
+      parameters:
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/myself/recentlyViewedWikis:
+    get:
+      operationId: getListOfRecentlyViewedWikis
+      summary: 自分が最近見たWiki一覧の取得
+      description: APIとの認証に使用しているユーザーが最近見たWikiの一覧を取得します。
+      parameters:
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addRecentlyViewedWiki
+      summary: 自分が最近見たWikiの追加
+      description: APIとの認証に使用しているユーザーが最近見たWikiを追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                wikiId(必須):
+                  type: integer
+                  description: WikiページのId
+              required:
+              - wikiId(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: ユーザー情報の取得
+      description: ユーザー情報を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateUser
+      summary: ユーザーの更新
+      description: "ユーザーの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。"
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 更新するユーザーのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  description: パスワード
+                name:
+                  type: string
+                  description: ハンドルネーム
+                mailAddress:
+                  type: string
+                  description: メールアドレス
+                roleType:
+                  type: integer
+                  description: 管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteUser
+      summary: ユーザーの削除
+      description: "ユーザーをスペースから削除します。\n 新プラン のスペースではこのAPIを利用できません。"
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 削除するユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/activities:
+    get:
+      operationId: getUserRecentUpdates
+      summary: ユーザーの最近の活動の取得
+      description: ユーザーの最近の活動の一覧を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      - name: activityTypeId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: type(1-17)
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/icon:
+    get:
+      operationId: getUserIcon
+      summary: ユーザーアイコンの取得
+      description: ユーザーのアイコン画像を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/stars:
+    get:
+      operationId: getReceivedStarList
+      summary: ユーザーの受け取ったスター一覧の取得
+      description: ユーザーの受け取ったスターの一覧を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/stars/count:
+    get:
+      operationId: countUserReceivedStars
+      summary: ユーザーの受け取ったスターの数の取得
+      description: ユーザーの受け取ったスターの数を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      - name: since
+        in: query
+        schema:
+          type: string
+        description: 指定した日付以降のスターをカウント (yyyy-MM-dd)
+      - name: until
+        in: query
+        schema:
+          type: string
+        description: 指定した日付以前のスターをカウント (yyyy-MM-dd)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/watchings:
+    get:
+      operationId: getWatchingList
+      summary: ウォッチ一覧の取得
+      description: ウォッチの一覧を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      - name: sort
+        in: query
+        schema:
+          type: string
+        description: ウォッチ一覧のソートに使用する属性名 ”created" "updated" "issueUpdated” 指定が無い場合は”issueUpdated”
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      - name: resourceAlreadyRead
+        in: query
+        schema:
+          type: boolean
+        description: ウォッチしている課題の詳細を既読かどうか。trueの場合は既読のウォッチ、falseの場合は未読のウォッチ、指定しない場合は両方のウォッチを返します。指定が無い場合は両方
+      - name: issueId(複数指定可)[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: integer
+        description: 課題のID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /users/{userId}/watchings/count:
+    get:
+      operationId: countWatching
+      summary: ウォッチ数の取得
+      description: ウォッチの数を取得します。
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ユーザーのID
+      - name: resourceAlreadyRead
+        in: query
+        schema:
+          type: boolean
+        description: 既読かどうか。trueの場合は既読のウォッチ、falseの場合は未読のウォッチ、指定しない場合は両方のウォッチを返します。指定が無い場合は両方
+      - name: alreadyRead
+        in: query
+        schema:
+          type: boolean
+        description: ウォッチメニューの一覧表示後に更新されたウォッチの件数を返します。trueの場合はウォッチメニューを表示した後に更新されていない(既読状態の)件数を返します。falseの場合はウォッチメニューを表示した後に更新された(未読状態の)ウォッチの
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /watchings:
+    post:
+      operationId: addWatching
+      summary: ウォッチの追加
+      description: ウォッチを追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                issueIdOrKey(必須):
+                  type: string
+                  description: 課題のID または 課題キー
+                note:
+                  type: string
+                  description: メモ
+              required:
+              - issueIdOrKey(必須)
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /watchings/{watchingId}:
+    get:
+      operationId: getWatching
+      summary: ウォッチ情報の取得
+      description: ウォッチの情報を追加します。
+      parameters:
+      - name: watchingId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ウォッチのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateWatching
+      summary: ウォッチの更新
+      description: ウォッチを更新します。
+      parameters:
+      - name: watchingId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ウォッチのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  description: メモ
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteWatching
+      summary: ウォッチの削除
+      description: ウォッチを削除します。
+      parameters:
+      - name: watchingId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ウォッチのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /watchings/{watchingId}/markAsRead:
+    post:
+      operationId: markWatchingAsRead
+      summary: ウォッチの既読化
+      description: ウォッチを既読にします。
+      parameters:
+      - name: watchingId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ウォッチのID
+      responses:
+        '204':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis:
+    get:
+      operationId: getWikiPageList
+      summary: Wikiページ一覧の取得
+      description: Wikiページの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: query
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      - name: keyword
+        in: query
+        schema:
+          type: string
+        description: 検索キーワード
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addWikiPage
+      summary: Wikiページの追加
+      description: WIkiの新しいページを追加します。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                projectId(必須):
+                  type: integer
+                  description: プロジェクトのID
+                name(必須):
+                  type: string
+                  description: ページ名
+                content(必須):
+                  type: string
+                  description: ページの内容
+                mailNotify:
+                  type: boolean
+                  description: ページの追加をメールで通知する場合はtrue
+              required:
+              - projectId(必須)
+              - name(必須)
+              - content(必須)
+      responses:
+        '201':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/count:
+    get:
+      operationId: countWikiPage
+      summary: Wikiページ数の取得
+      description: Wikiページの数を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: query
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/tags:
+    get:
+      operationId: getWikiPageTagList
+      summary: Wikiページタグ一覧の取得
+      description: プロジェクト内のWikiページで使用されているタグの一覧を取得します。
+      parameters:
+      - name: projectIdOrKey
+        in: query
+        schema:
+          type: string
+        description: プロジェクトのID または プロジェクトキー
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}:
+    get:
+      operationId: getWikiPage
+      summary: Wikiページ情報の取得
+      description: Wikiページの情報を取得します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    patch:
+      operationId: updateWikiPage
+      summary: Wikiページ情報の更新
+      description: Wikiページの情報を更新します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: ページ名
+                content:
+                  type: string
+                  description: ページの内容
+                mailNotify:
+                  type: boolean
+                  description: ページの更新をメールで通知する場合はtrue
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: deleteWikiPage
+      summary: Wikiページの削除
+      description: WIkiページを削除します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      - name: mailNotify
+        in: query
+        schema:
+          type: boolean
+        description: ページの削除をメールで通知する場合はtrue
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/attachments:
+    get:
+      operationId: getListOfWikiAttachments
+      summary: Wiki添付ファイル一覧の取得
+      description: Wikiの添付ファイルの一覧を取得します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: attachFileToWiki
+      summary: Wiki添付ファイルの追加
+      description: Wikiに添付ファイルを追加します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                attachmentId(複数指定可):
+                  type: array
+                  items:
+                    type: integer
+                  description: 添付ファイルの送信APIが返すID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/attachments/{attachmentId}:
+    get:
+      operationId: getWikiPageAttachment
+      summary: Wiki添付ファイルのダウンロード
+      description: Wikiの添付ファイルをダウンロードします。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    delete:
+      operationId: removeWikiAttachment
+      summary: Wiki添付ファイルの削除
+      description: Wikiの添付ファイルを削除します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      - name: attachmentId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 添付ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/history:
+    get:
+      operationId: getWikiPageHistory
+      summary: Wikiページ更新履歴一覧の取得
+      description: Wikiページの更新履歴の一覧を取得します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      - name: minId
+        in: query
+        schema:
+          type: integer
+        description: 最小ID
+      - name: maxId
+        in: query
+        schema:
+          type: integer
+        description: 最大ID
+      - name: count
+        in: query
+        schema:
+          type: integer
+        description: 取得上限(1-100) 指定が無い場合は20
+      - name: order
+        in: query
+        schema:
+          type: string
+        description: ”asc”または”desc” 指定が無い場合は”desc”
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/sharedFiles:
+    get:
+      operationId: getListOfSharedFilesOnWiki
+      summary: Wiki共有ファイル一覧の取得
+      description: Wikiの共有ファイルの一覧を取得します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: linkSharedFilesToWiki
+      summary: Wikiに共有ファイルをリンク
+      description: Wikiに共有ファイルをリンクします。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                fileId(必須):
+                  type: array
+                  items:
+                    type: integer
+                  description: 共有ファイルのID
+              required:
+              - fileId(必須)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/sharedFiles/{id}:
+    delete:
+      operationId: removeLinkToSharedFileFromWiki
+      summary: Wikiの共有ファイルのリンクを解除
+      description: Wikiにリンクされた共有ファイルのリンクを解除します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 共有ファイルのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /wikis/{wikiId}/stars:
+    get:
+      operationId: getWikiPageStar
+      summary: Wikiページのスター一覧の取得
+      description: Wikiページが受け取ったスターの一覧を取得します。
+      parameters:
+      - name: wikiId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: WikiページのID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
