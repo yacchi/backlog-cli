@@ -19,4 +19,5 @@ func init() {
 	PRCmd.AddCommand(closeCmd)
 	PRCmd.AddCommand(mergeCmd)
 	PRCmd.AddCommand(commentCmd)
+	PRCmd.AddCommand(prAttachmentCmd)
 }
