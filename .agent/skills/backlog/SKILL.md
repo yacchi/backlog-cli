@@ -12,10 +12,9 @@ General Backlog operations beyond issue management.
 
 ## Authentication
 
-```bash
-# Check API access (preferred over auth status)
-backlog auth me --quiet && echo "authenticated" || echo "not authenticated"
+Run commands directly. If you get an authentication error, login first.
 
+```bash
 # Login (opens browser)
 backlog auth login --web
 backlog auth login --web --space myspace  # specific space

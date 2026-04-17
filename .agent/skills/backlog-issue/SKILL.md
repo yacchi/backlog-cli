@@ -14,14 +14,12 @@ Issue operations triggered by detecting issue key patterns: `[A-Z][A-Z0-9_]+-[0-
 ## Quick Start
 
 ```bash
-# 1. Check authentication
-backlog auth me --quiet || backlog auth login --web
-
-# 2. Fetch issue
 backlog issue view PROJ-123 --brief  # quick overview
 backlog issue view PROJ-123          # full details
 backlog issue view PROJ-123 -c default  # with comments
 ```
+
+If you get an authentication error, run `backlog auth login --web`.
 
 ## View Issue
 
