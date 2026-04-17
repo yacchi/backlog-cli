@@ -19,19 +19,23 @@ var createCmd = &cobra.Command{
 
 Examples:
   backlog wiki create --name "Meeting Notes" --content "# Meeting Notes"
+  backlog wiki create --name "Spec" --content-file spec.md
+  cat content.md | backlog wiki create --name "Page" --content-file -
   backlog wiki create  # Interactive mode`,
 	RunE: runCreate,
 }
 
 var (
-	createName       string
-	createContent    string
-	createMailNotify bool
+	createName        string
+	createContent     string
+	createContentFile string
+	createMailNotify  bool
 )
 
 func init() {
 	createCmd.Flags().StringVarP(&createName, "name", "n", "", "Wiki page name")
 	createCmd.Flags().StringVarP(&createContent, "content", "c", "", "Wiki page content")
+	createCmd.Flags().StringVarP(&createContentFile, "content-file", "F", "", "Read content from file (use \"-\" to read from standard input)")
 	createCmd.Flags().BoolVar(&createMailNotify, "notify", false, "Send mail notification")
 }
 
@@ -64,13 +68,24 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 	}
 
-	if createContent == "" {
-		prompt := &survey.Multiline{
-			Message: "Content (Markdown supported):",
-		}
-		if err := survey.AskOne(prompt, &createContent); err != nil {
-			return err
-		}
+	createContent, err = cmdutil.ResolveBody(
+		createContent,
+		createContentFile,
+		false,
+		nil,
+		func() (string, error) {
+			var content string
+			prompt := &survey.Multiline{
+				Message: "Content (Markdown supported):",
+			}
+			if err := survey.AskOne(prompt, &content); err != nil {
+				return "", err
+			}
+			return content, nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get content: %w", err)
 	}
 
 	// Wiki作成
