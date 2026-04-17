@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -45,16 +46,17 @@ Examples:
 }
 
 var (
-	createTitle      string
-	createBody       string
-	createBodyFile   string
-	createTypeID     int
-	createPriority   int
-	createAssignee   string
-	createDueDate    string
-	createEditor     bool
-	createMilestones string
-	createCategories string
+	createTitle       string
+	createBody        string
+	createBodyFile    string
+	createTypeID      int
+	createPriority    int
+	createAssignee    string
+	createDueDate     string
+	createEditor      bool
+	createMilestones  string
+	createCategories  string
+	createAttachFiles []string
 )
 
 func init() {
@@ -68,6 +70,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor to write the body")
 	createCmd.Flags().StringVarP(&createMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
 	createCmd.Flags().StringVar(&createCategories, "category", "", "Category IDs or names (comma-separated)")
+	createCmd.Flags().StringArrayVar(&createAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 }
 
 func runCreate(c *cobra.Command, args []string) error {
@@ -219,6 +222,24 @@ func runCreate(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve categories: %w", err)
 		}
 		input.CategoryIDs = categoryIDs
+	}
+
+	// 添付ファイルのアップロード
+	if len(createAttachFiles) > 0 {
+		var attachmentIDs []int
+		for _, filePath := range createAttachFiles {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open %s: %w", filePath, err)
+			}
+			up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %w", filePath, err)
+			}
+			attachmentIDs = append(attachmentIDs, up.ID)
+		}
+		input.AttachmentIDs = attachmentIDs
 	}
 
 	// 作成

@@ -2,6 +2,8 @@ package issue
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -49,6 +51,7 @@ var (
 	editAddCategories    string
 	editRemoveCategories string
 	editRemoveMilestone  bool
+	editAttachFiles      []string
 )
 
 func init() {
@@ -65,6 +68,7 @@ func init() {
 	editCmd.Flags().StringVar(&editAddCategories, "add-category", "", "Add categories by name (comma-separated)")
 	editCmd.Flags().StringVar(&editRemoveCategories, "remove-category", "", "Remove categories by name (comma-separated)")
 	editCmd.Flags().BoolVar(&editRemoveMilestone, "remove-milestone", false, "Remove milestone from the issue")
+	editCmd.Flags().StringArrayVar(&editAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 }
 
 func runEdit(c *cobra.Command, args []string) error {
@@ -214,6 +218,25 @@ func runEdit(c *cobra.Command, args []string) error {
 			}
 		}
 		input.CategoryIDs = result
+		hasUpdate = true
+	}
+
+	// 添付ファイルのアップロード
+	if len(editAttachFiles) > 0 {
+		var attachmentIDs []int
+		for _, filePath := range editAttachFiles {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open %s: %w", filePath, err)
+			}
+			up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %w", filePath, err)
+			}
+			attachmentIDs = append(attachmentIDs, up.ID)
+		}
+		input.AttachmentIDs = attachmentIDs
 		hasUpdate = true
 	}
 
