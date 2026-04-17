@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
@@ -250,6 +251,7 @@ type CreateIssueInput struct {
 	MilestoneIDs   []int
 	AssigneeID     int
 	ParentIssueID  int
+	AttachmentIDs  []int
 }
 
 // CreateIssue は課題を作成する
@@ -285,6 +287,9 @@ func (c *Client) CreateIssue(ctx context.Context, input *CreateIssueInput) (*bac
 	if input.ParentIssueID > 0 {
 		req.ParentIssueId = backlog.NewOptInt(input.ParentIssueID)
 	}
+	if len(input.AttachmentIDs) > 0 {
+		req.AttachmentId = input.AttachmentIDs
+	}
 
 	return c.backlogClient.CreateIssue(ctx, backlog.NewOptCreateIssueReq(req))
 }
@@ -306,6 +311,7 @@ type UpdateIssueInput struct {
 	PriorityID     *int
 	IssueTypeID    *int
 	Comment        *string
+	AttachmentIDs  []int
 }
 
 // UpdateIssue は課題を更新する
@@ -352,6 +358,9 @@ func (c *Client) UpdateIssue(ctx context.Context, issueIDOrKey string, input *Up
 	req.CategoryId = input.CategoryIDs
 	req.VersionId = input.VersionIDs
 	req.MilestoneId = input.MilestoneIDs
+	if len(input.AttachmentIDs) > 0 {
+		req.AttachmentId = input.AttachmentIDs
+	}
 
 	return c.backlogClient.UpdateIssue(ctx, backlog.NewOptUpdateIssueReq(req), backlog.UpdateIssueParams{
 		IssueIdOrKey: issueIDOrKey,
@@ -363,4 +372,86 @@ func (c *Client) DeleteIssue(ctx context.Context, issueIDOrKey string) (*backlog
 	return c.backlogClient.DeleteIssue(ctx, backlog.DeleteIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
+}
+
+// ListIssueAttachments は課題の添付ファイル一覧を取得する
+func (c *Client) ListIssueAttachments(ctx context.Context, issueIDOrKey string) ([]Attachment, error) {
+	res, err := c.backlogClient.GetListOfIssueAttachments(ctx, backlog.GetListOfIssueAttachmentsParams{
+		IssueIdOrKey: issueIDOrKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	atts := make([]Attachment, 0, len(res))
+	for _, a := range res {
+		atts = append(atts, convertAttachment(a))
+	}
+	return atts, nil
+}
+
+// DownloadIssueAttachment は課題の添付ファイルをダウンロードする
+func (c *Client) DownloadIssueAttachment(ctx context.Context, issueIDOrKey string, attachmentID int, w io.Writer) (string, int64, error) {
+	return c.downloadRaw(ctx, fmt.Sprintf("/issues/%s/attachments/%d", issueIDOrKey, attachmentID), w)
+}
+
+// DeleteIssueAttachment は課題の添付ファイルを削除する
+func (c *Client) DeleteIssueAttachment(ctx context.Context, issueIDOrKey string, attachmentID int) (*Attachment, error) {
+	res, err := c.backlogClient.DeleteIssueAttachment(ctx, backlog.DeleteIssueAttachmentParams{
+		IssueIdOrKey: issueIDOrKey,
+		AttachmentId: attachmentID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	att := convertAttachment(*res)
+	return &att, nil
+}
+
+// ListIssueSharedFiles は課題にリンクされた共有ファイル一覧を取得する
+func (c *Client) ListIssueSharedFiles(ctx context.Context, issueIDOrKey string) ([]SharedFile, error) {
+	res, err := c.backlogClient.GetListOfLinkedSharedFiles(ctx, backlog.GetListOfLinkedSharedFilesParams{
+		IssueIdOrKey: issueIDOrKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+	files := make([]SharedFile, 0, len(res))
+	for _, f := range res {
+		files = append(files, convertSharedFile(f))
+	}
+	return files, nil
+}
+
+// LinkIssueSharedFiles は課題に共有ファイルをリンクする
+func (c *Client) LinkIssueSharedFiles(ctx context.Context, issueIDOrKey string, fileIDs []int) ([]SharedFile, error) {
+	res, err := c.backlogClient.LinkSharedFilesToIssue(ctx,
+		backlog.OptLinkSharedFilesToIssueReq{
+			Set: true,
+			Value: backlog.LinkSharedFilesToIssueReq{
+				FileId: fileIDs,
+			},
+		},
+		backlog.LinkSharedFilesToIssueParams{IssueIdOrKey: issueIDOrKey},
+	)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]SharedFile, 0, len(res))
+	for _, f := range res {
+		files = append(files, convertSharedFile(f))
+	}
+	return files, nil
+}
+
+// UnlinkIssueSharedFile は課題から共有ファイルのリンクを解除する
+func (c *Client) UnlinkIssueSharedFile(ctx context.Context, issueIDOrKey string, fileID int) (*SharedFile, error) {
+	res, err := c.backlogClient.RemoveLinkToSharedFileFromIssue(ctx, backlog.RemoveLinkToSharedFileFromIssueParams{
+		IssueIdOrKey: issueIDOrKey,
+		ID:           fileID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	f := convertSharedFile(*res)
+	return &f, nil
 }
