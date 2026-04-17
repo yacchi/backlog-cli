@@ -1,0 +1,5587 @@
+{
+  "_meta": {
+    "generatedAt": "2026-04-17T03:19:46.347090+00:00",
+    "totalEndpoints": 155
+  },
+  "endpoints": {
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-space/": {
+      "etag": "W/\"8895a0292bf40055be40ac7ae6df9f1a\"",
+      "crawledAt": "2026-04-17T03:17:47.380739+00:00",
+      "title": "スペース情報の取得",
+      "method": "GET",
+      "path": "/space",
+      "description": "スペースの情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-issue/": {
+      "etag": "W/\"14dab69636ec9917d3325c10cf2968a0\"",
+      "crawledAt": "2026-04-17T03:18:13.726990+00:00",
+      "title": "課題情報の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}",
+      "description": "参加しているプロジェクトから課題の情報を取得します。 \n課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-issue/": {
+      "etag": "W/\"24d69968c32f43d1bb8c581f97e43088\"",
+      "crawledAt": "2026-04-17T03:18:13.371344+00:00",
+      "title": "課題の追加",
+      "method": "POST",
+      "path": "/issues",
+      "description": "参加しているプロジェクトに新しい課題を追加します。 \n新しい課題を子課題として追加する場合は、 parentIssueId に親課題のIDを指定してください。 \n自分が参加しているプロジェクトの一覧は プロジェクトの状態一覧の取得 から取得できます。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "projectId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "課題を登録するプロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題の件名"
+        },
+        {
+          "name": "parentIssueId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の詳細"
+        },
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の開始日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "dueDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の期限日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "estimatedHours",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の予定時間"
+        },
+        {
+          "name": "actualHours",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の実績時間"
+        },
+        {
+          "name": "issueTypeId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "課題の種別のID。 課題種別のIDは 種別一覧の取得 から取得できます。"
+        },
+        {
+          "name": "categoryId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "versionId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "milestoneId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のマイルストーンのID。 マイルストーンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "priorityId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。"
+        },
+        {
+          "name": "assigneeId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "notifiedUserId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の追加の通知を受け取るユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイル送信 が返すID"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-issue-list/": {
+      "etag": "W/\"8b4512c331e703e74436d81e21daefa5\"",
+      "crawledAt": "2026-04-17T03:18:12.654451+00:00",
+      "title": "課題一覧の取得",
+      "method": "GET",
+      "path": "/issues",
+      "description": "参加しているプロジェクトから課題を取得します。 \nクエリパラメーターで指定された条件で、取得する課題を絞り込むことができます。 \n自分が参加しているプロジェクトの一覧は プロジェクトの状態一覧の取得 から取得できます。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "issueTypeId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の種別のID。 種別のIDは 種別一覧の取得 から取得できます。"
+        },
+        {
+          "name": "categoryId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "versionId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "milestoneId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のマイルストーンのID。 マイルストーンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "statusId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の状態のID。 状態のIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "priorityId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。"
+        },
+        {
+          "name": "assigneeId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "createdUserId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の登録者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "resolutionId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の完了理由のID。 完了理由のIDは 完了理由一覧の取得 から取得できます。"
+        },
+        {
+          "name": "parentChild",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "親子課題の条件。指定が無い場合は0が使われます。 0: すべて 1: 子課題以外の課題 2: 子課題 3: 親課題でも子課題でもない課題 4: 親課題"
+        },
+        {
+          "name": "attachment",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "課題が添付ファイルを含むかどうか。 true：添付ファイルを含む課題 false：添付ファイルを含まない課題"
+        },
+        {
+          "name": "sharedFile",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "課題が共有ファイルを含むかどうか。 true：共有ファイルを含む課題 false：共有ファイルを含まない課題"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題一覧の並び順に使用する属性。 issueType category version milestone summary status priority attachment sharedFile created createdUser updated updatedUser assignee startDate dueDate estimatedHours actualHours childIssue customField_${id} カスタム属性のIDは カスタム属性一覧の取得 から取得できます。"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題一覧の並び順。指定が無い場合はdescが使われます。 asc: 昇順 desc: 降順"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の取得開始位置。0以上の整数を指定してください。"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の件数の上限。1〜100の範囲で指定してください。指定が無い場合は20が使われます。"
+        },
+        {
+          "name": "createdSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の登録日の期間の開始（yyyy-MM-dd）"
+        },
+        {
+          "name": "createdUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の登録日の期間の終了（yyyy-MM-dd）"
+        },
+        {
+          "name": "updatedSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の更新日の期間の開始（yyyy-MM-dd）"
+        },
+        {
+          "name": "updatedUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の更新日の期間の終了（yyyy-MM-dd）"
+        },
+        {
+          "name": "startDateSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の開始日の期間の開始（yyyy-MM-dd）"
+        },
+        {
+          "name": "startDateUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の開始日の期間の終了（yyyy-MM-dd）"
+        },
+        {
+          "name": "dueDateSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の期限日の期間の開始（yyyy-MM-dd）"
+        },
+        {
+          "name": "dueDateUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の期限日の期間の終了（yyyy-MM-dd）"
+        },
+        {
+          "name": "hasDueDate",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "falseを指定すると、期限日が設定されていない課題を返します。trueの指定はサポートされておらず、エラーが返されます。"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のID。 課題のIDは 課題情報の取得 から取得できます。"
+        },
+        {
+          "name": "parentIssueId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。"
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "検索キーワード"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-recent-updates/": {
+      "etag": "W/\"5aa5f149d698eb782f6e95e3c82e5519\"",
+      "crawledAt": "2026-04-17T03:17:47.737373+00:00",
+      "title": "最近の更新の取得",
+      "method": "GET",
+      "path": "/space/activities",
+      "description": "スペース上で行われた最近の更新の一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "activityTypeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "type(1-26)"
+        },
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-activity/": {
+      "etag": "W/\"ab77302b1026a05978e095b5fc486bca\"",
+      "crawledAt": "2026-04-17T03:17:48.091222+00:00",
+      "title": "アクティビティの取得",
+      "method": "GET",
+      "path": "/activities/{activityId}",
+      "description": "アクティビティの詳細を返します。",
+      "pathParams": [
+        {
+          "name": "activityId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": ""
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-space-logo/": {
+      "etag": "W/\"e321447810a2cbd6325e8682824e2191\"",
+      "crawledAt": "2026-04-17T03:17:48.442851+00:00",
+      "title": "スペースアイコン画像の取得",
+      "method": "GET",
+      "path": "/space/image",
+      "description": "スペースのアイコン画像を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-space-notification/": {
+      "etag": "W/\"510b706cd778cda84d898870a7c2d2a7\"",
+      "crawledAt": "2026-04-17T03:17:48.805338+00:00",
+      "title": "スペースのお知らせの取得",
+      "method": "GET",
+      "path": "/space/notification",
+      "description": "スペースのお知らせの情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-space-notification/": {
+      "etag": "W/\"8b55e23d20e74b3247984789125f4835\"",
+      "crawledAt": "2026-04-17T03:17:49.160456+00:00",
+      "title": "スペースのお知らせの更新",
+      "method": "PUT",
+      "path": "/space/notification",
+      "description": "スペースのお知らせの情報を更新します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-space-disk-usage/": {
+      "etag": "W/\"558406da57de3c2908e1f3f7926b1333\"",
+      "crawledAt": "2026-04-17T03:17:49.528329+00:00",
+      "title": "スペースの容量使用状況の取得",
+      "method": "GET",
+      "path": "/space/diskUsage",
+      "description": "スペースの容量使用状況の情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/post-attachment-file/": {
+      "etag": "W/\"1df57f3fada17f3fd9e8e10bde977dc6\"",
+      "crawledAt": "2026-04-17T03:17:49.881746+00:00",
+      "title": "添付ファイルの送信",
+      "method": "POST",
+      "path": "/space/attachment",
+      "description": "課題やコメント、Wikiにファイルを添付するために、Backlogスペースにファイルをアップロードします。アップロードが成功すると、添付ファイルのIDが返されます。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "file",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": ""
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-user-list/": {
+      "etag": "W/\"d87a6bba50d26fdaf7bc3a721f7e6fc5\"",
+      "crawledAt": "2026-04-17T03:17:50.249426+00:00",
+      "title": "ユーザー一覧の取得",
+      "method": "GET",
+      "path": "/users",
+      "description": "スペースのユーザーの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-user/": {
+      "etag": "W/\"3ff91c02f8470a221a6101cf2a65a62c\"",
+      "crawledAt": "2026-04-17T03:17:50.619611+00:00",
+      "title": "ユーザー情報の取得",
+      "method": "GET",
+      "path": "/users/{userId}",
+      "description": "ユーザー情報を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-user/": {
+      "etag": "W/\"d399107753fcb44165ab1aa1be18d5d8\"",
+      "crawledAt": "2026-04-17T03:17:50.973803+00:00",
+      "title": "ユーザーの追加",
+      "method": "POST",
+      "path": "/users",
+      "description": "スペースに新しいユーザーを追加します。\nプロジェクト管理者は管理者権限のユーザを追加することは出来ません。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "userId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ユーザID"
+        },
+        {
+          "name": "password(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "パスワード"
+        },
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ハンドルネーム"
+        },
+        {
+          "name": "mailAddress(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "メールアドレス"
+        },
+        {
+          "name": "roleType(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-user/": {
+      "etag": "W/\"def2dfb9d78dfec73e464ae7fe089d04\"",
+      "crawledAt": "2026-04-17T03:17:51.337796+00:00",
+      "title": "ユーザーの更新",
+      "method": "PATCH",
+      "path": "/users/{userId}",
+      "description": "ユーザーの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "更新するユーザーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "password",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "パスワード"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ハンドルネーム"
+        },
+        {
+          "name": "mailAddress",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "メールアドレス"
+        },
+        {
+          "name": "roleType",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-user/": {
+      "etag": "W/\"a5c5df7bc3546350080e8fd61679a649\"",
+      "crawledAt": "2026-04-17T03:17:51.693853+00:00",
+      "title": "ユーザーの削除",
+      "method": "DELETE",
+      "path": "/users/{userId}",
+      "description": "ユーザーをスペースから削除します。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "削除するユーザーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-own-user/": {
+      "etag": "W/\"ff3e58b8a5ae45079f57b1e68686ad6a\"",
+      "crawledAt": "2026-04-17T03:17:52.054110+00:00",
+      "title": "認証ユーザー情報の取得",
+      "method": "GET",
+      "path": "/users/myself",
+      "description": "APIとの認証に使用しているユーザーの情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-user-icon/": {
+      "etag": "W/\"a890d2570153887c8c8e4fea3260f760\"",
+      "crawledAt": "2026-04-17T03:17:52.418098+00:00",
+      "title": "ユーザーアイコンの取得",
+      "method": "GET",
+      "path": "/users/{userId}/icon",
+      "description": "ユーザーのアイコン画像を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-user-recent-updates/": {
+      "etag": "W/\"dec97980574ef395a8930e9516ac15ce\"",
+      "crawledAt": "2026-04-17T03:17:52.779163+00:00",
+      "title": "ユーザーの最近の活動の取得",
+      "method": "GET",
+      "path": "/users/{userId}/activities",
+      "description": "ユーザーの最近の活動の一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "activityTypeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "type(1-17)"
+        },
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-received-star-list/": {
+      "etag": "W/\"ff27d394847385f6d7089cabca2a2098\"",
+      "crawledAt": "2026-04-17T03:17:53.137376+00:00",
+      "title": "ユーザーの受け取ったスター一覧の取得",
+      "method": "GET",
+      "path": "/users/{userId}/stars",
+      "description": "ユーザーの受け取ったスターの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-user-received-stars/": {
+      "etag": "W/\"45a8f48137505b2532f47060f68ec897\"",
+      "crawledAt": "2026-04-17T03:17:53.499885+00:00",
+      "title": "ユーザーの受け取ったスターの数の取得",
+      "method": "GET",
+      "path": "/users/{userId}/stars/count",
+      "description": "ユーザーの受け取ったスターの数を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "since",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "指定した日付以降のスターをカウント (yyyy-MM-dd)"
+        },
+        {
+          "name": "until",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "指定した日付以前のスターをカウント (yyyy-MM-dd)"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-recently-viewed-issues/": {
+      "etag": "W/\"be925bd3563fb620589082edc329efad\"",
+      "crawledAt": "2026-04-17T03:17:53.865632+00:00",
+      "title": "自分が最近見た課題一覧の取得",
+      "method": "GET",
+      "path": "/users/myself/recentlyViewedIssues",
+      "description": "APIとの認証に使用しているユーザーが最近見た課題の一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-recently-viewed-issue/": {
+      "etag": "W/\"9c07241cdad633d2e6facd0a11925c58\"",
+      "crawledAt": "2026-04-17T03:17:54.225316+00:00",
+      "title": "自分が最近見た課題の追加",
+      "method": "POST",
+      "path": "/users/myself/recentlyViewedIssues",
+      "description": "APIとの認証に使用しているユーザーが最近見た課題を追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "issueIdOrKey(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-recently-viewed-projects/": {
+      "etag": "W/\"56b7c5f399ca7962a8926baaf058b173\"",
+      "crawledAt": "2026-04-17T03:17:54.582217+00:00",
+      "title": "自分が最近見たプロジェクト一覧の取得",
+      "method": "GET",
+      "path": "/users/myself/recentlyViewedProjects",
+      "description": "APIとの認証に使用しているユーザーが最近見たプロジェクトの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-recently-viewed-wikis/": {
+      "etag": "W/\"47637966c40b4e2e4ea94eabf9c3017d\"",
+      "crawledAt": "2026-04-17T03:17:54.937677+00:00",
+      "title": "自分が最近見たWiki一覧の取得",
+      "method": "GET",
+      "path": "/users/myself/recentlyViewedWikis",
+      "description": "APIとの認証に使用しているユーザーが最近見たWikiの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-recently-viewed-wiki/": {
+      "etag": "W/\"08e7cd3534e3841a3a77c98d3dc42f40\"",
+      "crawledAt": "2026-04-17T03:17:55.299800+00:00",
+      "title": "自分が最近見たWikiの追加",
+      "method": "POST",
+      "path": "/users/myself/recentlyViewedWikis",
+      "description": "APIとの認証に使用しているユーザーが最近見たWikiを追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "wikiId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのId"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-status-list-of-project/": {
+      "etag": "W/\"1eb326d6d6be22d4cd56f68a480cd033\"",
+      "crawledAt": "2026-04-17T03:17:55.669880+00:00",
+      "title": "プロジェクトの状態一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/statuses",
+      "description": "プロジェクト固有の課題に設定できる状態一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "Project ID or Project Key"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-priority-list/": {
+      "etag": "W/\"a02281251f62d6960b90ac1f8b8a6b9f\"",
+      "crawledAt": "2026-04-17T03:17:56.025963+00:00",
+      "title": "優先度一覧の取得",
+      "method": "GET",
+      "path": "/priorities",
+      "description": "課題に設定できる優先度の一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-resolution-list/": {
+      "etag": "W/\"b485ded75132e76db11a1dfeb4352a5d\"",
+      "crawledAt": "2026-04-17T03:17:56.390242+00:00",
+      "title": "完了理由一覧の取得",
+      "method": "GET",
+      "path": "/resolutions",
+      "description": "課題に設定できる完了理由の一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-list/": {
+      "etag": "W/\"7916c8a1d688893e53c842fa5321fb0d\"",
+      "crawledAt": "2026-04-17T03:17:56.758673+00:00",
+      "title": "プロジェクト一覧の取得",
+      "method": "GET",
+      "path": "/projects",
+      "description": "プロジェクトの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "archived",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "省略された場合は全てのプロジェクト、falseの場合はアーカイブされていないプロジェクト、trueの場合はアーカイブされたプロジェクトを返します。"
+        },
+        {
+          "name": "all",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ユーザが管理者権限の場合のみ有効なパラメータです。trueの場合はすべてのプロジェクト、falseの場合は参加しているプロジェクトのみを返します。初期値はfalse。"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-project/": {
+      "etag": "W/\"e9e363fb6e998d84451c01433d2fed50\"",
+      "crawledAt": "2026-04-17T03:17:57.122464+00:00",
+      "title": "プロジェクトの追加",
+      "method": "POST",
+      "path": "/projects",
+      "description": "新しいプロジェクトを追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクト名"
+        },
+        {
+          "name": "key(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトキー(半角英大文字と半角数字とアンダースコアが使用できます)"
+        },
+        {
+          "name": "chartEnabled",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "チャートを使用するかどうか"
+        },
+        {
+          "name": "useResolvedForChart",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "「処理済み」以降を「完了」とみなすどうか"
+        },
+        {
+          "name": "subtaskingEnabled",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "親子課題を使用するかどうか"
+        },
+        {
+          "name": "projectLeaderCanEditProjectLeader",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "プロジェクト管理者も他のプロジェクト管理者を指定可能にする"
+        },
+        {
+          "name": "useWiki",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiを使用するかどうか"
+        },
+        {
+          "name": "useFileSharing",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "共有ファイルを使用するかどうか"
+        },
+        {
+          "name": "useWikiTreeView",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiツリー表示を有効にするかどうか"
+        },
+        {
+          "name": "useSubversion",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Subversionを使用するかどうか"
+        },
+        {
+          "name": "useGit",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Gitを使用するかどうか"
+        },
+        {
+          "name": "useOriginalImageSizeAtWiki",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiの画像をオリジナルのサイズで表示するかどうか"
+        },
+        {
+          "name": "textFormattingRule",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "テキスト整形のルール backlog または markdown"
+        },
+        {
+          "name": "useDevAttributes",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "優先度、マイルストーン、発生バージョンを使用するかどうか"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project/": {
+      "etag": "W/\"79f8d72bf0a174c6da2997d4e71f848f\"",
+      "crawledAt": "2026-04-17T03:17:57.486660+00:00",
+      "title": "プロジェクト情報の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}",
+      "description": "プロジェクトの情報を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-project/": {
+      "etag": "W/\"f964778f11953b2a8c2459dfb9c3dfb3\"",
+      "crawledAt": "2026-04-17T03:17:57.849272+00:00",
+      "title": "プロジェクト情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}",
+      "description": "プロジェクトの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プロジェクト名"
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトキー"
+        },
+        {
+          "name": "chartEnabled",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "チャートを使用するかどうか"
+        },
+        {
+          "name": "useResolvedForChart",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "「処理済み」以降を「完了」とみなすどうか"
+        },
+        {
+          "name": "subtaskingEnabled",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "親子課題を使用するかどうか"
+        },
+        {
+          "name": "projectLeaderCanEditProjectLeader",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "プロジェクト管理者も他のプロジェクト管理者を指定可能にする"
+        },
+        {
+          "name": "useWiki",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiを使用するかどうか"
+        },
+        {
+          "name": "useFileSharing",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "共有ファイルを使用するかどうか"
+        },
+        {
+          "name": "useWikiTreeView",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiツリー表示を有効にするかどうか"
+        },
+        {
+          "name": "useSubversion",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Subversionを使用するかどうか"
+        },
+        {
+          "name": "useGit",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Gitを使用するかどうか"
+        },
+        {
+          "name": "useOriginalImageSizeAtWiki",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "Wikiの画像をオリジナルのサイズで表示するかどうか"
+        },
+        {
+          "name": "textFormattingRule",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "テキスト整形のルール backlog または markdown"
+        },
+        {
+          "name": "archived",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトの一覧に表示するかどうか"
+        },
+        {
+          "name": "useDevAttributes",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "優先度、マイルストーン、発生バージョンを使用するかどうか"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-project/": {
+      "etag": "W/\"bade40db663a695c64156f6bdcbc2d89\"",
+      "crawledAt": "2026-04-17T03:17:58.198593+00:00",
+      "title": "プロジェクトの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}",
+      "description": "プロジェクトを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-icon/": {
+      "etag": "W/\"513a0688515a8f47c5a0fe5f1a60cc67\"",
+      "crawledAt": "2026-04-17T03:17:58.565576+00:00",
+      "title": "プロジェクトアイコンの取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/image",
+      "description": "プロジェクトのアイコン画像を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-recent-updates/": {
+      "etag": "W/\"cee3ac00fec4d5aba6789b204a2dff83\"",
+      "crawledAt": "2026-04-17T03:17:58.926194+00:00",
+      "title": "プロジェクトの最近の活動の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/activities",
+      "description": "プロジェクト上の最近の活動の一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "activityTypeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "type(1-26)"
+        },
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-project-user/": {
+      "etag": "W/\"b2b1c5bd619a2b58dda78855c51ef4d9\"",
+      "crawledAt": "2026-04-17T03:17:59.287276+00:00",
+      "title": "プロジェクトユーザーの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/users",
+      "description": "プロジェクトにユーザーを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "追加するユーザーのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-user-list/": {
+      "etag": "W/\"a135b8bc04a3ae6e54c18417c986efb9\"",
+      "crawledAt": "2026-04-17T03:17:59.648442+00:00",
+      "title": "プロジェクトユーザー一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/users",
+      "description": "プロジェクトのユーザーの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "excludeGroupMembers",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "グループを介してプロジェクトに参加しているメンバーを除く"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-project-user/": {
+      "etag": "W/\"089230c8faa435441da74c7b9f9ffa95\"",
+      "crawledAt": "2026-04-17T03:18:00.014353+00:00",
+      "title": "プロジェクトユーザーの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/users",
+      "description": "プロジェクトからユーザーを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "削除するユーザーのID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-project-administrator/": {
+      "etag": "W/\"e315f093a605785f19462cb23a3d93c1\"",
+      "crawledAt": "2026-04-17T03:18:00.373162+00:00",
+      "title": "プロジェクト管理者の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/administrators",
+      "description": "プロジェクトユーザーにプロジェクト管理者権限を追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "追加するユーザーのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-project-administrators/": {
+      "etag": "W/\"da3384d1c5f63f5679ed4a7e9ba70690\"",
+      "crawledAt": "2026-04-17T03:18:00.727918+00:00",
+      "title": "プロジェクト管理者一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/administrators",
+      "description": "プロジェクト管理者に設定されているユーザーの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-project-administrator/": {
+      "etag": "W/\"f1be787e27f27cf654ff3bddba955a03\"",
+      "crawledAt": "2026-04-17T03:18:01.084327+00:00",
+      "title": "プロジェクト管理者の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/administrators",
+      "description": "プロジェクトユーザーからプロジェクト管理者権限を削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "削除するユーザーのID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-status/": {
+      "etag": "W/\"1bff268e7f53ba4d1ee667d808fbb5f2\"",
+      "crawledAt": "2026-04-17T03:18:01.442003+00:00",
+      "title": "状態の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/statuses",
+      "description": "プロジェクトに状態を追加します。\n1プロジェクトにつき8個まで状態を追加できます。 標準の4つの状態と合わせると、合計12個の状態を設定できます。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "状態の名前"
+        },
+        {
+          "name": "color(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "状態の背景色：以下から指定 ”#ea2c00\" \"#e87758\" \"#e07b9a\" \"#868cb7\" \"#3b9dbd\" \"#4caf93\" \"#b0be3c\" \"#eda62a\" \"#f42858\" \"#393939”"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-status/": {
+      "etag": "W/\"5f2f2713dd27c489a7150aafc3c692c0\"",
+      "crawledAt": "2026-04-17T03:18:01.802308+00:00",
+      "title": "状態情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/statuses/{id}",
+      "description": "追加した状態の情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "状態のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "状態の名前"
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "状態の背景色；以下から指定 ”#ea2c00\" \"#e87758\" \"#e07b9a\" \"#868cb7\" \"#3b9dbd\" \"#4caf93\" \"#b0be3c\" \"#eda62a\" \"#f42858\" \"#393939”"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-status/": {
+      "etag": "W/\"119844ec40298faaba3481212e39c3e2\"",
+      "crawledAt": "2026-04-17T03:18:02.160991+00:00",
+      "title": "状態の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/statuses/{id}",
+      "description": "プロジェクトから状態を削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "状態のID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "substituteStatusId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "紐づく課題を付け替える先の状態のID。 削除対象の状態が設定されている課題がある場合、このパラメーターで指定した状態へ一括変更します。"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-order-of-status/": {
+      "etag": "W/\"5dfe1e4227ebe7329d9b8423efa703e3\"",
+      "crawledAt": "2026-04-17T03:18:02.521589+00:00",
+      "title": "状態の並び替え",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/statuses/updateDisplayOrder",
+      "description": "状態の表示順を変更します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "statusId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "表示順に並べた、状態のIDのリスト。そのプロジェクトで使える全ての状態を渡してください。表示順には以下の制限があります 未対応は先頭にあること 完了は末尾にあること 処理中は処理済みよりも前にあること"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-issue-type-list/": {
+      "etag": "W/\"4f42a0d106112dee55f323d0c7e03029\"",
+      "crawledAt": "2026-04-17T03:18:02.878349+00:00",
+      "title": "種別一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/issueTypes",
+      "description": "参加しているプロジェクトの課題種別一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-issue-type/": {
+      "etag": "W/\"ce7ebfc06d78ccef9e56b93d40603875\"",
+      "crawledAt": "2026-04-17T03:18:03.234490+00:00",
+      "title": "種別の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/issueTypes",
+      "description": "プロジェクトに種別を追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "種別の名前"
+        },
+        {
+          "name": "color(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "種別の背景色：以下から指定 ”#e30000\" \"#990000\" \"#934981\" \"#814fbc\" \"#2779ca\" \"#007e9a\" \"#7ea800\" \"#ff9200\" \"#ff3265\" \"#666665”"
+        },
+        {
+          "name": "templateSummary",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題テンプレートの件名"
+        },
+        {
+          "name": "templateDescription",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題テンプレートの詳細"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-issue-type/": {
+      "etag": "W/\"2b14757c6f782a784418f1b29fe72d63\"",
+      "crawledAt": "2026-04-17T03:18:03.597335+00:00",
+      "title": "種別情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/issueTypes/{id}",
+      "description": "種別の情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "種別のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "種別の名前"
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "種別の背景色"
+        },
+        {
+          "name": "templateSummary",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題テンプレートの件名"
+        },
+        {
+          "name": "templateDescription",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題テンプレートの詳細"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-issue-type/": {
+      "etag": "W/\"cfe5c51f592fdf3f48e35fabc85c3c98\"",
+      "crawledAt": "2026-04-17T03:18:03.951847+00:00",
+      "title": "種別の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/issueTypes/{id}",
+      "description": "プロジェクトから種別を削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "種別のID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "substituteIssueTypeId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "紐づく課題を付け替える先の種別のID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-category-list/": {
+      "etag": "W/\"c175f08a8819ccf7690e79708c80e630\"",
+      "crawledAt": "2026-04-17T03:18:04.318055+00:00",
+      "title": "カテゴリー一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/categories",
+      "description": "プロジェクトに登録されているカテゴリーの一覧を返します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-category/": {
+      "etag": "W/\"c4d0a4bc1704b7e38e8e8d33ccd213b9\"",
+      "crawledAt": "2026-04-17T03:18:04.686938+00:00",
+      "title": "カテゴリーの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/categories",
+      "description": "プロジェクトにカテゴリーを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "カテゴリーの名前"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-category/": {
+      "etag": "W/\"6d0e4a7ec4729e2d30291c8326a860ff\"",
+      "crawledAt": "2026-04-17T03:18:05.041239+00:00",
+      "title": "カテゴリー情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/categories/{id}",
+      "description": "カテゴリーの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カテゴリーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "カテゴリーの名前"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-category/": {
+      "etag": "W/\"5e14c4d29a36b22975aad340b50c7916\"",
+      "crawledAt": "2026-04-17T03:18:05.398813+00:00",
+      "title": "カテゴリーの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/categories/{id}",
+      "description": "カテゴリーを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カテゴリーのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-version-milestone-list/": {
+      "etag": "W/\"c398d1e113cddcb7eb24059e598e6485\"",
+      "crawledAt": "2026-04-17T03:18:05.759321+00:00",
+      "title": "バージョン(マイルストーン)一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/versions",
+      "description": "プロジェクトに登録されているバージョン(マイルストーン)の一覧を返します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-version-milestone/": {
+      "etag": "W/\"cb9dd712e3646336ee618ddcf13aaeb4\"",
+      "crawledAt": "2026-04-17T03:18:06.116941+00:00",
+      "title": "バージョン(マイルストーン)の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/versions",
+      "description": "プロジェクトにバージョン(マイルストーン)を追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "バージョンの名前"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンの説明"
+        },
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンの開始日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "releaseDueDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンのリリース予定日 (yyyy-MM-dd)"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-version-milestone/": {
+      "etag": "W/\"8dea4db62378440e5f42fe2407b57479\"",
+      "crawledAt": "2026-04-17T03:18:06.472893+00:00",
+      "title": "バージョン(マイルストーン)情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/versions/{id}",
+      "description": "バージョン(マイルストーン)の情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "バージョンのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "バージョンの名前"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンの説明"
+        },
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンの開始日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "releaseDueDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "バージョンのリリース予定日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "archived",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトホームに表示しない場合はtrue"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-version/": {
+      "etag": "W/\"cdf127603919af475ccd5fd79a50ab5f\"",
+      "crawledAt": "2026-04-17T03:18:06.841852+00:00",
+      "title": "バージョン(マイルストーン)の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/versions/{id}",
+      "description": "バージョン(マイルストーン)を削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "バージョンのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-custom-field-list/": {
+      "etag": "W/\"9416a36b1db5388cb921994fecb26760\"",
+      "crawledAt": "2026-04-17T03:18:07.194247+00:00",
+      "title": "カスタム属性一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/customFields",
+      "description": "参加しているプロジェクトのカスタム属性一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-custom-field/": {
+      "etag": "W/\"2d840d190358853e20dc61e149d1998e\"",
+      "crawledAt": "2026-04-17T03:18:07.551573+00:00",
+      "title": "カスタム属性の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/customFields",
+      "description": "プロジェクトに新しいカスタム属性を追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "typeId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性の形式 1: 文字列 2: 文章 3: 数値 4: 日付 5: 単一リスト 6: 複数リスト 7: チェックボックス 8: ラジオ"
+        },
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性の名前"
+        },
+        {
+          "name": "applicableIssueTypes(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "カスタム属性を有効にする種別ID 空の場合、すべての課題種別で有効"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "カスタム属性の説明"
+        },
+        {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "必須な属性とする場合はtrue"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-custom-field/": {
+      "etag": "W/\"b7037f2a4bbfc0dfd6fb557318f52f97\"",
+      "crawledAt": "2026-04-17T03:18:07.915000+00:00",
+      "title": "カスタム属性の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/customFields/{id}",
+      "description": "カスタム属性を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "カスタム属性の名前"
+        },
+        {
+          "name": "applicableIssueTypes(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "カスタム属性を有効にする種別ID 空の場合、すべての課題種別で有効"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "カスタム属性の説明"
+        },
+        {
+          "name": "required",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "必須な属性とする場合はtrue"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-custom-field/": {
+      "etag": "W/\"bc0b496902a252188f6dbb9c3fc89e2f\"",
+      "crawledAt": "2026-04-17T03:18:08.272007+00:00",
+      "title": "カスタム属性の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/customFields/{id}",
+      "description": "カスタム属性を削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-list-item-for-list-type-custom-field/": {
+      "etag": "W/\"d7fe6adf75c4798e8157744921dc10fc\"",
+      "crawledAt": "2026-04-17T03:18:08.629106+00:00",
+      "title": "選択リストカスタム属性のリスト項目の追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/customFields/{id}/items",
+      "description": "自分が参加しているプロジェクトのカスタム属性（選択リスト）に、新しい選択肢を追加します。\n「課題の追加/編集時に選択肢を追加できる」の設定が無効な場合は管理者権限のユーザーのみ呼び出せます。\n指定されたカスタム属性が選択リスト形式でない場合はエラーになります。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー 自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性のID カスタム属性のIDは「 カスタム属性一覧の取得 」から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "追加するリスト項目の名前"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-list-item-for-list-type-custom-field/": {
+      "etag": "W/\"85a11811921cc8d7f3355c3a025a552d\"",
+      "crawledAt": "2026-04-17T03:18:08.985431+00:00",
+      "title": "選択リストカスタム属性のリスト項目の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/customFields/{id}/items/{itemId}",
+      "description": "選択リスト形式のカスタム属性のリスト項目を更新します。\n指定されたカスタム属性が選択リスト形式でない場合はエラーになります。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性のID"
+        },
+        {
+          "name": "itemId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "リスト項目のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "リスト項目の名前"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-list-item-for-list-type-custom-field/": {
+      "etag": "W/\"c2cdf34699aee506971f52d10b9dcd20\"",
+      "crawledAt": "2026-04-17T03:18:09.360326+00:00",
+      "title": "選択リストカスタム属性のリスト項目の削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/customFields/{id}/items/{itemId}",
+      "description": "選択リスト形式のカスタム属性のリスト項目を削除します。\n指定されたカスタム属性が選択リスト形式でない場合はエラーになります。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "カスタム属性のID"
+        },
+        {
+          "name": "itemId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "リスト項目のID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-shared-files/": {
+      "etag": "W/\"d0061248cb3c3e9000c2a5bf82e52656\"",
+      "crawledAt": "2026-04-17T03:18:09.715995+00:00",
+      "title": "共有ファイル一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/files/metadata/{path}",
+      "description": "共有ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ディレクトリのパス"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-1000) 指定が無い場合は1000"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-file/": {
+      "etag": "W/\"c5fc85d467fcc9d3586aba730d48a46e\"",
+      "crawledAt": "2026-04-17T03:18:10.069974+00:00",
+      "title": "共有ファイルのダウンロード",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/files/{sharedFileId}",
+      "description": "共有ファイルを取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "共有ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-disk-usage/": {
+      "etag": "W/\"3fc8b498714e7c7e4effe6e7d52773b9\"",
+      "crawledAt": "2026-04-17T03:18:10.498634+00:00",
+      "title": "プロジェクトの容量使用状況の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/diskUsage",
+      "description": "プロジェクトの容量使用状況の情報を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-webhooks/": {
+      "etag": "W/\"6cae646336e15b3593603916bedd93c8\"",
+      "crawledAt": "2026-04-17T03:18:10.859725+00:00",
+      "title": "Webhook一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/webhooks",
+      "description": "Webhookの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-webhook/": {
+      "etag": "W/\"5d79469e6bfac88921faae636b9f5e3e\"",
+      "crawledAt": "2026-04-17T03:18:11.211485+00:00",
+      "title": "Webhookの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/webhooks",
+      "description": "Webhookを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "名前"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "詳細"
+        },
+        {
+          "name": "hookUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "hook URL"
+        },
+        {
+          "name": "allEvent",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "全てのイベントを通知"
+        },
+        {
+          "name": "activityTypeIds(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "通知するイベントのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-webhook/": {
+      "etag": "W/\"ddcbc06cb341b3c15c2dbca07bbc218a\"",
+      "crawledAt": "2026-04-17T03:18:11.568747+00:00",
+      "title": "Webhookの取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/webhooks/{webhookId}",
+      "description": "Webhookの情報を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "webhookId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "WebhookのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-webhook/": {
+      "etag": "W/\"102fe3fc5dfb4b12e1c1851b9d9cc761\"",
+      "crawledAt": "2026-04-17T03:18:11.928799+00:00",
+      "title": "Webhookの更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/webhooks/{webhookId}",
+      "description": "Webhookの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "webhookId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "WebhookのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "名前"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "詳細"
+        },
+        {
+          "name": "hookUrl",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "hook URL"
+        },
+        {
+          "name": "allEvent",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "全てのイベントを通知"
+        },
+        {
+          "name": "activityTypeIds(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "通知するイベントのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-webhook/": {
+      "etag": "W/\"7c649363c5c5a9b3a8c71b00ac8b3d2c\"",
+      "crawledAt": "2026-04-17T03:18:12.295477+00:00",
+      "title": "Webhookの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/webhooks/{webhookId}",
+      "description": "Webhookを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "webhookId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "WebhookのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-issue/": {
+      "etag": "W/\"c47e56b6a8381a41b6ef821aacfe1bb3\"",
+      "crawledAt": "2026-04-17T03:18:13.012563+00:00",
+      "title": "課題数の取得",
+      "method": "GET",
+      "path": "/issues/count",
+      "description": "課題の数を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "プロジェクトのID"
+        },
+        {
+          "name": "issueTypeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "種別のID"
+        },
+        {
+          "name": "categoryId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "カテゴリーのID"
+        },
+        {
+          "name": "versionId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "発生バージョンのID"
+        },
+        {
+          "name": "milestoneId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "マイルストーンのID"
+        },
+        {
+          "name": "statusId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "状態のID"
+        },
+        {
+          "name": "priorityId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "優先度のID"
+        },
+        {
+          "name": "assigneeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "担当者のID"
+        },
+        {
+          "name": "createdUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "登録者のID"
+        },
+        {
+          "name": "resolutionId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "完了理由のID"
+        },
+        {
+          "name": "parentChild",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "親子課題の条件 0: すべて 1: 子課題以外 2: 子課題 3: 親課題でも子課題でもない課題 4: 親課題"
+        },
+        {
+          "name": "attachment",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "添付ファイルを含む場合はtrue"
+        },
+        {
+          "name": "sharedFile",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "共有ファイルを含む場合はtrue"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題一覧のソートに使用する属性名 ”issueType\" \"category\" \"version\" \"milestone\" \"summary\" \"status\" \"priority\" \"attachment\" \"sharedFile\" \"created\" \"createdUser\" \"updated\" \"updatedUser\" \"assignee\" \"startDate\" \"dueDate\" \"estimatedHours\" \"actualHours\" \"childIssue\" \"customField_${id}“"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "createdSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "登録日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "createdUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "登録日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "updatedSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "更新日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "updatedUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "更新日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "startDateSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "開始日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "startDateUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "開始日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "dueDateSince",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "期限日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "dueDateUntil",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "期限日 (yyyy-MM-dd)"
+        },
+        {
+          "name": "hasDueDate",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "falseを指定すると、期限日が設定されていない課題を返します。trueの指定はサポートされておらず、エラーが返されます。"
+        },
+        {
+          "name": "id(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のID"
+        },
+        {
+          "name": "parentIssueId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "親課題のID"
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "検索キーワード"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-issue/": {
+      "etag": "W/\"e7ebb4f9a331f709b6926d6f6979a455\"",
+      "crawledAt": "2026-04-17T03:18:14.085222+00:00",
+      "title": "課題情報の更新",
+      "method": "PATCH",
+      "path": "/issues/{issueIdOrKey}",
+      "description": "参加しているプロジェクトの課題を更新します。 \n更新したい課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は プロジェクトの状態一覧の取得 から取得できます。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "summary",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の件名"
+        },
+        {
+          "name": "parentIssueId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の詳細"
+        },
+        {
+          "name": "statusId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の状態のID。 状態のIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "resolutionId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の完了理由のID。 完了理由のIDは 完了理由一覧の取得 から取得できます。"
+        },
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の開始日（yyyy-MM-dd）"
+        },
+        {
+          "name": "dueDate",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "課題の期限日（yyyy-MM-dd）"
+        },
+        {
+          "name": "estimatedHours",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の予定時間"
+        },
+        {
+          "name": "actualHours",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の実績時間"
+        },
+        {
+          "name": "issueTypeId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の種別のID。 種別のIDは 種別一覧の取得 から取得できます。"
+        },
+        {
+          "name": "categoryId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のカテゴリーのID。 カテゴリーのIDは カテゴリー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "versionId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のバージョンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "milestoneId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のマイルストーンのID。 バージョンのIDは バージョン(マイルストーン)一覧の取得 から取得できます。"
+        },
+        {
+          "name": "priorityId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の優先度のID。 優先度のIDは 優先度一覧の取得 から取得できます。"
+        },
+        {
+          "name": "assigneeId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題の担当者のユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "notifiedUserId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の追加の通知を受け取るユーザーのID。 ユーザーのIDは プロジェクトユーザー一覧の取得 から取得できます。"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイル送信 が返すID"
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "コメント"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-issue/": {
+      "etag": "W/\"94eef4e392b208fb93db8c22457c4fe2\"",
+      "crawledAt": "2026-04-17T03:18:14.449992+00:00",
+      "title": "課題の削除",
+      "method": "DELETE",
+      "path": "/issues/{issueIdOrKey}",
+      "description": "参加しているプロジェクトの課題を削除します。 \n削除したい課題は、 課題一覧の取得 から検索できます。 \n自分が参加しているプロジェクトの一覧は プロジェクト一覧の取得 から取得できます。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-comment-list/": {
+      "etag": "W/\"6197d5fabdac5a7bf5c21bbced9cbccb\"",
+      "crawledAt": "2026-04-17T03:18:14.813410+00:00",
+      "title": "課題コメントの取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/comments",
+      "description": "課題に登録されているコメントの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-comment/": {
+      "etag": "W/\"0986c8d0f8522462e455a663eb17feff\"",
+      "crawledAt": "2026-04-17T03:18:15.180816+00:00",
+      "title": "課題コメントの追加",
+      "method": "POST",
+      "path": "/issues/{issueIdOrKey}/comments",
+      "description": "課題に新しいコメントを追加します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "content(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "コメントの本文"
+        },
+        {
+          "name": "notifiedUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "コメント登録の通知を受け取るユーザーID"
+        },
+        {
+          "name": "attachmentId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイルの送信APIが返すID"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-comment/": {
+      "etag": "W/\"6d954362a575ceb4f78fc83ba5732046\"",
+      "crawledAt": "2026-04-17T03:18:15.541649+00:00",
+      "title": "課題コメント数の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/comments/count",
+      "description": "課題に登録されているコメントの数を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-comment/": {
+      "etag": "W/\"b5d38fdf76ad6636cf30a26141198c73\"",
+      "crawledAt": "2026-04-17T03:18:15.895752+00:00",
+      "title": "課題コメント情報の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/comments/{commentId}",
+      "description": "課題コメントの詳細を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-comment/": {
+      "etag": "W/\"47c15213f39ee43100d0d2ad38bbb59e\"",
+      "crawledAt": "2026-04-17T03:18:16.255275+00:00",
+      "title": "課題コメントの削除",
+      "method": "DELETE",
+      "path": "/issues/{issueIdOrKey}/comments/{commentId}",
+      "description": "課題コメントを削除します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-comment/": {
+      "etag": "W/\"8e086f6b51d48ce551292267c63547aa\"",
+      "crawledAt": "2026-04-17T03:18:16.630127+00:00",
+      "title": "課題コメント情報の更新",
+      "method": "PATCH",
+      "path": "/issues/{issueIdOrKey}/comments/{commentId}",
+      "description": "課題コメントの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "コメントの本文"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-comment-notifications/": {
+      "etag": "W/\"f966d3518dba9489bac092e3e01550b6\"",
+      "crawledAt": "2026-04-17T03:18:16.991247+00:00",
+      "title": "課題コメントのお知らせ一覧の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/comments/{commentId}/notifications",
+      "description": "課題コメントのお知らせ一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-comment-notification/": {
+      "etag": "W/\"54792bceb5f43a5956d5347acd576aca\"",
+      "crawledAt": "2026-04-17T03:18:17.344507+00:00",
+      "title": "課題コメントにお知らせを追加",
+      "method": "POST",
+      "path": "/issues/{issueIdOrKey}/comments/{commentId}/notifications",
+      "description": "コメントにお知らせを追加します",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "notifiedUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題の登録の通知を受け取るユーザーのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-issue-attachments/": {
+      "etag": "W/\"d621f2d4f3141566203e21ec396e2cb8\"",
+      "crawledAt": "2026-04-17T03:18:17.708553+00:00",
+      "title": "課題添付ファイル一覧の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/attachments",
+      "description": "課題の添付ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-issue-attachment/": {
+      "etag": "W/\"bebe7b67bc861c83f35b99a6acabf3c1\"",
+      "crawledAt": "2026-04-17T03:18:18.070419+00:00",
+      "title": "課題添付ファイルのダウンロード",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/attachments/{attachmentId}",
+      "description": "課題の添付ファイルをダウンロードします。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-issue-attachment/": {
+      "etag": "W/\"c4f7764aeef94eae869bac9061aae448\"",
+      "crawledAt": "2026-04-17T03:18:18.428703+00:00",
+      "title": "課題添付ファイルの削除",
+      "method": "DELETE",
+      "path": "/issues/{issueIdOrKey}/attachments/{attachmentId}",
+      "description": "課題の添付ファイルを削除します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-issue-participant-list/": {
+      "etag": "W/\"4eb572f526193603c85b64cb2edaacc6\"",
+      "crawledAt": "2026-04-17T03:18:18.786367+00:00",
+      "title": "",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/participants",
+      "description": "課題の参加者一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": ""
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-linked-shared-files/": {
+      "etag": "W/\"591a051cfcd2ddd20186408521602c49\"",
+      "crawledAt": "2026-04-17T03:18:19.140253+00:00",
+      "title": "課題共有ファイル一覧の取得",
+      "method": "GET",
+      "path": "/issues/{issueIdOrKey}/sharedFiles",
+      "description": "課題にリンクされた共有ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/link-shared-files-to-issue/": {
+      "etag": "W/\"1d2d103c32e33951eff0b4bb8f2b20b6\"",
+      "crawledAt": "2026-04-17T03:18:19.500615+00:00",
+      "title": "課題に共有ファイルをリンク",
+      "method": "POST",
+      "path": "/issues/{issueIdOrKey}/sharedFiles",
+      "description": "課題に共有ファイルをリンクします。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "fileId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": true,
+          "description": "共有ファイルのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/remove-link-to-shared-file-from-issue/": {
+      "etag": "W/\"799b473feee2a72a185c35e19c693fd3\"",
+      "crawledAt": "2026-04-17T03:18:19.858065+00:00",
+      "title": "課題の共有ファイルのリンクを解除",
+      "method": "DELETE",
+      "path": "/issues/{issueIdOrKey}/sharedFiles/{id}",
+      "description": "課題にリンクされた共有ファイルのリンクを解除します。",
+      "pathParams": [
+        {
+          "name": "issueIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "共有ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-document-list/": {
+      "etag": "W/\"32638bec956f09865ce3e762f9473eff\"",
+      "crawledAt": "2026-04-17T03:18:20.217035+00:00",
+      "title": "ドキュメント一覧の取得",
+      "method": "GET",
+      "path": "/documents",
+      "description": "ドキュメントページの一覧を取得します。 \nAPIを実行するユーザーが参加しているプロジェクトのドキュメントのみ取得できます。 \n projectId[] パラメーターで指定したプロジェクトに参加していない場合、そのプロジェクトのドキュメントは取得結果に含まれません。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectId(複数指定可)",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "description": "プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "検索キーワード"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "created updated"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "一覧の並び順。指定が無い場合はdescが使われます。 asc: 昇順 desc: 降順"
+        },
+        {
+          "name": "offset(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "取得開始位置。0以上の整数を指定してください。"
+        },
+        {
+          "name": "count",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "件数の上限。1〜100の範囲で指定してください。指定が無い場合は20が使われます。"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-document/": {
+      "etag": "W/\"01a71fe5a33161e4f40b6ef4ea8601bb\"",
+      "crawledAt": "2026-04-17T03:18:20.571229+00:00",
+      "title": "ドキュメントの追加",
+      "method": "POST",
+      "path": "/documents",
+      "description": "ドキュメントを追加します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。 \n参加していないプロジェクトを指定した場合、エラーが返されます。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "projectId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID。 プロジェクトのIDは プロジェクトの状態一覧の取得 から取得できます。"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ドキュメントのタイトル。"
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ドキュメントの内容。Markdown形式で記述できます。"
+        },
+        {
+          "name": "emoji",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ドキュメントタイトル横に表示される絵文字。"
+        },
+        {
+          "name": "parentId",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "親ドキュメントのID。このIDを指定した場合、ドキュメントはツリー上でparentIdのドキュメントの子として作成されます。"
+        },
+        {
+          "name": "addLast",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "trueにした場合、ドキュメントはツリー上の兄弟ドキュメントの中で末尾に作成されます。デフォルトはfalseで先頭に追加されます。"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-document/": {
+      "etag": "W/\"34e7ec3a43e97820cba7fda9d0afee30\"",
+      "crawledAt": "2026-04-17T03:18:20.927899+00:00",
+      "title": "ドキュメント情報の取得",
+      "method": "GET",
+      "path": "/documents/{documentId}",
+      "description": "ドキュメントページの情報を取得します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。 \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。",
+      "pathParams": [
+        {
+          "name": "documentId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ドキュメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-document-tree/": {
+      "etag": "W/\"ae83047e492152414b627c3eba58b2bb\"",
+      "crawledAt": "2026-04-17T03:18:21.293914+00:00",
+      "title": "ドキュメントツリーの取得",
+      "method": "GET",
+      "path": "/documents/tree",
+      "description": "ドキュメントツリーを取得します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。 \n参加していないプロジェクトを指定した場合、エラーが返されます。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectIdOrKey(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-document-attachments/": {
+      "etag": "W/\"ea32ef6e5f638edeb68152a7a5e69256\"",
+      "crawledAt": "2026-04-17T03:18:21.671830+00:00",
+      "title": "ドキュメント添付ファイルの取得",
+      "method": "GET",
+      "path": "/documents/{documentId}/attachments/{attachmentId}",
+      "description": "ドキュメントの添付ファイルをダウンロードします。",
+      "pathParams": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "attachmentId",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": ""
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-document/": {
+      "etag": "W/\"9b0764ea5ed6f54d81954d53c7749fc5\"",
+      "crawledAt": "2026-04-17T03:18:22.020459+00:00",
+      "title": "ドキュメントの削除",
+      "method": "DELETE",
+      "path": "/documents/{documentId}",
+      "description": "ドキュメントを削除します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。 \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。",
+      "pathParams": [
+        {
+          "name": "documentId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ドキュメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-document-comment/": {
+      "etag": "W/\"0872f4151379954856c31073e054e41f\"",
+      "crawledAt": "2026-04-17T03:18:22.385859+00:00",
+      "title": "ドキュメントコメントの取得",
+      "method": "GET",
+      "path": "/documents/{documentId}/comments",
+      "description": "ドキュメントのコメントの一覧を取得します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。 \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。",
+      "pathParams": [
+        {
+          "name": "documentId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ドキュメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-document-tag/": {
+      "etag": "W/\"0ba134a40e9ca57bafa62d313edec486\"",
+      "crawledAt": "2026-04-17T03:18:22.744150+00:00",
+      "title": "ドキュメントタグの追加",
+      "method": "POST",
+      "path": "/documents/{documentId}/tags",
+      "description": "ドキュメントにタグを追加します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。 \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。",
+      "pathParams": [
+        {
+          "name": "documentId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ドキュメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "tagNames(複数指定可)",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "description": "追加するタグ名"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/remove-document-tag/": {
+      "etag": "W/\"a1423e77339bec026dd65ccd3e883dcc\"",
+      "crawledAt": "2026-04-17T03:18:23.106835+00:00",
+      "title": "ドキュメントタグの削除",
+      "method": "DELETE",
+      "path": "/documents/{documentId}/tags",
+      "description": "ドキュメントからタグを削除します。 \nAPIを実行するユーザーは、対象のドキュメントが属するプロジェクトに参加している必要があります。 \n参加していないプロジェクトのドキュメントを指定した場合、エラーが返されます。",
+      "pathParams": [
+        {
+          "name": "documentId(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ドキュメントのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "tagNames(複数指定可)",
+          "type": "string",
+          "required": false,
+          "array": true,
+          "description": "削除するタグ名"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 204
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-document/": {
+      "etag": "W/\"7800e2fa577707c7bc0a2b4784a1d53b\"",
+      "crawledAt": "2026-04-17T03:18:23.468128+00:00",
+      "title": "ドキュメント数の取得",
+      "method": "GET",
+      "path": "/documents/count",
+      "description": "プロジェクト内のドキュメントの数を取得します。 \nAPIを実行するユーザーは、指定したプロジェクトに参加している必要があります。 \n参加していないプロジェクトを指定した場合、エラーが返されます。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectIdOrKey(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID またはプロジェクトキー"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page-list/": {
+      "etag": "W/\"c64e2eeecfbb190effb99bba8d4d3920\"",
+      "crawledAt": "2026-04-17T03:18:23.831595+00:00",
+      "title": "Wikiページ一覧の取得",
+      "method": "GET",
+      "path": "/wikis",
+      "description": "Wikiページの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "検索キーワード"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-wiki-page/": {
+      "etag": "W/\"19621fe6dc5c74c909c67cc8ccbe4048\"",
+      "crawledAt": "2026-04-17T03:18:24.198524+00:00",
+      "title": "Wikiページ数の取得",
+      "method": "GET",
+      "path": "/wikis/count",
+      "description": "Wikiページの数を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page-tag-list/": {
+      "etag": "W/\"67fc5f1562006da15bb582d51f47dd30\"",
+      "crawledAt": "2026-04-17T03:18:24.551888+00:00",
+      "title": "Wikiページタグ一覧の取得",
+      "method": "GET",
+      "path": "/wikis/tags",
+      "description": "プロジェクト内のWikiページで使用されているタグの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-wiki-page/": {
+      "etag": "W/\"dc7c087185c1adebd97a0e3e16f04276\"",
+      "crawledAt": "2026-04-17T03:18:24.904602+00:00",
+      "title": "Wikiページの追加",
+      "method": "POST",
+      "path": "/wikis",
+      "description": "WIkiの新しいページを追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "projectId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID"
+        },
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ページ名"
+        },
+        {
+          "name": "content(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "ページの内容"
+        },
+        {
+          "name": "mailNotify",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ページの追加をメールで通知する場合はtrue"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page/": {
+      "etag": "W/\"259597f8f35914e8c8fc2c41f99474e4\"",
+      "crawledAt": "2026-04-17T03:18:25.265206+00:00",
+      "title": "Wikiページ情報の取得",
+      "method": "GET",
+      "path": "/wikis/{wikiId}",
+      "description": "Wikiページの情報を取得します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-wiki-page/": {
+      "etag": "W/\"77d56659e28184d96fe6922a50220c36\"",
+      "crawledAt": "2026-04-17T03:18:25.638513+00:00",
+      "title": "Wikiページ情報の更新",
+      "method": "PATCH",
+      "path": "/wikis/{wikiId}",
+      "description": "Wikiページの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ページ名"
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ページの内容"
+        },
+        {
+          "name": "mailNotify",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ページの更新をメールで通知する場合はtrue"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-wiki-page/": {
+      "etag": "W/\"93129bd90fcc57821148023aeac4be13\"",
+      "crawledAt": "2026-04-17T03:18:25.994483+00:00",
+      "title": "Wikiページの削除",
+      "method": "DELETE",
+      "path": "/wikis/{wikiId}",
+      "description": "WIkiページを削除します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "mailNotify",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ページの削除をメールで通知する場合はtrue"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-wiki-attachments/": {
+      "etag": "W/\"0f93361d7dfec3cd318fe79da2f39ff0\"",
+      "crawledAt": "2026-04-17T03:18:26.353670+00:00",
+      "title": "Wiki添付ファイル一覧の取得",
+      "method": "GET",
+      "path": "/wikis/{wikiId}/attachments",
+      "description": "Wikiの添付ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/attach-file-to-wiki/": {
+      "etag": "W/\"0062a941d00dadcd7072a2f6db21936a\"",
+      "crawledAt": "2026-04-17T03:18:26.714390+00:00",
+      "title": "Wiki添付ファイルの追加",
+      "method": "POST",
+      "path": "/wikis/{wikiId}/attachments",
+      "description": "Wikiに添付ファイルを追加します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "attachmentId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイルの送信APIが返すID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page-attachment/": {
+      "etag": "W/\"bfba589a746fb530fd65f417e5412eba\"",
+      "crawledAt": "2026-04-17T03:18:27.079254+00:00",
+      "title": "Wiki添付ファイルのダウンロード",
+      "method": "GET",
+      "path": "/wikis/{wikiId}/attachments/{attachmentId}",
+      "description": "Wikiの添付ファイルをダウンロードします。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/remove-wiki-attachment/": {
+      "etag": "W/\"849f71232901f90d7ce18415b228bf1a\"",
+      "crawledAt": "2026-04-17T03:18:27.456183+00:00",
+      "title": "Wiki添付ファイルの削除",
+      "method": "DELETE",
+      "path": "/wikis/{wikiId}/attachments/{attachmentId}",
+      "description": "Wikiの添付ファイルを削除します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-shared-files-on-wiki/": {
+      "etag": "W/\"269342057777506685d704cc951b6c5d\"",
+      "crawledAt": "2026-04-17T03:18:27.819781+00:00",
+      "title": "Wiki共有ファイル一覧の取得",
+      "method": "GET",
+      "path": "/wikis/{wikiId}/sharedFiles",
+      "description": "Wikiの共有ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/link-shared-files-to-wiki/": {
+      "etag": "W/\"270d16cbe596e2158a8630abc79a3132\"",
+      "crawledAt": "2026-04-17T03:18:28.191477+00:00",
+      "title": "Wikiに共有ファイルをリンク",
+      "method": "POST",
+      "path": "/wikis/{wikiId}/sharedFiles",
+      "description": "Wikiに共有ファイルをリンクします。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "fileId(必須)",
+          "type": "integer",
+          "required": true,
+          "array": true,
+          "description": "共有ファイルのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/remove-link-to-shared-file-from-wiki/": {
+      "etag": "W/\"d7084d89841d07952518ab2a1f65546e\"",
+      "crawledAt": "2026-04-17T03:18:28.549867+00:00",
+      "title": "Wikiの共有ファイルのリンクを解除",
+      "method": "DELETE",
+      "path": "/wikis/{wikiId}/sharedFiles/{id}",
+      "description": "Wikiにリンクされた共有ファイルのリンクを解除します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "共有ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page-history/": {
+      "etag": "W/\"2241c5be476522a8fc24a3c784493167\"",
+      "crawledAt": "2026-04-17T03:18:28.912266+00:00",
+      "title": "Wikiページ更新履歴一覧の取得",
+      "method": "GET",
+      "path": "/wikis/{wikiId}/history",
+      "description": "Wikiページの更新履歴の一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-wiki-page-star/": {
+      "etag": "W/\"ebef7f1b9246241f6e2ac809b4c56075\"",
+      "crawledAt": "2026-04-17T03:18:29.271909+00:00",
+      "title": "Wikiページのスター一覧の取得",
+      "method": "GET",
+      "path": "/wikis/{wikiId}/stars",
+      "description": "Wikiページが受け取ったスターの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "WikiページのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-star/": {
+      "etag": "W/\"3812cf858d9831f85100828dd466343a\"",
+      "crawledAt": "2026-04-17T03:18:29.631338+00:00",
+      "title": "スターの追加",
+      "method": "POST",
+      "path": "/stars",
+      "description": "課題、コメント、Wikiにスターを1つ追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "issueId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "課題のID"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "コメントのID"
+        },
+        {
+          "name": "wikiId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "WikiページのID"
+        },
+        {
+          "name": "pullRequestId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストのID"
+        },
+        {
+          "name": "pullRequestCommentId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストコメントのID"
+        }
+      ],
+      "responseStatus": 204
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/remove-star/": {
+      "etag": "W/\"2786687d9f41eb0af2c13639f7a1d02a\"",
+      "crawledAt": "2026-04-17T03:18:29.986324+00:00",
+      "title": "スターの削除",
+      "method": "DELETE",
+      "path": "/stars/{starId}",
+      "description": "課題、コメント、Wikiのスターを1つ削除します。",
+      "pathParams": [
+        {
+          "name": "starId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "スターのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 204
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-notification/": {
+      "etag": "W/\"4038ea02e6831fd22b80bcd32bc2650e\"",
+      "crawledAt": "2026-04-17T03:18:30.353156+00:00",
+      "title": "お知らせ一覧の取得",
+      "method": "GET",
+      "path": "/notifications",
+      "description": "自分の受け取ったお知らせの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "senderId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "送信者ID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-notification/": {
+      "etag": "W/\"b44a50932d6d8fce0f314889c6ce5ad4\"",
+      "crawledAt": "2026-04-17T03:18:30.714410+00:00",
+      "title": "お知らせ数の取得",
+      "method": "GET",
+      "path": "/notifications/count",
+      "description": "自分の受け取ったお知らせの数を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "alreadyRead",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "resourceAlreadyRead",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": ""
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/reset-unread-notification-count/": {
+      "etag": "W/\"f4c23838abde9dfdb8c8a76d337dfc5e\"",
+      "crawledAt": "2026-04-17T03:18:31.073429+00:00",
+      "title": "お知らせ数のリセット",
+      "method": "POST",
+      "path": "/notifications/markAsRead",
+      "description": "自分の受け取ったお知らせの未読数をリセットします。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/read-notification/": {
+      "etag": "W/\"cd91ff1d015fff04aad0dd1165494fd1\"",
+      "crawledAt": "2026-04-17T03:18:31.433294+00:00",
+      "title": "お知らせの既読化",
+      "method": "POST",
+      "path": "/notifications/{id}/markAsRead",
+      "description": "お知らせを既読にします。",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "お知らせのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 204
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-git-repositories/": {
+      "etag": "W/\"eef91d3d3a0899d8e0721df20e7687f6\"",
+      "crawledAt": "2026-04-17T03:18:31.795428+00:00",
+      "title": "Gitリポジトリ一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories",
+      "description": "Gitリポジトリの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-git-repository/": {
+      "etag": "W/\"2bcfd432e1f89ec51abe1a3163eab65a\"",
+      "crawledAt": "2026-04-17T03:18:32.155883+00:00",
+      "title": "Gitリポジトリの取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}",
+      "description": "Gitリポジトリを取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-pull-request-list/": {
+      "etag": "W/\"5e65c02ac96466deed97ed5a505d1853\"",
+      "crawledAt": "2026-04-17T03:18:32.524117+00:00",
+      "title": "プルリクエスト一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests",
+      "description": "プルリクエストの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "statusId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "状態のID"
+        },
+        {
+          "name": "assigneeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "担当者のID"
+        },
+        {
+          "name": "issueId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "関連課題のID"
+        },
+        {
+          "name": "createdUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "登録者のID"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-number-of-pull-requests/": {
+      "etag": "W/\"b96b197ee01bf760265662e828a66c4f\"",
+      "crawledAt": "2026-04-17T03:18:32.876589+00:00",
+      "title": "プルリクエスト数の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count",
+      "description": "プルリクエストの数を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "statusId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "状態のID"
+        },
+        {
+          "name": "assigneeId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "担当者のID"
+        },
+        {
+          "name": "issueId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "関連課題のID"
+        },
+        {
+          "name": "createdUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "登録者のID"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-pull-request/": {
+      "etag": "W/\"5d1bf1b02fc7ed59a06593c6968bc0a8\"",
+      "crawledAt": "2026-04-17T03:18:33.234962+00:00",
+      "title": "プルリクエストの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests",
+      "description": "プルリクエストを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "summary(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの件名"
+        },
+        {
+          "name": "description(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの詳細"
+        },
+        {
+          "name": "base(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "マージ先のブランチ名"
+        },
+        {
+          "name": "branch(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "マージされるブランチ名"
+        },
+        {
+          "name": "issueId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "関連課題のID"
+        },
+        {
+          "name": "assigneeId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストの担当者のID"
+        },
+        {
+          "name": "notifiedUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "プルリクエストの登録の通知を受け取るユーザーのID"
+        },
+        {
+          "name": "attachmentId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイルの送信APIが返すID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-pull-request/": {
+      "etag": "W/\"9b740459bb1186f6a8e748679b196863\"",
+      "crawledAt": "2026-04-17T03:18:33.597310+00:00",
+      "title": "プルリクエストの取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}",
+      "description": "プルリクエストを取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-pull-request/": {
+      "etag": "W/\"0edd0b7fd4e32cc4da3c5b4690dfe35d\"",
+      "crawledAt": "2026-04-17T03:18:33.965048+00:00",
+      "title": "プルリクエストの更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}",
+      "description": "プルリクエストを更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "summary",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストの件名"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストの詳細"
+        },
+        {
+          "name": "issueId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "関連課題のID"
+        },
+        {
+          "name": "assigneeId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "プルリクエストの担当者のID"
+        },
+        {
+          "name": "notifiedUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "プルリクエストの登録の通知を受け取るユーザーのID"
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "コメント"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-pull-request-comment/": {
+      "etag": "W/\"6e61e2c1ba2f35fed319d2bda22f3d65\"",
+      "crawledAt": "2026-04-17T03:18:34.326669+00:00",
+      "title": "プルリクエストコメントの取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments",
+      "description": "プルリクエストのコメントの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "minId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最小ID"
+        },
+        {
+          "name": "maxId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "最大ID"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-pull-request-comment/": {
+      "etag": "W/\"af9fddaaffb24852f032b5a95a611772\"",
+      "crawledAt": "2026-04-17T03:18:34.698664+00:00",
+      "title": "プルリクエストコメントの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments",
+      "description": "プルリクエストにコメントを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "content(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "コメントの本文"
+        },
+        {
+          "name": "attachmentId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "添付ファイルの送信APIが返すID"
+        },
+        {
+          "name": "notifiedUserId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "コメント登録の通知を受け取るユーザーID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-number-of-pull-request-comments/": {
+      "etag": "W/\"7e782b8a8d21dcd26f446dca8dfbc14a\"",
+      "crawledAt": "2026-04-17T03:18:35.048842+00:00",
+      "title": "プルリクエストコメント数の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments/count",
+      "description": "プルリクエストに登録されているコメントの数を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-pull-request-comment-information/": {
+      "etag": "W/\"4dc5b2eba138a2a5510e3d6936de5eae\"",
+      "crawledAt": "2026-04-17T03:18:35.413614+00:00",
+      "title": "プルリクエストコメント情報の更新",
+      "method": "PATCH",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/comments/{commentId}",
+      "description": "プルリクエストコメントの情報を更新します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        },
+        {
+          "name": "commentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "コメントのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "コメントの本文"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-pull-request-attachment/": {
+      "etag": "W/\"62c3a9a15788fa080a16fafafc04eb88\"",
+      "crawledAt": "2026-04-17T03:18:35.813938+00:00",
+      "title": "プルリクエスト添付ファイル一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments",
+      "description": "プルリクエストの添付ファイルの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/download-pull-request-attachment/": {
+      "etag": "W/\"03347d044750b4d3ed076e8fd67fa2e5\"",
+      "crawledAt": "2026-04-17T03:18:36.189024+00:00",
+      "title": "プルリクエスト添付ファイルのダウンロード",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}",
+      "description": "プルリクエストの添付ファイルをダウンロードします。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-pull-request-attachments/": {
+      "etag": "W/\"c800715459873fa4a189de258f93e2c1\"",
+      "crawledAt": "2026-04-17T03:18:36.544269+00:00",
+      "title": "プルリクエスト添付ファイルの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}",
+      "description": "プルリクエストの添付ファイルを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        },
+        {
+          "name": "repoIdOrName",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "リポジトリのID または リポジトリ名"
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "プルリクエストの番号"
+        },
+        {
+          "name": "attachmentId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "添付ファイルのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-watching-list/": {
+      "etag": "W/\"e70847b44d5df4309e20291dd47f2542\"",
+      "crawledAt": "2026-04-17T03:18:36.928069+00:00",
+      "title": "ウォッチ一覧の取得",
+      "method": "GET",
+      "path": "/users/{userId}/watchings",
+      "description": "ウォッチの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "ウォッチ一覧のソートに使用する属性名 ”created\" \"updated\" \"issueUpdated” 指定が無い場合は”issueUpdated”"
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "resourceAlreadyRead",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ウォッチしている課題の詳細を既読かどうか。trueの場合は既読のウォッチ、falseの場合は未読のウォッチ、指定しない場合は両方のウォッチを返します。指定が無い場合は両方"
+        },
+        {
+          "name": "issueId(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "課題のID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/count-watching/": {
+      "etag": "W/\"ec572a194d0d896da28b477be828626f\"",
+      "crawledAt": "2026-04-17T03:18:37.298330+00:00",
+      "title": "ウォッチ数の取得",
+      "method": "GET",
+      "path": "/users/{userId}/watchings/count",
+      "description": "ウォッチの数を取得します。",
+      "pathParams": [
+        {
+          "name": "userId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ユーザーのID"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "resourceAlreadyRead",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "既読かどうか。trueの場合は既読のウォッチ、falseの場合は未読のウォッチ、指定しない場合は両方のウォッチを返します。指定が無い場合は両方"
+        },
+        {
+          "name": "alreadyRead",
+          "type": "boolean",
+          "required": false,
+          "array": false,
+          "description": "ウォッチメニューの一覧表示後に更新されたウォッチの件数を返します。trueの場合はウォッチメニューを表示した後に更新されていない(既読状態の)件数を返します。falseの場合はウォッチメニューを表示した後に更新された(未読状態の)ウォッチの件数を返します。指定が無い場合は両方を合わせた件数を返します。resourceAlreadyReadが指定してある場合、alreadyReadは使用されません。"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-watching/": {
+      "etag": "W/\"ffad60583c5eb297f167ffd4cda6a30a\"",
+      "crawledAt": "2026-04-17T03:18:37.656850+00:00",
+      "title": "ウォッチ情報の取得",
+      "method": "GET",
+      "path": "/watchings/{watchingId}",
+      "description": "ウォッチの情報を追加します。",
+      "pathParams": [
+        {
+          "name": "watchingId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ウォッチのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-watching/": {
+      "etag": "W/\"e197c876bf4e9c4cd8555689046a72ea\"",
+      "crawledAt": "2026-04-17T03:18:38.008428+00:00",
+      "title": "ウォッチの追加",
+      "method": "POST",
+      "path": "/watchings",
+      "description": "ウォッチを追加します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "issueIdOrKey(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "課題のID または 課題キー"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "メモ"
+        }
+      ],
+      "responseStatus": 201
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-watching/": {
+      "etag": "W/\"cfcb47b430b7f4e06d484b0a1ce816e0\"",
+      "crawledAt": "2026-04-17T03:18:38.376393+00:00",
+      "title": "ウォッチの更新",
+      "method": "PATCH",
+      "path": "/watchings/{watchingId}",
+      "description": "ウォッチを更新します。",
+      "pathParams": [
+        {
+          "name": "watchingId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ウォッチのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "メモ"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-watching/": {
+      "etag": "W/\"0caf94dd15567794188a1d0d7d197cf7\"",
+      "crawledAt": "2026-04-17T03:18:38.863480+00:00",
+      "title": "ウォッチの削除",
+      "method": "DELETE",
+      "path": "/watchings/{watchingId}",
+      "description": "ウォッチを削除します。",
+      "pathParams": [
+        {
+          "name": "watchingId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ウォッチのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/mark-watching-as-read/": {
+      "etag": "W/\"7abb18951838e77fc154b90f6377d28b\"",
+      "crawledAt": "2026-04-17T03:18:39.218492+00:00",
+      "title": "ウォッチの既読化",
+      "method": "POST",
+      "path": "/watchings/{watchingId}/markAsRead",
+      "description": "ウォッチを既読にします。",
+      "pathParams": [
+        {
+          "name": "watchingId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "ウォッチのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 204
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-licence/": {
+      "etag": "W/\"472fe3ecbb98ba0023ac3208928a28fb\"",
+      "crawledAt": "2026-04-17T03:18:39.576474+00:00",
+      "title": "ライセンス情報の取得",
+      "method": "GET",
+      "path": "/space/licence",
+      "description": "ライセンスの情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-list-of-teams/": {
+      "etag": "W/\"ec42d65a4c6b4beb68c92f43884ebab0\"",
+      "crawledAt": "2026-04-17T03:18:39.935219+00:00",
+      "title": "チーム一覧の取得",
+      "method": "GET",
+      "path": "/teams",
+      "description": "チームの一覧を取得します。",
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "”asc”または”desc” 指定が無い場合は”desc”"
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "取得上限(1-100) 指定が無い場合は20"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-team/": {
+      "etag": "W/\"6a0f482a78af67d7820500398a535bc7\"",
+      "crawledAt": "2026-04-17T03:18:40.285805+00:00",
+      "title": "チームの追加",
+      "method": "POST",
+      "path": "/teams",
+      "description": "チームを追加します。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name(必須)",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "グループ名"
+        },
+        {
+          "name": "members(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "グループに含めるユーザーID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-team/": {
+      "etag": "W/\"44b7246d239605e1c660ace0d06b05ad\"",
+      "crawledAt": "2026-04-17T03:18:40.652867+00:00",
+      "title": "チーム情報の取得",
+      "method": "GET",
+      "path": "/teams/{teamId}",
+      "description": "チームの情報を取得します。",
+      "pathParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "チームのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/update-team/": {
+      "etag": "W/\"f8696150e04096b09ade5f1f38265d34\"",
+      "crawledAt": "2026-04-17T03:18:41.016192+00:00",
+      "title": "チーム情報の更新",
+      "method": "PATCH",
+      "path": "/teams/{teamId}",
+      "description": "チームの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "チームのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "description": "チーム名"
+        },
+        {
+          "name": "members(複数指定可)",
+          "type": "integer",
+          "required": false,
+          "array": true,
+          "description": "チームに含めるユーザーID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-team/": {
+      "etag": "W/\"8dcf6a15bf770bdb6dbe02b8f72a83b5\"",
+      "crawledAt": "2026-04-17T03:18:41.380325+00:00",
+      "title": "チームの削除",
+      "method": "DELETE",
+      "path": "/teams/{teamId}",
+      "description": "チームを削除します。\n 新プラン のスペースではこのAPIを利用できません。",
+      "pathParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "チームのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-team-icon/": {
+      "etag": "W/\"8991b912838b28298bf382b5d2ba491c\"",
+      "crawledAt": "2026-04-17T03:18:41.736807+00:00",
+      "title": "チームアイコンの取得",
+      "method": "GET",
+      "path": "/teams/{teamId}/icon",
+      "description": "チームアイコン画像を取得します。",
+      "pathParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": true,
+          "array": false,
+          "description": "チームのID"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-project-team-list/": {
+      "etag": "W/\"85892cd35df9be81539643820f831199\"",
+      "crawledAt": "2026-04-17T03:18:42.086921+00:00",
+      "title": "プロジェクトチーム一覧の取得",
+      "method": "GET",
+      "path": "/projects/{projectIdOrKey}/teams",
+      "description": "プロジェクトのチームの一覧を取得します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/add-project-team/": {
+      "etag": "W/\"4b5302aba3764a7ec54ea7635cbf8ec2\"",
+      "crawledAt": "2026-04-17T03:18:42.439315+00:00",
+      "title": "プロジェクトチームの追加",
+      "method": "POST",
+      "path": "/projects/{projectIdOrKey}/teams",
+      "description": "プロジェクトにチームを追加します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [],
+      "bodyParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "追加するチームのID"
+        }
+      ],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/delete-project-team/": {
+      "etag": "W/\"d58e456b1a553081065a6baa4f068b0c\"",
+      "crawledAt": "2026-04-17T03:18:42.801013+00:00",
+      "title": "プロジェクトチームの削除",
+      "method": "DELETE",
+      "path": "/projects/{projectIdOrKey}/teams",
+      "description": "プロジェクトからチームを削除します。",
+      "pathParams": [
+        {
+          "name": "projectIdOrKey",
+          "type": "string",
+          "required": true,
+          "array": false,
+          "description": "プロジェクトのID または プロジェクトキー"
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "teamId",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "description": "削除するチームのID"
+        }
+      ],
+      "bodyParams": [],
+      "responseStatus": 200
+    },
+    "https://developer.nulab.com/ja/docs/backlog/api/2/get-rate-limit/": {
+      "etag": "W/\"b01188eaaf8127a8fbb72a056bc9f045\"",
+      "crawledAt": "2026-04-17T03:18:43.165010+00:00",
+      "title": "レート制限情報の取得",
+      "method": "GET",
+      "path": "/rateLimit",
+      "description": "使用中のAPIキーに対応するユーザーに対して、現在設定されているレート制限に関する情報を取得します。",
+      "pathParams": [],
+      "queryParams": [],
+      "bodyParams": [],
+      "responseStatus": 200
+    }
+  }
+}

@@ -2,6 +2,10 @@
 
 package backlog
 
+import (
+	"io"
+)
+
 type AddCommentReq struct {
 	Content        string `json:"content"`
 	NotifiedUserId []int  `json:"notifiedUserId"`
@@ -25,6 +29,20 @@ func (s *AddCommentReq) SetContent(val string) {
 // SetNotifiedUserId sets the value of NotifiedUserId.
 func (s *AddCommentReq) SetNotifiedUserId(val []int) {
 	s.NotifiedUserId = val
+}
+
+type AddDocumentTagsReq struct {
+	TagNames []string `json:"tagNames[]"`
+}
+
+// GetTagNames returns the value of TagNames.
+func (s *AddDocumentTagsReq) GetTagNames() []string {
+	return s.TagNames
+}
+
+// SetTagNames sets the value of TagNames.
+func (s *AddDocumentTagsReq) SetTagNames(val []string) {
+	s.TagNames = val
 }
 
 type ApiKey struct {
@@ -289,6 +307,75 @@ func (s *CreateCategoryReq) GetName() string {
 // SetName sets the value of Name.
 func (s *CreateCategoryReq) SetName(val string) {
 	s.Name = val
+}
+
+type CreateDocumentReq struct {
+	ProjectId int       `json:"projectId"`
+	Title     OptString `json:"title"`
+	Content   OptString `json:"content"`
+	Emoji     OptString `json:"emoji"`
+	ParentId  OptString `json:"parentId"`
+	AddLast   OptBool   `json:"addLast"`
+}
+
+// GetProjectId returns the value of ProjectId.
+func (s *CreateDocumentReq) GetProjectId() int {
+	return s.ProjectId
+}
+
+// GetTitle returns the value of Title.
+func (s *CreateDocumentReq) GetTitle() OptString {
+	return s.Title
+}
+
+// GetContent returns the value of Content.
+func (s *CreateDocumentReq) GetContent() OptString {
+	return s.Content
+}
+
+// GetEmoji returns the value of Emoji.
+func (s *CreateDocumentReq) GetEmoji() OptString {
+	return s.Emoji
+}
+
+// GetParentId returns the value of ParentId.
+func (s *CreateDocumentReq) GetParentId() OptString {
+	return s.ParentId
+}
+
+// GetAddLast returns the value of AddLast.
+func (s *CreateDocumentReq) GetAddLast() OptBool {
+	return s.AddLast
+}
+
+// SetProjectId sets the value of ProjectId.
+func (s *CreateDocumentReq) SetProjectId(val int) {
+	s.ProjectId = val
+}
+
+// SetTitle sets the value of Title.
+func (s *CreateDocumentReq) SetTitle(val OptString) {
+	s.Title = val
+}
+
+// SetContent sets the value of Content.
+func (s *CreateDocumentReq) SetContent(val OptString) {
+	s.Content = val
+}
+
+// SetEmoji sets the value of Emoji.
+func (s *CreateDocumentReq) SetEmoji(val OptString) {
+	s.Emoji = val
+}
+
+// SetParentId sets the value of ParentId.
+func (s *CreateDocumentReq) SetParentId(val OptString) {
+	s.ParentId = val
+}
+
+// SetAddLast sets the value of AddLast.
+func (s *CreateDocumentReq) SetAddLast(val OptBool) {
+	s.AddLast = val
 }
 
 type CreateIssueReq struct {
@@ -624,6 +711,518 @@ func (s *CustomFieldItem) SetDisplayOrder(val OptInt) {
 	s.DisplayOrder = val
 }
 
+// Ref: #/components/schemas/Document
+type Document struct {
+	ID          OptString     `json:"id"`
+	ProjectId   OptInt        `json:"projectId"`
+	Title       OptString     `json:"title"`
+	StatusId    OptInt        `json:"statusId"`
+	Emoji       OptNilString  `json:"emoji"`
+	Tags        []DocumentTag `json:"tags"`
+	Attachments []Attachment  `json:"attachments"`
+	CreatedUser OptUser       `json:"createdUser"`
+	Created     OptString     `json:"created"`
+	UpdatedUser OptNilUser    `json:"updatedUser"`
+	Updated     OptNilString  `json:"updated"`
+}
+
+// GetID returns the value of ID.
+func (s *Document) GetID() OptString {
+	return s.ID
+}
+
+// GetProjectId returns the value of ProjectId.
+func (s *Document) GetProjectId() OptInt {
+	return s.ProjectId
+}
+
+// GetTitle returns the value of Title.
+func (s *Document) GetTitle() OptString {
+	return s.Title
+}
+
+// GetStatusId returns the value of StatusId.
+func (s *Document) GetStatusId() OptInt {
+	return s.StatusId
+}
+
+// GetEmoji returns the value of Emoji.
+func (s *Document) GetEmoji() OptNilString {
+	return s.Emoji
+}
+
+// GetTags returns the value of Tags.
+func (s *Document) GetTags() []DocumentTag {
+	return s.Tags
+}
+
+// GetAttachments returns the value of Attachments.
+func (s *Document) GetAttachments() []Attachment {
+	return s.Attachments
+}
+
+// GetCreatedUser returns the value of CreatedUser.
+func (s *Document) GetCreatedUser() OptUser {
+	return s.CreatedUser
+}
+
+// GetCreated returns the value of Created.
+func (s *Document) GetCreated() OptString {
+	return s.Created
+}
+
+// GetUpdatedUser returns the value of UpdatedUser.
+func (s *Document) GetUpdatedUser() OptNilUser {
+	return s.UpdatedUser
+}
+
+// GetUpdated returns the value of Updated.
+func (s *Document) GetUpdated() OptNilString {
+	return s.Updated
+}
+
+// SetID sets the value of ID.
+func (s *Document) SetID(val OptString) {
+	s.ID = val
+}
+
+// SetProjectId sets the value of ProjectId.
+func (s *Document) SetProjectId(val OptInt) {
+	s.ProjectId = val
+}
+
+// SetTitle sets the value of Title.
+func (s *Document) SetTitle(val OptString) {
+	s.Title = val
+}
+
+// SetStatusId sets the value of StatusId.
+func (s *Document) SetStatusId(val OptInt) {
+	s.StatusId = val
+}
+
+// SetEmoji sets the value of Emoji.
+func (s *Document) SetEmoji(val OptNilString) {
+	s.Emoji = val
+}
+
+// SetTags sets the value of Tags.
+func (s *Document) SetTags(val []DocumentTag) {
+	s.Tags = val
+}
+
+// SetAttachments sets the value of Attachments.
+func (s *Document) SetAttachments(val []Attachment) {
+	s.Attachments = val
+}
+
+// SetCreatedUser sets the value of CreatedUser.
+func (s *Document) SetCreatedUser(val OptUser) {
+	s.CreatedUser = val
+}
+
+// SetCreated sets the value of Created.
+func (s *Document) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// SetUpdatedUser sets the value of UpdatedUser.
+func (s *Document) SetUpdatedUser(val OptNilUser) {
+	s.UpdatedUser = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *Document) SetUpdated(val OptNilString) {
+	s.Updated = val
+}
+
+// Ref: #/components/schemas/DocumentComment
+type DocumentComment struct {
+	ID          OptInt       `json:"id"`
+	DocumentId  OptString    `json:"documentId"`
+	StatusId    OptInt       `json:"statusId"`
+	Content     OptNilString `json:"content"`
+	Plain       OptNilString `json:"plain"`
+	CommentType OptNilString `json:"commentType"`
+	CreatedUser OptUser      `json:"createdUser"`
+	Created     OptString    `json:"created"`
+	UpdatedUser OptNilUser   `json:"updatedUser"`
+	Updated     OptNilString `json:"updated"`
+}
+
+// GetID returns the value of ID.
+func (s *DocumentComment) GetID() OptInt {
+	return s.ID
+}
+
+// GetDocumentId returns the value of DocumentId.
+func (s *DocumentComment) GetDocumentId() OptString {
+	return s.DocumentId
+}
+
+// GetStatusId returns the value of StatusId.
+func (s *DocumentComment) GetStatusId() OptInt {
+	return s.StatusId
+}
+
+// GetContent returns the value of Content.
+func (s *DocumentComment) GetContent() OptNilString {
+	return s.Content
+}
+
+// GetPlain returns the value of Plain.
+func (s *DocumentComment) GetPlain() OptNilString {
+	return s.Plain
+}
+
+// GetCommentType returns the value of CommentType.
+func (s *DocumentComment) GetCommentType() OptNilString {
+	return s.CommentType
+}
+
+// GetCreatedUser returns the value of CreatedUser.
+func (s *DocumentComment) GetCreatedUser() OptUser {
+	return s.CreatedUser
+}
+
+// GetCreated returns the value of Created.
+func (s *DocumentComment) GetCreated() OptString {
+	return s.Created
+}
+
+// GetUpdatedUser returns the value of UpdatedUser.
+func (s *DocumentComment) GetUpdatedUser() OptNilUser {
+	return s.UpdatedUser
+}
+
+// GetUpdated returns the value of Updated.
+func (s *DocumentComment) GetUpdated() OptNilString {
+	return s.Updated
+}
+
+// SetID sets the value of ID.
+func (s *DocumentComment) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetDocumentId sets the value of DocumentId.
+func (s *DocumentComment) SetDocumentId(val OptString) {
+	s.DocumentId = val
+}
+
+// SetStatusId sets the value of StatusId.
+func (s *DocumentComment) SetStatusId(val OptInt) {
+	s.StatusId = val
+}
+
+// SetContent sets the value of Content.
+func (s *DocumentComment) SetContent(val OptNilString) {
+	s.Content = val
+}
+
+// SetPlain sets the value of Plain.
+func (s *DocumentComment) SetPlain(val OptNilString) {
+	s.Plain = val
+}
+
+// SetCommentType sets the value of CommentType.
+func (s *DocumentComment) SetCommentType(val OptNilString) {
+	s.CommentType = val
+}
+
+// SetCreatedUser sets the value of CreatedUser.
+func (s *DocumentComment) SetCreatedUser(val OptUser) {
+	s.CreatedUser = val
+}
+
+// SetCreated sets the value of Created.
+func (s *DocumentComment) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// SetUpdatedUser sets the value of UpdatedUser.
+func (s *DocumentComment) SetUpdatedUser(val OptNilUser) {
+	s.UpdatedUser = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *DocumentComment) SetUpdated(val OptNilString) {
+	s.Updated = val
+}
+
+// Merged schema.
+// Ref: #/components/schemas/DocumentDetail
+type DocumentDetail struct {
+	ID          OptString     `json:"id"`
+	ProjectId   OptInt        `json:"projectId"`
+	Title       OptString     `json:"title"`
+	StatusId    OptInt        `json:"statusId"`
+	Emoji       OptNilString  `json:"emoji"`
+	Tags        []DocumentTag `json:"tags"`
+	Attachments []Attachment  `json:"attachments"`
+	CreatedUser OptUser       `json:"createdUser"`
+	Created     OptString     `json:"created"`
+	UpdatedUser OptNilUser    `json:"updatedUser"`
+	Updated     OptNilString  `json:"updated"`
+	Plain       OptNilString  `json:"plain"`
+	JSON        OptNilString  `json:"json"`
+}
+
+// GetID returns the value of ID.
+func (s *DocumentDetail) GetID() OptString {
+	return s.ID
+}
+
+// GetProjectId returns the value of ProjectId.
+func (s *DocumentDetail) GetProjectId() OptInt {
+	return s.ProjectId
+}
+
+// GetTitle returns the value of Title.
+func (s *DocumentDetail) GetTitle() OptString {
+	return s.Title
+}
+
+// GetStatusId returns the value of StatusId.
+func (s *DocumentDetail) GetStatusId() OptInt {
+	return s.StatusId
+}
+
+// GetEmoji returns the value of Emoji.
+func (s *DocumentDetail) GetEmoji() OptNilString {
+	return s.Emoji
+}
+
+// GetTags returns the value of Tags.
+func (s *DocumentDetail) GetTags() []DocumentTag {
+	return s.Tags
+}
+
+// GetAttachments returns the value of Attachments.
+func (s *DocumentDetail) GetAttachments() []Attachment {
+	return s.Attachments
+}
+
+// GetCreatedUser returns the value of CreatedUser.
+func (s *DocumentDetail) GetCreatedUser() OptUser {
+	return s.CreatedUser
+}
+
+// GetCreated returns the value of Created.
+func (s *DocumentDetail) GetCreated() OptString {
+	return s.Created
+}
+
+// GetUpdatedUser returns the value of UpdatedUser.
+func (s *DocumentDetail) GetUpdatedUser() OptNilUser {
+	return s.UpdatedUser
+}
+
+// GetUpdated returns the value of Updated.
+func (s *DocumentDetail) GetUpdated() OptNilString {
+	return s.Updated
+}
+
+// GetPlain returns the value of Plain.
+func (s *DocumentDetail) GetPlain() OptNilString {
+	return s.Plain
+}
+
+// GetJSON returns the value of JSON.
+func (s *DocumentDetail) GetJSON() OptNilString {
+	return s.JSON
+}
+
+// SetID sets the value of ID.
+func (s *DocumentDetail) SetID(val OptString) {
+	s.ID = val
+}
+
+// SetProjectId sets the value of ProjectId.
+func (s *DocumentDetail) SetProjectId(val OptInt) {
+	s.ProjectId = val
+}
+
+// SetTitle sets the value of Title.
+func (s *DocumentDetail) SetTitle(val OptString) {
+	s.Title = val
+}
+
+// SetStatusId sets the value of StatusId.
+func (s *DocumentDetail) SetStatusId(val OptInt) {
+	s.StatusId = val
+}
+
+// SetEmoji sets the value of Emoji.
+func (s *DocumentDetail) SetEmoji(val OptNilString) {
+	s.Emoji = val
+}
+
+// SetTags sets the value of Tags.
+func (s *DocumentDetail) SetTags(val []DocumentTag) {
+	s.Tags = val
+}
+
+// SetAttachments sets the value of Attachments.
+func (s *DocumentDetail) SetAttachments(val []Attachment) {
+	s.Attachments = val
+}
+
+// SetCreatedUser sets the value of CreatedUser.
+func (s *DocumentDetail) SetCreatedUser(val OptUser) {
+	s.CreatedUser = val
+}
+
+// SetCreated sets the value of Created.
+func (s *DocumentDetail) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// SetUpdatedUser sets the value of UpdatedUser.
+func (s *DocumentDetail) SetUpdatedUser(val OptNilUser) {
+	s.UpdatedUser = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *DocumentDetail) SetUpdated(val OptNilString) {
+	s.Updated = val
+}
+
+// SetPlain sets the value of Plain.
+func (s *DocumentDetail) SetPlain(val OptNilString) {
+	s.Plain = val
+}
+
+// SetJSON sets the value of JSON.
+func (s *DocumentDetail) SetJSON(val OptNilString) {
+	s.JSON = val
+}
+
+// Ref: #/components/schemas/DocumentTag
+type DocumentTag struct {
+	ID   OptInt    `json:"id"`
+	Name OptString `json:"name"`
+}
+
+// GetID returns the value of ID.
+func (s *DocumentTag) GetID() OptInt {
+	return s.ID
+}
+
+// GetName returns the value of Name.
+func (s *DocumentTag) GetName() OptString {
+	return s.Name
+}
+
+// SetID sets the value of ID.
+func (s *DocumentTag) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetName sets the value of Name.
+func (s *DocumentTag) SetName(val OptString) {
+	s.Name = val
+}
+
+// Ref: #/components/schemas/DocumentTree
+type DocumentTree struct {
+	ProjectId  OptInt                 `json:"projectId"`
+	ActiveTree OptNilDocumentTreeNode `json:"activeTree"`
+	TrashTree  OptNilDocumentTreeNode `json:"trashTree"`
+}
+
+// GetProjectId returns the value of ProjectId.
+func (s *DocumentTree) GetProjectId() OptInt {
+	return s.ProjectId
+}
+
+// GetActiveTree returns the value of ActiveTree.
+func (s *DocumentTree) GetActiveTree() OptNilDocumentTreeNode {
+	return s.ActiveTree
+}
+
+// GetTrashTree returns the value of TrashTree.
+func (s *DocumentTree) GetTrashTree() OptNilDocumentTreeNode {
+	return s.TrashTree
+}
+
+// SetProjectId sets the value of ProjectId.
+func (s *DocumentTree) SetProjectId(val OptInt) {
+	s.ProjectId = val
+}
+
+// SetActiveTree sets the value of ActiveTree.
+func (s *DocumentTree) SetActiveTree(val OptNilDocumentTreeNode) {
+	s.ActiveTree = val
+}
+
+// SetTrashTree sets the value of TrashTree.
+func (s *DocumentTree) SetTrashTree(val OptNilDocumentTreeNode) {
+	s.TrashTree = val
+}
+
+// Ref: #/components/schemas/DocumentTreeNode
+type DocumentTreeNode struct {
+	ID       OptString          `json:"id"`
+	Name     OptString          `json:"name"`
+	Emoji    OptNilString       `json:"emoji"`
+	Children []DocumentTreeNode `json:"children"`
+}
+
+// GetID returns the value of ID.
+func (s *DocumentTreeNode) GetID() OptString {
+	return s.ID
+}
+
+// GetName returns the value of Name.
+func (s *DocumentTreeNode) GetName() OptString {
+	return s.Name
+}
+
+// GetEmoji returns the value of Emoji.
+func (s *DocumentTreeNode) GetEmoji() OptNilString {
+	return s.Emoji
+}
+
+// GetChildren returns the value of Children.
+func (s *DocumentTreeNode) GetChildren() []DocumentTreeNode {
+	return s.Children
+}
+
+// SetID sets the value of ID.
+func (s *DocumentTreeNode) SetID(val OptString) {
+	s.ID = val
+}
+
+// SetName sets the value of Name.
+func (s *DocumentTreeNode) SetName(val OptString) {
+	s.Name = val
+}
+
+// SetEmoji sets the value of Emoji.
+func (s *DocumentTreeNode) SetEmoji(val OptNilString) {
+	s.Emoji = val
+}
+
+// SetChildren sets the value of Children.
+func (s *DocumentTreeNode) SetChildren(val []DocumentTreeNode) {
+	s.Children = val
+}
+
+type DownloadDocumentAttachmentOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadDocumentAttachmentOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
 type GetCommentsCountOK struct {
 	Count OptInt `json:"count"`
 }
@@ -635,6 +1234,20 @@ func (s *GetCommentsCountOK) GetCount() OptInt {
 
 // SetCount sets the value of Count.
 func (s *GetCommentsCountOK) SetCount(val OptInt) {
+	s.Count = val
+}
+
+type GetDocumentsCountOK struct {
+	Count OptInt `json:"count"`
+}
+
+// GetCount returns the value of Count.
+func (s *GetDocumentsCountOK) GetCount() OptInt {
+	return s.Count
+}
+
+// SetCount sets the value of Count.
+func (s *GetDocumentsCountOK) SetCount(val OptInt) {
 	s.Count = val
 }
 
@@ -1196,6 +1809,52 @@ func (o OptAddCommentReq) Or(d AddCommentReq) AddCommentReq {
 	return d
 }
 
+// NewOptAddDocumentTagsReq returns new OptAddDocumentTagsReq with value set to v.
+func NewOptAddDocumentTagsReq(v AddDocumentTagsReq) OptAddDocumentTagsReq {
+	return OptAddDocumentTagsReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptAddDocumentTagsReq is optional AddDocumentTagsReq.
+type OptAddDocumentTagsReq struct {
+	Value AddDocumentTagsReq
+	Set   bool
+}
+
+// IsSet returns true if OptAddDocumentTagsReq was set.
+func (o OptAddDocumentTagsReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptAddDocumentTagsReq) Reset() {
+	var v AddDocumentTagsReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptAddDocumentTagsReq) SetTo(v AddDocumentTagsReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptAddDocumentTagsReq) Get() (v AddDocumentTagsReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptAddDocumentTagsReq) Or(d AddDocumentTagsReq) AddDocumentTagsReq {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptBool returns new OptBool with value set to v.
 func NewOptBool(v bool) OptBool {
 	return OptBool{
@@ -1282,6 +1941,52 @@ func (o OptCreateCategoryReq) Get() (v CreateCategoryReq, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptCreateCategoryReq) Or(d CreateCategoryReq) CreateCategoryReq {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCreateDocumentReq returns new OptCreateDocumentReq with value set to v.
+func NewOptCreateDocumentReq(v CreateDocumentReq) OptCreateDocumentReq {
+	return OptCreateDocumentReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCreateDocumentReq is optional CreateDocumentReq.
+type OptCreateDocumentReq struct {
+	Value CreateDocumentReq
+	Set   bool
+}
+
+// IsSet returns true if OptCreateDocumentReq was set.
+func (o OptCreateDocumentReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCreateDocumentReq) Reset() {
+	var v CreateDocumentReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCreateDocumentReq) SetTo(v CreateDocumentReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCreateDocumentReq) Get() (v CreateDocumentReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCreateDocumentReq) Or(d CreateDocumentReq) CreateDocumentReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -1558,6 +2263,69 @@ func (o OptIssueType) Get() (v IssueType, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptIssueType) Or(d IssueType) IssueType {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilDocumentTreeNode returns new OptNilDocumentTreeNode with value set to v.
+func NewOptNilDocumentTreeNode(v DocumentTreeNode) OptNilDocumentTreeNode {
+	return OptNilDocumentTreeNode{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilDocumentTreeNode is optional nullable DocumentTreeNode.
+type OptNilDocumentTreeNode struct {
+	Value DocumentTreeNode
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilDocumentTreeNode was set.
+func (o OptNilDocumentTreeNode) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilDocumentTreeNode) Reset() {
+	var v DocumentTreeNode
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilDocumentTreeNode) SetTo(v DocumentTreeNode) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilDocumentTreeNode) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilDocumentTreeNode) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v DocumentTreeNode
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilDocumentTreeNode) Get() (v DocumentTreeNode, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilDocumentTreeNode) Or(d DocumentTreeNode) DocumentTreeNode {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2028,6 +2796,52 @@ func (o OptPriority) Get() (v Priority, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptPriority) Or(d Priority) Priority {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptRemoveDocumentTagsReq returns new OptRemoveDocumentTagsReq with value set to v.
+func NewOptRemoveDocumentTagsReq(v RemoveDocumentTagsReq) OptRemoveDocumentTagsReq {
+	return OptRemoveDocumentTagsReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptRemoveDocumentTagsReq is optional RemoveDocumentTagsReq.
+type OptRemoveDocumentTagsReq struct {
+	Value RemoveDocumentTagsReq
+	Set   bool
+}
+
+// IsSet returns true if OptRemoveDocumentTagsReq was set.
+func (o OptRemoveDocumentTagsReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptRemoveDocumentTagsReq) Reset() {
+	var v RemoveDocumentTagsReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptRemoveDocumentTagsReq) SetTo(v RemoveDocumentTagsReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptRemoveDocumentTagsReq) Get() (v RemoveDocumentTagsReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptRemoveDocumentTagsReq) Or(d RemoveDocumentTagsReq) RemoveDocumentTagsReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2742,6 +3556,20 @@ func (s *PullRequest) SetUpdatedUser(val OptUser) {
 // SetUpdated sets the value of Updated.
 func (s *PullRequest) SetUpdated(val OptString) {
 	s.Updated = val
+}
+
+type RemoveDocumentTagsReq struct {
+	TagNames []string `json:"tagNames[]"`
+}
+
+// GetTagNames returns the value of TagNames.
+func (s *RemoveDocumentTagsReq) GetTagNames() []string {
+	return s.TagNames
+}
+
+// SetTagNames sets the value of TagNames.
+func (s *RemoveDocumentTagsReq) SetTagNames(val []string) {
+	s.TagNames = val
 }
 
 // Ref: #/components/schemas/Repository

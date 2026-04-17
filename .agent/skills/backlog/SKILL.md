@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: General Backlog operations including projects, wiki, pull requests, milestones, issue types, notifications, watching, and authentication management.
+description: General Backlog operations including projects, documents, wiki, pull requests, milestones, issue types, categories, custom fields, notifications, watching, users, AI features, markdown migration, and authentication management.
 allowed-tools: Bash, Read
 ---
 
@@ -12,16 +12,24 @@ General Backlog operations beyond issue management.
 
 ## Authentication
 
-```bash
-# Check API access (preferred over auth status)
-backlog auth me --quiet && echo "authenticated" || echo "not authenticated"
+Run commands directly. If you get an authentication error, login first.
 
+```bash
 # Login (opens browser)
 backlog auth login --web
 backlog auth login --web --space myspace  # specific space
+backlog auth login --with-token           # API key input
+backlog auth login --reuse                # reuse existing token
 
 # Logout
 backlog auth logout
+```
+
+## Status Summary (gh status equivalent)
+
+```bash
+backlog status              # show notifications, watched issues, assigned issues
+backlog status -o json      # JSON output
 ```
 
 ## Project Operations
@@ -39,6 +47,128 @@ backlog project view PROJ --json textFormattingRule
 backlog project current
 backlog project init PROJ  # create .backlog.yaml
 backlog config set client.default.project PROJ  # global config
+```
+
+## Pull Request Operations
+
+```bash
+# List
+backlog pr list -R <repo>
+backlog pr list -R <repo> -s open|closed|merged|all
+backlog pr list -R <repo> -L 20
+backlog pr list -R <repo> -a @me        # filter by assignee
+backlog pr list -R <repo> -A @me        # filter by author
+backlog pr list -R <repo> --count       # count only
+backlog pr list -R <repo> --web         # open in browser
+
+# View
+backlog pr view <number> -R <repo>
+backlog pr view <number> -R <repo> -c   # with comments
+backlog pr view <number> -R <repo> --web
+backlog pr view <number> -R <repo> --markdown  # convert Backlog notation
+
+# Create
+backlog pr create -R <repo> -B main -H feature/xxx -t "Title" -b "Description"
+backlog pr create -R <repo> -t "Title" --body-file desc.md   # from file
+cat desc.md | backlog pr create -R <repo> -t "Title" -F -    # from stdin
+backlog pr create -R <repo>             # interactive mode
+backlog pr create -R <repo> --assignee <user-id> --reviewer "1234,5678"
+backlog pr create -R <repo> --issue <issue-id>  # link related issue
+
+# Edit
+backlog pr edit <number> -R <repo> -t "New title"
+backlog pr edit <number> -R <repo> -b "Updated description"
+backlog pr edit <number> -R <repo> --body-file desc.md       # from file
+cat desc.md | backlog pr edit <number> -R <repo> -F -        # from stdin
+backlog pr edit <number> -R <repo> --assignee <user-id>
+backlog pr edit <number> -R <repo> --issue <issue-id>
+
+# Comment
+backlog pr comment <number> -R <repo> -b "LGTM!"
+backlog pr comment <number> -R <repo> --body-file review.md  # from file
+cat comment.md | backlog pr comment <number> -R <repo> -F -  # from stdin
+backlog pr comment <number> -R <repo>   # interactive mode
+
+# Close (without merging)
+backlog pr close <number> -R <repo>
+backlog pr close <number> -R <repo> -c "Closing - no longer needed"
+backlog pr close <number> -R <repo> --yes  # skip confirmation
+
+# Merge
+backlog pr merge <number> -R <repo>
+backlog pr merge <number> -R <repo> -c "Merging after review"
+backlog pr merge <number> -R <repo> --yes  # skip confirmation
+```
+
+## Document Operations
+
+Document IDs are **string type** (e.g. `01HXXXXXXXX`), unlike Issue/Wiki which use integers.
+The update (PATCH) API is not provided by Backlog — use `backlog wiki` for editable pages.
+
+```bash
+# List
+backlog document list
+backlog document list --keyword "design" --sort updated --order asc
+backlog document list --limit 50
+
+# Count
+backlog document count
+
+# Tree view (hierarchical structure)
+backlog document tree
+backlog document tree --include-trash
+
+# View
+backlog document view 01HXXXXXXXX
+backlog document view 01HXXXXXXXX --web       # open in browser
+backlog document view 01HXXXXXXXX --markdown  # show plain text
+backlog document view 01HXXXXXXXX -o json     # JSON output
+
+# Create
+backlog document create --title "Design Doc" --content "# Design"
+backlog document create --title "Notes" --content-file notes.md
+cat doc.md | backlog document create --title "Doc" --content-file -
+backlog document create --title "Sub" --parent 01HXXXXXXXX --emoji "📘"
+
+# Delete (requires admin/project admin)
+backlog document delete 01HXXXXXXXX
+backlog document delete 01HXXXXXXXX --yes  # skip confirmation
+
+# Comments (read-only, write API not provided by Backlog)
+backlog document comment list 01HXXXXXXXX
+
+# Tags
+backlog document tag add 01HXXXXXXXX -t foo -t bar
+backlog document tag remove 01HXXXXXXXX -t foo
+
+# Attachments
+backlog document attachment download 01HXXXXXXXX 123
+backlog document attachment download 01HXXXXXXXX 123 -o report.pdf
+backlog document attachment download 01HXXXXXXXX 123 -o -  # stdout
+```
+
+## Wiki Operations
+
+```bash
+# List/view
+backlog wiki list
+backlog wiki view <page-id>
+
+# Create
+backlog wiki create --name "Page Title" --content "Content"
+backlog wiki create --name "Spec" --content-file spec.md     # from file
+cat content.md | backlog wiki create --name "Page" -F -      # from stdin
+
+# Edit
+backlog wiki edit <id-or-name> --content "Updated content"
+backlog wiki edit <id-or-name> --content-file updated.md     # from file
+cat content.md | backlog wiki edit <id-or-name> -F -         # from stdin
+backlog wiki edit <id-or-name> --name "New Page Name"
+backlog wiki edit <id-or-name> --notify  # send mail notification
+
+# Delete
+backlog wiki delete <id-or-name>
+backlog wiki delete <id-or-name> --yes  # skip confirmation
 ```
 
 ## Milestone Operations
@@ -81,6 +211,13 @@ backlog issue-type delete <id>
 Equivalent to GitHub Labels.
 
 ```bash
+# List categories
+backlog category list
+
+# Create/delete categories
+backlog category create --name "New Category"
+backlog category delete <id>
+
 # Filter issues
 backlog issue list --category "Bug"
 backlog issue list -l "Bug,UI"
@@ -91,40 +228,109 @@ backlog issue edit PROJ-123 --add-category "Urgent"
 backlog issue edit PROJ-123 --remove-category "Low Priority"
 ```
 
+## Custom Field Operations
+
+```bash
+backlog custom-field list       # list all custom fields
+backlog cf list                 # alias
+backlog custom-field list --output json
+```
+
+## Repository Operations
+
+```bash
+backlog repo list               # list Git repositories
+backlog repo view <name>        # view repository details
+backlog repo list --json name,description
+```
+
+## User Operations
+
+```bash
+backlog user list               # list users in the space
+backlog user view <id>          # view user details
+backlog user list --output json
+```
+
+## Space Information
+
+```bash
+backlog space                   # display space information
+backlog space --json spaceKey,name,textFormattingRule
+backlog space --output json
+```
+
+## Priority / Resolution (Master Data)
+
+```bash
+backlog priority list           # list available priorities
+backlog resolution list         # list available resolutions
+```
+
 ## Notification & Watching
 
 ```bash
 # Notifications
 backlog notification list
+backlog notif list              # alias
 backlog notification read <id>
 
 # Watching
 backlog watching list
+backlog watch list              # alias
 backlog watching add PROJ-123
 backlog watching remove PROJ-123
 ```
 
-## Wiki Operations
+## AI Features
 
 ```bash
-# List/view
-backlog wiki list
-backlog wiki view <page-id>
-
-# Create
-backlog wiki create --name "Page Title" --content "Content"
+# Prompt optimization for AI summaries
+backlog ai prompt optimize      # optimize AI summary prompts
+backlog ai prompt apply         # apply optimized prompt from history
 ```
 
-## Pull Request Operations
+## API (Direct API Access)
+
+Make authenticated API requests directly (like `gh api`).
 
 ```bash
-# List
-backlog pr list
-backlog pr list -s open|closed|merged|all
-backlog pr list -L 20
+# GET requests
+backlog api /api/v2/space
+backlog api /api/v2/projects
+backlog api /api/v2/issues -F "projectId[]=12345" -F "count=10"
 
-# View
-backlog pr view <pr-id>
+# POST requests
+backlog api /api/v2/issues -X POST -F "projectId=12345" -F "summary=New Issue" -F "issueTypeId=1" -F "priorityId=3"
+
+# Include response headers
+backlog api /api/v2/space -i
+
+# Pass request body from stdin
+echo '{"name":"test"}' | backlog api /api/v2/projects -X POST --input -
+
+# Silent mode (no response body)
+backlog api /api/v2/issues -X DELETE -s
+```
+
+## Markdown Migration
+
+Migrate Backlog notation to GitHub Flavored Markdown (GFM) for a project.
+
+```bash
+# Full workflow
+backlog markdown migrate init <projectKey>   # initialize workspace
+backlog markdown migrate list                # list items to migrate
+backlog markdown migrate status              # check migration status
+backlog markdown migrate apply               # apply converted data
+backlog markdown migrate rollback            # rollback if needed
+backlog markdown migrate clean               # remove workspace
+backlog markdown migrate snapshot --append   # snapshot data
+
+# View conversion logs
+backlog markdown logs
+backlog markdown logs --limit 20
+backlog markdown logs -o json
 ```
 
 ## Configuration
@@ -135,6 +341,20 @@ backlog config get client.default.project
 backlog config set client.default.project PROJ
 backlog config set display.timezone "Asia/Tokyo"
 ```
+
+## Global Flags
+
+Available on all commands:
+
+| Flag                  | Description                                         |
+|-----------------------|-----------------------------------------------------|
+| `-p, --project <key>` | Backlog project key                                 |
+| `--output <format>`   | Output format (table, json)                         |
+| `--json <fields>`     | Output JSON with specified fields (comma-separated) |
+| `--jq <expression>`   | Filter JSON output using a jq expression            |
+| `--no-color`          | Disable color output                                |
+| `--debug`             | Enable debug logging                                |
+| `--profile <name>`    | Configuration profile to use                        |
 
 ## Text Formatting
 

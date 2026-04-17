@@ -23,6 +23,12 @@ Examples:
   # Create a PR with all options
   backlog pr create --repo myrepo --base main --head feature/xxx --title "My PR" --body "Description"
 
+  # Read body from file
+  backlog pr create --repo myrepo --base main --head feature/xxx --title "My PR" --body-file desc.md
+
+  # Read body from stdin
+  cat description.md | backlog pr create --repo myrepo --title "My PR" --body-file -
+
   # Interactive mode
   backlog pr create --repo myrepo
 
@@ -37,6 +43,7 @@ var (
 	createHead       string
 	createTitle      string
 	createBody       string
+	createBodyFile   string
 	createIssueID    int
 	createAssigneeID int
 	createReviewers  string
@@ -48,6 +55,7 @@ func init() {
 	createCmd.Flags().StringVarP(&createHead, "head", "H", "", "Head branch (branch to merge)")
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "Pull request title")
 	createCmd.Flags().StringVarP(&createBody, "body", "b", "", "Pull request description")
+	createCmd.Flags().StringVarP(&createBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	createCmd.Flags().IntVar(&createIssueID, "issue", 0, "Related issue ID")
 	createCmd.Flags().IntVar(&createAssigneeID, "assignee", 0, "Assignee user ID")
 	createCmd.Flags().StringVar(&createReviewers, "reviewer", "", "Reviewer user IDs (comma-separated)")
@@ -96,13 +104,24 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 	}
 
-	if createBody == "" {
-		prompt := &survey.Multiline{
-			Message: "Pull request description:",
-		}
-		if err := survey.AskOne(prompt, &createBody); err != nil {
-			return err
-		}
+	createBody, err = cmdutil.ResolveBody(
+		createBody,
+		createBodyFile,
+		false,
+		nil,
+		func() (string, error) {
+			var body string
+			prompt := &survey.Multiline{
+				Message: "Pull request description:",
+			}
+			if err := survey.AskOne(prompt, &body); err != nil {
+				return "", err
+			}
+			return body, nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get body: %w", err)
 	}
 
 	// レビュアーID解析

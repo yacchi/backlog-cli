@@ -22,12 +22,30 @@ func (UnimplementedHandler) AddComment(ctx context.Context, req OptAddCommentReq
 	return r, ht.ErrNotImplemented
 }
 
+// AddDocumentTags implements addDocumentTags operation.
+//
+// Add document tags.
+//
+// POST /documents/{documentId}/tags
+func (UnimplementedHandler) AddDocumentTags(ctx context.Context, req OptAddDocumentTagsReq, params AddDocumentTagsParams) (r []DocumentTag, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // CreateCategory implements createCategory operation.
 //
 // Create category.
 //
 // POST /projects/{projectIdOrKey}/categories
 func (UnimplementedHandler) CreateCategory(ctx context.Context, req OptCreateCategoryReq, params CreateCategoryParams) (r *Category, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// CreateDocument implements createDocument operation.
+//
+// Add document.
+//
+// POST /documents
+func (UnimplementedHandler) CreateDocument(ctx context.Context, req OptCreateDocumentReq) (r *Document, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -58,6 +76,15 @@ func (UnimplementedHandler) DeleteCategory(ctx context.Context, params DeleteCat
 	return r, ht.ErrNotImplemented
 }
 
+// DeleteDocument implements deleteDocument operation.
+//
+// Delete document.
+//
+// DELETE /documents/{documentId}
+func (UnimplementedHandler) DeleteDocument(ctx context.Context, params DeleteDocumentParams) (r *Document, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // DeleteIssue implements deleteIssue operation.
 //
 // Delete issue.
@@ -73,6 +100,15 @@ func (UnimplementedHandler) DeleteIssue(ctx context.Context, params DeleteIssueP
 //
 // DELETE /wikis/{wikiId}
 func (UnimplementedHandler) DeleteWiki(ctx context.Context, params DeleteWikiParams) (r *Wiki, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DownloadDocumentAttachment implements downloadDocumentAttachment operation.
+//
+// Download document attachment.
+//
+// GET /documents/{documentId}/attachments/{attachmentId}
+func (UnimplementedHandler) DownloadDocumentAttachment(ctx context.Context, params DownloadDocumentAttachmentParams) (r DownloadDocumentAttachmentOK, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -127,6 +163,51 @@ func (UnimplementedHandler) GetCurrentUser(ctx context.Context) (r *User, _ erro
 //
 // GET /projects/{projectIdOrKey}/customFields
 func (UnimplementedHandler) GetCustomFields(ctx context.Context, params GetCustomFieldsParams) (r []CustomField, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetDocument implements getDocument operation.
+//
+// Get document.
+//
+// GET /documents/{documentId}
+func (UnimplementedHandler) GetDocument(ctx context.Context, params GetDocumentParams) (r *DocumentDetail, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetDocumentComments implements getDocumentComments operation.
+//
+// Get document comments.
+//
+// GET /documents/{documentId}/comments
+func (UnimplementedHandler) GetDocumentComments(ctx context.Context, params GetDocumentCommentsParams) (r []DocumentComment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetDocumentTree implements getDocumentTree operation.
+//
+// Get document tree.
+//
+// GET /documents/tree
+func (UnimplementedHandler) GetDocumentTree(ctx context.Context, params GetDocumentTreeParams) (r *DocumentTree, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetDocuments implements getDocuments operation.
+//
+// Get document list.
+//
+// GET /documents
+func (UnimplementedHandler) GetDocuments(ctx context.Context, params GetDocumentsParams) (r []Document, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetDocumentsCount implements getDocumentsCount operation.
+//
+// Get document count.
+//
+// GET /documents/count
+func (UnimplementedHandler) GetDocumentsCount(ctx context.Context, params GetDocumentsCountParams) (r *GetDocumentsCountOK, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -316,6 +397,15 @@ func (UnimplementedHandler) GetWikis(ctx context.Context, params GetWikisParams)
 //
 // GET /wikis/count
 func (UnimplementedHandler) GetWikisCount(ctx context.Context, params GetWikisCountParams) (r *GetWikisCountOK, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveDocumentTags implements removeDocumentTags operation.
+//
+// Remove document tags.
+//
+// DELETE /documents/{documentId}/tags
+func (UnimplementedHandler) RemoveDocumentTags(ctx context.Context, req OptRemoveDocumentTagsReq, params RemoveDocumentTagsParams) (r []DocumentTag, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

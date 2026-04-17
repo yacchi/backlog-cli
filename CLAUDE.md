@@ -135,10 +135,43 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 
 **ディレクトリ構成**:
 ```
-docs/api/openapi.yaml          # OpenAPI 定義（ソース）
+docs/api/openapi.yaml          # OpenAPI 定義（ソース、手動管理）
+docs/api/openapi-generated.yaml  # 参照用自動生成スペック（ogen には使わない）
+docs/api/cache.json            # API ドキュメントキャッシュ（自動生成）
 internal/gen/backlog/          # ogen 生成コード（自動生成、編集禁止）
 internal/api/                  # API ラッパー（コマンドから呼び出す層）
 ```
+
+**Backlog API ドキュメントの参照方法**:
+
+Backlog API は公式 OpenAPI スペックを提供していない。`docs/api/cache.json` に全エンドポイントの
+メタデータ（method/path/params）がキャッシュされているので、まずここを参照すること。
+
+```bash
+# キャッシュの内容確認（エンドポイント一覧）
+cat docs/api/cache.json | python3 -c "
+import json,sys
+for url,e in json.load(sys.stdin)['endpoints'].items():
+    print(f\"{e['method']:<7} {e['path']}  ({e['title']})\")
+"
+
+# 新しいエンドポイントや仕様変更を確認・同期
+uv run scripts/backlog-api-sync.py check   # 新規/削除エンドポイントの確認（高速）
+uv run scripts/backlog-api-sync.py sync    # キャッシュ更新 + openapi-generated.yaml 再生成
+
+# openapi.yaml に未定義のエンドポイントを確認
+uv run scripts/backlog-api-sync.py generate
+```
+
+`sync` は HTTP ETag を使った条件付きリクエストで動作する。変更がなければ 304 が返り、
+HTML パースは行わない。通常の `sync` 実行コストは発見用 1 リクエスト + 304 × 155 件程度。
+
+**新しい API エンドポイントを実装する手順**:
+
+1. `docs/api/cache.json` でパラメーター仕様を確認
+2. `docs/api/openapi-generated.yaml` から対象パスのエントリをコピー
+3. `docs/api/openapi.yaml` に貼り付け、`$ref` レスポンススキーマを手動で追加
+4. `make generate` を実行
 
 ## コーディング規約
 

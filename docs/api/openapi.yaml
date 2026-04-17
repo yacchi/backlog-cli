@@ -540,6 +540,119 @@ components:
         displayOrder:
           type: integer
 
+    DocumentTag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: integer
+        title:
+          type: string
+        statusId:
+          type: integer
+        emoji:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTag'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Document'
+        - type: object
+          properties:
+            plain:
+              type: string
+              nullable: true
+            json:
+              type: string
+              nullable: true
+
+    DocumentTreeNode:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        emoji:
+          type: string
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTreeNode'
+
+    DocumentTree:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        activeTree:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DocumentTreeNode'
+        trashTree:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DocumentTreeNode'
+
+    DocumentComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: string
+        statusId:
+          type: integer
+        content:
+          type: string
+          nullable: true
+        plain:
+          type: string
+          nullable: true
+        commentType:
+          type: string
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+        updatedUser:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/User'
+        updated:
+          type: string
+          nullable: true
+
 security:
   - OAuth2: []
   - ApiKey: []
@@ -1567,3 +1680,250 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Wiki'
+
+  /documents:
+    get:
+      operationId: getDocuments
+      summary: Get document list
+      parameters:
+        - name: projectId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+        - name: order
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+    post:
+      operationId: createDocument
+      summary: Add document
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - projectId
+              properties:
+                projectId:
+                  type: integer
+                title:
+                  type: string
+                content:
+                  type: string
+                emoji:
+                  type: string
+                parentId:
+                  type: string
+                addLast:
+                  type: boolean
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /documents/count:
+    get:
+      operationId: getDocumentsCount
+      summary: Get document count
+      parameters:
+        - name: projectIdOrKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /documents/tree:
+    get:
+      operationId: getDocumentTree
+      summary: Get document tree
+      parameters:
+        - name: projectIdOrKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTree'
+
+  /documents/{documentId}:
+    get:
+      operationId: getDocument
+      summary: Get document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetail'
+    delete:
+      operationId: deleteDocument
+      summary: Delete document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /documents/{documentId}/comments:
+    get:
+      operationId: getDocumentComments
+      summary: Get document comments
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentComment'
+
+  /documents/{documentId}/tags:
+    post:
+      operationId: addDocumentTags
+      summary: Add document tags
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                tagNames[]:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentTag'
+    delete:
+      operationId: removeDocumentTags
+      summary: Remove document tags
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                tagNames[]:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentTag'
+
+  /documents/{documentId}/attachments/{attachmentId}:
+    get:
+      operationId: downloadDocumentAttachment
+      summary: Download document attachment
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary

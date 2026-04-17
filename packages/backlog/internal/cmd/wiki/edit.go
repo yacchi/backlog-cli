@@ -20,6 +20,8 @@ var editCmd = &cobra.Command{
 
 Examples:
   backlog wiki edit 123 --content "Updated content"
+  backlog wiki edit 123 --content-file updated.md
+  cat content.md | backlog wiki edit 123 --content-file -
   backlog wiki edit "Meeting Notes" --name "Weekly Meeting Notes"
   backlog wiki edit 123 --notify`,
 	Args: cobra.ExactArgs(1),
@@ -27,14 +29,16 @@ Examples:
 }
 
 var (
-	editName       string
-	editContent    string
-	editMailNotify bool
+	editName        string
+	editContent     string
+	editContentFile string
+	editMailNotify  bool
 )
 
 func init() {
 	editCmd.Flags().StringVarP(&editName, "name", "n", "", "New wiki page name")
 	editCmd.Flags().StringVarP(&editContent, "content", "c", "", "New wiki page content")
+	editCmd.Flags().StringVarP(&editContentFile, "content-file", "F", "", "Read content from file (use \"-\" to read from standard input)")
 	editCmd.Flags().BoolVar(&editMailNotify, "notify", false, "Send mail notification")
 }
 
@@ -69,13 +73,19 @@ func runEdit(c *cobra.Command, args []string) error {
 		input.Name = &editName
 		hasChanges = true
 	}
-	if c.Flags().Changed("content") {
-		input.Content = &editContent
-		hasChanges = true
+	if c.Flags().Changed("content") || editContentFile != "" {
+		content, err := cmdutil.ResolveBody(editContent, editContentFile, false, nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to read content: %w", err)
+		}
+		if content != "" {
+			input.Content = &content
+			hasChanges = true
+		}
 	}
 
 	if !hasChanges {
-		return fmt.Errorf("no changes specified. Use --name or --content")
+		return fmt.Errorf("no changes specified. Use --name, --content, or --content-file")
 	}
 
 	// 更新実行

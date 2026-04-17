@@ -20,6 +20,8 @@ var editCmd = &cobra.Command{
 Examples:
   backlog pr edit 123 --repo myrepo --title "New title"
   backlog pr edit 123 --repo myrepo --body "Updated description"
+  backlog pr edit 123 --repo myrepo --body-file description.md
+  cat desc.md | backlog pr edit 123 --repo myrepo --body-file -
   backlog pr edit 123 --repo myrepo --assignee 12345`,
 	Args: cobra.ExactArgs(1),
 	RunE: runEdit,
@@ -29,6 +31,7 @@ var (
 	editRepo       string
 	editTitle      string
 	editBody       string
+	editBodyFile   string
 	editAssigneeID int
 	editIssueID    int
 )
@@ -37,6 +40,7 @@ func init() {
 	editCmd.Flags().StringVarP(&editRepo, "repo", "R", "", "Repository name (required)")
 	editCmd.Flags().StringVarP(&editTitle, "title", "t", "", "New title (summary)")
 	editCmd.Flags().StringVarP(&editBody, "body", "b", "", "New description")
+	editCmd.Flags().StringVarP(&editBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	editCmd.Flags().IntVar(&editAssigneeID, "assignee", 0, "Assignee user ID")
 	editCmd.Flags().IntVar(&editIssueID, "issue", 0, "Related issue ID")
 	_ = editCmd.MarkFlagRequired("repo")
@@ -68,9 +72,15 @@ func runEdit(c *cobra.Command, args []string) error {
 		input.Summary = &editTitle
 		hasChanges = true
 	}
-	if c.Flags().Changed("body") {
-		input.Description = &editBody
-		hasChanges = true
+	if c.Flags().Changed("body") || editBodyFile != "" {
+		body, err := cmdutil.ResolveBody(editBody, editBodyFile, false, nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to read body: %w", err)
+		}
+		if body != "" {
+			input.Description = &body
+			hasChanges = true
+		}
 	}
 	if c.Flags().Changed("assignee") {
 		input.AssigneeID = &editAssigneeID
@@ -82,7 +92,7 @@ func runEdit(c *cobra.Command, args []string) error {
 	}
 
 	if !hasChanges {
-		return fmt.Errorf("no changes specified. Use --title, --body, --assignee, or --issue")
+		return fmt.Errorf("no changes specified. Use --title, --body, --body-file, --assignee, or --issue")
 	}
 
 	// 更新実行
