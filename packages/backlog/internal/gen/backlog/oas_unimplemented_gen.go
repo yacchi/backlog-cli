@@ -31,6 +31,15 @@ func (UnimplementedHandler) AddDocumentTags(ctx context.Context, req OptAddDocum
 	return r, ht.ErrNotImplemented
 }
 
+// AttachFileToWiki implements attachFileToWiki operation.
+//
+// Add attachments to wiki.
+//
+// POST /wikis/{wikiId}/attachments
+func (UnimplementedHandler) AttachFileToWiki(ctx context.Context, req OptAttachFileToWikiReq, params AttachFileToWikiParams) (r []Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // CreateCategory implements createCategory operation.
 //
 // Create category.
@@ -91,6 +100,24 @@ func (UnimplementedHandler) DeleteDocument(ctx context.Context, params DeleteDoc
 //
 // DELETE /issues/{issueIdOrKey}
 func (UnimplementedHandler) DeleteIssue(ctx context.Context, params DeleteIssueParams) (r *Issue, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DeleteIssueAttachment implements deleteIssueAttachment operation.
+//
+// Delete issue attachment.
+//
+// DELETE /issues/{issueIdOrKey}/attachments/{attachmentId}
+func (UnimplementedHandler) DeleteIssueAttachment(ctx context.Context, params DeleteIssueAttachmentParams) (r *Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DeletePullRequestAttachments implements deletePullRequestAttachments operation.
+//
+// Delete pull request attachment.
+//
+// DELETE /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}
+func (UnimplementedHandler) DeletePullRequestAttachments(ctx context.Context, params DeletePullRequestAttachmentsParams) (r *Attachment, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -247,6 +274,51 @@ func (UnimplementedHandler) GetIssuesCount(ctx context.Context, params GetIssues
 	return r, ht.ErrNotImplemented
 }
 
+// GetListOfIssueAttachments implements getListOfIssueAttachments operation.
+//
+// Get issue attachments.
+//
+// GET /issues/{issueIdOrKey}/attachments
+func (UnimplementedHandler) GetListOfIssueAttachments(ctx context.Context, params GetListOfIssueAttachmentsParams) (r []Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetListOfLinkedSharedFiles implements getListOfLinkedSharedFiles operation.
+//
+// Get shared files linked to issue.
+//
+// GET /issues/{issueIdOrKey}/sharedFiles
+func (UnimplementedHandler) GetListOfLinkedSharedFiles(ctx context.Context, params GetListOfLinkedSharedFilesParams) (r []SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetListOfPullRequestAttachment implements getListOfPullRequestAttachment operation.
+//
+// Get pull request attachments.
+//
+// GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments
+func (UnimplementedHandler) GetListOfPullRequestAttachment(ctx context.Context, params GetListOfPullRequestAttachmentParams) (r []Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetListOfSharedFilesOnWiki implements getListOfSharedFilesOnWiki operation.
+//
+// Get shared files linked to wiki.
+//
+// GET /wikis/{wikiId}/sharedFiles
+func (UnimplementedHandler) GetListOfSharedFilesOnWiki(ctx context.Context, params GetListOfSharedFilesOnWikiParams) (r []SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetListOfWikiAttachments implements getListOfWikiAttachments operation.
+//
+// Get wiki attachments.
+//
+// GET /wikis/{wikiId}/attachments
+func (UnimplementedHandler) GetListOfWikiAttachments(ctx context.Context, params GetListOfWikiAttachmentsParams) (r []Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetPriorities implements getPriorities operation.
 //
 // Get all priorities.
@@ -400,12 +472,57 @@ func (UnimplementedHandler) GetWikisCount(ctx context.Context, params GetWikisCo
 	return r, ht.ErrNotImplemented
 }
 
+// LinkSharedFilesToIssue implements linkSharedFilesToIssue operation.
+//
+// Link shared files to issue.
+//
+// POST /issues/{issueIdOrKey}/sharedFiles
+func (UnimplementedHandler) LinkSharedFilesToIssue(ctx context.Context, req OptLinkSharedFilesToIssueReq, params LinkSharedFilesToIssueParams) (r []SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// LinkSharedFilesToWiki implements linkSharedFilesToWiki operation.
+//
+// Link shared files to wiki.
+//
+// POST /wikis/{wikiId}/sharedFiles
+func (UnimplementedHandler) LinkSharedFilesToWiki(ctx context.Context, req OptLinkSharedFilesToWikiReq, params LinkSharedFilesToWikiParams) (r []SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // RemoveDocumentTags implements removeDocumentTags operation.
 //
 // Remove document tags.
 //
 // DELETE /documents/{documentId}/tags
 func (UnimplementedHandler) RemoveDocumentTags(ctx context.Context, req OptRemoveDocumentTagsReq, params RemoveDocumentTagsParams) (r []DocumentTag, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveLinkToSharedFileFromIssue implements removeLinkToSharedFileFromIssue operation.
+//
+// Unlink shared file from issue.
+//
+// DELETE /issues/{issueIdOrKey}/sharedFiles/{id}
+func (UnimplementedHandler) RemoveLinkToSharedFileFromIssue(ctx context.Context, params RemoveLinkToSharedFileFromIssueParams) (r *SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveLinkToSharedFileFromWiki implements removeLinkToSharedFileFromWiki operation.
+//
+// Unlink shared file from wiki.
+//
+// DELETE /wikis/{wikiId}/sharedFiles/{id}
+func (UnimplementedHandler) RemoveLinkToSharedFileFromWiki(ctx context.Context, params RemoveLinkToSharedFileFromWikiParams) (r *SharedFile, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveWikiAttachment implements removeWikiAttachment operation.
+//
+// Delete wiki attachment.
+//
+// DELETE /wikis/{wikiId}/attachments/{attachmentId}
+func (UnimplementedHandler) RemoveWikiAttachment(ctx context.Context, params RemoveWikiAttachmentParams) (r *Attachment, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

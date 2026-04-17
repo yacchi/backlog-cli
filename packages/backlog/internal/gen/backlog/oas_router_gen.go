@@ -40,7 +40,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	args := [3]string{}
+	args := [4]string{}
 
 	// Static code generated router with unwrapped path search.
 	switch {
@@ -346,94 +346,222 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/comments"
+					case '/': // Prefix: "/"
 
-						if l := len("/comments"); len(elem) >= l && elem[0:l] == "/comments" {
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
 						if len(elem) == 0 {
-							switch r.Method {
-							case "GET":
-								s.handleGetCommentsRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
-							case "POST":
-								s.handleAddCommentRequest([1]string{
-									args[0],
-								}, elemIsEscaped, w, r)
-							default:
-								s.notAllowed(w, r, "GET,POST")
-							}
-
-							return
+							break
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/"
+						case 'a': // Prefix: "attachments"
 
-							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							if l := len("attachments"); len(elem) >= l && elem[0:l] == "attachments" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
 							if len(elem) == 0 {
-								break
+								switch r.Method {
+								case "GET":
+									s.handleGetListOfIssueAttachmentsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET")
+								}
+
+								return
 							}
 							switch elem[0] {
-							case 'c': // Prefix: "count"
-								origElem := elem
-								if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "attachmentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "DELETE":
+										s.handleDeleteIssueAttachmentRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "DELETE")
+									}
+
+									return
+								}
+
+							}
+
+						case 'c': // Prefix: "comments"
+
+							if l := len("comments"); len(elem) >= l && elem[0:l] == "comments" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch r.Method {
+								case "GET":
+									s.handleGetCommentsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "POST":
+									s.handleAddCommentRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET,POST")
+								}
+
+								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
 								if len(elem) == 0 {
+									break
+								}
+								switch elem[0] {
+								case 'c': // Prefix: "count"
+									origElem := elem
+									if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch r.Method {
+										case "GET":
+											s.handleGetCommentsCountRequest([1]string{
+												args[0],
+											}, elemIsEscaped, w, r)
+										default:
+											s.notAllowed(w, r, "GET")
+										}
+
+										return
+									}
+
+									elem = origElem
+								}
+								// Param: "commentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
 									// Leaf node.
 									switch r.Method {
 									case "GET":
-										s.handleGetCommentsCountRequest([1]string{
+										s.handleGetCommentRequest([2]string{
 											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									case "PATCH":
+										s.handleUpdateCommentRequest([2]string{
+											args[0],
+											args[1],
 										}, elemIsEscaped, w, r)
 									default:
-										s.notAllowed(w, r, "GET")
+										s.notAllowed(w, r, "GET,PATCH")
 									}
 
 									return
 								}
 
-								elem = origElem
 							}
-							// Param: "commentId"
-							// Leaf parameter, slashes are prohibited
-							idx := strings.IndexByte(elem, '/')
-							if idx >= 0 {
+
+						case 's': // Prefix: "sharedFiles"
+
+							if l := len("sharedFiles"); len(elem) >= l && elem[0:l] == "sharedFiles" {
+								elem = elem[l:]
+							} else {
 								break
 							}
-							args[1] = elem
-							elem = ""
 
 							if len(elem) == 0 {
-								// Leaf node.
 								switch r.Method {
 								case "GET":
-									s.handleGetCommentRequest([2]string{
+									s.handleGetListOfLinkedSharedFilesRequest([1]string{
 										args[0],
-										args[1],
 									}, elemIsEscaped, w, r)
-								case "PATCH":
-									s.handleUpdateCommentRequest([2]string{
+								case "POST":
+									s.handleLinkSharedFilesToIssueRequest([1]string{
 										args[0],
-										args[1],
 									}, elemIsEscaped, w, r)
 								default:
-									s.notAllowed(w, r, "GET,PATCH")
+									s.notAllowed(w, r, "GET,POST")
 								}
 
 								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "id"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "DELETE":
+										s.handleRemoveLinkToSharedFileFromIssueRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "DELETE")
+									}
+
+									return
+								}
+
 							}
 
 						}
@@ -732,16 +860,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												elem = origElem
 											}
 											// Param: "number"
-											// Leaf parameter, slashes are prohibited
+											// Match until "/"
 											idx := strings.IndexByte(elem, '/')
-											if idx >= 0 {
-												break
+											if idx < 0 {
+												idx = len(elem)
 											}
-											args[2] = elem
-											elem = ""
+											args[2] = elem[:idx]
+											elem = elem[idx:]
 
 											if len(elem) == 0 {
-												// Leaf node.
 												switch r.Method {
 												case "GET":
 													s.handleGetPullRequestRequest([3]string{
@@ -754,6 +881,67 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 												}
 
 												return
+											}
+											switch elem[0] {
+											case '/': // Prefix: "/attachments"
+
+												if l := len("/attachments"); len(elem) >= l && elem[0:l] == "/attachments" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													switch r.Method {
+													case "GET":
+														s.handleGetListOfPullRequestAttachmentRequest([3]string{
+															args[0],
+															args[1],
+															args[2],
+														}, elemIsEscaped, w, r)
+													default:
+														s.notAllowed(w, r, "GET")
+													}
+
+													return
+												}
+												switch elem[0] {
+												case '/': // Prefix: "/"
+
+													if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+														elem = elem[l:]
+													} else {
+														break
+													}
+
+													// Param: "attachmentId"
+													// Leaf parameter, slashes are prohibited
+													idx := strings.IndexByte(elem, '/')
+													if idx >= 0 {
+														break
+													}
+													args[3] = elem
+													elem = ""
+
+													if len(elem) == 0 {
+														// Leaf node.
+														switch r.Method {
+														case "DELETE":
+															s.handleDeletePullRequestAttachmentsRequest([4]string{
+																args[0],
+																args[1],
+																args[2],
+																args[3],
+															}, elemIsEscaped, w, r)
+														default:
+															s.notAllowed(w, r, "DELETE")
+														}
+
+														return
+													}
+
+												}
+
 											}
 
 										}
@@ -1032,16 +1220,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						elem = origElem
 					}
 					// Param: "wikiId"
-					// Leaf parameter, slashes are prohibited
+					// Match until "/"
 					idx := strings.IndexByte(elem, '/')
-					if idx >= 0 {
-						break
+					if idx < 0 {
+						idx = len(elem)
 					}
-					args[0] = elem
-					elem = ""
+					args[0] = elem[:idx]
+					elem = elem[idx:]
 
 					if len(elem) == 0 {
-						// Leaf node.
 						switch r.Method {
 						case "DELETE":
 							s.handleDeleteWikiRequest([1]string{
@@ -1061,6 +1248,140 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 						return
 					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							break
+						}
+						switch elem[0] {
+						case 'a': // Prefix: "attachments"
+
+							if l := len("attachments"); len(elem) >= l && elem[0:l] == "attachments" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch r.Method {
+								case "GET":
+									s.handleGetListOfWikiAttachmentsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "POST":
+									s.handleAttachFileToWikiRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET,POST")
+								}
+
+								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "attachmentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "DELETE":
+										s.handleRemoveWikiAttachmentRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "DELETE")
+									}
+
+									return
+								}
+
+							}
+
+						case 's': // Prefix: "sharedFiles"
+
+							if l := len("sharedFiles"); len(elem) >= l && elem[0:l] == "sharedFiles" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch r.Method {
+								case "GET":
+									s.handleGetListOfSharedFilesOnWikiRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "POST":
+									s.handleLinkSharedFilesToWikiRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET,POST")
+								}
+
+								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "id"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "DELETE":
+										s.handleRemoveLinkToSharedFileFromWikiRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "DELETE")
+									}
+
+									return
+								}
+
+							}
+
+						}
+
+					}
 
 				}
 
@@ -1079,7 +1400,7 @@ type Route struct {
 	operationGroup string
 	pathPattern    string
 	count          int
-	args           [3]string
+	args           [4]string
 }
 
 // Name returns ogen operation name.
@@ -1522,111 +1843,254 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						}
 					}
 					switch elem[0] {
-					case '/': // Prefix: "/comments"
+					case '/': // Prefix: "/"
 
-						if l := len("/comments"); len(elem) >= l && elem[0:l] == "/comments" {
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 							elem = elem[l:]
 						} else {
 							break
 						}
 
 						if len(elem) == 0 {
-							switch method {
-							case "GET":
-								r.name = GetCommentsOperation
-								r.summary = "Get comments"
-								r.operationID = "getComments"
-								r.operationGroup = ""
-								r.pathPattern = "/issues/{issueIdOrKey}/comments"
-								r.args = args
-								r.count = 1
-								return r, true
-							case "POST":
-								r.name = AddCommentOperation
-								r.summary = "Add comment"
-								r.operationID = "addComment"
-								r.operationGroup = ""
-								r.pathPattern = "/issues/{issueIdOrKey}/comments"
-								r.args = args
-								r.count = 1
-								return r, true
-							default:
-								return
-							}
+							break
 						}
 						switch elem[0] {
-						case '/': // Prefix: "/"
+						case 'a': // Prefix: "attachments"
 
-							if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							if l := len("attachments"); len(elem) >= l && elem[0:l] == "attachments" {
 								elem = elem[l:]
 							} else {
 								break
 							}
 
 							if len(elem) == 0 {
-								break
+								switch method {
+								case "GET":
+									r.name = GetListOfIssueAttachmentsOperation
+									r.summary = "Get issue attachments"
+									r.operationID = "getListOfIssueAttachments"
+									r.operationGroup = ""
+									r.pathPattern = "/issues/{issueIdOrKey}/attachments"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
 							}
 							switch elem[0] {
-							case 'c': // Prefix: "count"
-								origElem := elem
-								if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
 									elem = elem[l:]
 								} else {
 									break
 								}
 
+								// Param: "attachmentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
 								if len(elem) == 0 {
 									// Leaf node.
 									switch method {
-									case "GET":
-										r.name = GetCommentsCountOperation
-										r.summary = "Get comments count"
-										r.operationID = "getCommentsCount"
+									case "DELETE":
+										r.name = DeleteIssueAttachmentOperation
+										r.summary = "Delete issue attachment"
+										r.operationID = "deleteIssueAttachment"
 										r.operationGroup = ""
-										r.pathPattern = "/issues/{issueIdOrKey}/comments/count"
+										r.pathPattern = "/issues/{issueIdOrKey}/attachments/{attachmentId}"
 										r.args = args
-										r.count = 1
+										r.count = 2
 										return r, true
 									default:
 										return
 									}
 								}
 
-								elem = origElem
 							}
-							// Param: "commentId"
-							// Leaf parameter, slashes are prohibited
-							idx := strings.IndexByte(elem, '/')
-							if idx >= 0 {
+
+						case 'c': // Prefix: "comments"
+
+							if l := len("comments"); len(elem) >= l && elem[0:l] == "comments" {
+								elem = elem[l:]
+							} else {
 								break
 							}
-							args[1] = elem
-							elem = ""
 
 							if len(elem) == 0 {
-								// Leaf node.
 								switch method {
 								case "GET":
-									r.name = GetCommentOperation
-									r.summary = "Get comment"
-									r.operationID = "getComment"
+									r.name = GetCommentsOperation
+									r.summary = "Get comments"
+									r.operationID = "getComments"
 									r.operationGroup = ""
-									r.pathPattern = "/issues/{issueIdOrKey}/comments/{commentId}"
+									r.pathPattern = "/issues/{issueIdOrKey}/comments"
 									r.args = args
-									r.count = 2
+									r.count = 1
 									return r, true
-								case "PATCH":
-									r.name = UpdateCommentOperation
-									r.summary = "Update comment"
-									r.operationID = "updateComment"
+								case "POST":
+									r.name = AddCommentOperation
+									r.summary = "Add comment"
+									r.operationID = "addComment"
 									r.operationGroup = ""
-									r.pathPattern = "/issues/{issueIdOrKey}/comments/{commentId}"
+									r.pathPattern = "/issues/{issueIdOrKey}/comments"
 									r.args = args
-									r.count = 2
+									r.count = 1
 									return r, true
 								default:
 									return
 								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									break
+								}
+								switch elem[0] {
+								case 'c': // Prefix: "count"
+									origElem := elem
+									if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+										elem = elem[l:]
+									} else {
+										break
+									}
+
+									if len(elem) == 0 {
+										// Leaf node.
+										switch method {
+										case "GET":
+											r.name = GetCommentsCountOperation
+											r.summary = "Get comments count"
+											r.operationID = "getCommentsCount"
+											r.operationGroup = ""
+											r.pathPattern = "/issues/{issueIdOrKey}/comments/count"
+											r.args = args
+											r.count = 1
+											return r, true
+										default:
+											return
+										}
+									}
+
+									elem = origElem
+								}
+								// Param: "commentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "GET":
+										r.name = GetCommentOperation
+										r.summary = "Get comment"
+										r.operationID = "getComment"
+										r.operationGroup = ""
+										r.pathPattern = "/issues/{issueIdOrKey}/comments/{commentId}"
+										r.args = args
+										r.count = 2
+										return r, true
+									case "PATCH":
+										r.name = UpdateCommentOperation
+										r.summary = "Update comment"
+										r.operationID = "updateComment"
+										r.operationGroup = ""
+										r.pathPattern = "/issues/{issueIdOrKey}/comments/{commentId}"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
+								}
+
+							}
+
+						case 's': // Prefix: "sharedFiles"
+
+							if l := len("sharedFiles"); len(elem) >= l && elem[0:l] == "sharedFiles" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch method {
+								case "GET":
+									r.name = GetListOfLinkedSharedFilesOperation
+									r.summary = "Get shared files linked to issue"
+									r.operationID = "getListOfLinkedSharedFiles"
+									r.operationGroup = ""
+									r.pathPattern = "/issues/{issueIdOrKey}/sharedFiles"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "POST":
+									r.name = LinkSharedFilesToIssueOperation
+									r.summary = "Link shared files to issue"
+									r.operationID = "linkSharedFilesToIssue"
+									r.operationGroup = ""
+									r.pathPattern = "/issues/{issueIdOrKey}/sharedFiles"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "id"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "DELETE":
+										r.name = RemoveLinkToSharedFileFromIssueOperation
+										r.summary = "Unlink shared file from issue"
+										r.operationID = "removeLinkToSharedFileFromIssue"
+										r.operationGroup = ""
+										r.pathPattern = "/issues/{issueIdOrKey}/sharedFiles/{id}"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
+								}
+
 							}
 
 						}
@@ -1958,16 +2422,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												elem = origElem
 											}
 											// Param: "number"
-											// Leaf parameter, slashes are prohibited
+											// Match until "/"
 											idx := strings.IndexByte(elem, '/')
-											if idx >= 0 {
-												break
+											if idx < 0 {
+												idx = len(elem)
 											}
-											args[2] = elem
-											elem = ""
+											args[2] = elem[:idx]
+											elem = elem[idx:]
 
 											if len(elem) == 0 {
-												// Leaf node.
 												switch method {
 												case "GET":
 													r.name = GetPullRequestOperation
@@ -1981,6 +2444,68 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 												default:
 													return
 												}
+											}
+											switch elem[0] {
+											case '/': // Prefix: "/attachments"
+
+												if l := len("/attachments"); len(elem) >= l && elem[0:l] == "/attachments" {
+													elem = elem[l:]
+												} else {
+													break
+												}
+
+												if len(elem) == 0 {
+													switch method {
+													case "GET":
+														r.name = GetListOfPullRequestAttachmentOperation
+														r.summary = "Get pull request attachments"
+														r.operationID = "getListOfPullRequestAttachment"
+														r.operationGroup = ""
+														r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments"
+														r.args = args
+														r.count = 3
+														return r, true
+													default:
+														return
+													}
+												}
+												switch elem[0] {
+												case '/': // Prefix: "/"
+
+													if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+														elem = elem[l:]
+													} else {
+														break
+													}
+
+													// Param: "attachmentId"
+													// Leaf parameter, slashes are prohibited
+													idx := strings.IndexByte(elem, '/')
+													if idx >= 0 {
+														break
+													}
+													args[3] = elem
+													elem = ""
+
+													if len(elem) == 0 {
+														// Leaf node.
+														switch method {
+														case "DELETE":
+															r.name = DeletePullRequestAttachmentsOperation
+															r.summary = "Delete pull request attachment"
+															r.operationID = "deletePullRequestAttachments"
+															r.operationGroup = ""
+															r.pathPattern = "/projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}"
+															r.args = args
+															r.count = 4
+															return r, true
+														default:
+															return
+														}
+													}
+
+												}
+
 											}
 
 										}
@@ -2311,16 +2836,15 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						elem = origElem
 					}
 					// Param: "wikiId"
-					// Leaf parameter, slashes are prohibited
+					// Match until "/"
 					idx := strings.IndexByte(elem, '/')
-					if idx >= 0 {
-						break
+					if idx < 0 {
+						idx = len(elem)
 					}
-					args[0] = elem
-					elem = ""
+					args[0] = elem[:idx]
+					elem = elem[idx:]
 
 					if len(elem) == 0 {
-						// Leaf node.
 						switch method {
 						case "DELETE":
 							r.name = DeleteWikiOperation
@@ -2352,6 +2876,160 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 						default:
 							return
 						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							break
+						}
+						switch elem[0] {
+						case 'a': // Prefix: "attachments"
+
+							if l := len("attachments"); len(elem) >= l && elem[0:l] == "attachments" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch method {
+								case "GET":
+									r.name = GetListOfWikiAttachmentsOperation
+									r.summary = "Get wiki attachments"
+									r.operationID = "getListOfWikiAttachments"
+									r.operationGroup = ""
+									r.pathPattern = "/wikis/{wikiId}/attachments"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "POST":
+									r.name = AttachFileToWikiOperation
+									r.summary = "Add attachments to wiki"
+									r.operationID = "attachFileToWiki"
+									r.operationGroup = ""
+									r.pathPattern = "/wikis/{wikiId}/attachments"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "attachmentId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "DELETE":
+										r.name = RemoveWikiAttachmentOperation
+										r.summary = "Delete wiki attachment"
+										r.operationID = "removeWikiAttachment"
+										r.operationGroup = ""
+										r.pathPattern = "/wikis/{wikiId}/attachments/{attachmentId}"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
+								}
+
+							}
+
+						case 's': // Prefix: "sharedFiles"
+
+							if l := len("sharedFiles"); len(elem) >= l && elem[0:l] == "sharedFiles" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch method {
+								case "GET":
+									r.name = GetListOfSharedFilesOnWikiOperation
+									r.summary = "Get shared files linked to wiki"
+									r.operationID = "getListOfSharedFilesOnWiki"
+									r.operationGroup = ""
+									r.pathPattern = "/wikis/{wikiId}/sharedFiles"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "POST":
+									r.name = LinkSharedFilesToWikiOperation
+									r.summary = "Link shared files to wiki"
+									r.operationID = "linkSharedFilesToWiki"
+									r.operationGroup = ""
+									r.pathPattern = "/wikis/{wikiId}/sharedFiles"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "id"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "DELETE":
+										r.name = RemoveLinkToSharedFileFromWikiOperation
+										r.summary = "Unlink shared file from wiki"
+										r.operationID = "removeLinkToSharedFileFromWiki"
+										r.operationGroup = ""
+										r.pathPattern = "/wikis/{wikiId}/sharedFiles/{id}"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
+								}
+
+							}
+
+						}
+
 					}
 
 				}

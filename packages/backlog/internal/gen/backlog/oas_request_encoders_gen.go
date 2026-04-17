@@ -109,6 +109,48 @@ func encodeAddDocumentTagsRequest(
 	return nil
 }
 
+func encodeAttachFileToWikiRequest(
+	req OptAttachFileToWikiReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "attachmentId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "attachmentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if request.AttachmentId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range request.AttachmentId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeCreateCategoryRequest(
 	req OptCreateCategoryReq,
 	r *http.Request,
@@ -500,6 +542,31 @@ func encodeCreateIssueRequest(
 			return errors.Wrap(err, "encode query")
 		}
 	}
+	{
+		// Encode "attachmentId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "attachmentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if request.AttachmentId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range request.AttachmentId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
 	encoded := q.Values().Encode()
 	ht.SetBody(r, strings.NewReader(encoded), contentType)
 	return nil
@@ -568,6 +635,84 @@ func encodeCreateWikiRequest(
 				return e.EncodeValue(conv.StringToString(val))
 			}
 			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeLinkSharedFilesToIssueRequest(
+	req OptLinkSharedFilesToIssueReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "fileId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "fileId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeArray(func(e uri.Encoder) error {
+				for i, item := range request.FileId {
+					if err := func() error {
+						return e.EncodeValue(conv.IntToString(item))
+					}(); err != nil {
+						return errors.Wrapf(err, "[%d]", i)
+					}
+				}
+				return nil
+			})
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeLinkSharedFilesToWikiRequest(
+	req OptLinkSharedFilesToWikiReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "fileId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "fileId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeArray(func(e uri.Encoder) error {
+				for i, item := range request.FileId {
+					if err := func() error {
+						return e.EncodeValue(conv.IntToString(item))
+					}(); err != nil {
+						return errors.Wrapf(err, "[%d]", i)
+					}
+				}
+				return nil
+			})
 		}); err != nil {
 			return errors.Wrap(err, "encode query")
 		}
@@ -925,6 +1070,31 @@ func encodeUpdateIssueRequest(
 		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
 			if val, ok := request.Comment.Get(); ok {
 				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "attachmentId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "attachmentId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if request.AttachmentId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range request.AttachmentId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
 			}
 			return nil
 		}); err != nil {

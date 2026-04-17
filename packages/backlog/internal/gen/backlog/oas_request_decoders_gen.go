@@ -214,6 +214,93 @@ func (s *Server) decodeAddDocumentTagsRequest(r *http.Request) (
 	}
 }
 
+func (s *Server) decodeAttachFileToWikiRequest(r *http.Request) (
+	req OptAttachFileToWikiReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptAttachFileToWikiReq
+		{
+			var optForm AttachFileToWikiReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "attachmentId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotAttachmentIdVal int
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToInt(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotAttachmentIdVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.AttachmentId = append(optForm.AttachmentId, optFormDotAttachmentIdVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
+					}
+				}
+			}
+			request = OptAttachFileToWikiReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
 func (s *Server) decodeCreateCategoryRequest(r *http.Request) (
 	req OptCreateCategoryReq,
 	rawBody []byte,
@@ -1040,6 +1127,40 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 					}
 				}
 			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "attachmentId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotAttachmentIdVal int
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToInt(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotAttachmentIdVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.AttachmentId = append(optForm.AttachmentId, optFormDotAttachmentIdVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
+					}
+				}
+			}
 			request = OptCreateIssueReq{
 				Value: optForm,
 				Set:   true,
@@ -1207,6 +1328,200 @@ func (s *Server) decodeCreateWikiRequest(r *http.Request) (
 				}
 			}
 			request = OptCreateWikiReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
+func (s *Server) decodeLinkSharedFilesToIssueRequest(r *http.Request) (
+	req OptLinkSharedFilesToIssueReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptLinkSharedFilesToIssueReq
+		{
+			var optForm LinkSharedFilesToIssueReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "fileId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotFileIdVal int
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToInt(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotFileIdVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.FileId = append(optForm.FileId, optFormDotFileIdVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"fileId\"")
+					}
+					if err := func() error {
+						if optForm.FileId == nil {
+							return errors.New("nil is invalid value")
+						}
+						return nil
+					}(); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "validate")
+					}
+				} else {
+					return req, rawBody, close, errors.Wrap(err, "query")
+				}
+			}
+			request = OptLinkSharedFilesToIssueReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
+func (s *Server) decodeLinkSharedFilesToWikiRequest(r *http.Request) (
+	req OptLinkSharedFilesToWikiReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptLinkSharedFilesToWikiReq
+		{
+			var optForm LinkSharedFilesToWikiReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "fileId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotFileIdVal int
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToInt(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotFileIdVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.FileId = append(optForm.FileId, optFormDotFileIdVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"fileId\"")
+					}
+					if err := func() error {
+						if optForm.FileId == nil {
+							return errors.New("nil is invalid value")
+						}
+						return nil
+					}(); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "validate")
+					}
+				} else {
+					return req, rawBody, close, errors.Wrap(err, "query")
+				}
+			}
+			request = OptLinkSharedFilesToWikiReq{
 				Value: optForm,
 				Set:   true,
 			}
@@ -1944,6 +2259,40 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 						return nil
 					}); err != nil {
 						return req, rawBody, close, errors.Wrap(err, "decode \"comment\"")
+					}
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "attachmentId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotAttachmentIdVal int
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToInt(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotAttachmentIdVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.AttachmentId = append(optForm.AttachmentId, optFormDotAttachmentIdVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
 					}
 				}
 			}
