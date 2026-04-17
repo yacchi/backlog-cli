@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"mime"
-	"net/http"
-	"strings"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
@@ -104,6 +101,26 @@ func convertUser(u backlog.User) User {
 		}
 	}
 	return user
+}
+
+func convertSharedFile(f backlog.SharedFile) SharedFile {
+	sf := SharedFile{
+		ID:      f.ID.Or(0),
+		Type:    f.Type.Or(""),
+		Dir:     f.Dir.Or(""),
+		Name:    f.Name.Or(""),
+		Size:    int64(f.Size.Or(0)),
+		Created: f.Created.Or(""),
+		Updated: f.Updated.Or(""),
+	}
+	if u, ok := f.CreatedUser.Get(); ok {
+		sf.CreatedUser = convertUser(u)
+	}
+	if u, ok := f.UpdatedUser.Get(); ok {
+		cu := convertUser(u)
+		sf.UpdatedUser = &cu
+	}
+	return sf
 }
 
 func convertAttachment(a backlog.Attachment) Attachment {
@@ -400,42 +417,5 @@ func (c *Client) RemoveDocumentTags(ctx context.Context, documentID string, tagN
 // DownloadDocumentAttachment はドキュメント添付ファイルをダウンロードする
 // Content-Disposition ヘッダーからファイル名を取得し、データを w に書き込む
 func (c *Client) DownloadDocumentAttachment(ctx context.Context, documentID string, attachmentID int, w io.Writer) (filename string, size int64, err error) {
-	resp, err := c.Get(ctx, fmt.Sprintf("/documents/%s/attachments/%d", documentID, attachmentID), nil)
-	if err != nil {
-		return "", 0, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if err := CheckResponse(resp); err != nil {
-		return "", 0, err
-	}
-
-	filename = extractFilename(resp)
-	size, err = io.Copy(w, resp.Body)
-	return filename, size, err
-}
-
-func extractFilename(resp *http.Response) string {
-	cd := resp.Header.Get("Content-Disposition")
-	if cd == "" {
-		return ""
-	}
-	_, params, err := mime.ParseMediaType(cd)
-	if err != nil {
-		// フォールバック: filename= を直接探す
-		for _, part := range strings.Split(cd, ";") {
-			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, "filename=") {
-				return strings.Trim(strings.TrimPrefix(part, "filename="), `"`)
-			}
-		}
-		return ""
-	}
-	if name, ok := params["filename"]; ok {
-		return name
-	}
-	if name, ok := params["filename*"]; ok {
-		return name
-	}
-	return ""
+	return c.downloadRaw(ctx, fmt.Sprintf("/documents/%s/attachments/%d", documentID, attachmentID), w)
 }
