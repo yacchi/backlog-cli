@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: General Backlog operations including projects, documents, wiki, pull requests, milestones, issue types, categories, custom fields, notifications, watching, users, AI features, markdown migration, and authentication management.
+description: General Backlog operations including projects, documents, wiki, pull requests, milestones, issue types, categories, custom fields, notifications, watching, users, AI features, markdown migration, file operations (issue/wiki/PR/project shared files, space attachment upload), and authentication management.
 allowed-tools: Bash, Read
 ---
 
@@ -47,6 +47,97 @@ backlog project view PROJ --json textFormattingRule
 backlog project current
 backlog project init PROJ  # create .backlog.yaml
 backlog config set client.default.project PROJ  # global config
+```
+
+## File Operations
+
+### Space Attachment Upload (foundation for issue/wiki uploads)
+
+```bash
+# Upload a file and get attachment ID (returned as JSON)
+backlog space attachment upload report.pdf
+# → { "id": 123, "name": "report.pdf", "size": 12345, ... }
+```
+
+### Issue Attachments
+
+```bash
+# List attachments
+backlog issue attachment list PROJ-123
+backlog issue attachment list PROJ-123 --json id,name,size
+
+# Upload & attach files (auto-uploads via space/attachment)
+backlog issue attachment upload PROJ-123 report.pdf
+backlog issue attachment upload PROJ-123 img1.png img2.png
+
+# Download
+backlog issue attachment download PROJ-123 42
+backlog issue attachment download PROJ-123 42 -o report.pdf
+backlog issue attachment download PROJ-123 42 -o -   # stdout
+
+# Delete
+backlog issue attachment delete PROJ-123 42
+backlog issue attachment delete PROJ-123 42 --yes    # skip confirmation
+```
+
+### Issue Shared File Links (project shared files)
+
+```bash
+backlog issue sharedfile list PROJ-123
+backlog issue sharedfile link PROJ-123 456 789       # link by file ID
+backlog issue sharedfile unlink PROJ-123 456
+backlog issue sharedfile unlink PROJ-123 456 --yes
+```
+
+### Attaching Files at Issue Create/Edit
+
+```bash
+backlog issue create -t "Bug" --attach screenshot.png --attach log.txt
+backlog issue edit PROJ-123 --attach additional.pdf
+```
+
+### Wiki Attachments
+
+```bash
+backlog wiki attachment list 100
+backlog wiki attachment upload 100 doc.pdf
+backlog wiki attachment upload 100 img1.png img2.png
+backlog wiki attachment download 100 42 -o doc.pdf
+backlog wiki attachment download 100 42 -o -         # stdout
+backlog wiki attachment delete 100 42 --yes
+```
+
+### Wiki Shared File Links
+
+```bash
+backlog wiki sharedfile list 100
+backlog wiki sharedfile link 100 456 789
+backlog wiki sharedfile unlink 100 456 --yes
+```
+
+### Pull Request Attachments
+
+```bash
+backlog pr attachment list 3 -R myrepo
+backlog pr attachment download 3 42 -R myrepo -o patch.diff
+backlog pr attachment download 3 42 -R myrepo -o -   # stdout
+backlog pr attachment delete 3 42 -R myrepo --yes
+```
+
+### Project Shared Files (read-only: list & download only)
+
+Backlog API has no upload/delete endpoint for project shared files.
+
+```bash
+# List (defaults to root "/")
+backlog file list -p MYPROJ
+backlog file list -p MYPROJ /docs/design
+backlog file list -p MYPROJ --json id,name,type --jq '.[] | select(.type=="file")'
+
+# Download by shared file ID (from list output)
+backlog file download 999 -p MYPROJ
+backlog file download 999 -p MYPROJ -o /tmp/spec.pdf
+backlog file download 999 -p MYPROJ -o -             # stdout
 ```
 
 ## Pull Request Operations
