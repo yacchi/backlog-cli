@@ -144,6 +144,71 @@ func decodeAddDocumentTagsParams(args [1]string, argsEscaped bool, r *http.Reque
 	return params, nil
 }
 
+// AttachFileToWikiParams is parameters of attachFileToWiki operation.
+type AttachFileToWikiParams struct {
+	WikiId int
+}
+
+func unpackAttachFileToWikiParams(packed middleware.Parameters) (params AttachFileToWikiParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeAttachFileToWikiParams(args [1]string, argsEscaped bool, r *http.Request) (params AttachFileToWikiParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // CreateCategoryParams is parameters of createCategory operation.
 type CreateCategoryParams struct {
 	ProjectIdOrKey string
@@ -450,6 +515,348 @@ func decodeDeleteIssueParams(args [1]string, argsEscaped bool, r *http.Request) 
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DeleteIssueAttachmentParams is parameters of deleteIssueAttachment operation.
+type DeleteIssueAttachmentParams struct {
+	IssueIdOrKey string
+	AttachmentId int
+}
+
+func unpackDeleteIssueAttachmentParams(packed middleware.Parameters) (params DeleteIssueAttachmentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "attachmentId",
+			In:   "path",
+		}
+		params.AttachmentId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeDeleteIssueAttachmentParams(args [2]string, argsEscaped bool, r *http.Request) (params DeleteIssueAttachmentParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: attachmentId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "attachmentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.AttachmentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "attachmentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DeletePullRequestAttachmentsParams is parameters of deletePullRequestAttachments operation.
+type DeletePullRequestAttachmentsParams struct {
+	ProjectIdOrKey string
+	RepoIdOrName   string
+	Number         int
+	AttachmentId   int
+}
+
+func unpackDeletePullRequestAttachmentsParams(packed middleware.Parameters) (params DeletePullRequestAttachmentsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "path",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "repoIdOrName",
+			In:   "path",
+		}
+		params.RepoIdOrName = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "number",
+			In:   "path",
+		}
+		params.Number = packed[key].(int)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "attachmentId",
+			In:   "path",
+		}
+		params.AttachmentId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeDeletePullRequestAttachmentsParams(args [4]string, argsEscaped bool, r *http.Request) (params DeletePullRequestAttachmentsParams, _ error) {
+	// Decode path: projectIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: repoIdOrName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "repoIdOrName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.RepoIdOrName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "repoIdOrName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: number.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "number",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.Number = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "number",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: attachmentId.
+	if err := func() error {
+		param := args[3]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[3])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "attachmentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.AttachmentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "attachmentId",
 			In:   "path",
 			Err:  err,
 		}
@@ -3495,6 +3902,437 @@ func decodeGetIssuesCountParams(args [0]string, argsEscaped bool, r *http.Reques
 	return params, nil
 }
 
+// GetListOfIssueAttachmentsParams is parameters of getListOfIssueAttachments operation.
+type GetListOfIssueAttachmentsParams struct {
+	IssueIdOrKey string
+}
+
+func unpackGetListOfIssueAttachmentsParams(packed middleware.Parameters) (params GetListOfIssueAttachmentsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetListOfIssueAttachmentsParams(args [1]string, argsEscaped bool, r *http.Request) (params GetListOfIssueAttachmentsParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetListOfLinkedSharedFilesParams is parameters of getListOfLinkedSharedFiles operation.
+type GetListOfLinkedSharedFilesParams struct {
+	IssueIdOrKey string
+}
+
+func unpackGetListOfLinkedSharedFilesParams(packed middleware.Parameters) (params GetListOfLinkedSharedFilesParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetListOfLinkedSharedFilesParams(args [1]string, argsEscaped bool, r *http.Request) (params GetListOfLinkedSharedFilesParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetListOfPullRequestAttachmentParams is parameters of getListOfPullRequestAttachment operation.
+type GetListOfPullRequestAttachmentParams struct {
+	ProjectIdOrKey string
+	RepoIdOrName   string
+	Number         int
+}
+
+func unpackGetListOfPullRequestAttachmentParams(packed middleware.Parameters) (params GetListOfPullRequestAttachmentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "path",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "repoIdOrName",
+			In:   "path",
+		}
+		params.RepoIdOrName = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "number",
+			In:   "path",
+		}
+		params.Number = packed[key].(int)
+	}
+	return params
+}
+
+func decodeGetListOfPullRequestAttachmentParams(args [3]string, argsEscaped bool, r *http.Request) (params GetListOfPullRequestAttachmentParams, _ error) {
+	// Decode path: projectIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "projectIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: repoIdOrName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "repoIdOrName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.RepoIdOrName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "repoIdOrName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: number.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "number",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.Number = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "number",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetListOfSharedFilesOnWikiParams is parameters of getListOfSharedFilesOnWiki operation.
+type GetListOfSharedFilesOnWikiParams struct {
+	WikiId int
+}
+
+func unpackGetListOfSharedFilesOnWikiParams(packed middleware.Parameters) (params GetListOfSharedFilesOnWikiParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeGetListOfSharedFilesOnWikiParams(args [1]string, argsEscaped bool, r *http.Request) (params GetListOfSharedFilesOnWikiParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetListOfWikiAttachmentsParams is parameters of getListOfWikiAttachments operation.
+type GetListOfWikiAttachmentsParams struct {
+	WikiId int
+}
+
+func unpackGetListOfWikiAttachmentsParams(packed middleware.Parameters) (params GetListOfWikiAttachmentsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeGetListOfWikiAttachmentsParams(args [1]string, argsEscaped bool, r *http.Request) (params GetListOfWikiAttachmentsParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // GetProjectParams is parameters of getProject operation.
 type GetProjectParams struct {
 	ProjectIdOrKey string
@@ -4904,6 +5742,136 @@ func decodeGetWikisCountParams(args [0]string, argsEscaped bool, r *http.Request
 	return params, nil
 }
 
+// LinkSharedFilesToIssueParams is parameters of linkSharedFilesToIssue operation.
+type LinkSharedFilesToIssueParams struct {
+	IssueIdOrKey string
+}
+
+func unpackLinkSharedFilesToIssueParams(packed middleware.Parameters) (params LinkSharedFilesToIssueParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeLinkSharedFilesToIssueParams(args [1]string, argsEscaped bool, r *http.Request) (params LinkSharedFilesToIssueParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// LinkSharedFilesToWikiParams is parameters of linkSharedFilesToWiki operation.
+type LinkSharedFilesToWikiParams struct {
+	WikiId int
+}
+
+func unpackLinkSharedFilesToWikiParams(packed middleware.Parameters) (params LinkSharedFilesToWikiParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeLinkSharedFilesToWikiParams(args [1]string, argsEscaped bool, r *http.Request) (params LinkSharedFilesToWikiParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // RemoveDocumentTagsParams is parameters of removeDocumentTags operation.
 type RemoveDocumentTagsParams struct {
 	DocumentId string
@@ -4962,6 +5930,360 @@ func decodeRemoveDocumentTagsParams(args [1]string, argsEscaped bool, r *http.Re
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// RemoveLinkToSharedFileFromIssueParams is parameters of removeLinkToSharedFileFromIssue operation.
+type RemoveLinkToSharedFileFromIssueParams struct {
+	IssueIdOrKey string
+	ID           int
+}
+
+func unpackRemoveLinkToSharedFileFromIssueParams(packed middleware.Parameters) (params RemoveLinkToSharedFileFromIssueParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "id",
+			In:   "path",
+		}
+		params.ID = packed[key].(int)
+	}
+	return params
+}
+
+func decodeRemoveLinkToSharedFileFromIssueParams(args [2]string, argsEscaped bool, r *http.Request) (params RemoveLinkToSharedFileFromIssueParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: id.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "id",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.ID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "id",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// RemoveLinkToSharedFileFromWikiParams is parameters of removeLinkToSharedFileFromWiki operation.
+type RemoveLinkToSharedFileFromWikiParams struct {
+	WikiId int
+	ID     int
+}
+
+func unpackRemoveLinkToSharedFileFromWikiParams(packed middleware.Parameters) (params RemoveLinkToSharedFileFromWikiParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "id",
+			In:   "path",
+		}
+		params.ID = packed[key].(int)
+	}
+	return params
+}
+
+func decodeRemoveLinkToSharedFileFromWikiParams(args [2]string, argsEscaped bool, r *http.Request) (params RemoveLinkToSharedFileFromWikiParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: id.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "id",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.ID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "id",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// RemoveWikiAttachmentParams is parameters of removeWikiAttachment operation.
+type RemoveWikiAttachmentParams struct {
+	WikiId       int
+	AttachmentId int
+}
+
+func unpackRemoveWikiAttachmentParams(packed middleware.Parameters) (params RemoveWikiAttachmentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "wikiId",
+			In:   "path",
+		}
+		params.WikiId = packed[key].(int)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "attachmentId",
+			In:   "path",
+		}
+		params.AttachmentId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeRemoveWikiAttachmentParams(args [2]string, argsEscaped bool, r *http.Request) (params RemoveWikiAttachmentParams, _ error) {
+	// Decode path: wikiId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "wikiId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.WikiId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: attachmentId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "attachmentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.AttachmentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "attachmentId",
 			In:   "path",
 			Err:  err,
 		}

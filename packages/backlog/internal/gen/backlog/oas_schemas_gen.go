@@ -70,6 +70,20 @@ func (s *ApiKey) SetRoles(val []string) {
 	s.Roles = val
 }
 
+type AttachFileToWikiReq struct {
+	AttachmentId []int `json:"attachmentId"`
+}
+
+// GetAttachmentId returns the value of AttachmentId.
+func (s *AttachFileToWikiReq) GetAttachmentId() []int {
+	return s.AttachmentId
+}
+
+// SetAttachmentId sets the value of AttachmentId.
+func (s *AttachFileToWikiReq) SetAttachmentId(val []int) {
+	s.AttachmentId = val
+}
+
 // Ref: #/components/schemas/Attachment
 type Attachment struct {
 	ID          OptInt    `json:"id"`
@@ -393,6 +407,7 @@ type CreateIssueReq struct {
 	MilestoneId    []int      `json:"milestoneId"`
 	AssigneeId     OptInt     `json:"assigneeId"`
 	ParentIssueId  OptInt     `json:"parentIssueId"`
+	AttachmentId   []int      `json:"attachmentId"`
 }
 
 // GetProjectId returns the value of ProjectId.
@@ -465,6 +480,11 @@ func (s *CreateIssueReq) GetParentIssueId() OptInt {
 	return s.ParentIssueId
 }
 
+// GetAttachmentId returns the value of AttachmentId.
+func (s *CreateIssueReq) GetAttachmentId() []int {
+	return s.AttachmentId
+}
+
 // SetProjectId sets the value of ProjectId.
 func (s *CreateIssueReq) SetProjectId(val int) {
 	s.ProjectId = val
@@ -533,6 +553,11 @@ func (s *CreateIssueReq) SetAssigneeId(val OptInt) {
 // SetParentIssueId sets the value of ParentIssueId.
 func (s *CreateIssueReq) SetParentIssueId(val OptInt) {
 	s.ParentIssueId = val
+}
+
+// SetAttachmentId sets the value of AttachmentId.
+func (s *CreateIssueReq) SetAttachmentId(val []int) {
+	s.AttachmentId = val
 }
 
 type CreateWikiReq struct {
@@ -1642,6 +1667,34 @@ func (s *IssueType) SetDisplayOrder(val OptInt) {
 	s.DisplayOrder = val
 }
 
+type LinkSharedFilesToIssueReq struct {
+	FileId []int `json:"fileId"`
+}
+
+// GetFileId returns the value of FileId.
+func (s *LinkSharedFilesToIssueReq) GetFileId() []int {
+	return s.FileId
+}
+
+// SetFileId sets the value of FileId.
+func (s *LinkSharedFilesToIssueReq) SetFileId(val []int) {
+	s.FileId = val
+}
+
+type LinkSharedFilesToWikiReq struct {
+	FileId []int `json:"fileId"`
+}
+
+// GetFileId returns the value of FileId.
+func (s *LinkSharedFilesToWikiReq) GetFileId() []int {
+	return s.FileId
+}
+
+// SetFileId sets the value of FileId.
+func (s *LinkSharedFilesToWikiReq) SetFileId(val []int) {
+	s.FileId = val
+}
+
 // Ref: #/components/schemas/Notification
 type Notification struct {
 	ID                  OptInt  `json:"id"`
@@ -1849,6 +1902,52 @@ func (o OptAddDocumentTagsReq) Get() (v AddDocumentTagsReq, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptAddDocumentTagsReq) Or(d AddDocumentTagsReq) AddDocumentTagsReq {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptAttachFileToWikiReq returns new OptAttachFileToWikiReq with value set to v.
+func NewOptAttachFileToWikiReq(v AttachFileToWikiReq) OptAttachFileToWikiReq {
+	return OptAttachFileToWikiReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptAttachFileToWikiReq is optional AttachFileToWikiReq.
+type OptAttachFileToWikiReq struct {
+	Value AttachFileToWikiReq
+	Set   bool
+}
+
+// IsSet returns true if OptAttachFileToWikiReq was set.
+func (o OptAttachFileToWikiReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptAttachFileToWikiReq) Reset() {
+	var v AttachFileToWikiReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptAttachFileToWikiReq) SetTo(v AttachFileToWikiReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptAttachFileToWikiReq) Get() (v AttachFileToWikiReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptAttachFileToWikiReq) Or(d AttachFileToWikiReq) AttachFileToWikiReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -2263,6 +2362,98 @@ func (o OptIssueType) Get() (v IssueType, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptIssueType) Or(d IssueType) IssueType {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptLinkSharedFilesToIssueReq returns new OptLinkSharedFilesToIssueReq with value set to v.
+func NewOptLinkSharedFilesToIssueReq(v LinkSharedFilesToIssueReq) OptLinkSharedFilesToIssueReq {
+	return OptLinkSharedFilesToIssueReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptLinkSharedFilesToIssueReq is optional LinkSharedFilesToIssueReq.
+type OptLinkSharedFilesToIssueReq struct {
+	Value LinkSharedFilesToIssueReq
+	Set   bool
+}
+
+// IsSet returns true if OptLinkSharedFilesToIssueReq was set.
+func (o OptLinkSharedFilesToIssueReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptLinkSharedFilesToIssueReq) Reset() {
+	var v LinkSharedFilesToIssueReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptLinkSharedFilesToIssueReq) SetTo(v LinkSharedFilesToIssueReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptLinkSharedFilesToIssueReq) Get() (v LinkSharedFilesToIssueReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptLinkSharedFilesToIssueReq) Or(d LinkSharedFilesToIssueReq) LinkSharedFilesToIssueReq {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptLinkSharedFilesToWikiReq returns new OptLinkSharedFilesToWikiReq with value set to v.
+func NewOptLinkSharedFilesToWikiReq(v LinkSharedFilesToWikiReq) OptLinkSharedFilesToWikiReq {
+	return OptLinkSharedFilesToWikiReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptLinkSharedFilesToWikiReq is optional LinkSharedFilesToWikiReq.
+type OptLinkSharedFilesToWikiReq struct {
+	Value LinkSharedFilesToWikiReq
+	Set   bool
+}
+
+// IsSet returns true if OptLinkSharedFilesToWikiReq was set.
+func (o OptLinkSharedFilesToWikiReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptLinkSharedFilesToWikiReq) Reset() {
+	var v LinkSharedFilesToWikiReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptLinkSharedFilesToWikiReq) SetTo(v LinkSharedFilesToWikiReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptLinkSharedFilesToWikiReq) Get() (v LinkSharedFilesToWikiReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptLinkSharedFilesToWikiReq) Or(d LinkSharedFilesToWikiReq) LinkSharedFilesToWikiReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -4110,6 +4301,7 @@ type UpdateIssueReq struct {
 	VersionId      []int      `json:"versionId"`
 	MilestoneId    []int      `json:"milestoneId"`
 	Comment        OptString  `json:"comment"`
+	AttachmentId   []int      `json:"attachmentId"`
 }
 
 // GetSummary returns the value of Summary.
@@ -4187,6 +4379,11 @@ func (s *UpdateIssueReq) GetComment() OptString {
 	return s.Comment
 }
 
+// GetAttachmentId returns the value of AttachmentId.
+func (s *UpdateIssueReq) GetAttachmentId() []int {
+	return s.AttachmentId
+}
+
 // SetSummary sets the value of Summary.
 func (s *UpdateIssueReq) SetSummary(val OptString) {
 	s.Summary = val
@@ -4260,6 +4457,11 @@ func (s *UpdateIssueReq) SetMilestoneId(val []int) {
 // SetComment sets the value of Comment.
 func (s *UpdateIssueReq) SetComment(val OptString) {
 	s.Comment = val
+}
+
+// SetAttachmentId sets the value of AttachmentId.
+func (s *UpdateIssueReq) SetAttachmentId(val []int) {
+	s.AttachmentId = val
 }
 
 type UpdateWikiReq struct {

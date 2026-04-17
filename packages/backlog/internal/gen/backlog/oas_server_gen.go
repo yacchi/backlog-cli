@@ -20,6 +20,12 @@ type Handler interface {
 	//
 	// POST /documents/{documentId}/tags
 	AddDocumentTags(ctx context.Context, req OptAddDocumentTagsReq, params AddDocumentTagsParams) ([]DocumentTag, error)
+	// AttachFileToWiki implements attachFileToWiki operation.
+	//
+	// Add attachments to wiki.
+	//
+	// POST /wikis/{wikiId}/attachments
+	AttachFileToWiki(ctx context.Context, req OptAttachFileToWikiReq, params AttachFileToWikiParams) ([]Attachment, error)
 	// CreateCategory implements createCategory operation.
 	//
 	// Create category.
@@ -62,6 +68,18 @@ type Handler interface {
 	//
 	// DELETE /issues/{issueIdOrKey}
 	DeleteIssue(ctx context.Context, params DeleteIssueParams) (*Issue, error)
+	// DeleteIssueAttachment implements deleteIssueAttachment operation.
+	//
+	// Delete issue attachment.
+	//
+	// DELETE /issues/{issueIdOrKey}/attachments/{attachmentId}
+	DeleteIssueAttachment(ctx context.Context, params DeleteIssueAttachmentParams) (*Attachment, error)
+	// DeletePullRequestAttachments implements deletePullRequestAttachments operation.
+	//
+	// Delete pull request attachment.
+	//
+	// DELETE /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}
+	DeletePullRequestAttachments(ctx context.Context, params DeletePullRequestAttachmentsParams) (*Attachment, error)
 	// DeleteWiki implements deleteWiki operation.
 	//
 	// Delete wiki.
@@ -164,6 +182,36 @@ type Handler interface {
 	//
 	// GET /issues/count
 	GetIssuesCount(ctx context.Context, params GetIssuesCountParams) (*GetIssuesCountOK, error)
+	// GetListOfIssueAttachments implements getListOfIssueAttachments operation.
+	//
+	// Get issue attachments.
+	//
+	// GET /issues/{issueIdOrKey}/attachments
+	GetListOfIssueAttachments(ctx context.Context, params GetListOfIssueAttachmentsParams) ([]Attachment, error)
+	// GetListOfLinkedSharedFiles implements getListOfLinkedSharedFiles operation.
+	//
+	// Get shared files linked to issue.
+	//
+	// GET /issues/{issueIdOrKey}/sharedFiles
+	GetListOfLinkedSharedFiles(ctx context.Context, params GetListOfLinkedSharedFilesParams) ([]SharedFile, error)
+	// GetListOfPullRequestAttachment implements getListOfPullRequestAttachment operation.
+	//
+	// Get pull request attachments.
+	//
+	// GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments
+	GetListOfPullRequestAttachment(ctx context.Context, params GetListOfPullRequestAttachmentParams) ([]Attachment, error)
+	// GetListOfSharedFilesOnWiki implements getListOfSharedFilesOnWiki operation.
+	//
+	// Get shared files linked to wiki.
+	//
+	// GET /wikis/{wikiId}/sharedFiles
+	GetListOfSharedFilesOnWiki(ctx context.Context, params GetListOfSharedFilesOnWikiParams) ([]SharedFile, error)
+	// GetListOfWikiAttachments implements getListOfWikiAttachments operation.
+	//
+	// Get wiki attachments.
+	//
+	// GET /wikis/{wikiId}/attachments
+	GetListOfWikiAttachments(ctx context.Context, params GetListOfWikiAttachmentsParams) ([]Attachment, error)
 	// GetPriorities implements getPriorities operation.
 	//
 	// Get all priorities.
@@ -266,12 +314,42 @@ type Handler interface {
 	//
 	// GET /wikis/count
 	GetWikisCount(ctx context.Context, params GetWikisCountParams) (*GetWikisCountOK, error)
+	// LinkSharedFilesToIssue implements linkSharedFilesToIssue operation.
+	//
+	// Link shared files to issue.
+	//
+	// POST /issues/{issueIdOrKey}/sharedFiles
+	LinkSharedFilesToIssue(ctx context.Context, req OptLinkSharedFilesToIssueReq, params LinkSharedFilesToIssueParams) ([]SharedFile, error)
+	// LinkSharedFilesToWiki implements linkSharedFilesToWiki operation.
+	//
+	// Link shared files to wiki.
+	//
+	// POST /wikis/{wikiId}/sharedFiles
+	LinkSharedFilesToWiki(ctx context.Context, req OptLinkSharedFilesToWikiReq, params LinkSharedFilesToWikiParams) ([]SharedFile, error)
 	// RemoveDocumentTags implements removeDocumentTags operation.
 	//
 	// Remove document tags.
 	//
 	// DELETE /documents/{documentId}/tags
 	RemoveDocumentTags(ctx context.Context, req OptRemoveDocumentTagsReq, params RemoveDocumentTagsParams) ([]DocumentTag, error)
+	// RemoveLinkToSharedFileFromIssue implements removeLinkToSharedFileFromIssue operation.
+	//
+	// Unlink shared file from issue.
+	//
+	// DELETE /issues/{issueIdOrKey}/sharedFiles/{id}
+	RemoveLinkToSharedFileFromIssue(ctx context.Context, params RemoveLinkToSharedFileFromIssueParams) (*SharedFile, error)
+	// RemoveLinkToSharedFileFromWiki implements removeLinkToSharedFileFromWiki operation.
+	//
+	// Unlink shared file from wiki.
+	//
+	// DELETE /wikis/{wikiId}/sharedFiles/{id}
+	RemoveLinkToSharedFileFromWiki(ctx context.Context, params RemoveLinkToSharedFileFromWikiParams) (*SharedFile, error)
+	// RemoveWikiAttachment implements removeWikiAttachment operation.
+	//
+	// Delete wiki attachment.
+	//
+	// DELETE /wikis/{wikiId}/attachments/{attachmentId}
+	RemoveWikiAttachment(ctx context.Context, params RemoveWikiAttachmentParams) (*Attachment, error)
 	// UpdateComment implements updateComment operation.
 	//
 	// Update comment.
