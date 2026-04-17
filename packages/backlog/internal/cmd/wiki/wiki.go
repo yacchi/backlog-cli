@@ -16,4 +16,6 @@ func init() {
 	WikiCmd.AddCommand(createCmd)
 	WikiCmd.AddCommand(editCmd)
 	WikiCmd.AddCommand(deleteCmd)
+	WikiCmd.AddCommand(wikiAttachmentCmd)
+	WikiCmd.AddCommand(wikiSharedFileCmd)
 }
