@@ -20,4 +20,6 @@ func init() {
 	IssueCmd.AddCommand(commentCmd)
 	IssueCmd.AddCommand(deleteCmd)
 	IssueCmd.AddCommand(statusCmd)
+	IssueCmd.AddCommand(attachmentCmd)
+	IssueCmd.AddCommand(sharedFileCmd)
 }
