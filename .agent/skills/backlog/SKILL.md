@@ -69,6 +69,8 @@ backlog pr view <number> -R <repo> --markdown  # convert Backlog notation
 
 # Create
 backlog pr create -R <repo> -B main -H feature/xxx -t "Title" -b "Description"
+backlog pr create -R <repo> -t "Title" --body-file desc.md   # from file
+cat desc.md | backlog pr create -R <repo> -t "Title" -F -    # from stdin
 backlog pr create -R <repo>             # interactive mode
 backlog pr create -R <repo> --assignee <user-id> --reviewer "1234,5678"
 backlog pr create -R <repo> --issue <issue-id>  # link related issue
@@ -76,11 +78,15 @@ backlog pr create -R <repo> --issue <issue-id>  # link related issue
 # Edit
 backlog pr edit <number> -R <repo> -t "New title"
 backlog pr edit <number> -R <repo> -b "Updated description"
+backlog pr edit <number> -R <repo> --body-file desc.md       # from file
+cat desc.md | backlog pr edit <number> -R <repo> -F -        # from stdin
 backlog pr edit <number> -R <repo> --assignee <user-id>
 backlog pr edit <number> -R <repo> --issue <issue-id>
 
 # Comment
 backlog pr comment <number> -R <repo> -b "LGTM!"
+backlog pr comment <number> -R <repo> --body-file review.md  # from file
+cat comment.md | backlog pr comment <number> -R <repo> -F -  # from stdin
 backlog pr comment <number> -R <repo>   # interactive mode
 
 # Close (without merging)
@@ -103,9 +109,13 @@ backlog wiki view <page-id>
 
 # Create
 backlog wiki create --name "Page Title" --content "Content"
+backlog wiki create --name "Spec" --content-file spec.md     # from file
+cat content.md | backlog wiki create --name "Page" -F -      # from stdin
 
 # Edit
 backlog wiki edit <id-or-name> --content "Updated content"
+backlog wiki edit <id-or-name> --content-file updated.md     # from file
+cat content.md | backlog wiki edit <id-or-name> -F -         # from stdin
 backlog wiki edit <id-or-name> --name "New Page Name"
 backlog wiki edit <id-or-name> --notify  # send mail notification
 

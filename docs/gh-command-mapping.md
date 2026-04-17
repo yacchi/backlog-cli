@@ -279,11 +279,31 @@ backlog issue list --json title,issueKey -q '.[].title' # Backlog
 | `--head / -H`     | `--head / -H`  | ✅ 対応                     |
 | `--title / -t`    | `--title / -t` | ✅ 対応                     |
 | `--body / -b`     | `--body / -b`  | ✅ 対応                     |
+| `--body-file / -F` | `--body-file / -F` | ✅ 対応                |
 | `--reviewer / -r` | `--reviewer`   | ✅ 対応                     |
 | `--assignee / -a` | `--assignee`   | ✅ 対応                     |
 | `--draft / -d`    | -              | ❌ 非対応 (Backlog APIに機能なし) |
 | `-R, --repo`      | `-R, --repo`   | ✅ Backlog必須              |
 | -                 | `--issue`      | ✅ Backlog独自 (関連課題)       |
+
+### pr edit
+
+| gh オプション           | backlog オプション      | 対応状況        |
+|--------------------|--------------------|-----------------------|
+| `--title / -t`     | `--title / -t`     | ✅ 対応                  |
+| `--body / -b`      | `--body / -b`      | ✅ 対応                  |
+| `--body-file / -F` | `--body-file / -F` | ✅ 対応                  |
+| `-R, --repo`       | `-R, --repo`       | ✅ Backlog必須           |
+| -                  | `--assignee`       | ✅ Backlog独自           |
+| -                  | `--issue`          | ✅ Backlog独自 (関連課題)    |
+
+### pr comment
+
+| gh オプション           | backlog オプション      | 対応状況        |
+|--------------------|--------------------|-----------------------|
+| `--body / -b`      | `--body / -b`      | ✅ 対応                  |
+| `--body-file / -F` | `--body-file / -F` | ✅ 対応                  |
+| `-R, --repo`       | `-R, --repo`       | ✅ Backlog必須           |
 
 ### pr close
 
@@ -351,6 +371,24 @@ backlog issue create --title "新機能" --category "機能追加,UI"
 backlog issue edit PROJ-123 --category "バグ,緊急"
 
 ```
+
+### wiki create
+
+| backlog オプション          | 説明                               |
+|------------------------|----------------------------------|
+| `--name / -n`          | Wikiページ名                         |
+| `--content / -c`       | コンテンツ (直接指定)                     |
+| `--content-file / -F`  | ファイルからコンテンツ読み込み ("-" で stdin)    |
+| `--notify`             | メール通知送信                          |
+
+### wiki edit
+
+| backlog オプション          | 説明                               |
+|------------------------|----------------------------------|
+| `--name / -n`          | 新しいページ名                          |
+| `--content / -c`       | 新しいコンテンツ (直接指定)                  |
+| `--content-file / -F`  | ファイルからコンテンツ読み込み ("-" で stdin)    |
+| `--notify`             | メール通知送信                          |
 
 ## Backlog 独自機能
 
@@ -506,6 +544,8 @@ backlog milestone create --name "Sprint1" --start-date 2024-01-01 --due-date 202
 # Wiki操作
 backlog wiki list
 backlog wiki create --name "設計書" --content "# 概要\n..."
+backlog wiki create --name "設計書" --content-file spec.md  # ファイルから
+backlog wiki edit 123 --content-file updated.md            # ファイルで更新
 
 # 課題種別操作
 backlog issue-type list
