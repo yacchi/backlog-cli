@@ -1283,6 +1283,10 @@ paths:
                   type: integer
                 parentIssueId:
                   type: integer
+                attachmentId:
+                  type: array
+                  items:
+                    type: integer
       responses:
         '201':
           description: Created
@@ -1387,6 +1391,10 @@ paths:
                     type: integer
                 comment:
                   type: string
+                attachmentId:
+                  type: array
+                  items:
+                    type: integer
       responses:
         '200':
           description: Successful response
@@ -1927,3 +1935,326 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  /issues/{issueIdOrKey}/attachments:
+    get:
+      operationId: getListOfIssueAttachments
+      summary: Get issue attachments
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+
+  /issues/{issueIdOrKey}/attachments/{attachmentId}:
+    delete:
+      operationId: deleteIssueAttachment
+      summary: Delete issue attachment
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+
+  /issues/{issueIdOrKey}/sharedFiles:
+    get:
+      operationId: getListOfLinkedSharedFiles
+      summary: Get shared files linked to issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SharedFile'
+    post:
+      operationId: linkSharedFilesToIssue
+      summary: Link shared files to issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fileId
+              properties:
+                fileId:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SharedFile'
+
+  /issues/{issueIdOrKey}/sharedFiles/{id}:
+    delete:
+      operationId: removeLinkToSharedFileFromIssue
+      summary: Unlink shared file from issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedFile'
+
+  /wikis/{wikiId}/attachments:
+    get:
+      operationId: getListOfWikiAttachments
+      summary: Get wiki attachments
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+    post:
+      operationId: attachFileToWiki
+      summary: Add attachments to wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                attachmentId:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+
+  /wikis/{wikiId}/attachments/{attachmentId}:
+    delete:
+      operationId: removeWikiAttachment
+      summary: Delete wiki attachment
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+
+  /wikis/{wikiId}/sharedFiles:
+    get:
+      operationId: getListOfSharedFilesOnWiki
+      summary: Get shared files linked to wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SharedFile'
+    post:
+      operationId: linkSharedFilesToWiki
+      summary: Link shared files to wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - fileId
+              properties:
+                fileId:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SharedFile'
+
+  /wikis/{wikiId}/sharedFiles/{id}:
+    delete:
+      operationId: removeLinkToSharedFileFromWiki
+      summary: Unlink shared file from wiki
+      parameters:
+        - name: wikiId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedFile'
+
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments:
+    get:
+      operationId: getListOfPullRequestAttachment
+      summary: Get pull request attachments
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repoIdOrName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+
+  /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}:
+    delete:
+      operationId: deletePullRequestAttachments
+      summary: Delete pull request attachment
+      parameters:
+        - name: projectIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repoIdOrName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
