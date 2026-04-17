@@ -127,6 +127,93 @@ func (s *Server) decodeAddCommentRequest(r *http.Request) (
 	}
 }
 
+func (s *Server) decodeAddDocumentTagsRequest(r *http.Request) (
+	req OptAddDocumentTagsReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptAddDocumentTagsReq
+		{
+			var optForm AddDocumentTagsReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "tagNames[]",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotTagNamesVal string
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToString(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotTagNamesVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.TagNames = append(optForm.TagNames, optFormDotTagNamesVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"tagNames[]\"")
+					}
+				}
+			}
+			request = OptAddDocumentTagsReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
 func (s *Server) decodeCreateCategoryRequest(r *http.Request) (
 	req OptCreateCategoryReq,
 	rawBody []byte,
@@ -197,6 +284,246 @@ func (s *Server) decodeCreateCategoryRequest(r *http.Request) (
 				}
 			}
 			request = OptCreateCategoryReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
+func (s *Server) decodeCreateDocumentRequest(r *http.Request) (
+	req OptCreateDocumentReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptCreateDocumentReq
+		{
+			var optForm CreateDocumentReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "projectId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						optForm.ProjectId = c
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"projectId\"")
+					}
+				} else {
+					return req, rawBody, close, errors.Wrap(err, "query")
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "title",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						var optFormDotTitleVal string
+						if err := func() error {
+							val, err := d.DecodeValue()
+							if err != nil {
+								return err
+							}
+
+							c, err := conv.ToString(val)
+							if err != nil {
+								return err
+							}
+
+							optFormDotTitleVal = c
+							return nil
+						}(); err != nil {
+							return err
+						}
+						optForm.Title.SetTo(optFormDotTitleVal)
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"title\"")
+					}
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "content",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						var optFormDotContentVal string
+						if err := func() error {
+							val, err := d.DecodeValue()
+							if err != nil {
+								return err
+							}
+
+							c, err := conv.ToString(val)
+							if err != nil {
+								return err
+							}
+
+							optFormDotContentVal = c
+							return nil
+						}(); err != nil {
+							return err
+						}
+						optForm.Content.SetTo(optFormDotContentVal)
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"content\"")
+					}
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "emoji",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						var optFormDotEmojiVal string
+						if err := func() error {
+							val, err := d.DecodeValue()
+							if err != nil {
+								return err
+							}
+
+							c, err := conv.ToString(val)
+							if err != nil {
+								return err
+							}
+
+							optFormDotEmojiVal = c
+							return nil
+						}(); err != nil {
+							return err
+						}
+						optForm.Emoji.SetTo(optFormDotEmojiVal)
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"emoji\"")
+					}
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "parentId",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						var optFormDotParentIdVal string
+						if err := func() error {
+							val, err := d.DecodeValue()
+							if err != nil {
+								return err
+							}
+
+							c, err := conv.ToString(val)
+							if err != nil {
+								return err
+							}
+
+							optFormDotParentIdVal = c
+							return nil
+						}(); err != nil {
+							return err
+						}
+						optForm.ParentId.SetTo(optFormDotParentIdVal)
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"parentId\"")
+					}
+				}
+			}
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "addLast",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						var optFormDotAddLastVal bool
+						if err := func() error {
+							val, err := d.DecodeValue()
+							if err != nil {
+								return err
+							}
+
+							c, err := conv.ToBool(val)
+							if err != nil {
+								return err
+							}
+
+							optFormDotAddLastVal = c
+							return nil
+						}(); err != nil {
+							return err
+						}
+						optForm.AddLast.SetTo(optFormDotAddLastVal)
+						return nil
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"addLast\"")
+					}
+				}
+			}
+			request = OptCreateDocumentReq{
 				Value: optForm,
 				Set:   true,
 			}
@@ -880,6 +1207,93 @@ func (s *Server) decodeCreateWikiRequest(r *http.Request) (
 				}
 			}
 			request = OptCreateWikiReq{
+				Value: optForm,
+				Set:   true,
+			}
+		}
+		return request, rawBody, close, nil
+	default:
+		return req, rawBody, close, validate.InvalidContentType(ct)
+	}
+}
+
+func (s *Server) decodeRemoveDocumentTagsRequest(r *http.Request) (
+	req OptRemoveDocumentTagsReq,
+	rawBody []byte,
+	close func() error,
+	rerr error,
+) {
+	var closers []func() error
+	close = func() error {
+		var merr error
+		// Close in reverse order, to match defer behavior.
+		for i := len(closers) - 1; i >= 0; i-- {
+			c := closers[i]
+			merr = errors.Join(merr, c())
+		}
+		return merr
+	}
+	defer func() {
+		if rerr != nil {
+			rerr = errors.Join(rerr, close())
+		}
+	}()
+	if _, ok := r.Header["Content-Type"]; !ok && r.ContentLength == 0 {
+		return req, rawBody, close, nil
+	}
+	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return req, rawBody, close, errors.Wrap(err, "parse media type")
+	}
+	switch {
+	case ct == "application/x-www-form-urlencoded":
+		if r.ContentLength == 0 {
+			return req, rawBody, close, nil
+		}
+		form, err := ht.ParseForm(r)
+		if err != nil {
+			return req, rawBody, close, errors.Wrap(err, "parse form")
+		}
+
+		var request OptRemoveDocumentTagsReq
+		{
+			var optForm RemoveDocumentTagsReq
+			q := uri.NewQueryDecoder(form)
+			{
+				cfg := uri.QueryParameterDecodingConfig{
+					Name:    "tagNames[]",
+					Style:   uri.QueryStyleForm,
+					Explode: true,
+				}
+				if err := q.HasParam(cfg); err == nil {
+					if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+						return d.DecodeArray(func(d uri.Decoder) error {
+							var optFormDotTagNamesVal string
+							if err := func() error {
+								val, err := d.DecodeValue()
+								if err != nil {
+									return err
+								}
+
+								c, err := conv.ToString(val)
+								if err != nil {
+									return err
+								}
+
+								optFormDotTagNamesVal = c
+								return nil
+							}(); err != nil {
+								return err
+							}
+							optForm.TagNames = append(optForm.TagNames, optFormDotTagNamesVal)
+							return nil
+						})
+					}); err != nil {
+						return req, rawBody, close, errors.Wrap(err, "decode \"tagNames[]\"")
+					}
+				}
+			}
+			request = OptRemoveDocumentTagsReq{
 				Value: optForm,
 				Set:   true,
 			}

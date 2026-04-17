@@ -79,6 +79,71 @@ func decodeAddCommentParams(args [1]string, argsEscaped bool, r *http.Request) (
 	return params, nil
 }
 
+// AddDocumentTagsParams is parameters of addDocumentTags operation.
+type AddDocumentTagsParams struct {
+	DocumentId string
+}
+
+func unpackAddDocumentTagsParams(packed middleware.Parameters) (params AddDocumentTagsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeAddDocumentTagsParams(args [1]string, argsEscaped bool, r *http.Request) (params AddDocumentTagsParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // CreateCategoryParams is parameters of createCategory operation.
 type CreateCategoryParams struct {
 	ProjectIdOrKey string
@@ -262,6 +327,71 @@ func decodeDeleteCategoryParams(args [2]string, argsEscaped bool, r *http.Reques
 	return params, nil
 }
 
+// DeleteDocumentParams is parameters of deleteDocument operation.
+type DeleteDocumentParams struct {
+	DocumentId string
+}
+
+func unpackDeleteDocumentParams(packed middleware.Parameters) (params DeleteDocumentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeDeleteDocumentParams(args [1]string, argsEscaped bool, r *http.Request) (params DeleteDocumentParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // DeleteIssueParams is parameters of deleteIssue operation.
 type DeleteIssueParams struct {
 	IssueIdOrKey string
@@ -385,6 +515,124 @@ func decodeDeleteWikiParams(args [1]string, argsEscaped bool, r *http.Request) (
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "wikiId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DownloadDocumentAttachmentParams is parameters of downloadDocumentAttachment operation.
+type DownloadDocumentAttachmentParams struct {
+	DocumentId   string
+	AttachmentId int
+}
+
+func unpackDownloadDocumentAttachmentParams(packed middleware.Parameters) (params DownloadDocumentAttachmentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "attachmentId",
+			In:   "path",
+		}
+		params.AttachmentId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeDownloadDocumentAttachmentParams(args [2]string, argsEscaped bool, r *http.Request) (params DownloadDocumentAttachmentParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: attachmentId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "attachmentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.AttachmentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "attachmentId",
 			In:   "path",
 			Err:  err,
 		}
@@ -969,6 +1217,564 @@ func decodeGetCustomFieldsParams(args [1]string, argsEscaped bool, r *http.Reque
 		return params, &ogenerrors.DecodeParamError{
 			Name: "projectIdOrKey",
 			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetDocumentParams is parameters of getDocument operation.
+type GetDocumentParams struct {
+	DocumentId string
+}
+
+func unpackGetDocumentParams(packed middleware.Parameters) (params GetDocumentParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetDocumentParams(args [1]string, argsEscaped bool, r *http.Request) (params GetDocumentParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetDocumentCommentsParams is parameters of getDocumentComments operation.
+type GetDocumentCommentsParams struct {
+	DocumentId string
+}
+
+func unpackGetDocumentCommentsParams(packed middleware.Parameters) (params GetDocumentCommentsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetDocumentCommentsParams(args [1]string, argsEscaped bool, r *http.Request) (params GetDocumentCommentsParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetDocumentTreeParams is parameters of getDocumentTree operation.
+type GetDocumentTreeParams struct {
+	ProjectIdOrKey string
+}
+
+func unpackGetDocumentTreeParams(packed middleware.Parameters) (params GetDocumentTreeParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "query",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetDocumentTreeParams(args [0]string, argsEscaped bool, r *http.Request) (params GetDocumentTreeParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: projectIdOrKey.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "projectIdOrKey",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetDocumentsParams is parameters of getDocuments operation.
+type GetDocumentsParams struct {
+	ProjectId []int     `json:",omitempty"`
+	Keyword   OptString `json:",omitempty,omitzero"`
+	Sort      OptString `json:",omitempty,omitzero"`
+	Order     OptString `json:",omitempty,omitzero"`
+	Offset    int
+	Count     OptInt `json:",omitempty,omitzero"`
+}
+
+func unpackGetDocumentsParams(packed middleware.Parameters) (params GetDocumentsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ProjectId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "keyword",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Keyword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "sort",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Sort = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "order",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Order = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "offset",
+			In:   "query",
+		}
+		params.Offset = packed[key].(int)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "count",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Count = v.(OptInt)
+		}
+	}
+	return params
+}
+
+func decodeGetDocumentsParams(args [0]string, argsEscaped bool, r *http.Request) (params GetDocumentsParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: projectId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "projectId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotProjectIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotProjectIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.ProjectId = append(params.ProjectId, paramsDotProjectIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: keyword.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "keyword",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotKeywordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotKeywordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Keyword.SetTo(paramsDotKeywordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "keyword",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: sort.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "sort",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotSortVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotSortVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Sort.SetTo(paramsDotSortVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "sort",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: order.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "order",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotOrderVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotOrderVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Order.SetTo(paramsDotOrderVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "order",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: offset.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "offset",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.Offset = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "offset",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: count.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "count",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotCountVal int
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToInt(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotCountVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Count.SetTo(paramsDotCountVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "count",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetDocumentsCountParams is parameters of getDocumentsCount operation.
+type GetDocumentsCountParams struct {
+	ProjectIdOrKey string
+}
+
+func unpackGetDocumentsCountParams(packed middleware.Parameters) (params GetDocumentsCountParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "projectIdOrKey",
+			In:   "query",
+		}
+		params.ProjectIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetDocumentsCountParams(args [0]string, argsEscaped bool, r *http.Request) (params GetDocumentsCountParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	// Decode query: projectIdOrKey.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "projectIdOrKey",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ProjectIdOrKey = c
+				return nil
+			}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "projectIdOrKey",
+			In:   "query",
 			Err:  err,
 		}
 	}
@@ -4092,6 +4898,71 @@ func decodeGetWikisCountParams(args [0]string, argsEscaped bool, r *http.Request
 		return params, &ogenerrors.DecodeParamError{
 			Name: "projectIdOrKey",
 			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// RemoveDocumentTagsParams is parameters of removeDocumentTags operation.
+type RemoveDocumentTagsParams struct {
+	DocumentId string
+}
+
+func unpackRemoveDocumentTagsParams(packed middleware.Parameters) (params RemoveDocumentTagsParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "documentId",
+			In:   "path",
+		}
+		params.DocumentId = packed[key].(string)
+	}
+	return params
+}
+
+func decodeRemoveDocumentTagsParams(args [1]string, argsEscaped bool, r *http.Request) (params RemoveDocumentTagsParams, _ error) {
+	// Decode path: documentId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "documentId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.DocumentId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "documentId",
+			In:   "path",
 			Err:  err,
 		}
 	}

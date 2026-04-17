@@ -61,6 +61,206 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			switch elem[0] {
+			case 'd': // Prefix: "documents"
+
+				if l := len("documents"); len(elem) >= l && elem[0:l] == "documents" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					switch r.Method {
+					case "GET":
+						s.handleGetDocumentsRequest([0]string{}, elemIsEscaped, w, r)
+					case "POST":
+						s.handleCreateDocumentRequest([0]string{}, elemIsEscaped, w, r)
+					default:
+						s.notAllowed(w, r, "GET,POST")
+					}
+
+					return
+				}
+				switch elem[0] {
+				case '/': // Prefix: "/"
+
+					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						break
+					}
+					switch elem[0] {
+					case 'c': // Prefix: "count"
+						origElem := elem
+						if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handleGetDocumentsCountRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
+						elem = origElem
+					case 't': // Prefix: "tree"
+						origElem := elem
+						if l := len("tree"); len(elem) >= l && elem[0:l] == "tree" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch r.Method {
+							case "GET":
+								s.handleGetDocumentTreeRequest([0]string{}, elemIsEscaped, w, r)
+							default:
+								s.notAllowed(w, r, "GET")
+							}
+
+							return
+						}
+
+						elem = origElem
+					}
+					// Param: "documentId"
+					// Match until "/"
+					idx := strings.IndexByte(elem, '/')
+					if idx < 0 {
+						idx = len(elem)
+					}
+					args[0] = elem[:idx]
+					elem = elem[idx:]
+
+					if len(elem) == 0 {
+						switch r.Method {
+						case "DELETE":
+							s.handleDeleteDocumentRequest([1]string{
+								args[0],
+							}, elemIsEscaped, w, r)
+						case "GET":
+							s.handleGetDocumentRequest([1]string{
+								args[0],
+							}, elemIsEscaped, w, r)
+						default:
+							s.notAllowed(w, r, "DELETE,GET")
+						}
+
+						return
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							break
+						}
+						switch elem[0] {
+						case 'a': // Prefix: "attachments/"
+
+							if l := len("attachments/"); len(elem) >= l && elem[0:l] == "attachments/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "attachmentId"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[1] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "GET":
+									s.handleDownloadDocumentAttachmentRequest([2]string{
+										args[0],
+										args[1],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET")
+								}
+
+								return
+							}
+
+						case 'c': // Prefix: "comments"
+
+							if l := len("comments"); len(elem) >= l && elem[0:l] == "comments" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "GET":
+									s.handleGetDocumentCommentsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET")
+								}
+
+								return
+							}
+
+						case 't': // Prefix: "tags"
+
+							if l := len("tags"); len(elem) >= l && elem[0:l] == "tags" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch r.Method {
+								case "DELETE":
+									s.handleRemoveDocumentTagsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "POST":
+									s.handleAddDocumentTagsRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "DELETE,POST")
+								}
+
+								return
+							}
+
+						}
+
+					}
+
+				}
+
 			case 'i': // Prefix: "issues"
 
 				if l := len("issues"); len(elem) >= l && elem[0:l] == "issues" {
@@ -964,6 +1164,249 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 				break
 			}
 			switch elem[0] {
+			case 'd': // Prefix: "documents"
+
+				if l := len("documents"); len(elem) >= l && elem[0:l] == "documents" {
+					elem = elem[l:]
+				} else {
+					break
+				}
+
+				if len(elem) == 0 {
+					switch method {
+					case "GET":
+						r.name = GetDocumentsOperation
+						r.summary = "Get document list"
+						r.operationID = "getDocuments"
+						r.operationGroup = ""
+						r.pathPattern = "/documents"
+						r.args = args
+						r.count = 0
+						return r, true
+					case "POST":
+						r.name = CreateDocumentOperation
+						r.summary = "Add document"
+						r.operationID = "createDocument"
+						r.operationGroup = ""
+						r.pathPattern = "/documents"
+						r.args = args
+						r.count = 0
+						return r, true
+					default:
+						return
+					}
+				}
+				switch elem[0] {
+				case '/': // Prefix: "/"
+
+					if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+						elem = elem[l:]
+					} else {
+						break
+					}
+
+					if len(elem) == 0 {
+						break
+					}
+					switch elem[0] {
+					case 'c': // Prefix: "count"
+						origElem := elem
+						if l := len("count"); len(elem) >= l && elem[0:l] == "count" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = GetDocumentsCountOperation
+								r.summary = "Get document count"
+								r.operationID = "getDocumentsCount"
+								r.operationGroup = ""
+								r.pathPattern = "/documents/count"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
+						elem = origElem
+					case 't': // Prefix: "tree"
+						origElem := elem
+						if l := len("tree"); len(elem) >= l && elem[0:l] == "tree" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							// Leaf node.
+							switch method {
+							case "GET":
+								r.name = GetDocumentTreeOperation
+								r.summary = "Get document tree"
+								r.operationID = "getDocumentTree"
+								r.operationGroup = ""
+								r.pathPattern = "/documents/tree"
+								r.args = args
+								r.count = 0
+								return r, true
+							default:
+								return
+							}
+						}
+
+						elem = origElem
+					}
+					// Param: "documentId"
+					// Match until "/"
+					idx := strings.IndexByte(elem, '/')
+					if idx < 0 {
+						idx = len(elem)
+					}
+					args[0] = elem[:idx]
+					elem = elem[idx:]
+
+					if len(elem) == 0 {
+						switch method {
+						case "DELETE":
+							r.name = DeleteDocumentOperation
+							r.summary = "Delete document"
+							r.operationID = "deleteDocument"
+							r.operationGroup = ""
+							r.pathPattern = "/documents/{documentId}"
+							r.args = args
+							r.count = 1
+							return r, true
+						case "GET":
+							r.name = GetDocumentOperation
+							r.summary = "Get document"
+							r.operationID = "getDocument"
+							r.operationGroup = ""
+							r.pathPattern = "/documents/{documentId}"
+							r.args = args
+							r.count = 1
+							return r, true
+						default:
+							return
+						}
+					}
+					switch elem[0] {
+					case '/': // Prefix: "/"
+
+						if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+							elem = elem[l:]
+						} else {
+							break
+						}
+
+						if len(elem) == 0 {
+							break
+						}
+						switch elem[0] {
+						case 'a': // Prefix: "attachments/"
+
+							if l := len("attachments/"); len(elem) >= l && elem[0:l] == "attachments/" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							// Param: "attachmentId"
+							// Leaf parameter, slashes are prohibited
+							idx := strings.IndexByte(elem, '/')
+							if idx >= 0 {
+								break
+							}
+							args[1] = elem
+							elem = ""
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "GET":
+									r.name = DownloadDocumentAttachmentOperation
+									r.summary = "Download document attachment"
+									r.operationID = "downloadDocumentAttachment"
+									r.operationGroup = ""
+									r.pathPattern = "/documents/{documentId}/attachments/{attachmentId}"
+									r.args = args
+									r.count = 2
+									return r, true
+								default:
+									return
+								}
+							}
+
+						case 'c': // Prefix: "comments"
+
+							if l := len("comments"); len(elem) >= l && elem[0:l] == "comments" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "GET":
+									r.name = GetDocumentCommentsOperation
+									r.summary = "Get document comments"
+									r.operationID = "getDocumentComments"
+									r.operationGroup = ""
+									r.pathPattern = "/documents/{documentId}/comments"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
+						case 't': // Prefix: "tags"
+
+							if l := len("tags"); len(elem) >= l && elem[0:l] == "tags" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								// Leaf node.
+								switch method {
+								case "DELETE":
+									r.name = RemoveDocumentTagsOperation
+									r.summary = "Remove document tags"
+									r.operationID = "removeDocumentTags"
+									r.operationGroup = ""
+									r.pathPattern = "/documents/{documentId}/tags"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "POST":
+									r.name = AddDocumentTagsOperation
+									r.summary = "Add document tags"
+									r.operationID = "addDocumentTags"
+									r.operationGroup = ""
+									r.pathPattern = "/documents/{documentId}/tags"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+
+						}
+
+					}
+
+				}
+
 			case 'i': // Prefix: "issues"
 
 				if l := len("issues"); len(elem) >= l && elem[0:l] == "issues" {

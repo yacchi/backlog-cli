@@ -14,12 +14,24 @@ type Handler interface {
 	//
 	// POST /issues/{issueIdOrKey}/comments
 	AddComment(ctx context.Context, req OptAddCommentReq, params AddCommentParams) (*Comment, error)
+	// AddDocumentTags implements addDocumentTags operation.
+	//
+	// Add document tags.
+	//
+	// POST /documents/{documentId}/tags
+	AddDocumentTags(ctx context.Context, req OptAddDocumentTagsReq, params AddDocumentTagsParams) ([]DocumentTag, error)
 	// CreateCategory implements createCategory operation.
 	//
 	// Create category.
 	//
 	// POST /projects/{projectIdOrKey}/categories
 	CreateCategory(ctx context.Context, req OptCreateCategoryReq, params CreateCategoryParams) (*Category, error)
+	// CreateDocument implements createDocument operation.
+	//
+	// Add document.
+	//
+	// POST /documents
+	CreateDocument(ctx context.Context, req OptCreateDocumentReq) (*Document, error)
 	// CreateIssue implements createIssue operation.
 	//
 	// Create issue.
@@ -38,6 +50,12 @@ type Handler interface {
 	//
 	// DELETE /projects/{projectIdOrKey}/categories/{categoryId}
 	DeleteCategory(ctx context.Context, params DeleteCategoryParams) (*Category, error)
+	// DeleteDocument implements deleteDocument operation.
+	//
+	// Delete document.
+	//
+	// DELETE /documents/{documentId}
+	DeleteDocument(ctx context.Context, params DeleteDocumentParams) (*Document, error)
 	// DeleteIssue implements deleteIssue operation.
 	//
 	// Delete issue.
@@ -50,6 +68,12 @@ type Handler interface {
 	//
 	// DELETE /wikis/{wikiId}
 	DeleteWiki(ctx context.Context, params DeleteWikiParams) (*Wiki, error)
+	// DownloadDocumentAttachment implements downloadDocumentAttachment operation.
+	//
+	// Download document attachment.
+	//
+	// GET /documents/{documentId}/attachments/{attachmentId}
+	DownloadDocumentAttachment(ctx context.Context, params DownloadDocumentAttachmentParams) (DownloadDocumentAttachmentOK, error)
 	// GetCategories implements getCategories operation.
 	//
 	// Get categories.
@@ -86,6 +110,36 @@ type Handler interface {
 	//
 	// GET /projects/{projectIdOrKey}/customFields
 	GetCustomFields(ctx context.Context, params GetCustomFieldsParams) ([]CustomField, error)
+	// GetDocument implements getDocument operation.
+	//
+	// Get document.
+	//
+	// GET /documents/{documentId}
+	GetDocument(ctx context.Context, params GetDocumentParams) (*DocumentDetail, error)
+	// GetDocumentComments implements getDocumentComments operation.
+	//
+	// Get document comments.
+	//
+	// GET /documents/{documentId}/comments
+	GetDocumentComments(ctx context.Context, params GetDocumentCommentsParams) ([]DocumentComment, error)
+	// GetDocumentTree implements getDocumentTree operation.
+	//
+	// Get document tree.
+	//
+	// GET /documents/tree
+	GetDocumentTree(ctx context.Context, params GetDocumentTreeParams) (*DocumentTree, error)
+	// GetDocuments implements getDocuments operation.
+	//
+	// Get document list.
+	//
+	// GET /documents
+	GetDocuments(ctx context.Context, params GetDocumentsParams) ([]Document, error)
+	// GetDocumentsCount implements getDocumentsCount operation.
+	//
+	// Get document count.
+	//
+	// GET /documents/count
+	GetDocumentsCount(ctx context.Context, params GetDocumentsCountParams) (*GetDocumentsCountOK, error)
 	// GetIssue implements getIssue operation.
 	//
 	// Get issue.
@@ -212,6 +266,12 @@ type Handler interface {
 	//
 	// GET /wikis/count
 	GetWikisCount(ctx context.Context, params GetWikisCountParams) (*GetWikisCountOK, error)
+	// RemoveDocumentTags implements removeDocumentTags operation.
+	//
+	// Remove document tags.
+	//
+	// DELETE /documents/{documentId}/tags
+	RemoveDocumentTags(ctx context.Context, req OptRemoveDocumentTagsReq, params RemoveDocumentTagsParams) ([]DocumentTag, error)
 	// UpdateComment implements updateComment operation.
 	//
 	// Update comment.

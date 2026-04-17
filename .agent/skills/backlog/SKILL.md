@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: General Backlog operations including projects, wiki, pull requests, milestones, issue types, categories, custom fields, notifications, watching, users, AI features, markdown migration, and authentication management.
+description: General Backlog operations including projects, documents, wiki, pull requests, milestones, issue types, categories, custom fields, notifications, watching, users, AI features, markdown migration, and authentication management.
 allowed-tools: Bash, Read
 ---
 
@@ -98,6 +98,53 @@ backlog pr close <number> -R <repo> --yes  # skip confirmation
 backlog pr merge <number> -R <repo>
 backlog pr merge <number> -R <repo> -c "Merging after review"
 backlog pr merge <number> -R <repo> --yes  # skip confirmation
+```
+
+## Document Operations
+
+Document IDs are **string type** (e.g. `01HXXXXXXXX`), unlike Issue/Wiki which use integers.
+The update (PATCH) API is not provided by Backlog — use `backlog wiki` for editable pages.
+
+```bash
+# List
+backlog document list
+backlog document list --keyword "design" --sort updated --order asc
+backlog document list --limit 50
+
+# Count
+backlog document count
+
+# Tree view (hierarchical structure)
+backlog document tree
+backlog document tree --include-trash
+
+# View
+backlog document view 01HXXXXXXXX
+backlog document view 01HXXXXXXXX --web       # open in browser
+backlog document view 01HXXXXXXXX --markdown  # show plain text
+backlog document view 01HXXXXXXXX -o json     # JSON output
+
+# Create
+backlog document create --title "Design Doc" --content "# Design"
+backlog document create --title "Notes" --content-file notes.md
+cat doc.md | backlog document create --title "Doc" --content-file -
+backlog document create --title "Sub" --parent 01HXXXXXXXX --emoji "📘"
+
+# Delete (requires admin/project admin)
+backlog document delete 01HXXXXXXXX
+backlog document delete 01HXXXXXXXX --yes  # skip confirmation
+
+# Comments (read-only, write API not provided by Backlog)
+backlog document comment list 01HXXXXXXXX
+
+# Tags
+backlog document tag add 01HXXXXXXXX -t foo -t bar
+backlog document tag remove 01HXXXXXXXX -t foo
+
+# Attachments
+backlog document attachment download 01HXXXXXXXX 123
+backlog document attachment download 01HXXXXXXXX 123 -o report.pdf
+backlog document attachment download 01HXXXXXXXX 123 -o -  # stdout
 ```
 
 ## Wiki Operations
