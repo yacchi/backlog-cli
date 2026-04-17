@@ -3,8 +3,11 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
+
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // Wiki はWikiページ
@@ -165,4 +168,117 @@ func (c *Client) DeleteWiki(ctx context.Context, wikiID int) (*Wiki, error) {
 	}
 
 	return &wiki, nil
+}
+
+// ListWikiAttachments はWikiの添付ファイル一覧を取得する
+func (c *Client) ListWikiAttachments(ctx context.Context, wikiID int) ([]Attachment, error) {
+	res, err := c.backlogClient.GetListOfWikiAttachments(ctx, backlog.GetListOfWikiAttachmentsParams{
+		WikiId: wikiID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	atts := make([]Attachment, 0, len(res))
+	for _, a := range res {
+		atts = append(atts, convertAttachment(a))
+	}
+	return atts, nil
+}
+
+// UploadWikiAttachment はファイルをアップロードしてWikiに添付する
+// 内部で POST /space/attachment → POST /wikis/{id}/attachments を呼ぶ
+func (c *Client) UploadWikiAttachment(ctx context.Context, wikiID int, filename string, r io.Reader) ([]Attachment, error) {
+	up, err := c.UploadSpaceAttachment(ctx, filename, r)
+	if err != nil {
+		return nil, fmt.Errorf("upload failed: %w", err)
+	}
+	return c.AttachFilesToWiki(ctx, wikiID, []int{up.ID})
+}
+
+// AttachFilesToWiki は既存の添付IDをWikiに紐付ける
+func (c *Client) AttachFilesToWiki(ctx context.Context, wikiID int, attachmentIDs []int) ([]Attachment, error) {
+	res, err := c.backlogClient.AttachFileToWiki(ctx,
+		backlog.OptAttachFileToWikiReq{
+			Set: true,
+			Value: backlog.AttachFileToWikiReq{
+				AttachmentId: attachmentIDs,
+			},
+		},
+		backlog.AttachFileToWikiParams{WikiId: wikiID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	atts := make([]Attachment, 0, len(res))
+	for _, a := range res {
+		atts = append(atts, convertAttachment(a))
+	}
+	return atts, nil
+}
+
+// DownloadWikiAttachment はWikiの添付ファイルをダウンロードする
+func (c *Client) DownloadWikiAttachment(ctx context.Context, wikiID, attachmentID int, w io.Writer) (string, int64, error) {
+	return c.downloadRaw(ctx, fmt.Sprintf("/wikis/%d/attachments/%d", wikiID, attachmentID), w)
+}
+
+// DeleteWikiAttachment はWikiの添付ファイルを削除する
+func (c *Client) DeleteWikiAttachment(ctx context.Context, wikiID, attachmentID int) (*Attachment, error) {
+	res, err := c.backlogClient.RemoveWikiAttachment(ctx, backlog.RemoveWikiAttachmentParams{
+		WikiId:       wikiID,
+		AttachmentId: attachmentID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	att := convertAttachment(*res)
+	return &att, nil
+}
+
+// ListWikiSharedFiles はWikiにリンクされた共有ファイル一覧を取得する
+func (c *Client) ListWikiSharedFiles(ctx context.Context, wikiID int) ([]SharedFile, error) {
+	res, err := c.backlogClient.GetListOfSharedFilesOnWiki(ctx, backlog.GetListOfSharedFilesOnWikiParams{
+		WikiId: wikiID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	files := make([]SharedFile, 0, len(res))
+	for _, f := range res {
+		files = append(files, convertSharedFile(f))
+	}
+	return files, nil
+}
+
+// LinkWikiSharedFiles はWikiに共有ファイルをリンクする
+func (c *Client) LinkWikiSharedFiles(ctx context.Context, wikiID int, fileIDs []int) ([]SharedFile, error) {
+	res, err := c.backlogClient.LinkSharedFilesToWiki(ctx,
+		backlog.OptLinkSharedFilesToWikiReq{
+			Set: true,
+			Value: backlog.LinkSharedFilesToWikiReq{
+				FileId: fileIDs,
+			},
+		},
+		backlog.LinkSharedFilesToWikiParams{WikiId: wikiID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]SharedFile, 0, len(res))
+	for _, f := range res {
+		files = append(files, convertSharedFile(f))
+	}
+	return files, nil
+}
+
+// UnlinkWikiSharedFile はWikiから共有ファイルのリンクを解除する
+func (c *Client) UnlinkWikiSharedFile(ctx context.Context, wikiID, fileID int) (*SharedFile, error) {
+	res, err := c.backlogClient.RemoveLinkToSharedFileFromWiki(ctx, backlog.RemoveLinkToSharedFileFromWikiParams{
+		WikiId: wikiID,
+		ID:     fileID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	f := convertSharedFile(*res)
+	return &f, nil
 }

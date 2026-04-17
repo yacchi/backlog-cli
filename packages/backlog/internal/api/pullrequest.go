@@ -3,8 +3,11 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
+
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
 
 // PullRequest はプルリクエスト
@@ -373,6 +376,45 @@ func (c *Client) MergePullRequest(ctx context.Context, projectIDOrKey, repoIDOrN
 	}
 
 	return &pr, nil
+}
+
+// ListPRAttachments はプルリクエストの添付ファイル一覧を取得する
+func (c *Client) ListPRAttachments(ctx context.Context, projectIDOrKey, repoIDOrName string, prNumber int) ([]Attachment, error) {
+	res, err := c.backlogClient.GetListOfPullRequestAttachment(ctx, backlog.GetListOfPullRequestAttachmentParams{
+		ProjectIdOrKey: projectIDOrKey,
+		RepoIdOrName:   repoIDOrName,
+		Number:         prNumber,
+	})
+	if err != nil {
+		return nil, err
+	}
+	atts := make([]Attachment, 0, len(res))
+	for _, a := range res {
+		atts = append(atts, convertAttachment(a))
+	}
+	return atts, nil
+}
+
+// DownloadPRAttachment はプルリクエストの添付ファイルをダウンロードする
+func (c *Client) DownloadPRAttachment(ctx context.Context, projectIDOrKey, repoIDOrName string, prNumber, attachmentID int, w io.Writer) (string, int64, error) {
+	path := fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d/attachments/%d",
+		projectIDOrKey, repoIDOrName, prNumber, attachmentID)
+	return c.downloadRaw(ctx, path, w)
+}
+
+// DeletePRAttachment はプルリクエストの添付ファイルを削除する
+func (c *Client) DeletePRAttachment(ctx context.Context, projectIDOrKey, repoIDOrName string, prNumber, attachmentID int) (*Attachment, error) {
+	res, err := c.backlogClient.DeletePullRequestAttachments(ctx, backlog.DeletePullRequestAttachmentsParams{
+		ProjectIdOrKey: projectIDOrKey,
+		RepoIdOrName:   repoIDOrName,
+		Number:         prNumber,
+		AttachmentId:   attachmentID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	att := convertAttachment(*res)
+	return &att, nil
 }
 
 // ClosePullRequestInput はPRクローズの入力
