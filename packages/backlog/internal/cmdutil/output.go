@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/template"
 
 	"github.com/cli/go-gh/v2/pkg/jq"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
@@ -16,6 +17,7 @@ import (
 type JSONOutputOptions struct {
 	Fields   []string // Fields to include (empty = all fields)
 	JQFilter string   // jq filter expression
+	Template string   // Go template expression (e.g. "{{.summary}}")
 	Pretty   bool     // Pretty-print output
 }
 
@@ -33,6 +35,11 @@ func OutputJSON(w io.Writer, data any, opts JSONOutputOptions) error {
 		if err != nil {
 			return fmt.Errorf("failed to filter fields: %w", err)
 		}
+	}
+
+	// Apply Go template if specified
+	if opts.Template != "" {
+		return applyGoTemplate(w, jsonBytes, opts.Template)
 	}
 
 	// Apply jq filter if specified
@@ -57,6 +64,25 @@ func OutputJSON(w io.Writer, data any, opts JSONOutputOptions) error {
 	_, err = w.Write(jsonBytes)
 	if err != nil {
 		return err
+	}
+	_, err = fmt.Fprintln(w)
+	return err
+}
+
+// applyGoTemplate applies a Go template to JSON data.
+func applyGoTemplate(w io.Writer, jsonBytes []byte, tmplStr string) error {
+	var data any
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return fmt.Errorf("failed to parse JSON for template: %w", err)
+	}
+
+	tmpl, err := template.New("format").Parse(tmplStr)
+	if err != nil {
+		return fmt.Errorf("invalid template: %w", err)
+	}
+
+	if err := tmpl.Execute(w, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
 	}
 	_, err = fmt.Fprintln(w)
 	return err
@@ -131,13 +157,15 @@ func OutputJSONToStdout(data any, opts JSONOutputOptions) error {
 }
 
 // OutputJSONFromProfile outputs JSON using profile settings for fields and jq filter.
-// This is a convenience function that extracts JSONFields and JQ from the profile.
-func OutputJSONFromProfile(data any, jsonFields, jqFilter string) error {
+// This is a convenience function that extracts JSONFields, JQ, and Template from the profile.
+func OutputJSONFromProfile(data any, jsonFields, jqFilter string, templateStr ...string) error {
 	opts := JSONOutputOptions{Pretty: true}
 	if jsonFields != "" {
 		opts.Fields = strings.Split(jsonFields, ",")
 	}
-	if jqFilter != "" {
+	if len(templateStr) > 0 && templateStr[0] != "" {
+		opts.Template = templateStr[0]
+	} else if jqFilter != "" {
 		opts.JQFilter = jqFilter
 	}
 	return OutputJSONToStdout(data, opts)

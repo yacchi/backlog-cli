@@ -224,7 +224,7 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 		"url":      url,
 	}
 
-	return cmdutil.OutputJSONFromProfile(brief, profile.JSONFields, profile.JQ)
+	return cmdutil.OutputJSONFromProfile(brief, profile.JSONFields, profile.JQ, profile.Template)
 }
 
 // IssueWithComments is a wrapper for issue with comments for JSON output
@@ -239,9 +239,9 @@ func outputIssueJSON(issue *backlog.Issue, comments []api.Comment, showComments 
 		return cmdutil.OutputJSONFromProfile(IssueWithComments{
 			Issue:    issue,
 			Comments: comments,
-		}, profile.JSONFields, profile.JQ)
+		}, profile.JSONFields, profile.JQ, profile.Template)
 	}
-	return cmdutil.OutputJSONFromProfile(issue, profile.JSONFields, profile.JQ)
+	return cmdutil.OutputJSONFromProfile(issue, profile.JSONFields, profile.JQ, profile.Template)
 }
 
 func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile, display *config.ResolvedDisplay, cfg *config.Store, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
