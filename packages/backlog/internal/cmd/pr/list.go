@@ -150,7 +150,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(prs, profile.JSONFields, profile.JQ)
+		return cmdutil.OutputJSONFromProfile(prs, profile.JSONFields, profile.JQ, profile.Template)
 	default:
 		outputPRTable(prs, profile, display, projectKey, listRepo)
 		return nil

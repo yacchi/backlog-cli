@@ -110,6 +110,7 @@ type ResolvedProfile struct {
 	Output                 string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
 	JSONFields             string `json:"json_fields" jubako:",env:PROFILE_{key}_JSON_FIELDS"`
 	JQ                     string `json:"jq" jubako:",env:PROFILE_{key}_JQ"`
+	Template               string `json:"template" jubako:",env:PROFILE_{key}_TEMPLATE"`
 	Color                  string `json:"color" jubako:",env:PROFILE_{key}_COLOR"`
 	Editor                 string `json:"editor" jubako:",env:PROFILE_{key}_EDITOR"`
 	Browser                string `json:"browser" jubako:",env:PROFILE_{key}_BROWSER"`
