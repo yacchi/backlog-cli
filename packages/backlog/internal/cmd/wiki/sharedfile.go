@@ -47,7 +47,7 @@ func runWikiSharedFileList(c *cobra.Command, args []string) error {
 	}
 
 	profile := cfg.CurrentProfile()
-	if err := cmdutil.OutputJSONFromProfile(files, profile.JSONFields, profile.JQ); err == nil {
+	if err := cmdutil.OutputJSONFromProfile(files, profile.JSONFields, profile.JQ, profile.Template); err == nil {
 		return nil
 	}
 

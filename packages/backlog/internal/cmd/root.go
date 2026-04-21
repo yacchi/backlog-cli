@@ -103,6 +103,13 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 			setOptions = append(setOptions, jubako.String(config.PathProfileJq(activeProfile), jqFilter))
 		}
 
+		// formatフラグはGo templateを使ったJSON出力を有効にする
+		if tmpl, _ := cmd.Flags().GetString("format"); tmpl != "" {
+			activeProfile := cfg.GetActiveProfile()
+			setOptions = append(setOptions, jubako.String(config.PathProfileOutput(activeProfile), "json"))
+			setOptions = append(setOptions, jubako.String(config.PathProfileTemplate(activeProfile), tmpl))
+		}
+
 		if len(setOptions) > 0 {
 			return cfg.SetFlagsLayer(setOptions)
 		}
@@ -119,9 +126,10 @@ func init() {
 	// グローバルフラグ
 	rootCmd.PersistentFlags().String("profile", "", "Configuration profile to use")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Backlog project key")
-	rootCmd.PersistentFlags().String("output", "", "Output format (table, json)")
+	rootCmd.PersistentFlags().StringP("output", "o", "", "Output format (table, json)")
 	rootCmd.PersistentFlags().String("json", "", "Output JSON with specified fields (comma-separated)")
 	rootCmd.PersistentFlags().String("jq", "", "Filter JSON output using a jq expression")
+	rootCmd.PersistentFlags().StringP("format", "f", "", "Format JSON output using a Go template (e.g. '{{.summary}}')")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
 

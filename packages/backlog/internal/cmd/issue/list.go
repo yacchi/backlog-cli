@@ -291,7 +291,7 @@ func runList(c *cobra.Command, args []string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(issues, profile.JSONFields, profile.JQ)
+		return cmdutil.OutputJSONFromProfile(issues, profile.JSONFields, profile.JQ, profile.Template)
 	default:
 		cacheDir, cacheErr := cfg.GetCacheDir()
 		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)

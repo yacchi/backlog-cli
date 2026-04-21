@@ -139,6 +139,12 @@ func PathProfileJq(key string) string {
 	return "/profile/" + jsonptr.Escape(key) + "/jq"
 }
 
+// PathProfileTemplate returns the JSONPointer path.
+// Path pattern: /profile/{key}/template
+func PathProfileTemplate(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/template"
+}
+
 // PathProfileColor returns the JSONPointer path.
 // Path pattern: /profile/{key}/color
 func PathProfileColor(key string) string {

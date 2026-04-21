@@ -108,7 +108,7 @@ func runStatus(c *cobra.Command, args []string) error {
 		}
 		result.Recent, _ = client.GetIssues(ctx, recentOpts)
 
-		return cmdutil.OutputJSONFromProfile(result, profile.JSONFields, profile.JQ)
+		return cmdutil.OutputJSONFromProfile(result, profile.JSONFields, profile.JQ, profile.Template)
 	}
 
 	// Table output
