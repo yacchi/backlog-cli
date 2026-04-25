@@ -119,6 +119,7 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 }
 
 func Execute() error {
+	rootCmd.Version = Version
 	return rootCmd.Execute()
 }
 

@@ -6,7 +6,7 @@ import (
 
 var MilestoneCmd = &cobra.Command{
 	Use:     "milestone",
-	Aliases: []string{"ms", "version"},
+	Aliases: []string{"ms"},
 	Short:   "Manage milestones",
 	Long:    "Work with Backlog milestones (versions).",
 }
