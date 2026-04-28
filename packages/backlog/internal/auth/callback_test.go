@@ -3,6 +3,9 @@ package auth
 import (
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 )
 
 func TestGenerateState(t *testing.T) {
@@ -212,5 +215,135 @@ func TestExtractLanguageTag(t *testing.T) {
 				t.Errorf("extractLanguageTag(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCheckSessionTimeoutUsesConnectTimeoutBeforeFirstStream(t *testing.T) {
+	config.ResetConfig()
+	defer config.ResetConfig()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load(t.Context())
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	if err := cfg.Set("/auth/session/check_interval", 1); err != nil {
+		t.Fatalf("cfg.Set(check_interval) error = %v", err)
+	}
+	if err := cfg.Set("/auth/keepalive/connect_timeout", 0); err != nil {
+		t.Fatalf("cfg.Set(connect_timeout) error = %v", err)
+	}
+	if err := cfg.Set("/auth/keepalive/grace_period", 1); err != nil {
+		t.Fatalf("cfg.Set(grace_period) error = %v", err)
+	}
+
+	cs := &CallbackServer{
+		configStore:        cfg,
+		result:             make(chan CallbackResult, 1),
+		cancelCheck:        make(chan struct{}),
+		statusNotify:       make(chan struct{}, 1),
+		sessionEstablished: true,
+		session: &Session{
+			ID:                  "test",
+			CreatedAt:           time.Now(),
+			LastActivityAt:      time.Now(),
+			Status:              "pending",
+			StreamConnected:     false,
+			StreamEverConnected: false,
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cs.checkSessionTimeout()
+	}()
+	defer func() {
+		cs.cancelOnce.Do(func() {
+			close(cs.cancelCheck)
+		})
+		<-done
+	}()
+
+	select {
+	case result := <-cs.result:
+		if result.Error == nil {
+			t.Fatal("expected timeout error, got nil")
+		}
+		if !strings.Contains(result.Error.Error(), "browser failed to connect") {
+			t.Fatalf("result.Error = %v, want browser failed to connect", result.Error)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for connect timeout result")
+	}
+}
+
+func TestCheckSessionTimeoutUsesGracePeriodAfterDisconnect(t *testing.T) {
+	config.ResetConfig()
+	defer config.ResetConfig()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load(t.Context())
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	if err := cfg.Set("/auth/session/check_interval", 1); err != nil {
+		t.Fatalf("cfg.Set(check_interval) error = %v", err)
+	}
+	if err := cfg.Set("/auth/keepalive/connect_timeout", 0); err != nil {
+		t.Fatalf("cfg.Set(connect_timeout) error = %v", err)
+	}
+	if err := cfg.Set("/auth/keepalive/grace_period", 0); err != nil {
+		t.Fatalf("cfg.Set(grace_period) error = %v", err)
+	}
+
+	now := time.Now()
+	cs := &CallbackServer{
+		configStore:        cfg,
+		result:             make(chan CallbackResult, 1),
+		cancelCheck:        make(chan struct{}),
+		statusNotify:       make(chan struct{}, 1),
+		sessionEstablished: true,
+		session: &Session{
+			ID:                  "test",
+			CreatedAt:           now.Add(-5 * time.Second),
+			LastActivityAt:      now.Add(-5 * time.Second),
+			Status:              "pending",
+			StreamConnected:     false,
+			StreamEverConnected: true,
+			DisconnectedAt:      &now,
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cs.checkSessionTimeout()
+	}()
+	defer func() {
+		cs.cancelOnce.Do(func() {
+			close(cs.cancelCheck)
+		})
+		<-done
+	}()
+
+	select {
+	case result := <-cs.result:
+		if result.Error == nil {
+			t.Fatal("expected grace period error, got nil")
+		}
+		if !strings.Contains(result.Error.Error(), "browser closed or navigated away") {
+			t.Fatalf("result.Error = %v, want browser closed or navigated away", result.Error)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for grace period result")
+	}
+
+	status, errorMsg := cs.sessionStatus()
+	if status != "error" {
+		t.Fatalf("session status = %q, want error", status)
+	}
+	if !strings.Contains(errorMsg, "browser closed or navigated away") {
+		t.Fatalf("session error = %q, want browser closed or navigated away", errorMsg)
 	}
 }

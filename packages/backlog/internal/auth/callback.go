@@ -41,13 +41,14 @@ type CallbackServerOptions struct {
 
 // Session は認証セッションを表す
 type Session struct {
-	ID              string     // セッションID
-	CreatedAt       time.Time  // 作成時刻
-	LastActivityAt  time.Time  // 最終アクティビティ時刻
-	Status          string     // pending/success/error
-	ErrorMessage    string     // エラーメッセージ
-	StreamConnected bool       // ストリーム接続中かどうか
-	DisconnectedAt  *time.Time // 接続切断時刻（nil=接続中または未接続）
+	ID                  string     // セッションID
+	CreatedAt           time.Time  // 作成時刻
+	LastActivityAt      time.Time  // 最終アクティビティ時刻
+	Status              string     // pending/success/error
+	ErrorMessage        string     // エラーメッセージ
+	StreamConnected     bool       // ストリーム接続中かどうか
+	StreamEverConnected bool       // 一度でもストリーム接続したことがあるか
+	DisconnectedAt      *time.Time // 接続切断時刻（nil=接続中または未接続）
 }
 
 // CallbackServer はCLIのローカルコールバックサーバー
@@ -280,10 +281,12 @@ func (cs *CallbackServer) checkSessionTimeout() {
 			var status string
 			var createdAt time.Time
 			var hasConnection bool
+			var everConnected bool
 			if session != nil {
 				status = session.Status
 				createdAt = session.CreatedAt
 				hasConnection = session.StreamConnected
+				everConnected = session.StreamEverConnected
 			}
 			cs.sessionMu.RUnlock()
 
@@ -303,6 +306,7 @@ func (cs *CallbackServer) checkSessionTimeout() {
 					"count", checkCount,
 					"status", status,
 					"hasConnection", hasConnection,
+					"everConnected", everConnected,
 					"noConnDuration", noConnDuration,
 					"age", time.Since(createdAt).String())
 			}
@@ -342,8 +346,25 @@ func (cs *CallbackServer) checkSessionTimeout() {
 			}
 
 			// 接続がない状態が一定時間続いたらタイムアウト
-			gracePeriod := cs.keepaliveConfig().GracePeriodDuration()
 			elapsed := time.Since(*noConnectionSince)
+			if !everConnected {
+				connectTimeout := cs.keepaliveConfig().ConnectTimeoutDuration()
+				if elapsed > connectTimeout {
+					debug.Log("browser connect timeout expired",
+						"elapsed", elapsed.String(),
+						"connectTimeout", connectTimeout.String())
+					cs.setSessionError("authentication cancelled (browser failed to connect)")
+					cs.once.Do(func() {
+						cs.result <- CallbackResult{
+							Error: fmt.Errorf("authentication cancelled (browser failed to connect)"),
+						}
+					})
+					return
+				}
+				continue
+			}
+
+			gracePeriod := cs.keepaliveConfig().GracePeriodDuration()
 			if elapsed > gracePeriod {
 				debug.Log("no connection grace period expired",
 					"elapsed", elapsed.String(),
@@ -461,6 +482,7 @@ func (cs *CallbackServer) handleStreamConnect() {
 
 	cs.session.DisconnectedAt = nil
 	cs.session.StreamConnected = true
+	cs.session.StreamEverConnected = true
 
 	// ユーザーに通知
 	fmt.Fprintf(os.Stderr, "Browser connected.\n")

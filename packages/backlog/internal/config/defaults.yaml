@@ -359,6 +359,12 @@ display:
 # 認証設定
 # ================================================
 auth:
+  # 認証情報の保存先
+  # auto: keyring が利用できれば keyring、そうでなければ credentials.yaml
+  # file: credentials.yaml に保存
+  # keyring: secret 値のみを OS keyring に保存
+  credential_backend: auto
+
   # コールバックサーバーの許可ポート範囲
   min_callback_port: 1024
   max_callback_port: 65535

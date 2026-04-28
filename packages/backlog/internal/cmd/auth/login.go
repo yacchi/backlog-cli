@@ -236,10 +236,13 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	// 認証情報保存（プロファイルに紐づける）
 	profileName := cfg.GetActiveProfile()
 	cred := &config.Credential{
-		AuthType: config.AuthTypeAPIKey,
-		APIKey:   apiKey,
-		UserID:   user.UserId.Value,
-		UserName: user.Name.Value,
+		AuthType:  config.AuthTypeAPIKey,
+		APIKey:    apiKey,
+		UserID:    user.UserId.Value,
+		UserName:  user.Name.Value,
+		UserEmail: user.MailAddress.Value,
+		Space:     opts.space,
+		Domain:    opts.domain,
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
@@ -299,10 +302,13 @@ func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) 
 	// 認証情報保存
 	profileName := cfg.GetActiveProfile()
 	cred := &config.Credential{
-		AuthType: config.AuthTypeAPIKey,
-		APIKey:   apiKey,
-		UserID:   user.UserId.Value,
-		UserName: user.Name.Value,
+		AuthType:  config.AuthTypeAPIKey,
+		APIKey:    apiKey,
+		UserID:    user.UserId.Value,
+		UserName:  user.Name.Value,
+		UserEmail: user.MailAddress.Value,
+		Space:     loginSpace,
+		Domain:    loginDomain,
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
@@ -446,10 +452,13 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		Space:        space,
+		Domain:       domain,
 	}
 	if user != nil {
 		cred.UserID = user.UserId.Value
 		cred.UserName = user.Name.Value
+		cred.UserEmail = user.MailAddress.Value
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
@@ -646,10 +655,13 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		Space:        space,
+		Domain:       domain,
 	}
 	if user != nil {
 		cred.UserID = user.UserId.Value
 		cred.UserName = user.Name.Value
+		cred.UserEmail = user.MailAddress.Value
 	}
 	_ = cfg.SetCredential(profileName, cred)
 

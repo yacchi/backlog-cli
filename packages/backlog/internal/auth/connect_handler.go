@@ -369,10 +369,13 @@ func (cs *CallbackServer) AuthenticateWithApiKey(
 
 	// 認証情報を保存（auth_typeと必要な情報のみ更新）
 	cred := &config.Credential{
-		AuthType: config.AuthTypeAPIKey,
-		APIKey:   apiKey,
-		UserID:   user.UserId.Value,
-		UserName: user.Name.Value,
+		AuthType:  config.AuthTypeAPIKey,
+		APIKey:    apiKey,
+		UserID:    user.UserId.Value,
+		UserName:  user.Name.Value,
+		UserEmail: user.MailAddress.Value,
+		Space:     space,
+		Domain:    domain,
 	}
 	_ = cs.configStore.SetCredential(profileName, cred)
 
