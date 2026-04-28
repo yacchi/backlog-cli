@@ -65,6 +65,7 @@ const (
 	PathDisplayIssueFieldConfig                    = "/display/issue_field_config"
 	PathDisplayPrListFields                        = "/display/pr_list_fields"
 	PathDisplayPrFieldConfig                       = "/display/pr_field_config"
+	PathAuthCredentialBackend                      = "/auth/credential_backend"
 	PathAuthMinCallbackPort                        = "/auth/min_callback_port"
 	PathAuthMaxCallbackPort                        = "/auth/max_callback_port"
 	PathAuthSessionCheckInterval                   = "/auth/session/check_interval"
@@ -239,6 +240,24 @@ func PathCredentialUserId(key string) string {
 // Path pattern: /credential/{key}/user_name
 func PathCredentialUserName(key string) string {
 	return "/credential/" + jsonptr.Escape(key) + "/user_name"
+}
+
+// PathCredentialUserEmail returns the JSONPointer path.
+// Path pattern: /credential/{key}/user_email
+func PathCredentialUserEmail(key string) string {
+	return "/credential/" + jsonptr.Escape(key) + "/user_email"
+}
+
+// PathCredentialSpace returns the JSONPointer path.
+// Path pattern: /credential/{key}/space
+func PathCredentialSpace(key string) string {
+	return "/credential/" + jsonptr.Escape(key) + "/space"
+}
+
+// PathCredentialDomain returns the JSONPointer path.
+// Path pattern: /credential/{key}/domain
+func PathCredentialDomain(key string) string {
+	return "/credential/" + jsonptr.Escape(key) + "/domain"
 }
 
 // PathClientTrustBundlesId returns the JSONPointer path.

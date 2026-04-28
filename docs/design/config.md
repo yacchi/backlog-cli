@@ -11,7 +11,7 @@
 1. **コマンド引数**（`LayerArgs`）: `backlog --profile/--project/--output/...`
 2. **環境変数**（`LayerEnv`）: `BACKLOG_...`
 3. **プロジェクト設定**（`LayerProject`）: リポジトリ内の `.backlog.yaml`
-4. **クレデンシャル**（`LayerCredentials`）: `~/.config/backlog/credentials.yaml`（0600）
+4. **クレデンシャル**（`LayerCredentials`）: `~/.config/backlog/credentials.yaml`（0600, metadata + file backend secrets）
 5. **ユーザー設定**（`LayerUser`）: `~/.config/backlog/config.yaml`
 6. **デフォルト**（`LayerDefaults`）: `packages/backlog/internal/config/defaults.yaml`（`go:embed`）
 
@@ -19,7 +19,8 @@
 
 - プロジェクト設定: `.backlog.yaml`（リポジトリ内、`findProjectConfigPath()` で上位ディレクトリも探索）
 - ユーザー設定: `~/.config/backlog/config.yaml`
-- クレデンシャル: `~/.config/backlog/credentials.yaml`（センシティブ専用）
+- クレデンシャル metadata: `~/.config/backlog/credentials.yaml`
+- secret 値: `auth.credential_backend` に応じて `credentials.yaml` または OS keyring
 
 実装: `packages/backlog/internal/config/paths.go`, `packages/backlog/internal/config/store.go`
 
@@ -42,8 +43,13 @@
 
 ## センシティブ値（資格情報）
 
-- `credential.*` は「センシティブ」扱いで、原則 `credentials.yaml` だけに保存します。
+- `credential.*` は「センシティブ」扱いです。
+- `auth.credential_backend` で保存先を制御します。
+  - `auto`: keyring が利用できれば keyring、そうでなければ `credentials.yaml`
+  - `keyring`: secret 値のみを OS keyring に保存し、`credentials.yaml` には visible metadata（例: `user_name`, `user_email`, `space`, `domain`）と `secret_ref` を残す
+  - `file`: secret 値も `credentials.yaml` に保存する
 - マスク表示は `jubako.WithSensitiveMaskString()` で行います（`packages/backlog/internal/config/store.go`）。
+- keyring backend では、`secret_ref` は安定キーとして維持しつつ、OS ごとの keyring metadata（例: label/comment/attributes）に人が判別しやすい情報を付与します。
 
 `Credential` は OAuth / API Key を併用でき、後方互換性のため `auth_type` 未設定時の扱いがあります。
 
@@ -57,4 +63,3 @@
 実装: `packages/backlog/internal/config/trust.go`, `packages/backlog/internal/config/relay_info.go`
 
 仕様: `docs/design/relay-config-bundle.md`
-

@@ -76,6 +76,8 @@ func newConfigStore() (*Store, error) {
 	}
 
 	// Layer 3: Credentials (~/.config/backlog/credentials.yaml)
+	// - metadata は YAML に保存し、secret 値は auth.credential_backend に応じて
+	//   keyring または credentials.yaml に投影する
 	// - 最上位に配置することで、設定が誤って書き込まれることを防ぐ
 	// - WithSensitive() により、センシティブフィールドのみ書き込み可能
 	// - WithOptional() により、ファイルが存在しなくても空として扱う
@@ -83,12 +85,12 @@ func newConfigStore() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	credentialsLayer, err := newCredentialLayer(credentialsPath)
+	if err != nil {
+		return nil, err
+	}
 	if err := store.Add(
-		layer.New(
-			LayerCredentials,
-			fs.New(credentialsPath, fs.WithFileMode(0600)),
-			yaml.New(),
-		),
+		credentialsLayer,
 		jubako.WithSensitive(),
 		jubako.WithOptional(),
 	); err != nil {

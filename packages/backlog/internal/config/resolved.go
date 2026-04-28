@@ -250,10 +250,11 @@ type ResolvedFieldConfig struct {
 // jubako tagでauth.*からマッピング
 // env: ディレクティブで環境変数からの自動マッピングを定義
 type ResolvedAuth struct {
-	MinCallbackPort int                   `json:"min_callback_port" jubako:"/auth/min_callback_port,env:AUTH_MIN_CALLBACK_PORT"`
-	MaxCallbackPort int                   `json:"max_callback_port" jubako:"/auth/max_callback_port,env:AUTH_MAX_CALLBACK_PORT"`
-	Session         ResolvedAuthSession   `json:"session" jubako:"/auth/session"`
-	Keepalive       ResolvedAuthKeepalive `json:"keepalive" jubako:"/auth/keepalive"`
+	CredentialBackend CredentialBackend     `json:"credential_backend" jubako:"/auth/credential_backend,env:AUTH_CREDENTIAL_BACKEND"`
+	MinCallbackPort   int                   `json:"min_callback_port" jubako:"/auth/min_callback_port,env:AUTH_MIN_CALLBACK_PORT"`
+	MaxCallbackPort   int                   `json:"max_callback_port" jubako:"/auth/max_callback_port,env:AUTH_MAX_CALLBACK_PORT"`
+	Session           ResolvedAuthSession   `json:"session" jubako:"/auth/session"`
+	Keepalive         ResolvedAuthKeepalive `json:"keepalive" jubako:"/auth/keepalive"`
 }
 
 // ResolvedAuthSession はセッション設定

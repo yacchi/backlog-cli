@@ -229,6 +229,9 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 						ExpiresAt:    expiresAt,
 						UserID:       cred.UserID,
 						UserName:     cred.UserName,
+						UserEmail:    cred.UserEmail,
+						Space:        space,
+						Domain:       domain,
 					}); err != nil {
 						debug.Log("failed to set credential after token refresh", "error", err)
 					}
