@@ -57,12 +57,14 @@ func (s *systemCredentialSecretStore) IsAvailable() bool {
 	return err == nil && hasOwner
 }
 
-func (s *systemCredentialSecretStore) Get(ref string) (string, error) {
+func (s *systemCredentialSecretStore) Get(ref string) (_ string, err error) {
 	session, sessionPath, err := openSecretServiceSession()
 	if err != nil {
 		return "", err
 	}
-	defer session.close(sessionPath)
+	defer func() {
+		err = joinSecretServiceCloseError(err, session.close(sessionPath))
+	}()
 
 	item, err := session.findItem(s.stableAttributes(ref))
 	if err != nil {
@@ -79,15 +81,17 @@ func (s *systemCredentialSecretStore) Get(ref string) (string, error) {
 	return string(secret.Value), nil
 }
 
-func (s *systemCredentialSecretStore) Set(ref string, secret string, meta credentialSecretMetadata) error {
+func (s *systemCredentialSecretStore) Set(ref string, secret string, meta credentialSecretMetadata) (err error) {
 	session, sessionPath, err := openSecretServiceSession()
 	if err != nil {
 		return err
 	}
-	defer session.close(sessionPath)
+	defer func() {
+		err = joinSecretServiceCloseError(err, session.close(sessionPath))
+	}()
 
 	if err := session.deleteItemsByAttrs(s.stableAttributes(ref)); err != nil {
-		if err != errCredentialSecretNotFound {
+		if !errors.Is(err, errCredentialSecretNotFound) {
 			return err
 		}
 	}
@@ -125,12 +129,14 @@ func (s *systemCredentialSecretStore) Set(ref string, secret string, meta creden
 	)
 }
 
-func (s *systemCredentialSecretStore) Delete(ref string) error {
+func (s *systemCredentialSecretStore) Delete(ref string) (err error) {
 	session, sessionPath, err := openSecretServiceSession()
 	if err != nil {
 		return err
 	}
-	defer session.close(sessionPath)
+	defer func() {
+		err = joinSecretServiceCloseError(err, session.close(sessionPath))
+	}()
 
 	return session.deleteItemsByAttrs(s.stableAttributes(ref))
 }
@@ -155,8 +161,7 @@ func openSecretServiceSession() (*secretServiceSession, dbus.ObjectPath, error) 
 	}
 
 	if err := session.unlock(session.collectionPath()); err != nil {
-		_ = session.close(sessionPath)
-		return nil, "", err
+		return nil, "", joinSecretServiceCloseError(err, session.close(sessionPath))
 	}
 	return session, sessionPath, nil
 }
@@ -177,7 +182,20 @@ func (s *secretServiceSession) close(sessionPath dbus.ObjectPath) error {
 	if sessionPath == "" {
 		return nil
 	}
-	return s.conn.Object(secretServiceName, sessionPath).Call(secretSessionInterface+".Close", 0).Err
+	if err := s.conn.Object(secretServiceName, sessionPath).Call(secretSessionInterface+".Close", 0).Err; err != nil {
+		return fmt.Errorf("%w: close secret service session: %w", errCredentialSecretUnavailable, err)
+	}
+	return nil
+}
+
+func joinSecretServiceCloseError(err, closeErr error) error {
+	if closeErr == nil {
+		return err
+	}
+	if err == nil {
+		return closeErr
+	}
+	return errors.Join(err, closeErr)
 }
 
 func (s *secretServiceSession) collectionPath() dbus.ObjectPath {
