@@ -77,6 +77,23 @@ backlog auth login
 >
 > 中継サーバーの構築用コードは本リポジトリの `deploy/` ディレクトリに含まれています（AWS Lambda 用の CDK テンプレート）。
 
+#### 認証情報の保存先
+
+Backlog CLI は API Key や OAuth のトークン保存に **OS Keyring** を利用できます。
+デフォルトの `auto` では、keyring が利用できる環境なら keyring を使い、利用できない場合は
+`$XDG_CONFIG_HOME/backlog/credentials.yaml` に保存します
+（`XDG_CONFIG_HOME` 未設定時は `~/.config/backlog/credentials.yaml`）。
+
+```bash
+# keyring を優先して使う
+backlog config set profile.default.auth.credential_backend keyring
+
+# 常にファイルへ保存する
+backlog config set profile.default.auth.credential_backend file
+```
+
+`keyring` を使う場合、秘密情報は OS Keyring に保存され、`credentials.yaml` にはスペース名やドメインなどの metadata のみが保存されます。
+
 #### Relay Config Bundle（組織向け）
 
 Relay Config Bundle は **中継サーバー側で作成・配布する前提** です。
@@ -494,7 +511,7 @@ backlog issue view PROJ-123 --format '{{.Status.Name}}'
 1. コマンドライン引数
 2. 環境変数
 3. `.backlog.yaml`（カレントディレクトリ）
-4. `~/.config/backlog/config.yaml`（グローバル設定）
+4. `$XDG_CONFIG_HOME/backlog/config.yaml`（グローバル設定、未設定時は `~/.config/backlog/config.yaml`）
 
 ### 環境変数
 
