@@ -127,7 +127,12 @@ func NewCallbackServer(opts CallbackServerOptions) (*CallbackServer, error) {
 		statusNotify:      make(chan struct{}, 1), // バッファ付き（ノンブロッキング通知用）
 	}
 
-	debug.Log("callback server created", "port", actualPort, "address", addr)
+	debug.Log("callback server created",
+		"port", actualPort,
+		"address", addr,
+		"pid", os.Getpid(),
+		"state", stateFingerprint(opts.State),
+	)
 
 	cs.server = &http.Server{
 		Handler: cs.setupRoutes(),
@@ -531,8 +536,22 @@ func (cs *CallbackServer) redirectToRelay(w http.ResponseWriter, r *http.Request
 		redirectURL += "&project=" + url.QueryEscape(project)
 	}
 
-	debug.Log("redirecting to relay server", "url", redirectURL)
+	debug.Log("redirecting to relay server",
+		"url", redirectURL,
+		"port", cs.port,
+		"state", stateFingerprint(cs.state),
+	)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+// stateFingerprint は state の短縮表記をログ用に返す。
+// 完全な state はセキュリティ上ログに残さないが、突き合わせには使いたいため
+// 先頭8文字 + 末尾4文字だけを残す。
+func stateFingerprint(state string) string {
+	if len(state) <= 12 {
+		return state
+	}
+	return state[:8] + "..." + state[len(state)-4:]
 }
 
 // notifyStatus は認証状態変更をストリーミングリスナーに通知する
@@ -595,6 +614,11 @@ func (cs *CallbackServer) handleStreamDisconnect() {
 // handlePopup はポップアップウィンドウ用のページを表示する
 func (cs *CallbackServer) handlePopup(w http.ResponseWriter, r *http.Request) {
 	debug.Log("popup request received", "method", r.Method)
+
+	// この経路で発行される 302 とそのレスポンスはブラウザにキャッシュさせない。
+	// 残しておくと bfcache 等で旧 callback URL が再 GET される原因になる。
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 
 	profile := cs.configStore.CurrentProfile()
 	relayServer := profile.RelayServer
@@ -704,8 +728,13 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 	// Accept-Languageヘッダーから言語を判定
 	isJapanese := isJapanesePreferred(r.Header.Get("Accept-Language"))
 
-	// ポップアップ用の成功/エラーページを表示（自動クローズ付き）
+	// ポップアップ用の成功/エラーページを表示（自動クローズ付き）。
+	// bfcache 等で再表示されたときに同じ /callback?code=...&state=... を再度
+	// GET しに行かないよう、Cache-Control を厳密に no-store にし、
+	// HTML 側でも history.replaceState によりクエリを落としてから close する。
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
 	if callbackError != nil {
 		if isJapanese {
 			_, _ = fmt.Fprint(w, popupErrorPageJa)
@@ -801,30 +830,56 @@ func extractLanguageTag(part string) string {
 	return string(result)
 }
 
+// popupCloseScript はポップアップを安全にクローズするスクリプト。
+//
+//  1. history.replaceState で /callback?code=...&state=... のクエリを落とす。
+//     これで F5 / 戻る等で /callback?code=... を再 GET されない。
+//  2. window.close() を試みる。Chrome は scripted popup でも cross-origin を経由した
+//     window の close を拒否することがある（Backlog 認証画面を経由するためここに該当）。
+//  3. 短時間待っても window が閉じていない場合は about:blank に置換する。
+//     こうすると、ローカルサーバーが既に停止していても popup が
+//     ERR_CONNECTION_REFUSED の表示で残るのを防げる。
+const popupCloseScript = `<script>
+(function(){
+  try {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname + "#done");
+    }
+  } catch (e) {}
+  try { window.close(); } catch (e) {}
+  // close が拒否された場合に備えて、ローカルサーバーに依存しない URL に置換する。
+  setTimeout(function(){
+    if (!window.closed) {
+      try { window.location.replace("about:blank"); } catch (e) {}
+    }
+  }, 250);
+})();
+</script>`
+
 // ポップアップ用成功ページ（即時クローズ）
 const popupSuccessPageJa = `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="utf-8"><title>認証成功</title></head>
-<body><script>window.close();</script></body>
+<body>` + popupCloseScript + `</body>
 </html>`
 
 const popupSuccessPageEn = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Authentication Successful</title></head>
-<body><script>window.close();</script></body>
+<body>` + popupCloseScript + `</body>
 </html>`
 
 // ポップアップ用エラーページ（即時クローズ）
 const popupErrorPageJa = `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="utf-8"><title>認証エラー</title></head>
-<body><script>window.close();</script></body>
+<body>` + popupCloseScript + `</body>
 </html>`
 
 const popupErrorPageEn = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Authentication Error</title></head>
-<body><script>window.close();</script></body>
+<body>` + popupCloseScript + `</body>
 </html>`
 
 // renderPopupError はポップアップ用のエラーページを表示する
