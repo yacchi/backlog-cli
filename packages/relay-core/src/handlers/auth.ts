@@ -236,6 +236,12 @@ export function createAuthHandlers(
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", encodedState);
 
+    // This 302 carries a one-shot, state-bound redirect to Backlog OAuth and
+    // MUST NOT be cached. Without these headers CloudFront / other CDNs may
+    // serve a previous response (with an old port encoded in `state`),
+    // which would route the OAuth callback back to a dead CLI server.
+    c.header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    c.header("Pragma", "no-cache");
     return c.redirect(authUrl.toString(), 302);
   });
 
@@ -321,6 +327,12 @@ export function createAuthHandlers(
     localUrl.searchParams.set("code", code);
     localUrl.searchParams.set("state", claims.cliState);
 
+    // The callback redirect carries a one-shot authorization code and is
+    // bound to a per-invocation local port. Caching it would let a later
+    // OAuth flow be hijacked to a dead port (the symptom we debugged with
+    // the CLI: 2nd login's flow ending at the 1st login's localhost port).
+    c.header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    c.header("Pragma", "no-cache");
     return c.redirect(localUrl.toString(), 302);
   });
 
