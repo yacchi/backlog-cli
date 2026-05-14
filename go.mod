@@ -14,8 +14,8 @@ require (
 	github.com/ogen-go/ogen v1.18.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
-	github.com/yacchi/jubako v0.6.0
-	github.com/yacchi/jubako/format/yaml v0.6.0
+	github.com/yacchi/jubako v0.6.1
+	github.com/yacchi/jubako/format/yaml v0.6.1
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
