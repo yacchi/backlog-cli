@@ -39,16 +39,15 @@ type CallbackServerOptions struct {
 	Ctx               context.Context // コマンドのContext（シグナル処理用）
 }
 
-// Session は認証セッションを表す
+// Session は認証セッションを表す。
+// ストリーム接続状態は CallbackServer 側で別に管理しており、
+// 複数のセッション/タブが並行しても他方を壊さないようにしている。
 type Session struct {
-	ID                  string     // セッションID
-	CreatedAt           time.Time  // 作成時刻
-	LastActivityAt      time.Time  // 最終アクティビティ時刻
-	Status              string     // pending/success/error
-	ErrorMessage        string     // エラーメッセージ
-	StreamConnected     bool       // ストリーム接続中かどうか
-	StreamEverConnected bool       // 一度でもストリーム接続したことがあるか
-	DisconnectedAt      *time.Time // 接続切断時刻（nil=接続中または未接続）
+	ID             string    // セッションID
+	CreatedAt      time.Time // 作成時刻
+	LastActivityAt time.Time // 最終アクティビティ時刻
+	Status         string    // pending/success/error
+	ErrorMessage   string    // エラーメッセージ
 }
 
 // CallbackServer はCLIのローカルコールバックサーバー
@@ -64,13 +63,22 @@ type CallbackServer struct {
 	forceBundleUpdate bool
 	ctx               context.Context // コマンドのContext
 
-	// セッション管理
-	session            *Session      // 現在のセッション（1サーバー1セッション）
+	// セッション管理。cs.session は Cookie 突き合わせ用の代表セッションで
+	// ステータス（pending/success/error）を保持する。同一ブラウザの再読込や
+	// 別タブからの接続によって cs.session が差し替わっても、ストリーム接続の
+	// カウントは下記の stream* フィールドが独立に持つため壊れない。
+	session            *Session      // 現在の代表セッション
 	sessionMu          sync.RWMutex  // セッションアクセス用ミューテックス
 	sessionEstablished bool          // セッションが確立されたことがあるか
 	cancelCheck        chan struct{} // チェッカーを停止するためのチャネル
 	cancelOnce         sync.Once     // cancelCheck を一度だけ閉じるため
 	statusNotify       chan struct{} // ステータス変更通知用チャネル
+
+	// ストリーム接続状態。セッション ID とは独立にカウントする。
+	streamMu            sync.Mutex
+	activeStreams       int        // 現在接続中のストリーム数
+	streamEverConnected bool       // 一度でもストリームが接続されたか
+	disconnectedAt      *time.Time // すべてのストリームが切れた時刻（nil = 接続中もしくは未接続）
 }
 
 // authConfig は認証設定を取得する
@@ -166,7 +174,10 @@ func generateSessionID() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-// createSession は新しいセッションを作成する
+// createSession は新しいセッションを作成する。
+// 既存セッションのステータス（pending/success/error）は引き継ぎ、
+// ID と作成時刻のみを更新する。ストリーム接続状態は cs.streamMu 配下で
+// 別管理しており、ここでは触らない。
 func (cs *CallbackServer) createSession() (*Session, error) {
 	id, err := generateSessionID()
 	if err != nil {
@@ -182,6 +193,16 @@ func (cs *CallbackServer) createSession() (*Session, error) {
 	}
 
 	cs.sessionMu.Lock()
+	// 既存セッションのステータス継承（複数タブ・リロード対応）
+	if cs.session != nil {
+		session.Status = cs.session.Status
+		session.ErrorMessage = cs.session.ErrorMessage
+		// 既にセッションが確立されている場合は作成時刻も引き継ぐ
+		// （session.timeout の起点をリセットしないため）
+		if cs.sessionEstablished {
+			session.CreatedAt = cs.session.CreatedAt
+		}
+	}
 	cs.session = session
 	cs.sessionEstablished = true // セッションが確立されたことを記録
 	cs.sessionMu.Unlock()
@@ -280,15 +301,16 @@ func (cs *CallbackServer) checkSessionTimeout() {
 			established := cs.sessionEstablished
 			var status string
 			var createdAt time.Time
-			var hasConnection bool
-			var everConnected bool
 			if session != nil {
 				status = session.Status
 				createdAt = session.CreatedAt
-				hasConnection = session.StreamConnected
-				everConnected = session.StreamEverConnected
 			}
 			cs.sessionMu.RUnlock()
+
+			cs.streamMu.Lock()
+			hasConnection := cs.activeStreams > 0
+			everConnected := cs.streamEverConnected
+			cs.streamMu.Unlock()
 
 			// セッションがまだ確立されていない場合
 			if !established {
@@ -389,6 +411,7 @@ func (cs *CallbackServer) Wait() CallbackResult {
 
 // Shutdown はサーバーを停止する
 func (cs *CallbackServer) Shutdown(ctx context.Context) error {
+	debug.Log("callback server shutdown", "port", cs.port)
 	// セッションチェッカーを停止
 	cs.cancelOnce.Do(func() {
 		close(cs.cancelCheck)
@@ -471,21 +494,24 @@ func (cs *CallbackServer) sessionStatus() (status string, errorMsg string) {
 	return cs.session.Status, cs.session.ErrorMessage
 }
 
-// handleStreamConnect はストリーム接続時の処理を行う
+// handleStreamConnect はストリーム接続時の処理を行う。
+// 同時に複数のストリームが接続される可能性があるため、カウント形式で管理する。
+// 初回接続時のみユーザーに通知する。
 func (cs *CallbackServer) handleStreamConnect() {
-	cs.sessionMu.Lock()
-	defer cs.sessionMu.Unlock()
+	cs.streamMu.Lock()
+	cs.activeStreams++
+	wasFirst := !cs.streamEverConnected
+	cs.streamEverConnected = true
+	cs.disconnectedAt = nil
+	active := cs.activeStreams
+	cs.streamMu.Unlock()
 
-	if cs.session == nil {
-		return
+	debug.Log("stream connected", "active_streams", active, "was_first", wasFirst)
+
+	if wasFirst {
+		// ユーザーに通知
+		fmt.Fprintf(os.Stderr, "Browser connected.\n")
 	}
-
-	cs.session.DisconnectedAt = nil
-	cs.session.StreamConnected = true
-	cs.session.StreamEverConnected = true
-
-	// ユーザーに通知
-	fmt.Fprintf(os.Stderr, "Browser connected.\n")
 }
 
 // redirectToRelay は中継サーバーへリダイレクトする
@@ -530,40 +556,40 @@ func (cs *CallbackServer) setSessionError(errorMsg string) {
 	cs.notifyStatus("error")
 }
 
-// handleStreamDisconnect はストリーム切断時の処理を行う
+// handleStreamDisconnect はストリーム切断時の処理を行う。
+// アクティブストリームのカウントを1減らし、すべてのストリームが切れた場合のみ
+// 切断時刻を記録する。途中で別のストリームに置き換わっただけ（同時に複数接続中の
+// うち1本が切れた場合）にはタイムアウトを起動しない。
 func (cs *CallbackServer) handleStreamDisconnect() {
-	cs.sessionMu.Lock()
-	defer cs.sessionMu.Unlock()
+	// 認証完了済みなら通知不要（接続カウントだけ減らす）
+	status, _ := cs.sessionStatus()
 
-	if cs.session == nil {
+	cs.streamMu.Lock()
+	cs.activeStreams--
+	if cs.activeStreams < 0 {
+		cs.activeStreams = 0
+	}
+	remaining := cs.activeStreams
+	allDisconnected := remaining == 0
+	if allDisconnected && status == "pending" {
+		now := time.Now()
+		cs.disconnectedAt = &now
+	}
+	cs.streamMu.Unlock()
+
+	debug.Log("stream disconnected", "remaining_streams", remaining, "status", status)
+
+	if !allDisconnected || status != "pending" {
+		// まだ別のストリームが生きている、または認証完了済みのため通知不要。
 		return
 	}
-
-	// 認証が完了している場合は接続状態のみ更新
-	if cs.session.Status != "pending" {
-		cs.session.StreamConnected = false
-		return
-	}
-
-	// 既に切断状態の場合は何もしない
-	if !cs.session.StreamConnected {
-		return
-	}
-
-	// 切断時刻を記録
-	now := time.Now()
-	cs.session.StreamConnected = false
-	cs.session.DisconnectedAt = &now
 
 	gracePeriod := cs.keepaliveConfig().GracePeriodDuration()
-
 	// ユーザーに通知
 	fmt.Fprintf(os.Stderr, "Browser disconnected. Waiting %s for reconnection...\n", gracePeriod)
-
-	debug.Log("stream disconnected",
-		"state", "disconnected",
+	debug.Log("waiting for stream reconnect",
 		"gracePeriod", gracePeriod.String(),
-		"willTimeoutAt", now.Add(gracePeriod).Format("15:04:05"))
+		"willTimeoutAt", time.Now().Add(gracePeriod).Format("15:04:05"))
 }
 
 // handlePopup はポップアップウィンドウ用のページを表示する
