@@ -90,10 +90,10 @@ github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/yacchi/jubako v0.6.0 h1:mZaRo6UrRgQ3MGuLX7AR/D+IOc7nuBeIHCLzjcvj3oU=
-github.com/yacchi/jubako v0.6.0/go.mod h1:dsGxUOt0ZiWpInE6nDetSQ1Gpz+fmSjRcBR5VHpnCVM=
-github.com/yacchi/jubako/format/yaml v0.6.0 h1:eAx+jq3ksFbQamdim9A5h51RoSVy3U4H26BwKNcsSYY=
-github.com/yacchi/jubako/format/yaml v0.6.0/go.mod h1:K3nQo75C6pHAMsJRa7oli1rcHRG4xMBpURpkoIA4P1Y=
+github.com/yacchi/jubako v0.6.1 h1:cXX2VKK3IdpJNtSsajbmSMJFL6MNAcsGITfncZcv4ck=
+github.com/yacchi/jubako v0.6.1/go.mod h1:dsGxUOt0ZiWpInE6nDetSQ1Gpz+fmSjRcBR5VHpnCVM=
+github.com/yacchi/jubako/format/yaml v0.6.1 h1:YfmYKQOYQAgO3KxYKmlSUh3qpkTnfwf0U25fKnfxu2s=
+github.com/yacchi/jubako/format/yaml v0.6.1/go.mod h1:K3nQo75C6pHAMsJRa7oli1rcHRG4xMBpURpkoIA4P1Y=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
