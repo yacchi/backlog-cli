@@ -60,7 +60,13 @@ export default function LoginConfirm() {
     setPopupMessage(null);
     setIsLoggingIn(true);
 
-    const popup = openPopupCentered("/auth/popup", "backlog_auth", 600, 700);
+    // popup window 名はログイン試行ごとに一意にする。
+    // 同名固定にすると、過去ログインの popup ウィンドウ（bfcache 等で残った
+    // 異なる origin の localhost:旧PORT ページ）を window.open が再利用しようとし、
+    // クロスオリジン制約で navigation が silent fail して旧 callback URL の
+    // ままになる → ERR_CONNECTION_REFUSED の原因になる。
+    const popupName = `backlog_auth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const popup = openPopupCentered("/auth/popup", popupName, 600, 700);
 
     if (!popup || popup.closed || typeof popup.closed === "undefined") {
       setPopupMessage(
