@@ -244,12 +244,10 @@ func TestCheckSessionTimeoutUsesConnectTimeoutBeforeFirstStream(t *testing.T) {
 		statusNotify:       make(chan struct{}, 1),
 		sessionEstablished: true,
 		session: &Session{
-			ID:                  "test",
-			CreatedAt:           time.Now(),
-			LastActivityAt:      time.Now(),
-			Status:              "pending",
-			StreamConnected:     false,
-			StreamEverConnected: false,
+			ID:             "test",
+			CreatedAt:      time.Now(),
+			LastActivityAt: time.Now(),
+			Status:         "pending",
 		},
 	}
 
@@ -305,14 +303,15 @@ func TestCheckSessionTimeoutUsesGracePeriodAfterDisconnect(t *testing.T) {
 		statusNotify:       make(chan struct{}, 1),
 		sessionEstablished: true,
 		session: &Session{
-			ID:                  "test",
-			CreatedAt:           now.Add(-5 * time.Second),
-			LastActivityAt:      now.Add(-5 * time.Second),
-			Status:              "pending",
-			StreamConnected:     false,
-			StreamEverConnected: true,
-			DisconnectedAt:      &now,
+			ID:             "test",
+			CreatedAt:      now.Add(-5 * time.Second),
+			LastActivityAt: now.Add(-5 * time.Second),
+			Status:         "pending",
 		},
+		// 一度ストリーム接続したあと、いまは全て切れている状態
+		streamEverConnected: true,
+		activeStreams:       0,
+		disconnectedAt:      &now,
 	}
 
 	done := make(chan struct{})
@@ -346,4 +345,125 @@ func TestCheckSessionTimeoutUsesGracePeriodAfterDisconnect(t *testing.T) {
 	if !strings.Contains(errorMsg, "browser closed or navigated away") {
 		t.Fatalf("session error = %q, want browser closed or navigated away", errorMsg)
 	}
+}
+
+// createSession で新しいセッションを作っても、進行中のストリーム接続状態が
+// 壊れないことを確認する。複数タブやリロードで cs.session が差し替わっても
+// activeStreams/streamEverConnected/disconnectedAt は保持される。
+func TestCreateSessionPreservesStreamState(t *testing.T) {
+	config.ResetConfig()
+	defer config.ResetConfig()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load(t.Context())
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+
+	cs := &CallbackServer{
+		configStore: cfg,
+		result:      make(chan CallbackResult, 1),
+	}
+
+	// 1枚目のセッションを生成しストリームを接続
+	first, err := cs.createSession()
+	if err != nil {
+		t.Fatalf("createSession() error = %v", err)
+	}
+	cs.handleStreamConnect()
+
+	cs.streamMu.Lock()
+	if cs.activeStreams != 1 {
+		t.Fatalf("activeStreams after 1st connect = %d, want 1", cs.activeStreams)
+	}
+	if !cs.streamEverConnected {
+		t.Fatal("streamEverConnected should be true after handleStreamConnect")
+	}
+	cs.streamMu.Unlock()
+
+	// 2枚目のセッションを作成（別タブ・リロード相当）
+	second, err := cs.createSession()
+	if err != nil {
+		t.Fatalf("createSession() #2 error = %v", err)
+	}
+	if first.ID == second.ID {
+		t.Fatal("expected different session IDs for first and second sessions")
+	}
+
+	// ストリーム状態は引き継がれているはず
+	cs.streamMu.Lock()
+	if cs.activeStreams != 1 {
+		t.Fatalf("activeStreams after 2nd createSession = %d, want 1", cs.activeStreams)
+	}
+	if !cs.streamEverConnected {
+		t.Fatal("streamEverConnected should remain true after createSession")
+	}
+	cs.streamMu.Unlock()
+
+	// 元のストリームが切れただけでは「全切断」にはならず timeout 起動しない設計だが、
+	// この時点で1つしか開いていないので、ここでは1本切ると disconnectedAt が立つ
+	cs.handleStreamDisconnect()
+	cs.streamMu.Lock()
+	if cs.activeStreams != 0 {
+		t.Fatalf("activeStreams after disconnect = %d, want 0", cs.activeStreams)
+	}
+	if cs.disconnectedAt == nil {
+		t.Fatal("disconnectedAt should be set after all streams disconnect")
+	}
+	cs.streamMu.Unlock()
+}
+
+// 複数のストリームが並行している場合、1本切れただけでは
+// disconnectedAt は立たない（grace_period が起動しない）ことを確認する。
+func TestMultipleStreamsConcurrentDisconnect(t *testing.T) {
+	config.ResetConfig()
+	defer config.ResetConfig()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load(t.Context())
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+
+	cs := &CallbackServer{
+		configStore: cfg,
+		result:      make(chan CallbackResult, 1),
+	}
+	if _, err := cs.createSession(); err != nil {
+		t.Fatalf("createSession() error = %v", err)
+	}
+
+	// 2本接続
+	cs.handleStreamConnect()
+	cs.handleStreamConnect()
+
+	cs.streamMu.Lock()
+	if cs.activeStreams != 2 {
+		t.Fatalf("activeStreams = %d, want 2", cs.activeStreams)
+	}
+	cs.streamMu.Unlock()
+
+	// 1本切れる
+	cs.handleStreamDisconnect()
+
+	cs.streamMu.Lock()
+	if cs.activeStreams != 1 {
+		t.Fatalf("activeStreams after 1 disconnect = %d, want 1", cs.activeStreams)
+	}
+	if cs.disconnectedAt != nil {
+		t.Fatal("disconnectedAt should NOT be set while another stream is still connected")
+	}
+	cs.streamMu.Unlock()
+
+	// もう1本も切れる
+	cs.handleStreamDisconnect()
+
+	cs.streamMu.Lock()
+	if cs.activeStreams != 0 {
+		t.Fatalf("activeStreams after 2nd disconnect = %d, want 0", cs.activeStreams)
+	}
+	if cs.disconnectedAt == nil {
+		t.Fatal("disconnectedAt should be set after all streams disconnect")
+	}
+	cs.streamMu.Unlock()
 }
