@@ -409,6 +409,12 @@ export class RelayStack extends cdk.Stack {
     // minTtl = 0 でオリジンの no-cache/no-store を尊重
     // defaultTtl はオリジンがCache-Controlを返さない場合のフォールバック
     // Accept-Language をキャッシュキーに含めて言語別にキャッシュ
+    //
+    // queryStringBehavior を all にしているのは、/auth/start?port=...&state=...
+    // のように OAuth のセッション固有 query を持つ動的エンドポイントを区別するため。
+    // 既定の `none` だと port/state を含まない同一キャッシュキーになり、別ログインの
+    // 古い 302 レスポンスが新しいログインに返されてしまう（旧 port への
+    // ERR_CONNECTION_REFUSED の原因となる）。
     const dynamicContentsCachePolicy = new cloudfront.CachePolicy(
       this,
       "DynamicContentsCachePolicy",
@@ -423,6 +429,7 @@ export class RelayStack extends cdk.Stack {
         headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
           "Accept-Language"
         ),
+        queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
       },
     );
 
