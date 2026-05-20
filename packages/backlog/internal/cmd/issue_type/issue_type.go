@@ -1,12 +1,6 @@
 package issue_type
 
-import (
-	"context"
-	"strconv"
-
-	"github.com/spf13/cobra"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
-)
+import "github.com/spf13/cobra"
 
 // IssueTypeCmd は課題種別を管理するコマンド
 var IssueTypeCmd = &cobra.Command{
@@ -52,30 +46,4 @@ func GetColorName(hex string) string {
 		}
 	}
 	return hex
-}
-
-// resolveIssueType はIDまたは名前から種別を解決する
-func resolveIssueType(ctx context.Context, client *api.Client, projectKey, idOrName string) (*api.IssueType, error) {
-	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// IDとして解釈を試みる
-	if id, err := strconv.Atoi(idOrName); err == nil {
-		for i := range issueTypes {
-			if issueTypes[i].ID == id {
-				return &issueTypes[i], nil
-			}
-		}
-	}
-
-	// 名前として検索
-	for i := range issueTypes {
-		if issueTypes[i].Name == idOrName {
-			return &issueTypes[i], nil
-		}
-	}
-
-	return nil, nil
 }

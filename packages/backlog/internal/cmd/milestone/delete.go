@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
@@ -49,20 +47,21 @@ func runDelete(c *cobra.Command, args []string) error {
 	profile := cfg.CurrentProfile()
 	idOrName := args[0]
 
-	// まずバージョン一覧を取得してID/名前で検索
 	ctx := c.Context()
-	versions, err := client.GetVersions(ctx, projectKey)
+	version, err := cmdutil.ResolveMilestone(ctx, client, projectKey, idOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get milestones: %w", err)
-	}
-
-	version := findVersionForDelete(versions, idOrName)
-	if version == nil {
-		return fmt.Errorf("milestone not found: %s", idOrName)
+		return fmt.Errorf("failed to resolve milestone: %w", err)
 	}
 
 	// 確認プロンプト
 	if !deleteYes {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog milestone delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to delete %s?", version.Name),
@@ -93,24 +92,4 @@ func runDelete(c *cobra.Command, args []string) error {
 		fmt.Printf("%s Milestone deleted: %s\n", ui.Green("✓"), deleted.Name)
 		return nil
 	}
-}
-
-func findVersionForDelete(versions []api.Version, idOrName string) *api.Version {
-	// まずIDとして解釈
-	if id, err := strconv.Atoi(idOrName); err == nil {
-		for i := range versions {
-			if versions[i].ID == id {
-				return &versions[i]
-			}
-		}
-	}
-
-	// 名前で検索
-	for i := range versions {
-		if versions[i].Name == idOrName {
-			return &versions[i]
-		}
-	}
-
-	return nil
 }

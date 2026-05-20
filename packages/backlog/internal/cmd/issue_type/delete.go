@@ -27,12 +27,12 @@ Examples:
 }
 
 var (
-	issueTypeDeleteSubstitute int
+	issueTypeDeleteSubstitute string
 	issueTypeDeleteForce      bool
 )
 
 func init() {
-	deleteCmd.Flags().IntVar(&issueTypeDeleteSubstitute, "substitute", 0, "Substitute issue type ID for reassigning issues")
+	deleteCmd.Flags().StringVar(&issueTypeDeleteSubstitute, "substitute", "", "Substitute issue type ID or name for reassigning issues")
 	deleteCmd.Flags().BoolVarP(&issueTypeDeleteForce, "force", "f", false, "Skip confirmation prompt")
 }
 
@@ -52,13 +52,9 @@ func runIssueTypeDelete(c *cobra.Command, args []string) error {
 	ctx := c.Context()
 
 	// 削除対象の種別を取得
-	issueType, err := resolveIssueType(ctx, client, projectKey, idOrName)
+	issueType, err := cmdutil.ResolveIssueType(ctx, client, projectKey, idOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get issue type: %w", err)
-	}
-
-	if issueType == nil {
-		return fmt.Errorf("issue type not found: %s", idOrName)
+		return fmt.Errorf("failed to resolve issue type: %w", err)
 	}
 
 	// すべての種別を取得（付け替え先の選択肢用）
@@ -85,10 +81,17 @@ func runIssueTypeDelete(c *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot delete: no other issue types to reassign issues to")
 	}
 
-	substituteID := issueTypeDeleteSubstitute
+	substituteID := 0
 
 	// 対話モード: 付け替え先
-	if substituteID == 0 {
+	if issueTypeDeleteSubstitute == "" {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--substitute is required when not running interactively",
+				"backlog issue-type delete",
+				"Use --substitute <issue-type-id|issue-type-name> to choose the replacement type.",
+			)
+		}
 		options := make([]string, len(otherTypes))
 		for i, t := range otherTypes {
 			options[i] = fmt.Sprintf("%s (ID: %d)", t.Name, t.ID)
@@ -110,10 +113,26 @@ func runIssueTypeDelete(c *cobra.Command, args []string) error {
 				break
 			}
 		}
+	} else {
+		resolvedSubstitute, err := cmdutil.ResolveIssueType(ctx, client, projectKey, issueTypeDeleteSubstitute)
+		if err != nil {
+			return fmt.Errorf("failed to resolve substitute issue type: %w", err)
+		}
+		substituteID = resolvedSubstitute.ID
+	}
+	if substituteID == issueType.ID {
+		return fmt.Errorf("substitute issue type must be different from the issue type being deleted")
 	}
 
 	// 確認プロンプト
 	if !issueTypeDeleteForce {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--force is required when not running interactively",
+				"backlog issue-type delete",
+				"Use --force to skip the confirmation prompt.",
+			)
+		}
 		var substituteName string
 		for _, t := range otherTypes {
 			if t.ID == substituteID {

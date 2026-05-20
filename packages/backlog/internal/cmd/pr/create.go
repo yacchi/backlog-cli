@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -38,15 +37,15 @@ Examples:
 }
 
 var (
-	createRepo       string
-	createBase       string
-	createHead       string
-	createTitle      string
-	createBody       string
-	createBodyFile   string
-	createIssueID    int
-	createAssigneeID int
-	createReviewers  string
+	createRepo      string
+	createBase      string
+	createHead      string
+	createTitle     string
+	createBody      string
+	createBodyFile  string
+	createIssueID   int
+	createAssignee  string
+	createReviewers string
 )
 
 func init() {
@@ -57,8 +56,8 @@ func init() {
 	createCmd.Flags().StringVarP(&createBody, "body", "b", "", "Pull request description")
 	createCmd.Flags().StringVarP(&createBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	createCmd.Flags().IntVar(&createIssueID, "issue", 0, "Related issue ID")
-	createCmd.Flags().IntVar(&createAssigneeID, "assignee", 0, "Assignee user ID")
-	createCmd.Flags().StringVar(&createReviewers, "reviewer", "", "Reviewer user IDs (comma-separated)")
+	createCmd.Flags().StringVar(&createAssignee, "assignee", "", "Assignee (user ID, userId, display name, or @me)")
+	createCmd.Flags().StringVar(&createReviewers, "reviewer", "", "Reviewer IDs, userIds, or display names (comma-separated)")
 	_ = createCmd.MarkFlagRequired("repo")
 }
 
@@ -74,6 +73,27 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
+	interactive := ui.IsInteractiveInput()
+
+	if !interactive {
+		var missing []string
+		if createBase == "" {
+			missing = append(missing, "--base")
+		}
+		if createHead == "" {
+			missing = append(missing, "--head")
+		}
+		if createTitle == "" {
+			missing = append(missing, "--title")
+		}
+		if len(missing) > 0 {
+			return cmdutil.NonInteractiveFlagError(
+				fmt.Sprintf("%s required when not running interactively", strings.Join(missing, ", ")),
+				"backlog pr create",
+				"Use --base <branch>, --head <branch>, and --title <text>.",
+			)
+		}
+	}
 
 	// 対話モード: 必須フィールドが未指定の場合
 	if createBase == "" {
@@ -104,12 +124,9 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 	}
 
-	createBody, err = cmdutil.ResolveBody(
-		createBody,
-		createBodyFile,
-		false,
-		nil,
-		func() (string, error) {
+	var interactiveBodyInput func() (string, error)
+	if interactive {
+		interactiveBodyInput = func() (string, error) {
 			var body string
 			prompt := &survey.Multiline{
 				Message: "Pull request description:",
@@ -118,7 +135,14 @@ func runCreate(c *cobra.Command, args []string) error {
 				return "", err
 			}
 			return body, nil
-		},
+		}
+	}
+	createBody, err = cmdutil.ResolveBody(
+		createBody,
+		createBodyFile,
+		false,
+		nil,
+		interactiveBodyInput,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get body: %w", err)
@@ -127,17 +151,17 @@ func runCreate(c *cobra.Command, args []string) error {
 	// レビュアーID解析
 	var reviewerIDs []int
 	if createReviewers != "" {
-		parts := strings.Split(createReviewers, ",")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			id, err := strconv.Atoi(part)
-			if err != nil {
-				return fmt.Errorf("invalid reviewer ID: %s", part)
-			}
-			reviewerIDs = append(reviewerIDs, id)
+		reviewerIDs, err = cmdutil.ResolveProjectUserIDs(c.Context(), client, projectKey, createReviewers)
+		if err != nil {
+			return fmt.Errorf("failed to resolve reviewers: %w", err)
+		}
+	}
+
+	assigneeID := 0
+	if createAssignee != "" {
+		assigneeID, err = cmdutil.ResolveProjectAssigneeID(c.Context(), client, projectKey, createAssignee)
+		if err != nil {
+			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 	}
 
@@ -148,7 +172,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		Base:            createBase,
 		Branch:          createHead,
 		IssueID:         createIssueID,
-		AssigneeID:      createAssigneeID,
+		AssigneeID:      assigneeID,
 		NotifiedUserIDs: reviewerIDs,
 	}
 

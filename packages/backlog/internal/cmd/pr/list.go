@@ -3,7 +3,6 @@ package pr
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -51,8 +50,8 @@ func init() {
 	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of pull requests to fetch")
 	listCmd.Flags().BoolVarP(&listWeb, "web", "w", false, "Open pull request list in browser")
 	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of pull requests")
-	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author (user ID or @me)")
-	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID or @me)")
+	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author (user ID, userId, display name, or @me)")
+	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID, userId, display name, or @me)")
 	_ = listCmd.MarkFlagRequired("repo")
 }
 
@@ -97,31 +96,19 @@ func runList(c *cobra.Command, args []string) error {
 	ctx := c.Context()
 
 	// 作成者フィルター
-	if listAuthor == "@me" {
-		me, err := client.GetCurrentUser(ctx)
+	if listAuthor != "" {
+		authorID, err := cmdutil.ResolveProjectAuthorID(ctx, client, projectKey, listAuthor)
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
-		}
-		opts.CreatedUserIDs = []int{me.ID.Value}
-	} else if listAuthor != "" {
-		authorID, err := strconv.Atoi(listAuthor)
-		if err != nil {
-			return fmt.Errorf("invalid author ID: %s", listAuthor)
+			return fmt.Errorf("failed to resolve author: %w", err)
 		}
 		opts.CreatedUserIDs = []int{authorID}
 	}
 
 	// 担当者フィルター
-	if listAssignee == "@me" {
-		me, err := client.GetCurrentUser(ctx)
+	if listAssignee != "" {
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, listAssignee)
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
-		}
-		opts.AssigneeIDs = []int{me.ID.Value}
-	} else if listAssignee != "" {
-		assigneeID, err := strconv.Atoi(listAssignee)
-		if err != nil {
-			return fmt.Errorf("invalid assignee ID: %s", listAssignee)
+			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		opts.AssigneeIDs = []int{assigneeID}
 	}

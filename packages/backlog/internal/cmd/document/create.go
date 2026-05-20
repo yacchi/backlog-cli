@@ -55,6 +55,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	ctx := c.Context()
+	interactive := ui.IsInteractiveInput()
 
 	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
@@ -62,26 +63,31 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	if createTitle == "" {
+		if !interactive {
+			return cmdutil.NonInteractiveFlagError(
+				"--title is required when not running interactively",
+				"backlog document create",
+				"Use --title <text> to create a document without prompts.",
+			)
+		}
 		prompt := &survey.Input{Message: "Document title:"}
 		if err := survey.AskOne(prompt, &createTitle, survey.WithValidator(survey.Required)); err != nil {
 			return err
 		}
 	}
 
-	createContent, err = cmdutil.ResolveBody(
-		createContent,
-		createContentFile,
-		false,
-		nil,
-		func() (string, error) {
+	var interactiveContentInput func() (string, error)
+	if interactive {
+		interactiveContentInput = func() (string, error) {
 			var content string
 			prompt := &survey.Multiline{Message: "Content (Markdown supported):"}
 			if err := survey.AskOne(prompt, &content); err != nil {
 				return "", err
 			}
 			return content, nil
-		},
-	)
+		}
+	}
+	createContent, err = cmdutil.ResolveBody(createContent, createContentFile, false, nil, interactiveContentInput)
 	if err != nil {
 		return fmt.Errorf("failed to get content: %w", err)
 	}

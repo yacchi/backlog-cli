@@ -28,12 +28,12 @@ Examples:
 }
 
 var (
-	editRepo       string
-	editTitle      string
-	editBody       string
-	editBodyFile   string
-	editAssigneeID int
-	editIssueID    int
+	editRepo     string
+	editTitle    string
+	editBody     string
+	editBodyFile string
+	editAssignee string
+	editIssueID  int
 )
 
 func init() {
@@ -41,7 +41,7 @@ func init() {
 	editCmd.Flags().StringVarP(&editTitle, "title", "t", "", "New title (summary)")
 	editCmd.Flags().StringVarP(&editBody, "body", "b", "", "New description")
 	editCmd.Flags().StringVarP(&editBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
-	editCmd.Flags().IntVar(&editAssigneeID, "assignee", 0, "Assignee user ID")
+	editCmd.Flags().StringVar(&editAssignee, "assignee", "", "Assignee (user ID, userId, display name, or @me)")
 	editCmd.Flags().IntVar(&editIssueID, "issue", 0, "Related issue ID")
 	_ = editCmd.MarkFlagRequired("repo")
 }
@@ -83,7 +83,11 @@ func runEdit(c *cobra.Command, args []string) error {
 		}
 	}
 	if c.Flags().Changed("assignee") {
-		input.AssigneeID = &editAssigneeID
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(c.Context(), client, projectKey, editAssignee)
+		if err != nil {
+			return fmt.Errorf("failed to resolve assignee: %w", err)
+		}
+		input.AssigneeID = &assigneeID
 		hasChanges = true
 	}
 	if c.Flags().Changed("issue") {

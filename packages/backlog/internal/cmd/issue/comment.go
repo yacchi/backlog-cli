@@ -88,16 +88,28 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 	if err != nil {
 		return err
 	}
+	interactive := ui.IsInteractiveInput()
+	if !interactive && commentBody == "" && commentBodyFile == "" && !commentEditor {
+		return cmdutil.NonInteractiveFlagError(
+			"--body, --body-file, or --editor is required when not running interactively",
+			"backlog issue comment",
+			"Use --body <text>, --body-file <path>, or --editor to add a comment without prompts.",
+		)
+	}
 
 	// メッセージ取得
+	var interactiveCommentInput func() (string, error)
+	if interactive {
+		interactiveCommentInput = func() (string, error) {
+			return ui.Input("Comment:", "")
+		}
+	}
 	message, err := cmdutil.ResolveBody(
 		commentBody,
 		commentBodyFile,
 		commentEditor,
 		openEditor,
-		func() (string, error) {
-			return ui.Input("Comment:", "")
-		},
+		interactiveCommentInput,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get comment: %w", err)
@@ -161,14 +173,25 @@ func runEditComment(c *cobra.Command, issueKey string) error {
 			return fmt.Errorf("failed to open editor: %w", err)
 		}
 	} else {
+		if !ui.IsInteractiveInput() && commentBody == "" && commentBodyFile == "" {
+			return cmdutil.NonInteractiveFlagError(
+				"--body or --body-file is required when not running interactively",
+				"backlog issue comment",
+				"Use --body <text>, --body-file <path>, or --editor when editing a comment without prompts.",
+			)
+		}
+		var interactiveCommentInput func() (string, error)
+		if ui.IsInteractiveInput() {
+			interactiveCommentInput = func() (string, error) {
+				return ui.Input("New comment:", existingComment.Content)
+			}
+		}
 		message, err = cmdutil.ResolveBody(
 			commentBody,
 			commentBodyFile,
 			false,
 			nil,
-			func() (string, error) {
-				return ui.Input("New comment:", existingComment.Content)
-			},
+			interactiveCommentInput,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to get comment: %w", err)

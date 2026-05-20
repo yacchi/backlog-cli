@@ -53,6 +53,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// プロジェクトID取得
 	ctx := c.Context()
+	interactive := ui.IsInteractiveInput()
 	project, err := client.GetProject(ctx, projectKey)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
@@ -60,6 +61,13 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// 対話モード
 	if createName == "" {
+		if !interactive {
+			return cmdutil.NonInteractiveFlagError(
+				"--name is required when not running interactively",
+				"backlog wiki create",
+				"Use --name <text> to create a wiki page without prompts.",
+			)
+		}
 		prompt := &survey.Input{
 			Message: "Wiki page name:",
 		}
@@ -68,12 +76,9 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 	}
 
-	createContent, err = cmdutil.ResolveBody(
-		createContent,
-		createContentFile,
-		false,
-		nil,
-		func() (string, error) {
+	var interactiveContentInput func() (string, error)
+	if interactive {
+		interactiveContentInput = func() (string, error) {
 			var content string
 			prompt := &survey.Multiline{
 				Message: "Content (Markdown supported):",
@@ -82,8 +87,9 @@ func runCreate(c *cobra.Command, args []string) error {
 				return "", err
 			}
 			return content, nil
-		},
-	)
+		}
+	}
+	createContent, err = cmdutil.ResolveBody(createContent, createContentFile, false, nil, interactiveContentInput)
 	if err != nil {
 		return fmt.Errorf("failed to get content: %w", err)
 	}

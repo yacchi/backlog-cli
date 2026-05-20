@@ -4,19 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 )
 
 var deleteCmd = &cobra.Command{
-	Use:   "delete <category-id>",
+	Use:   "delete <category-id-or-name>",
 	Short: "Delete a category",
 	Long: `Delete a category from the project.
 
 Examples:
   backlog category delete 12345
+  backlog category delete Bug
   backlog category delete 12345 -p PROJECT_KEY`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDelete,
@@ -33,13 +33,15 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
-
-	categoryID, err := strconv.Atoi(args[0])
+	category, err := cmdutil.ResolveCategory(cmd.Context(), client, projectKey, args[0])
 	if err != nil {
-		return fmt.Errorf("invalid category ID: %s", args[0])
+		return fmt.Errorf("failed to resolve category: %w", err)
+	}
+	if category == nil {
+		return fmt.Errorf("category not found: %s", args[0])
 	}
 
-	category, err := client.DeleteCategory(cmd.Context(), projectKey, categoryID)
+	deletedCategory, err := client.DeleteCategory(cmd.Context(), projectKey, category.ID)
 	if err != nil {
 		return fmt.Errorf("failed to delete category: %w", err)
 	}
@@ -49,9 +51,9 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(category)
+		return enc.Encode(deletedCategory)
 	default:
-		fmt.Printf("Deleted category: %s (ID: %d)\n", category.Name.Value, category.ID.Value)
+		fmt.Printf("Deleted category: %s (ID: %d)\n", deletedCategory.Name.Value, deletedCategory.ID.Value)
 		return nil
 	}
 }
