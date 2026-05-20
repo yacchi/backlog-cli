@@ -174,8 +174,8 @@ func decodeAttachFileToWikiResponse(resp *http.Response) (res []Attachment, _ er
 
 func decodeCreateCategoryResponse(resp *http.Response) (res *Category, _ error) {
 	switch resp.StatusCode {
-	case 201:
-		// Code 201.
+	case 200:
+		// Code 200.
 		ct, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		if err != nil {
 			return res, errors.Wrap(err, "parse media type")
