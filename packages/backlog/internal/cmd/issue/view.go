@@ -444,18 +444,16 @@ func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComment
 func fetchAllComments(ctx context.Context, client *api.Client, issueKey string, order string, sinceID int) ([]api.Comment, error) {
 	const batchSize = 100
 	var allComments []api.Comment
-	maxID := 0
+	// 昇順で取得しminID+1でページネーション（maxIdのinclusive問題を回避）
+	minID := sinceID
 
 	for {
 		opts := &api.CommentListOptions{
 			Count: batchSize,
-			Order: order,
+			Order: "asc",
 		}
-		if maxID > 0 {
-			opts.MaxID = maxID
-		}
-		if sinceID > 0 {
-			opts.MinID = sinceID
+		if minID > 0 {
+			opts.MinID = minID
 		}
 
 		batch, err := client.GetComments(ctx, issueKey, opts)
@@ -468,14 +466,17 @@ func fetchAllComments(ctx context.Context, client *api.Client, issueKey string, 
 		}
 
 		allComments = append(allComments, batch...)
+		minID = batch[len(batch)-1].ID + 1
 
-		// 次のページ用に最小のIDを取得
-		lastComment := batch[len(batch)-1]
-		maxID = lastComment.ID
-
-		// 取得件数がbatchSizeより少なければ、これ以上ない
 		if len(batch) < batchSize {
 			break
+		}
+	}
+
+	// descが指定された場合は最後に逆順にする
+	if order == "desc" {
+		for i, j := 0, len(allComments)-1; i < j; i, j = i+1, j-1 {
+			allComments[i], allComments[j] = allComments[j], allComments[i]
 		}
 	}
 
