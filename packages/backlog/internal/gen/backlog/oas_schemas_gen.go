@@ -402,12 +402,12 @@ type CreateIssueReq struct {
 	DueDate        OptString  `json:"dueDate"`
 	EstimatedHours OptFloat64 `json:"estimatedHours"`
 	ActualHours    OptFloat64 `json:"actualHours"`
-	CategoryId     []int      `json:"categoryId"`
-	VersionId      []int      `json:"versionId"`
-	MilestoneId    []int      `json:"milestoneId"`
+	CategoryId     []int      `json:"categoryId[]"`
+	VersionId      []int      `json:"versionId[]"`
+	MilestoneId    []int      `json:"milestoneId[]"`
 	AssigneeId     OptInt     `json:"assigneeId"`
 	ParentIssueId  OptInt     `json:"parentIssueId"`
-	AttachmentId   []int      `json:"attachmentId"`
+	AttachmentId   []int      `json:"attachmentId[]"`
 }
 
 // GetProjectId returns the value of ProjectId.
@@ -4297,11 +4297,11 @@ type UpdateIssueReq struct {
 	EstimatedHours OptFloat64 `json:"estimatedHours"`
 	ActualHours    OptFloat64 `json:"actualHours"`
 	AssigneeId     OptInt     `json:"assigneeId"`
-	CategoryId     []int      `json:"categoryId"`
-	VersionId      []int      `json:"versionId"`
-	MilestoneId    []int      `json:"milestoneId"`
+	CategoryId     []int      `json:"categoryId[]"`
+	VersionId      []int      `json:"versionId[]"`
+	MilestoneId    []int      `json:"milestoneId[]"`
 	Comment        OptString  `json:"comment"`
-	AttachmentId   []int      `json:"attachmentId"`
+	AttachmentId   []int      `json:"attachmentId[]"`
 }
 
 // GetSummary returns the value of Summary.

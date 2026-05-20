@@ -1267,15 +1267,15 @@ paths:
                   type: number
                 actualHours:
                   type: number
-                categoryId:
+                categoryId[]:
                   type: array
                   items:
                     type: integer
-                versionId:
+                versionId[]:
                   type: array
                   items:
                     type: integer
-                milestoneId:
+                milestoneId[]:
                   type: array
                   items:
                     type: integer
@@ -1283,7 +1283,7 @@ paths:
                   type: integer
                 parentIssueId:
                   type: integer
-                attachmentId:
+                attachmentId[]:
                   type: array
                   items:
                     type: integer
@@ -1377,21 +1377,21 @@ paths:
                   type: number
                 assigneeId:
                   type: integer
-                categoryId:
+                categoryId[]:
                   type: array
                   items:
                     type: integer
-                versionId:
+                versionId[]:
                   type: array
                   items:
                     type: integer
-                milestoneId:
+                milestoneId[]:
                   type: array
                   items:
                     type: integer
                 comment:
                   type: string
-                attachmentId:
+                attachmentId[]:
                   type: array
                   items:
                     type: integer

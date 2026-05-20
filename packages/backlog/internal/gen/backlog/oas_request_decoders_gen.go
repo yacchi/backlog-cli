@@ -963,7 +963,7 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "categoryId",
+					Name:    "categoryId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -991,13 +991,13 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"categoryId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"categoryId[]\"")
 					}
 				}
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "versionId",
+					Name:    "versionId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -1025,13 +1025,13 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"versionId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"versionId[]\"")
 					}
 				}
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "milestoneId",
+					Name:    "milestoneId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -1059,7 +1059,7 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"milestoneId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"milestoneId[]\"")
 					}
 				}
 			}
@@ -1129,7 +1129,7 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "attachmentId",
+					Name:    "attachmentId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -1157,7 +1157,7 @@ func (s *Server) decodeCreateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId[]\"")
 					}
 				}
 			}
@@ -2130,7 +2130,7 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "categoryId",
+					Name:    "categoryId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -2158,13 +2158,13 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"categoryId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"categoryId[]\"")
 					}
 				}
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "versionId",
+					Name:    "versionId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -2192,13 +2192,13 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"versionId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"versionId[]\"")
 					}
 				}
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "milestoneId",
+					Name:    "milestoneId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -2226,7 +2226,7 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"milestoneId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"milestoneId[]\"")
 					}
 				}
 			}
@@ -2264,7 +2264,7 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "attachmentId",
+					Name:    "attachmentId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -2292,7 +2292,7 @@ func (s *Server) decodeUpdateIssueRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId[]\"")
 					}
 				}
 			}

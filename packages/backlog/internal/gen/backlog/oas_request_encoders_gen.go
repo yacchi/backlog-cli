@@ -436,9 +436,9 @@ func encodeCreateIssueRequest(
 		}
 	}
 	{
-		// Encode "categoryId" form field.
+		// Encode "categoryId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "categoryId",
+			Name:    "categoryId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -461,9 +461,9 @@ func encodeCreateIssueRequest(
 		}
 	}
 	{
-		// Encode "versionId" form field.
+		// Encode "versionId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "versionId",
+			Name:    "versionId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -486,9 +486,9 @@ func encodeCreateIssueRequest(
 		}
 	}
 	{
-		// Encode "milestoneId" form field.
+		// Encode "milestoneId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "milestoneId",
+			Name:    "milestoneId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -543,9 +543,9 @@ func encodeCreateIssueRequest(
 		}
 	}
 	{
-		// Encode "attachmentId" form field.
+		// Encode "attachmentId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "attachmentId",
+			Name:    "attachmentId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -986,9 +986,9 @@ func encodeUpdateIssueRequest(
 		}
 	}
 	{
-		// Encode "categoryId" form field.
+		// Encode "categoryId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "categoryId",
+			Name:    "categoryId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -1011,9 +1011,9 @@ func encodeUpdateIssueRequest(
 		}
 	}
 	{
-		// Encode "versionId" form field.
+		// Encode "versionId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "versionId",
+			Name:    "versionId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -1036,9 +1036,9 @@ func encodeUpdateIssueRequest(
 		}
 	}
 	{
-		// Encode "milestoneId" form field.
+		// Encode "milestoneId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "milestoneId",
+			Name:    "milestoneId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -1077,9 +1077,9 @@ func encodeUpdateIssueRequest(
 		}
 	}
 	{
-		// Encode "attachmentId" form field.
+		// Encode "attachmentId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "attachmentId",
+			Name:    "attachmentId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
