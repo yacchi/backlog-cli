@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
@@ -60,7 +59,7 @@ func init() {
 	editCmd.Flags().StringVarP(&editBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	editCmd.Flags().IntVar(&editStatusID, "status", 0, "Status ID")
 	editCmd.Flags().IntVar(&editPriority, "priority", 0, "Priority ID")
-	editCmd.Flags().StringVarP(&editAssignee, "assignee", "a", "", "Assignee (user ID or @me)")
+	editCmd.Flags().StringVarP(&editAssignee, "assignee", "a", "", "Assignee (user ID, userId, display name, or @me)")
 	editCmd.Flags().StringVar(&editDueDate, "due", "", "Due date (YYYY-MM-DD)")
 	editCmd.Flags().StringVarP(&editComment, "comment", "c", "", "Comment to add")
 	editCmd.Flags().StringVarP(&editMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
@@ -81,6 +80,7 @@ func runEdit(c *cobra.Command, args []string) error {
 
 	input := &api.UpdateIssueInput{}
 	hasUpdate := false
+	resolvedKey, projectKey := cmdutil.ResolveIssueKey(issueKey, cmdutil.GetCurrentProject(cfg))
 
 	if editTitle != "" {
 		input.Summary = &editTitle
@@ -118,25 +118,14 @@ func runEdit(c *cobra.Command, args []string) error {
 
 	// 担当者
 	ctx := c.Context()
-	if editAssignee == "@me" {
-		me, err := client.GetCurrentUser(ctx)
+	if editAssignee != "" {
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, editAssignee)
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
-		}
-		id := me.ID.Value
-		input.AssigneeID = &id
-		hasUpdate = true
-	} else if editAssignee != "" {
-		assigneeID, err := strconv.Atoi(editAssignee)
-		if err != nil {
-			return fmt.Errorf("invalid assignee ID: %s", editAssignee)
+			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		input.AssigneeID = &assigneeID
 		hasUpdate = true
 	}
-
-	// マイルストーン・カテゴリの処理にはプロジェクトキーが必要
-	resolvedKey, projectKey := cmdutil.ResolveIssueKey(issueKey, cmdutil.GetCurrentProject(cfg))
 
 	// 差分操作が必要な場合は現在の課題情報を取得
 	needsFetch := editAddCategories != "" || editRemoveCategories != "" || editRemoveMilestone
@@ -155,7 +144,7 @@ func runEdit(c *cobra.Command, args []string) error {
 		input.MilestoneIDs = []int{}
 		hasUpdate = true
 	} else if editMilestones != "" {
-		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, editMilestones)
+		milestoneIDs, err := cmdutil.ResolveMilestoneIDs(ctx, client, projectKey, editMilestones)
 		if err != nil {
 			return fmt.Errorf("failed to resolve milestones: %w", err)
 		}
@@ -165,7 +154,7 @@ func runEdit(c *cobra.Command, args []string) error {
 
 	// カテゴリ（完全置換）
 	if editCategories != "" {
-		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, editCategories)
+		categoryIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, editCategories)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories: %w", err)
 		}
@@ -175,7 +164,7 @@ func runEdit(c *cobra.Command, args []string) error {
 
 	// カテゴリ追加（差分操作）
 	if editAddCategories != "" {
-		addIDs, err := resolveCategoryIDs(ctx, client, projectKey, editAddCategories)
+		addIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, editAddCategories)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories to add: %w", err)
 		}
@@ -201,7 +190,7 @@ func runEdit(c *cobra.Command, args []string) error {
 
 	// カテゴリ削除（差分操作）
 	if editRemoveCategories != "" {
-		removeIDs, err := resolveCategoryIDs(ctx, client, projectKey, editRemoveCategories)
+		removeIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, editRemoveCategories)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories to remove: %w", err)
 		}

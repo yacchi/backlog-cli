@@ -38,13 +38,9 @@ func runIssueTypeView(c *cobra.Command, args []string) error {
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	ctx := c.Context()
 
-	issueType, err := resolveIssueType(ctx, client, projectKey, idOrName)
+	issueType, err := cmdutil.ResolveIssueType(ctx, client, projectKey, idOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get issue type: %w", err)
-	}
-
-	if issueType == nil {
-		return fmt.Errorf("issue type not found: %s", idOrName)
+		return fmt.Errorf("failed to resolve issue type: %w", err)
 	}
 
 	// 出力

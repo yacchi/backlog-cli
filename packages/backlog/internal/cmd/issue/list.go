@@ -81,8 +81,8 @@ var (
 )
 
 func init() {
-	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID or @me)")
-	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author/creator (user ID or @me)")
+	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID, userId, display name, or @me)")
+	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author/creator (user ID, userId, display name, or @me)")
 	listCmd.Flags().StringVarP(&listState, "state", "s", "open", "Filter by state: {open|closed|all}")
 	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 30, "Maximum number of issues to fetch")
 	listCmd.Flags().StringVarP(&listSearch, "search", "S", "", "Search issues with keyword")
@@ -98,7 +98,7 @@ func init() {
 	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of issues")
 	listCmd.Flags().StringVarP(&listCategory, "category", "l", "", "Filter by category IDs or names (comma-separated, like gh --label)")
 	listCmd.Flags().StringVarP(&listMilestone, "milestone", "m", "", "Filter by milestone IDs or names (comma-separated)")
-	listCmd.Flags().StringVarP(&listIssueType, "type", "T", "", "Filter by issue type name (e.g., Bug, タスク)")
+	listCmd.Flags().StringVarP(&listIssueType, "type", "T", "", "Filter by issue type IDs or names (e.g., 1, Bug, タスク)")
 	listCmd.Flags().StringVar(&listSort, "sort", "updated", "Sort field: created, updated, issueType, category, priority, dueDate, etc.")
 	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
 }
@@ -142,40 +142,32 @@ func runList(c *cobra.Command, args []string) error {
 	}
 
 	// 担当者フィルター
-	if listMine || listAssignee == "@me" {
-		// 自分の課題
-		me, err := client.GetCurrentUser(ctx)
+	if listMine {
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, "@me")
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
+			return err
 		}
-		opts.AssigneeIDs = []int{me.ID.Value}
+		opts.AssigneeIDs = []int{assigneeID}
 	} else if listAssignee != "" {
-		// 指定ユーザー
-		assigneeID, err := strconv.Atoi(listAssignee)
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, listAssignee)
 		if err != nil {
-			return fmt.Errorf("invalid assignee ID: %s", listAssignee)
+			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		opts.AssigneeIDs = []int{assigneeID}
 	}
 
 	// 作成者フィルター
-	if listAuthor == "@me" {
-		me, err := client.GetCurrentUser(ctx)
+	if listAuthor != "" {
+		authorID, err := cmdutil.ResolveProjectAuthorID(ctx, client, projectKey, listAuthor)
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
-		}
-		opts.CreatedUserIDs = []int{me.ID.Value}
-	} else if listAuthor != "" {
-		authorID, err := strconv.Atoi(listAuthor)
-		if err != nil {
-			return fmt.Errorf("invalid author ID: %s", listAuthor)
+			return fmt.Errorf("failed to resolve author: %w", err)
 		}
 		opts.CreatedUserIDs = []int{authorID}
 	}
 
 	// カテゴリフィルター（--category オプション、ghの--labelに相当）
 	if listCategory != "" {
-		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, listCategory)
+		categoryIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, listCategory)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories: %w", err)
 		}
@@ -184,7 +176,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	// マイルストーンフィルター（--milestone オプション）
 	if listMilestone != "" {
-		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, listMilestone)
+		milestoneIDs, err := cmdutil.ResolveMilestoneIDs(ctx, client, projectKey, listMilestone)
 		if err != nil {
 			return fmt.Errorf("failed to resolve milestones: %w", err)
 		}
@@ -193,7 +185,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 課題種別フィルター（--type オプション）
 	if listIssueType != "" {
-		issueTypeIDs, err := resolveIssueTypeIDs(ctx, client, projectKey, listIssueType)
+		issueTypeIDs, err := cmdutil.ResolveIssueTypeIDs(ctx, client, projectKey, listIssueType)
 		if err != nil {
 			return fmt.Errorf("failed to resolve issue types: %w", err)
 		}

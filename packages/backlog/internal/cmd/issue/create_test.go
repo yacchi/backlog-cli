@@ -15,8 +15,8 @@ func TestValidateNonInteractiveCreateFlags(t *testing.T) {
 			{ID: 2, Name: "Task"},
 		},
 		[]api.User{
-			{ID: 10, Name: "Alice"},
-			{ID: 20, Name: "Bob"},
+			{ID: 10, UserID: "alice", Name: "Alice"},
+			{ID: 20, UserID: "bob", Name: "Bob"},
 		},
 	)
 	if err == nil {
@@ -27,11 +27,12 @@ func TestValidateNonInteractiveCreateFlags(t *testing.T) {
 	for _, want := range []string{
 		"--title, --type, --priority, and --assignee required when not running interactively",
 		"Use --title <text> to set the issue title.",
-		"  --type 1 # Bug",
+		"  --type Bug # ID: 1",
 		"  --priority 3 # 中",
 		"  --assignee 0 # unassigned",
 		"  --assignee @me",
-		"  --assignee 10 # Alice",
+		"  --assignee <user-id|userId|display-name>",
+		"  --assignee alice # Alice (ID: 10)",
 		"Run 'backlog issue create --help' for usage.",
 	} {
 		if !strings.Contains(msg, want) {
@@ -44,7 +45,7 @@ func TestValidateNonInteractiveCreateFlags_AllowsExplicitInput(t *testing.T) {
 	err := validateNonInteractiveCreateFlags(
 		createPromptState{
 			Title:    "title",
-			TypeID:   1,
+			Type:     "Bug",
 			Priority: 3,
 			Assignee: "0",
 		},

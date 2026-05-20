@@ -55,13 +55,9 @@ func runIssueTypeEdit(c *cobra.Command, args []string) error {
 	ctx := c.Context()
 
 	// 既存の種別を取得
-	issueType, err := resolveIssueType(ctx, client, projectKey, idOrName)
+	issueType, err := cmdutil.ResolveIssueType(ctx, client, projectKey, idOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get issue type: %w", err)
-	}
-
-	if issueType == nil {
-		return fmt.Errorf("issue type not found: %s", idOrName)
+		return fmt.Errorf("failed to resolve issue type: %w", err)
 	}
 
 	// フラグが一つも指定されていない場合は対話モード
@@ -69,6 +65,13 @@ func runIssueTypeEdit(c *cobra.Command, args []string) error {
 		!c.Flags().Changed("color") &&
 		!c.Flags().Changed("template-summary") &&
 		!c.Flags().Changed("template-description")
+	if interactive && !ui.IsInteractiveInput() {
+		return cmdutil.NonInteractiveFlagError(
+			"at least one update flag is required when not running interactively",
+			"backlog issue-type edit",
+			"Use --name, --color, --template-summary, or --template-description.",
+		)
+	}
 
 	input := &api.UpdateIssueTypeInput{}
 

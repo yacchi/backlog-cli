@@ -64,14 +64,20 @@ func runComment(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
+	interactive := ui.IsInteractiveInput()
+
+	if !interactive && commentBody == "" && commentBodyFile == "" {
+		return cmdutil.NonInteractiveFlagError(
+			"--body or --body-file is required when not running interactively",
+			"backlog pr comment",
+			"Use --body <text> or --body-file <path> to add a comment without prompts.",
+		)
+	}
 
 	// body解決: body > body-file > interactive
-	commentBody, err = cmdutil.ResolveBody(
-		commentBody,
-		commentBodyFile,
-		false,
-		nil,
-		func() (string, error) {
+	var interactiveBodyInput func() (string, error)
+	if interactive {
+		interactiveBodyInput = func() (string, error) {
 			var body string
 			prompt := &survey.Multiline{
 				Message: "Comment body:",
@@ -80,7 +86,14 @@ func runComment(c *cobra.Command, args []string) error {
 				return "", err
 			}
 			return body, nil
-		},
+		}
+	}
+	commentBody, err = cmdutil.ResolveBody(
+		commentBody,
+		commentBodyFile,
+		false,
+		nil,
+		interactiveBodyInput,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get comment body: %w", err)

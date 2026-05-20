@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
@@ -58,16 +57,10 @@ func runEdit(c *cobra.Command, args []string) error {
 	profile := cfg.CurrentProfile()
 	idOrName := args[0]
 
-	// まずバージョン一覧を取得してID/名前で検索
 	ctx := c.Context()
-	versions, err := client.GetVersions(ctx, projectKey)
+	version, err := cmdutil.ResolveMilestone(ctx, client, projectKey, idOrName)
 	if err != nil {
-		return fmt.Errorf("failed to get milestones: %w", err)
-	}
-
-	version := findVersionForEdit(versions, idOrName)
-	if version == nil {
-		return fmt.Errorf("milestone not found: %s", idOrName)
+		return fmt.Errorf("failed to resolve milestone: %w", err)
 	}
 
 	// 更新入力を構築（nameは必須なので現在の値をデフォルトに）
@@ -121,24 +114,4 @@ func runEdit(c *cobra.Command, args []string) error {
 			ui.Green("✓"), updated.Name, updated.ID)
 		return nil
 	}
-}
-
-func findVersionForEdit(versions []api.Version, idOrName string) *api.Version {
-	// まずIDとして解釈
-	if id, err := strconv.Atoi(idOrName); err == nil {
-		for i := range versions {
-			if versions[i].ID == id {
-				return &versions[i]
-			}
-		}
-	}
-
-	// 名前で検索
-	for i := range versions {
-		if versions[i].Name == idOrName {
-			return &versions[i]
-		}
-	}
-
-	return nil
 }

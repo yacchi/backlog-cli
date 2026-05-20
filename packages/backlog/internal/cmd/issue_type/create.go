@@ -80,6 +80,7 @@ func runIssueTypeCreate(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	ctx := c.Context()
+	interactive := ui.IsInteractiveInput()
 
 	name := issueTypeCreateName
 	color := issueTypeCreateColor
@@ -88,6 +89,13 @@ func runIssueTypeCreate(c *cobra.Command, args []string) error {
 
 	// 対話モード: 名前
 	if name == "" {
+		if !interactive {
+			return cmdutil.NonInteractiveFlagError(
+				"--name and --color are required when not running interactively",
+				"backlog issue-type create",
+				"Use --name <text> and --color <hex> to create an issue type without prompts.",
+			)
+		}
 		prompt := &survey.Input{
 			Message: "種別名:",
 		}
@@ -98,6 +106,13 @@ func runIssueTypeCreate(c *cobra.Command, args []string) error {
 
 	// 対話モード: 色
 	if color == "" {
+		if !interactive {
+			return cmdutil.NonInteractiveFlagError(
+				"--name and --color are required when not running interactively",
+				"backlog issue-type create",
+				"Use --name <text> and --color <hex> to create an issue type without prompts.",
+			)
+		}
 		colorOptions := buildColorOptions()
 		prompt := &survey.Select{
 			Message: "背景色を選択:",
@@ -111,7 +126,7 @@ func runIssueTypeCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 対話モード: テンプレート件名（オプション）
-	if templateSummary == "" && !c.Flags().Changed("template-summary") {
+	if interactive && templateSummary == "" && !c.Flags().Changed("template-summary") {
 		prompt := &survey.Input{
 			Message: "テンプレート件名 (省略可):",
 		}
@@ -121,7 +136,7 @@ func runIssueTypeCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 対話モード: テンプレート詳細（オプション）
-	if templateDescription == "" && !c.Flags().Changed("template-description") {
+	if interactive && templateDescription == "" && !c.Flags().Changed("template-description") {
 		prompt := &survey.Multiline{
 			Message: "テンプレート詳細 (省略可):",
 		}

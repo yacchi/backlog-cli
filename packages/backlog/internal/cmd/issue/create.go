@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -32,7 +31,7 @@ Examples:
   backlog issue create
 
   # Non-interactive mode
-  backlog issue create --title "Bug fix" --body "Details here" --type 1 --priority 3 --assignee @me
+  backlog issue create --title "Bug fix" --body "Details here" --type Bug --priority 3 --assignee @me
 
   # Read body from file
   backlog issue create --title "Feature" --body-file spec.md
@@ -52,7 +51,7 @@ var (
 	createTitle       string
 	createBody        string
 	createBodyFile    string
-	createTypeID      int
+	createType        string
 	createPriority    int
 	createAssignee    string
 	createDueDate     string
@@ -64,7 +63,7 @@ var (
 
 type createPromptState struct {
 	Title    string
-	TypeID   int
+	Type     string
 	Priority int
 	Assignee string
 }
@@ -73,9 +72,9 @@ func init() {
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "Issue title (summary)")
 	createCmd.Flags().StringVarP(&createBody, "body", "b", "", "Issue body (description)")
 	createCmd.Flags().StringVarP(&createBodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
-	createCmd.Flags().IntVar(&createTypeID, "type", 0, "Issue type ID")
+	createCmd.Flags().StringVar(&createType, "type", "", "Issue type ID or name")
 	createCmd.Flags().IntVar(&createPriority, "priority", 0, "Priority ID")
-	createCmd.Flags().StringVarP(&createAssignee, "assignee", "a", "", "Assignee (user ID or @me)")
+	createCmd.Flags().StringVarP(&createAssignee, "assignee", "a", "", "Assignee (user ID, userId, display name, or @me)")
 	createCmd.Flags().StringVar(&createDueDate, "due", "", "Due date (YYYY-MM-DD)")
 	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor to write the body")
 	createCmd.Flags().StringVarP(&createMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
@@ -117,7 +116,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 		if err := validateNonInteractiveCreateFlags(createPromptState{
 			Title:    createTitle,
-			TypeID:   createTypeID,
+			Type:     createType,
 			Priority: createPriority,
 			Assignee: createAssignee,
 		}, issueTypes, users); err != nil {
@@ -146,8 +145,12 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 課題種別
-	if createTypeID > 0 {
-		input.IssueTypeID = createTypeID
+	if createType != "" {
+		issueTypeIDs, err := cmdutil.ResolveIssueTypeIDs(ctx, client, projectKey, createType)
+		if err != nil {
+			return fmt.Errorf("failed to resolve issue type: %w", err)
+		}
+		input.IssueTypeID = issueTypeIDs[0]
 	} else if interactive {
 		typeOpts := make([]ui.SelectOption, len(issueTypes))
 		for i, t := range issueTypes {
@@ -187,16 +190,10 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 担当者
-	if createAssignee == "@me" {
-		me, err := client.GetCurrentUser(ctx)
+	if createAssignee != "" {
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, createAssignee)
 		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
-		}
-		input.AssigneeID = me.ID.Value
-	} else if createAssignee != "" {
-		assigneeID, err := strconv.Atoi(createAssignee)
-		if err != nil {
-			return fmt.Errorf("invalid assignee ID: %s", createAssignee)
+			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		input.AssigneeID = assigneeID
 	} else if interactive {
@@ -247,7 +244,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// マイルストーン
 	if createMilestones != "" {
-		milestoneIDs, err := resolveMilestoneIDs(ctx, client, projectKey, createMilestones)
+		milestoneIDs, err := cmdutil.ResolveMilestoneIDs(ctx, client, projectKey, createMilestones)
 		if err != nil {
 			return fmt.Errorf("failed to resolve milestones: %w", err)
 		}
@@ -256,7 +253,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// カテゴリ
 	if createCategories != "" {
-		categoryIDs, err := resolveCategoryIDs(ctx, client, projectKey, createCategories)
+		categoryIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, createCategories)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories: %w", err)
 		}
@@ -302,7 +299,7 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 	if state.Title == "" {
 		missing = append(missing, "--title")
 	}
-	if state.TypeID <= 0 {
+	if state.Type == "" {
 		missing = append(missing, "--type")
 	}
 	if state.Priority <= 0 {
@@ -325,10 +322,10 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 	if slices.Contains(missing, "--type") {
 		lines = append(lines, "", "Use one of the following for --type:")
 		if len(issueTypes) == 0 {
-			lines = append(lines, "  --type <issue-type-id>")
+			lines = append(lines, "  --type <issue-type-id|issue-type-name>")
 		} else {
 			for _, issueType := range issueTypes {
-				lines = append(lines, fmt.Sprintf("  --type %d # %s", issueType.ID, issueType.Name))
+				lines = append(lines, fmt.Sprintf("  --type %s # ID: %d", issueType.Name, issueType.ID))
 			}
 		}
 	}
@@ -341,12 +338,20 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 		)
 	}
 	if slices.Contains(missing, "--assignee") {
-		lines = append(lines, "", "Use one of the following for --assignee:", "  --assignee 0 # unassigned", "  --assignee @me")
+		lines = append(lines, "",
+			"Use one of the following for --assignee:",
+			"  --assignee 0 # unassigned",
+			"  --assignee @me",
+			"  --assignee <user-id|userId|display-name>",
+		)
 		if len(users) == 0 {
-			lines = append(lines, "  --assignee <user-id>")
 		} else {
 			for _, user := range users {
-				lines = append(lines, fmt.Sprintf("  --assignee %d # %s", user.ID, user.Name))
+				if user.UserID != "" {
+					lines = append(lines, fmt.Sprintf("  --assignee %s # %s (ID: %d)", user.UserID, user.Name, user.ID))
+				} else {
+					lines = append(lines, fmt.Sprintf("  --assignee %d # %s", user.ID, user.Name))
+				}
 			}
 		}
 	}
@@ -366,153 +371,6 @@ func joinCreateFlags(flags []string) string {
 	default:
 		return strings.Join(flags[:len(flags)-1], ", ") + ", and " + flags[len(flags)-1]
 	}
-}
-
-// resolveMilestoneIDs はマイルストーン指定を解決してIDリストを返す
-func resolveMilestoneIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
-	parts := strings.Split(input, ",")
-	var ids []int
-
-	// まず全てが数値かチェック
-	allNumeric := true
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if _, err := strconv.Atoi(p); err != nil {
-			allNumeric = false
-			break
-		}
-	}
-
-	if allNumeric {
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			id, _ := strconv.Atoi(p)
-			ids = append(ids, id)
-		}
-		return ids, nil
-	}
-
-	// 名前解決が必要
-	versions, err := client.GetVersions(ctx, projectKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nameToID := make(map[string]int)
-	for _, v := range versions {
-		nameToID[v.Name] = v.ID
-	}
-
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if id, err := strconv.Atoi(p); err == nil {
-			ids = append(ids, id)
-		} else if id, ok := nameToID[p]; ok {
-			ids = append(ids, id)
-		} else {
-			return nil, fmt.Errorf("milestone not found: %s", p)
-		}
-	}
-
-	return ids, nil
-}
-
-// resolveCategoryIDs はカテゴリ指定を解決してIDリストを返す
-func resolveCategoryIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
-	parts := strings.Split(input, ",")
-	var ids []int
-
-	// まず全てが数値かチェック
-	allNumeric := true
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if _, err := strconv.Atoi(p); err != nil {
-			allNumeric = false
-			break
-		}
-	}
-
-	if allNumeric {
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			id, _ := strconv.Atoi(p)
-			ids = append(ids, id)
-		}
-		return ids, nil
-	}
-
-	// 名前解決が必要
-	categories, err := client.GetCategories(ctx, projectKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nameToID := make(map[string]int)
-	for _, c := range categories {
-		nameToID[c.Name] = c.ID
-	}
-
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if id, err := strconv.Atoi(p); err == nil {
-			ids = append(ids, id)
-		} else if id, ok := nameToID[p]; ok {
-			ids = append(ids, id)
-		} else {
-			return nil, fmt.Errorf("category not found: %s", p)
-		}
-	}
-
-	return ids, nil
-}
-
-// resolveIssueTypeIDs は課題種別指定を解決してIDリストを返す
-func resolveIssueTypeIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
-	parts := strings.Split(input, ",")
-	var ids []int
-
-	// まず全てが数値かチェック
-	allNumeric := true
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if _, err := strconv.Atoi(p); err != nil {
-			allNumeric = false
-			break
-		}
-	}
-
-	if allNumeric {
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			id, _ := strconv.Atoi(p)
-			ids = append(ids, id)
-		}
-		return ids, nil
-	}
-
-	// 名前解決が必要
-	issueTypes, err := client.GetIssueTypes(ctx, projectKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nameToID := make(map[string]int)
-	for _, t := range issueTypes {
-		nameToID[t.Name] = t.ID
-	}
-
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if id, err := strconv.Atoi(p); err == nil {
-			ids = append(ids, id)
-		} else if id, ok := nameToID[p]; ok {
-			ids = append(ids, id)
-		} else {
-			return nil, fmt.Errorf("issue type not found: %s", p)
-		}
-	}
-
-	return ids, nil
 }
 
 func openEditor(initial string) (string, error) {

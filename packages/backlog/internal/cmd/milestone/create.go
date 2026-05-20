@@ -50,9 +50,17 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
+	interactive := ui.IsInteractiveInput()
 
 	// 対話モード: 名前が未指定の場合
 	if createName == "" {
+		if !interactive {
+			return cmdutil.NonInteractiveFlagError(
+				"--name is required when not running interactively",
+				"backlog milestone create",
+				"Use --name <text> to create a milestone without prompts.",
+			)
+		}
 		prompt := &survey.Input{
 			Message: "Milestone name:",
 		}
