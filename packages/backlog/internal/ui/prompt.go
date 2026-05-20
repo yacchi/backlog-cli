@@ -7,7 +7,13 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"golang.org/x/term"
 )
+
+// IsInteractiveInput reports whether stdin is attached to a terminal.
+func IsInteractiveInput() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // Select は選択肢から1つを選ばせる
 func Select(message string, options []string) (string, error) {

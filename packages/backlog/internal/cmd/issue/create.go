@@ -2,10 +2,12 @@ package issue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -22,14 +24,15 @@ var createCmd = &cobra.Command{
 	Long: `Create a new issue in the project.
 
 Without the title or body text supplied through flags, the command will
-interactively prompt for the required information.
+interactively prompt for the required information. When standard input is
+not a terminal, provide --title, --type, --priority, and --assignee.
 
 Examples:
   # Interactive mode
   backlog issue create
 
   # Non-interactive mode
-  backlog issue create --title "Bug fix" --body "Details here" --type 1
+  backlog issue create --title "Bug fix" --body "Details here" --type 1 --priority 3 --assignee @me
 
   # Read body from file
   backlog issue create --title "Feature" --body-file spec.md
@@ -58,6 +61,13 @@ var (
 	createCategories  string
 	createAttachFiles []string
 )
+
+type createPromptState struct {
+	Title    string
+	TypeID   int
+	Priority int
+	Assignee string
+}
 
 func init() {
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "Issue title (summary)")
@@ -98,6 +108,23 @@ func runCreate(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get issue types: %w", err)
 	}
 
+	interactive := ui.IsInteractiveInput()
+	if !interactive {
+		var users []api.User
+		if createAssignee == "" {
+			users, _ = client.GetProjectUsers(ctx, projectKey)
+		}
+
+		if err := validateNonInteractiveCreateFlags(createPromptState{
+			Title:    createTitle,
+			TypeID:   createTypeID,
+			Priority: createPriority,
+			Assignee: createAssignee,
+		}, issueTypes, users); err != nil {
+			return err
+		}
+	}
+
 	// 入力
 	input := &api.CreateIssueInput{
 		ProjectID: project.ID,
@@ -106,7 +133,7 @@ func runCreate(c *cobra.Command, args []string) error {
 	// 件名（タイトル）
 	if createTitle != "" {
 		input.Summary = createTitle
-	} else {
+	} else if interactive {
 		input.Summary, err = ui.Input("Title:", "")
 		if err != nil {
 			return err
@@ -114,12 +141,14 @@ func runCreate(c *cobra.Command, args []string) error {
 		if input.Summary == "" {
 			return fmt.Errorf("title is required")
 		}
+	} else {
+		return fmt.Errorf("--title is required when not running interactively")
 	}
 
 	// 課題種別
 	if createTypeID > 0 {
 		input.IssueTypeID = createTypeID
-	} else {
+	} else if interactive {
 		typeOpts := make([]ui.SelectOption, len(issueTypes))
 		for i, t := range issueTypes {
 			typeOpts[i] = ui.SelectOption{
@@ -133,12 +162,14 @@ func runCreate(c *cobra.Command, args []string) error {
 			return err
 		}
 		input.IssueTypeID, _ = strconv.Atoi(selected)
+	} else {
+		return fmt.Errorf("--type is required when not running interactively")
 	}
 
 	// 優先度
 	if createPriority > 0 {
 		input.PriorityID = createPriority
-	} else {
+	} else if interactive {
 		// デフォルトは「中」(ID=3)
 		priorityOpts := []ui.SelectOption{
 			{Value: "2", Description: "高"},
@@ -151,6 +182,8 @@ func runCreate(c *cobra.Command, args []string) error {
 			return err
 		}
 		input.PriorityID, _ = strconv.Atoi(selected)
+	} else {
+		return fmt.Errorf("--priority is required when not running interactively")
 	}
 
 	// 担当者
@@ -166,7 +199,7 @@ func runCreate(c *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid assignee ID: %s", createAssignee)
 		}
 		input.AssigneeID = assigneeID
-	} else {
+	} else if interactive {
 		// 担当者選択（オプション）
 		users, err := client.GetProjectUsers(ctx, projectKey)
 		if err == nil && len(users) > 0 {
@@ -185,17 +218,23 @@ func runCreate(c *cobra.Command, args []string) error {
 			}
 			input.AssigneeID, _ = strconv.Atoi(selected)
 		}
+	} else {
+		return fmt.Errorf("--assignee is required when not running interactively")
 	}
 
 	// 説明（ボディ）
+	var interactiveBodyInput func() (string, error)
+	if interactive {
+		interactiveBodyInput = func() (string, error) {
+			return ui.Input("Body (optional):", "")
+		}
+	}
 	input.Description, err = cmdutil.ResolveBody(
 		createBody,
 		createBodyFile,
 		createEditor,
 		openEditor,
-		func() (string, error) {
-			return ui.Input("Body (optional):", "")
-		},
+		interactiveBodyInput,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get body: %w", err)
@@ -256,6 +295,77 @@ func runCreate(c *cobra.Command, args []string) error {
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil
+}
+
+func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api.IssueType, users []api.User) error {
+	var missing []string
+	if state.Title == "" {
+		missing = append(missing, "--title")
+	}
+	if state.TypeID <= 0 {
+		missing = append(missing, "--type")
+	}
+	if state.Priority <= 0 {
+		missing = append(missing, "--priority")
+	}
+	if state.Assignee == "" {
+		missing = append(missing, "--assignee")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	lines := []string{
+		fmt.Sprintf("%s required when not running interactively", joinCreateFlags(missing)),
+	}
+
+	if slices.Contains(missing, "--title") {
+		lines = append(lines, "", "Use --title <text> to set the issue title.")
+	}
+	if slices.Contains(missing, "--type") {
+		lines = append(lines, "", "Use one of the following for --type:")
+		if len(issueTypes) == 0 {
+			lines = append(lines, "  --type <issue-type-id>")
+		} else {
+			for _, issueType := range issueTypes {
+				lines = append(lines, fmt.Sprintf("  --type %d # %s", issueType.ID, issueType.Name))
+			}
+		}
+	}
+	if slices.Contains(missing, "--priority") {
+		lines = append(lines, "",
+			"Use one of the following for --priority:",
+			"  --priority 2 # 高",
+			"  --priority 3 # 中",
+			"  --priority 4 # 低",
+		)
+	}
+	if slices.Contains(missing, "--assignee") {
+		lines = append(lines, "", "Use one of the following for --assignee:", "  --assignee 0 # unassigned", "  --assignee @me")
+		if len(users) == 0 {
+			lines = append(lines, "  --assignee <user-id>")
+		} else {
+			for _, user := range users {
+				lines = append(lines, fmt.Sprintf("  --assignee %d # %s", user.ID, user.Name))
+			}
+		}
+	}
+
+	lines = append(lines, "", "Run 'backlog issue create --help' for usage.")
+	return errors.New(strings.Join(lines, "\n"))
+}
+
+func joinCreateFlags(flags []string) string {
+	switch len(flags) {
+	case 0:
+		return ""
+	case 1:
+		return flags[0]
+	case 2:
+		return flags[0] + " and " + flags[1]
+	default:
+		return strings.Join(flags[:len(flags)-1], ", ") + ", and " + flags[len(flags)-1]
+	}
 }
 
 // resolveMilestoneIDs はマイルストーン指定を解決してIDリストを返す
