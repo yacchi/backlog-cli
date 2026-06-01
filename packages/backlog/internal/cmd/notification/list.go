@@ -21,18 +21,28 @@ var listCmd = &cobra.Command{
 Examples:
   backlog notification list
   backlog notification list --unread
-  backlog notification list --count 50`,
+  backlog notification list --count 50
+  backlog notification list --sender @me
+  backlog notification list --order asc`,
 	RunE: runList,
 }
 
 var (
 	listCount  int
 	listUnread bool
+	listOrder  string
+	listSender string
+	listMinID  int
+	listMaxID  int
 )
 
 func init() {
 	listCmd.Flags().IntVarP(&listCount, "count", "c", 20, "Number of notifications to show")
 	listCmd.Flags().BoolVar(&listUnread, "unread", false, "Show only unread notifications")
+	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
+	listCmd.Flags().StringVar(&listSender, "sender", "", "Filter by sender (user ID, userId, display name, or @me)")
+	listCmd.Flags().IntVar(&listMinID, "min-id", 0, "Return notifications with ID greater than this value")
+	listCmd.Flags().IntVar(&listMaxID, "max-id", 0, "Return notifications with ID less than this value")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -43,14 +53,26 @@ func runList(c *cobra.Command, args []string) error {
 
 	profile := cfg.CurrentProfile()
 	display := cfg.Display()
+	ctx := c.Context()
 
 	// 通知一覧取得
 	opts := &api.NotificationListOptions{
 		Count: listCount,
-		Order: "desc",
+		Order: listOrder,
+		MinID: listMinID,
+		MaxID: listMaxID,
 	}
 
-	notifications, err := client.GetNotifications(c.Context(), opts)
+	// 送信者フィルター
+	if listSender != "" {
+		senderID, err := cmdutil.ResolveUserID(ctx, client, listSender)
+		if err != nil {
+			return fmt.Errorf("failed to resolve sender: %w", err)
+		}
+		opts.SenderID = senderID
+	}
+
+	notifications, err := client.GetNotifications(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to get notifications: %w", err)
 	}
@@ -97,7 +119,7 @@ func renderNotificationList(notifications []api.UserNotification, profile *confi
 		}
 
 		// 通知理由
-		reason := formatReason(n.Reason.ID)
+		reason := formatReason(n.Reason)
 
 		// ターゲット情報
 		var target, targetURL string

@@ -19,14 +19,19 @@ var listCmd = &cobra.Command{
 Examples:
   backlog wiki list
   backlog wiki list --project MYPROJECT
+  backlog wiki list --search "release notes"
   backlog wiki list --count`,
 	RunE: runList,
 }
 
-var wikiListCount bool
+var (
+	wikiListCount  bool
+	wikiListSearch string
+)
 
 func init() {
 	listCmd.Flags().BoolVar(&wikiListCount, "count", false, "Show only the count of wiki pages")
+	listCmd.Flags().StringVarP(&wikiListSearch, "search", "S", "", "Search wiki pages by keyword (name and content)")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -43,7 +48,17 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 件数のみ表示
 	if wikiListCount {
-		count, err := client.GetWikisCount(c.Context(), projectKey)
+		// Backlog の /wikis/count は keyword を無視するため、
+		// --search 併用時は一覧を取得してクライアント側で数える。
+		if wikiListSearch != "" {
+			wikis, err := client.GetWikis(c.Context(), projectKey, wikiListSearch)
+			if err != nil {
+				return fmt.Errorf("failed to get wiki pages: %w", err)
+			}
+			fmt.Println(len(wikis))
+			return nil
+		}
+		count, err := client.GetWikisCount(c.Context(), projectKey, wikiListSearch)
 		if err != nil {
 			return fmt.Errorf("failed to get wiki count: %w", err)
 		}
@@ -51,7 +66,7 @@ func runList(c *cobra.Command, args []string) error {
 		return nil
 	}
 
-	wikis, err := client.GetWikis(c.Context(), projectKey)
+	wikis, err := client.GetWikis(c.Context(), projectKey, wikiListSearch)
 	if err != nil {
 		return fmt.Errorf("failed to get wiki pages: %w", err)
 	}

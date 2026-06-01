@@ -7,12 +7,6 @@ import (
 	"strconv"
 )
 
-// NotificationReason は通知理由
-type NotificationReason struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
 // NotificationIssue は通知に関連する課題
 type NotificationIssue struct {
 	ID       int    `json:"id"`
@@ -36,7 +30,7 @@ type NotificationPR struct {
 type UserNotification struct {
 	ID                  int                  `json:"id"`
 	AlreadyRead         bool                 `json:"alreadyRead"`
-	Reason              NotificationReason   `json:"reason"`
+	Reason              int                  `json:"reason"`
 	ResourceAlreadyRead bool                 `json:"resourceAlreadyRead"`
 	Project             Project              `json:"project"`
 	Issue               *NotificationIssue   `json:"issue"`
@@ -49,11 +43,11 @@ type UserNotification struct {
 
 // NotificationListOptions は通知一覧取得オプション
 type NotificationListOptions struct {
-	MinID           int
-	MaxID           int
-	Count           int
-	Order           string // "asc" or "desc"
-	ResourceAlready bool
+	MinID    int
+	MaxID    int
+	Count    int
+	Order    string // "asc" or "desc"
+	SenderID int
 }
 
 // ToQuery はクエリパラメータに変換する
@@ -70,6 +64,9 @@ func (o *NotificationListOptions) ToQuery() url.Values {
 	}
 	if o.Order != "" {
 		q.Set("order", o.Order)
+	}
+	if o.SenderID > 0 {
+		q.Set("senderId", strconv.Itoa(o.SenderID))
 	}
 	return q
 }

@@ -5151,6 +5151,110 @@ func (c *Client) sendGetIssuesCount(ctx context.Context, params GetIssuesCountPa
 		}
 	}
 	{
+		// Encode "issueTypeId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "issueTypeId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.IssueTypeId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.IssueTypeId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "categoryId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "categoryId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.CategoryId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.CategoryId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "versionId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "versionId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.VersionId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.VersionId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "milestoneId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "milestoneId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.MilestoneId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.MilestoneId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
 		// Encode "statusId[]" parameter.
 		cfg := uri.QueryParameterEncodingConfig{
 			Name:    "statusId[]",
@@ -5162,6 +5266,366 @@ func (c *Client) sendGetIssuesCount(ctx context.Context, params GetIssuesCountPa
 			if params.StatusId != nil {
 				return e.EncodeArray(func(e uri.Encoder) error {
 					for i, item := range params.StatusId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "priorityId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "priorityId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.PriorityId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.PriorityId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "assigneeId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "assigneeId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.AssigneeId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.AssigneeId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "createdUserId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "createdUserId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.CreatedUserId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.CreatedUserId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "resolutionId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "resolutionId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.ResolutionId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.ResolutionId {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "parentChild" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "parentChild",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.ParentChild.Get(); ok {
+				return e.EncodeValue(conv.IntToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "attachment" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "attachment",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Attachment.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "sharedFile" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "sharedFile",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.SharedFile.Get(); ok {
+				return e.EncodeValue(conv.BoolToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "keyword" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "keyword",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Keyword.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "createdSince" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "createdSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.CreatedSince.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "createdUntil" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "createdUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.CreatedUntil.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "updatedSince" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "updatedSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.UpdatedSince.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "updatedUntil" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "updatedUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.UpdatedUntil.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "startDateSince" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "startDateSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.StartDateSince.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "startDateUntil" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "startDateUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.StartDateUntil.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "dueDateSince" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "dueDateSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.DueDateSince.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "dueDateUntil" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "dueDateUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.DueDateUntil.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "id[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "id[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.ID != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.ID {
+						if err := func() error {
+							return e.EncodeValue(conv.IntToString(item))
+						}(); err != nil {
+							return errors.Wrapf(err, "[%d]", i)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
+		// Encode "parentIssueId[]" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "parentIssueId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if params.ParentIssueId != nil {
+				return e.EncodeArray(func(e uri.Encoder) error {
+					for i, item := range params.ParentIssueId {
 						if err := func() error {
 							return e.EncodeValue(conv.IntToString(item))
 						}(); err != nil {

@@ -236,6 +236,185 @@ func ResolveIssueType(ctx context.Context, client *api.Client, projectKey, input
 	return nil, nil
 }
 
+// ResolveStatusIDs resolves status IDs or exact names for a project.
+func ResolveStatusIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
+	if projectKey == "" && hasNonNumericToken(input) {
+		return nil, errors.New("project is required to resolve status names")
+	}
+
+	statuses, err := client.GetStatuses(ctx, projectKey)
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]NamedResolverOption, len(statuses))
+	for i, status := range statuses {
+		options[i] = NamedResolverOption{
+			ID:    status.ID,
+			Label: status.Name,
+		}
+	}
+
+	return ResolveNamedIDs(input, "status", "statuses", options)
+}
+
+// ResolvePriorityIDs resolves priority IDs or exact names (space-scoped).
+func ResolvePriorityIDs(ctx context.Context, client *api.Client, input string) ([]int, error) {
+	priorities, err := client.GetPriorities(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]NamedResolverOption, len(priorities))
+	for i, priority := range priorities {
+		options[i] = NamedResolverOption{
+			ID:    priority.ID.Value,
+			Label: priority.Name.Value,
+		}
+	}
+
+	return ResolveNamedIDs(input, "priority", "priorities", options)
+}
+
+// ResolveResolutionIDs resolves resolution IDs or exact names (space-scoped).
+func ResolveResolutionIDs(ctx context.Context, client *api.Client, input string) ([]int, error) {
+	resolutions, err := client.GetResolutions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]NamedResolverOption, len(resolutions))
+	for i, resolution := range resolutions {
+		options[i] = NamedResolverOption{
+			ID:    resolution.ID.Value,
+			Label: resolution.Name.Value,
+		}
+	}
+
+	return ResolveNamedIDs(input, "resolution", "resolutions", options)
+}
+
+// ResolveVersionIDs resolves version IDs or exact names for a project.
+func ResolveVersionIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
+	if projectKey == "" && hasNonNumericToken(input) {
+		return nil, errors.New("project is required to resolve version names")
+	}
+
+	versions, err := client.GetVersions(ctx, projectKey)
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]NamedResolverOption, len(versions))
+	for i, version := range versions {
+		options[i] = NamedResolverOption{
+			ID:    version.ID,
+			Label: version.Name,
+		}
+	}
+
+	return ResolveNamedIDs(input, "version", "versions", options)
+}
+
+// ResolveIssueIDs resolves a comma-separated list of issue IDs or issue keys
+// (e.g. "123,PROJ-45") into numeric issue IDs.
+func ResolveIssueIDs(ctx context.Context, client *api.Client, input string) ([]int, error) {
+	parts := strings.Split(input, ",")
+	ids := make([]int, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if id, err := strconv.Atoi(value); err == nil {
+			ids = append(ids, id)
+			continue
+		}
+		issue, err := client.GetIssue(ctx, value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve issue %q: %w", value, err)
+		}
+		if !issue.ID.IsSet() {
+			return nil, fmt.Errorf("issue %q has no ID", value)
+		}
+		ids = append(ids, issue.ID.Value)
+	}
+	return ids, nil
+}
+
+// ParseParentChild parses a parent-child filter value into the Backlog API
+// parentChild parameter (0: all, 1: exclude child, 2: child only,
+// 3: neither parent nor child, 4: parent only).
+func ParseParentChild(input string) (int, error) {
+	value := strings.TrimSpace(input)
+	if value == "" {
+		return 0, nil
+	}
+	if n, err := strconv.Atoi(value); err == nil {
+		if n < 0 || n > 4 {
+			return 0, fmt.Errorf("invalid parent-child value: %d (must be 0-4)", n)
+		}
+		return n, nil
+	}
+	switch strings.ToLower(value) {
+	case "all":
+		return 0, nil
+	case "exclude-child", "not-child":
+		return 1, nil
+	case "child":
+		return 2, nil
+	case "none", "neither":
+		return 3, nil
+	case "parent":
+		return 4, nil
+	default:
+		return 0, fmt.Errorf("invalid parent-child value: %q (must be all, exclude-child, child, parent, none, or 0-4)", value)
+	}
+}
+
+// ResolveUserID resolves a space-level user using @me, numeric ID, userId, or
+// display name. Unlike ResolveProjectUserID this is not scoped to a project, so
+// it is suitable for resources like notifications that are not project-bound.
+func ResolveUserID(ctx context.Context, client *api.Client, input string) (int, error) {
+	value := strings.TrimSpace(input)
+	if value == "" {
+		return 0, fmt.Errorf("user value cannot be empty")
+	}
+	if value == "@me" {
+		me, err := client.GetCurrentUser(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get current user: %w", err)
+		}
+		return me.ID.Value, nil
+	}
+	if id, err := strconv.Atoi(value); err == nil {
+		return id, nil
+	}
+
+	users, err := client.GetUsers(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	options := make([]NamedResolverOption, len(users))
+	for i, user := range users {
+		var aliases []string
+		description := user.Name.Value
+		if user.UserId.Value != "" {
+			aliases = []string{user.UserId.Value}
+			description = fmt.Sprintf("%s (%s)", user.Name.Value, user.UserId.Value)
+		}
+		options[i] = NamedResolverOption{
+			ID:          user.ID.Value,
+			Label:       user.Name.Value,
+			Aliases:     aliases,
+			Description: description,
+		}
+	}
+
+	return ResolveNamedID(value, "user", "users", options)
+}
+
 // ResolveProjectUserID resolves a project user using @me, numeric ID, userId, or display name.
 func ResolveProjectUserID(ctx context.Context, client *api.Client, projectKey, input string) (int, error) {
 	return resolveProjectUserID(ctx, client, projectKey, input, "user", "users")

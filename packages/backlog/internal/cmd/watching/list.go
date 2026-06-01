@@ -19,16 +19,27 @@ var listCmd = &cobra.Command{
 
 Examples:
   backlog watching list
-  backlog watching list --count 50`,
+  backlog watching list --count 50
+  backlog watching list --unread
+  backlog watching list --sort created --order asc
+  backlog watching list --issue PROJ-123`,
 	RunE: runList,
 }
 
 var (
-	listCount int
+	listCount  int
+	listSort   string
+	listOrder  string
+	listUnread bool
+	listIssue  string
 )
 
 func init() {
 	listCmd.Flags().IntVarP(&listCount, "count", "c", 20, "Number of items to show")
+	listCmd.Flags().StringVar(&listSort, "sort", "issueUpdated", "Sort field: created, updated, or issueUpdated")
+	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
+	listCmd.Flags().BoolVar(&listUnread, "unread", false, "Show only items with unread updates")
+	listCmd.Flags().StringVar(&listIssue, "issue", "", "Filter by issue IDs or keys (comma-separated)")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -50,8 +61,23 @@ func runList(c *cobra.Command, args []string) error {
 	// ウォッチ一覧取得
 	opts := &api.WatchingListOptions{
 		Count: listCount,
-		Order: "desc",
-		Sort:  "issueUpdated",
+		Order: listOrder,
+		Sort:  listSort,
+	}
+
+	// 未読のみ
+	if listUnread {
+		unread := false
+		opts.ResourceAlreadyRead = &unread
+	}
+
+	// 課題フィルター
+	if listIssue != "" {
+		issueIDs, err := cmdutil.ResolveIssueIDs(ctx, client, listIssue)
+		if err != nil {
+			return fmt.Errorf("failed to resolve issues: %w", err)
+		}
+		opts.IssueIDs = issueIDs
 	}
 
 	watchings, err := client.GetWatchingList(ctx, myself.ID.Value, opts)

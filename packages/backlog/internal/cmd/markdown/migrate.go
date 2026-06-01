@@ -1160,7 +1160,7 @@ func runMigrateSnapshot(cmd *cobra.Command, args []string) error {
 		existing[identityKey(item.ItemType, item.ItemKey, item.ItemID)] = true
 	}
 
-	wikis, err := client.GetWikis(cmd.Context(), meta.ProjectKey)
+	wikis, err := client.GetWikis(cmd.Context(), meta.ProjectKey, "")
 	if err != nil {
 		return fmt.Errorf("failed to get wikis: %w", err)
 	}
@@ -1568,7 +1568,7 @@ func snapshotAll(ctx context.Context, client *api.Client, projectKey string, pro
 			InputHash:  hashHex(content),
 		})
 	}
-	wikis, err := client.GetWikis(ctx, projectKey)
+	wikis, err := client.GetWikis(ctx, projectKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get wikis: %w", err)
 	}
