@@ -196,7 +196,54 @@ func (c *Client) GetIssuesCount(ctx context.Context, opts *IssueListOptions) (in
 	params := backlog.GetIssuesCountParams{}
 	if opts != nil {
 		params.ProjectId = opts.ProjectIDs
+		params.IssueTypeId = opts.IssueTypeIDs
+		params.CategoryId = opts.CategoryIDs
+		params.VersionId = opts.VersionIDs
+		params.MilestoneId = opts.MilestoneIDs
 		params.StatusId = opts.StatusIDs
+		params.PriorityId = opts.PriorityIDs
+		params.AssigneeId = opts.AssigneeIDs
+		params.CreatedUserId = opts.CreatedUserIDs
+		params.ResolutionId = opts.ResolutionIDs
+		params.ID = opts.IDs
+		params.ParentIssueId = opts.ParentIssueIDs
+
+		if opts.ParentChild > 0 {
+			params.ParentChild = backlog.NewOptInt(opts.ParentChild)
+		}
+		if opts.Attachment != nil {
+			params.Attachment = backlog.NewOptBool(*opts.Attachment)
+		}
+		if opts.SharedFile != nil {
+			params.SharedFile = backlog.NewOptBool(*opts.SharedFile)
+		}
+		if opts.Keyword != "" {
+			params.Keyword = backlog.NewOptString(opts.Keyword)
+		}
+		if opts.CreatedSince != "" {
+			params.CreatedSince = backlog.NewOptString(opts.CreatedSince)
+		}
+		if opts.CreatedUntil != "" {
+			params.CreatedUntil = backlog.NewOptString(opts.CreatedUntil)
+		}
+		if opts.UpdatedSince != "" {
+			params.UpdatedSince = backlog.NewOptString(opts.UpdatedSince)
+		}
+		if opts.UpdatedUntil != "" {
+			params.UpdatedUntil = backlog.NewOptString(opts.UpdatedUntil)
+		}
+		if opts.StartDateSince != "" {
+			params.StartDateSince = backlog.NewOptString(opts.StartDateSince)
+		}
+		if opts.StartDateUntil != "" {
+			params.StartDateUntil = backlog.NewOptString(opts.StartDateUntil)
+		}
+		if opts.DueDateSince != "" {
+			params.DueDateSince = backlog.NewOptString(opts.DueDateSince)
+		}
+		if opts.DueDateUntil != "" {
+			params.DueDateUntil = backlog.NewOptString(opts.DueDateUntil)
+		}
 	}
 
 	res, err := c.backlogClient.GetIssuesCount(ctx, params)
