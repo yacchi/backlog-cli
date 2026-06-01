@@ -1306,7 +1306,115 @@ paths:
             type: array
             items:
               type: integer
+        - name: issueTypeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: categoryId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: versionId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: milestoneId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
         - name: statusId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: priorityId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: assigneeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: createdUserId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: resolutionId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: parentChild
+          in: query
+          schema:
+            type: integer
+        - name: attachment
+          in: query
+          schema:
+            type: boolean
+        - name: sharedFile
+          in: query
+          schema:
+            type: boolean
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: createdSince
+          in: query
+          schema:
+            type: string
+        - name: createdUntil
+          in: query
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+        - name: updatedUntil
+          in: query
+          schema:
+            type: string
+        - name: startDateSince
+          in: query
+          schema:
+            type: string
+        - name: startDateUntil
+          in: query
+          schema:
+            type: string
+        - name: dueDateSince
+          in: query
+          schema:
+            type: string
+        - name: dueDateUntil
+          in: query
+          schema:
+            type: string
+        - name: id[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: parentIssueId[]
           in: query
           schema:
             type: array

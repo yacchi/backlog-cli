@@ -46,6 +46,15 @@ Examples:
   # Sort by priority
   backlog issue list --sort priority --order asc
 
+  # Filter by individual status / priority (name or ID, comma-separated)
+  backlog issue list --status 処理中,完了 --priority 高
+
+  # Filter by updated date range (YYYY-MM-DD)
+  backlog issue list --state all --updated-since 2026-04-21 --updated-until 2026-04-28
+
+  # Show only issues with attachments under a parent issue
+  backlog issue list --parent PROJ-10 --has-attachment
+
   # Fetch up to 100 issues
   backlog issue list -L 100
 
@@ -78,6 +87,23 @@ var (
 	listIssueType           string
 	listSort                string
 	listOrder               string
+	listStatus              string
+	listPriority            string
+	listResolution          string
+	listVersion             string
+	listParent              string
+	listParentChild         string
+	listID                  string
+	listHasAttachment       bool
+	listHasSharedFile       bool
+	listUpdatedSince        string
+	listUpdatedUntil        string
+	listCreatedSince        string
+	listCreatedUntil        string
+	listStartSince          string
+	listStartUntil          string
+	listDueSince            string
+	listDueUntil            string
 )
 
 func init() {
@@ -101,6 +127,23 @@ func init() {
 	listCmd.Flags().StringVarP(&listIssueType, "type", "T", "", "Filter by issue type IDs or names (e.g., 1, Bug, タスク)")
 	listCmd.Flags().StringVar(&listSort, "sort", "updated", "Sort field: created, updated, issueType, category, priority, dueDate, etc.")
 	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
+	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status IDs or names (comma-separated, e.g. 処理中,完了)")
+	listCmd.Flags().StringVar(&listPriority, "priority", "", "Filter by priority IDs or names (comma-separated, e.g. 高)")
+	listCmd.Flags().StringVar(&listResolution, "resolution", "", "Filter by resolution IDs or names (comma-separated)")
+	listCmd.Flags().StringVar(&listVersion, "version", "", "Filter by affected version IDs or names (comma-separated)")
+	listCmd.Flags().StringVar(&listParent, "parent", "", "Filter by parent issue IDs or keys (comma-separated)")
+	listCmd.Flags().StringVar(&listParentChild, "parent-child", "", "Filter by parent-child relation: all, exclude-child, child, parent, none (or 0-4)")
+	listCmd.Flags().StringVar(&listID, "id", "", "Filter by issue IDs or keys (comma-separated)")
+	listCmd.Flags().BoolVar(&listHasAttachment, "has-attachment", false, "Show only issues with attachments")
+	listCmd.Flags().BoolVar(&listHasSharedFile, "has-shared-file", false, "Show only issues with shared files")
+	listCmd.Flags().StringVar(&listUpdatedSince, "updated-since", "", "Filter by updated date since (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listUpdatedUntil, "updated-until", "", "Filter by updated date until (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listCreatedSince, "created-since", "", "Filter by created date since (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listCreatedUntil, "created-until", "", "Filter by created date until (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listStartSince, "start-since", "", "Filter by start date since (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listStartUntil, "start-until", "", "Filter by start date until (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listDueSince, "due-since", "", "Filter by due date since (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listDueUntil, "due-until", "", "Filter by due date until (YYYY-MM-DD)")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -192,39 +235,122 @@ func runList(c *cobra.Command, args []string) error {
 		opts.IssueTypeIDs = issueTypeIDs
 	}
 
-	// ステータスフィルター（--state オプション）
-	switch listState {
-	case "open":
-		// Backlogのステータス: 1=未対応, 2=処理中, 3=処理済み
-		// open = 完了以外（4=完了を除く）
-		statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
-		if err == nil {
-			var openStatusIDs []int
-			for _, s := range statuses {
-				// "完了" または "Closed" 以外を含める
-				if s.Name != "完了" && s.Name != "Closed" && s.Name != "Done" {
-					openStatusIDs = append(openStatusIDs, s.ID)
+	// 優先度フィルター（--priority オプション）
+	if listPriority != "" {
+		priorityIDs, err := cmdutil.ResolvePriorityIDs(ctx, client, listPriority)
+		if err != nil {
+			return fmt.Errorf("failed to resolve priorities: %w", err)
+		}
+		opts.PriorityIDs = priorityIDs
+	}
+
+	// 完了理由フィルター（--resolution オプション）
+	if listResolution != "" {
+		resolutionIDs, err := cmdutil.ResolveResolutionIDs(ctx, client, listResolution)
+		if err != nil {
+			return fmt.Errorf("failed to resolve resolutions: %w", err)
+		}
+		opts.ResolutionIDs = resolutionIDs
+	}
+
+	// 発生バージョンフィルター（--version オプション）
+	if listVersion != "" {
+		versionIDs, err := cmdutil.ResolveVersionIDs(ctx, client, projectKey, listVersion)
+		if err != nil {
+			return fmt.Errorf("failed to resolve versions: %w", err)
+		}
+		opts.VersionIDs = versionIDs
+	}
+
+	// 親課題フィルター（--parent オプション）
+	if listParent != "" {
+		parentIDs, err := cmdutil.ResolveIssueIDs(ctx, client, listParent)
+		if err != nil {
+			return fmt.Errorf("failed to resolve parent issues: %w", err)
+		}
+		opts.ParentIssueIDs = parentIDs
+	}
+
+	// 親子条件フィルター（--parent-child オプション）
+	if listParentChild != "" {
+		parentChild, err := cmdutil.ParseParentChild(listParentChild)
+		if err != nil {
+			return err
+		}
+		opts.ParentChild = parentChild
+	}
+
+	// 課題IDフィルター（--id オプション）
+	if listID != "" {
+		issueIDs, err := cmdutil.ResolveIssueIDs(ctx, client, listID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve issue ids: %w", err)
+		}
+		opts.IDs = issueIDs
+	}
+
+	// 添付・共有ファイルフィルター
+	if listHasAttachment {
+		hasAttachment := true
+		opts.Attachment = &hasAttachment
+	}
+	if listHasSharedFile {
+		hasSharedFile := true
+		opts.SharedFile = &hasSharedFile
+	}
+
+	// 日付レンジフィルター
+	opts.UpdatedSince = listUpdatedSince
+	opts.UpdatedUntil = listUpdatedUntil
+	opts.CreatedSince = listCreatedSince
+	opts.CreatedUntil = listCreatedUntil
+	opts.StartDateSince = listStartSince
+	opts.StartDateUntil = listStartUntil
+	opts.DueDateSince = listDueSince
+	opts.DueDateUntil = listDueUntil
+
+	// ステータスフィルター（--status オプション、--state より優先）
+	if listStatus != "" {
+		statusIDs, err := cmdutil.ResolveStatusIDs(ctx, client, projectKey, listStatus)
+		if err != nil {
+			return fmt.Errorf("failed to resolve statuses: %w", err)
+		}
+		opts.StatusIDs = statusIDs
+	} else {
+		// ステータスフィルター（--state オプション）
+		switch listState {
+		case "open":
+			// Backlogのステータス: 1=未対応, 2=処理中, 3=処理済み
+			// open = 完了以外（4=完了を除く）
+			statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
+			if err == nil {
+				var openStatusIDs []int
+				for _, s := range statuses {
+					// "完了" または "Closed" 以外を含める
+					if s.Name != "完了" && s.Name != "Closed" && s.Name != "Done" {
+						openStatusIDs = append(openStatusIDs, s.ID)
+					}
+				}
+				if len(openStatusIDs) > 0 {
+					opts.StatusIDs = openStatusIDs
 				}
 			}
-			if len(openStatusIDs) > 0 {
-				opts.StatusIDs = openStatusIDs
-			}
-		}
-	case "closed":
-		// closed = 完了のみ
-		statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
-		if err == nil {
-			for _, s := range statuses {
-				if s.Name == "完了" || s.Name == "Closed" || s.Name == "Done" {
-					opts.StatusIDs = []int{s.ID}
-					break
+		case "closed":
+			// closed = 完了のみ
+			statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
+			if err == nil {
+				for _, s := range statuses {
+					if s.Name == "完了" || s.Name == "Closed" || s.Name == "Done" {
+						opts.StatusIDs = []int{s.ID}
+						break
+					}
 				}
 			}
+		case "all":
+			// all = フィルターなし
+		default:
+			return fmt.Errorf("invalid state: %s (must be open, closed, or all)", listState)
 		}
-	case "all":
-		// all = フィルターなし
-	default:
-		return fmt.Errorf("invalid state: %s (must be open, closed, or all)", listState)
 	}
 
 	// 件数のみ表示

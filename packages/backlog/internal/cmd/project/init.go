@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
@@ -58,8 +59,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		} else {
-			// プロジェクト一覧から選択
-			projects, err := client.GetProjects(cmd.Context())
+			// プロジェクト一覧から選択（未アーカイブのみ）
+			notArchived := false
+			projects, err := client.GetProjects(cmd.Context(), &api.ProjectListOptions{Archived: &notArchived})
 			if err != nil {
 				return fmt.Errorf("failed to get projects: %w", err)
 			}

@@ -32,10 +32,13 @@ type WikiTag struct {
 	Name string `json:"name"`
 }
 
-// GetWikis はWiki一覧を取得する
-func (c *Client) GetWikis(ctx context.Context, projectIDOrKey string) ([]Wiki, error) {
+// GetWikis はWiki一覧を取得する。keyword が空でなければ名前・本文でフィルタする。
+func (c *Client) GetWikis(ctx context.Context, projectIDOrKey, keyword string) ([]Wiki, error) {
 	query := url.Values{}
 	query.Set("projectIdOrKey", projectIDOrKey)
+	if keyword != "" {
+		query.Set("keyword", keyword)
+	}
 
 	resp, err := c.Get(ctx, "/wikis", query)
 	if err != nil {
@@ -67,10 +70,13 @@ func (c *Client) GetWiki(ctx context.Context, wikiID int) (*Wiki, error) {
 	return &wiki, nil
 }
 
-// GetWikisCount はWikiページ数を取得する
-func (c *Client) GetWikisCount(ctx context.Context, projectIDOrKey string) (int, error) {
+// GetWikisCount はWikiページ数を取得する。keyword が空でなければ名前・本文でフィルタする。
+func (c *Client) GetWikisCount(ctx context.Context, projectIDOrKey, keyword string) (int, error) {
 	query := url.Values{}
 	query.Set("projectIdOrKey", projectIDOrKey)
+	if keyword != "" {
+		query.Set("keyword", keyword)
+	}
 
 	resp, err := c.Get(ctx, "/wikis/count", query)
 	if err != nil {

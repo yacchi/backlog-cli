@@ -3785,8 +3785,30 @@ func decodeGetIssuesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 
 // GetIssuesCountParams is parameters of getIssuesCount operation.
 type GetIssuesCountParams struct {
-	ProjectId []int `json:",omitempty"`
-	StatusId  []int `json:",omitempty"`
+	ProjectId      []int     `json:",omitempty"`
+	IssueTypeId    []int     `json:",omitempty"`
+	CategoryId     []int     `json:",omitempty"`
+	VersionId      []int     `json:",omitempty"`
+	MilestoneId    []int     `json:",omitempty"`
+	StatusId       []int     `json:",omitempty"`
+	PriorityId     []int     `json:",omitempty"`
+	AssigneeId     []int     `json:",omitempty"`
+	CreatedUserId  []int     `json:",omitempty"`
+	ResolutionId   []int     `json:",omitempty"`
+	ParentChild    OptInt    `json:",omitempty,omitzero"`
+	Attachment     OptBool   `json:",omitempty,omitzero"`
+	SharedFile     OptBool   `json:",omitempty,omitzero"`
+	Keyword        OptString `json:",omitempty,omitzero"`
+	CreatedSince   OptString `json:",omitempty,omitzero"`
+	CreatedUntil   OptString `json:",omitempty,omitzero"`
+	UpdatedSince   OptString `json:",omitempty,omitzero"`
+	UpdatedUntil   OptString `json:",omitempty,omitzero"`
+	StartDateSince OptString `json:",omitempty,omitzero"`
+	StartDateUntil OptString `json:",omitempty,omitzero"`
+	DueDateSince   OptString `json:",omitempty,omitzero"`
+	DueDateUntil   OptString `json:",omitempty,omitzero"`
+	ID             []int     `json:",omitempty"`
+	ParentIssueId  []int     `json:",omitempty"`
 }
 
 func unpackGetIssuesCountParams(packed middleware.Parameters) (params GetIssuesCountParams) {
@@ -3801,11 +3823,209 @@ func unpackGetIssuesCountParams(packed middleware.Parameters) (params GetIssuesC
 	}
 	{
 		key := middleware.ParameterKey{
+			Name: "issueTypeId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.IssueTypeId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "categoryId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.CategoryId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "versionId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.VersionId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "milestoneId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.MilestoneId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
 			Name: "statusId[]",
 			In:   "query",
 		}
 		if v, ok := packed[key]; ok {
 			params.StatusId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "priorityId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.PriorityId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "assigneeId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.AssigneeId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "createdUserId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.CreatedUserId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "resolutionId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ResolutionId = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "parentChild",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ParentChild = v.(OptInt)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "attachment",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Attachment = v.(OptBool)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "sharedFile",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.SharedFile = v.(OptBool)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "keyword",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Keyword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "createdSince",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.CreatedSince = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "createdUntil",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.CreatedUntil = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "updatedSince",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.UpdatedSince = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "updatedUntil",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.UpdatedUntil = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "startDateSince",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.StartDateSince = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "startDateUntil",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.StartDateUntil = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "dueDateSince",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.DueDateSince = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "dueDateUntil",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.DueDateUntil = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "id[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ID = v.([]int)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "parentIssueId[]",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ParentIssueId = v.([]int)
 		}
 	}
 	return params
@@ -3856,6 +4076,178 @@ func decodeGetIssuesCountParams(args [0]string, argsEscaped bool, r *http.Reques
 			Err:  err,
 		}
 	}
+	// Decode query: issueTypeId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "issueTypeId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotIssueTypeIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotIssueTypeIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.IssueTypeId = append(params.IssueTypeId, paramsDotIssueTypeIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueTypeId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: categoryId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "categoryId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotCategoryIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotCategoryIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.CategoryId = append(params.CategoryId, paramsDotCategoryIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "categoryId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: versionId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "versionId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotVersionIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotVersionIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.VersionId = append(params.VersionId, paramsDotVersionIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "versionId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: milestoneId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "milestoneId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotMilestoneIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotMilestoneIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.MilestoneId = append(params.MilestoneId, paramsDotMilestoneIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "milestoneId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode query: statusId[].
 	if err := func() error {
 		cfg := uri.QueryParameterDecodingConfig{
@@ -3895,6 +4287,756 @@ func decodeGetIssuesCountParams(args [0]string, argsEscaped bool, r *http.Reques
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "statusId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: priorityId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "priorityId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotPriorityIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotPriorityIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.PriorityId = append(params.PriorityId, paramsDotPriorityIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "priorityId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: assigneeId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "assigneeId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotAssigneeIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotAssigneeIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.AssigneeId = append(params.AssigneeId, paramsDotAssigneeIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "assigneeId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: createdUserId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "createdUserId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotCreatedUserIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotCreatedUserIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.CreatedUserId = append(params.CreatedUserId, paramsDotCreatedUserIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "createdUserId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: resolutionId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "resolutionId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotResolutionIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotResolutionIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.ResolutionId = append(params.ResolutionId, paramsDotResolutionIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "resolutionId[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: parentChild.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "parentChild",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotParentChildVal int
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToInt(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotParentChildVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.ParentChild.SetTo(paramsDotParentChildVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "parentChild",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: attachment.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "attachment",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotAttachmentVal bool
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToBool(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotAttachmentVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Attachment.SetTo(paramsDotAttachmentVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "attachment",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: sharedFile.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "sharedFile",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotSharedFileVal bool
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToBool(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotSharedFileVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.SharedFile.SetTo(paramsDotSharedFileVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "sharedFile",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: keyword.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "keyword",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotKeywordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotKeywordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Keyword.SetTo(paramsDotKeywordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "keyword",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: createdSince.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "createdSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotCreatedSinceVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotCreatedSinceVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.CreatedSince.SetTo(paramsDotCreatedSinceVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "createdSince",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: createdUntil.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "createdUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotCreatedUntilVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotCreatedUntilVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.CreatedUntil.SetTo(paramsDotCreatedUntilVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "createdUntil",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: updatedSince.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "updatedSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotUpdatedSinceVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotUpdatedSinceVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.UpdatedSince.SetTo(paramsDotUpdatedSinceVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "updatedSince",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: updatedUntil.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "updatedUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotUpdatedUntilVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotUpdatedUntilVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.UpdatedUntil.SetTo(paramsDotUpdatedUntilVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "updatedUntil",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: startDateSince.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "startDateSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotStartDateSinceVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotStartDateSinceVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.StartDateSince.SetTo(paramsDotStartDateSinceVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "startDateSince",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: startDateUntil.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "startDateUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotStartDateUntilVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotStartDateUntilVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.StartDateUntil.SetTo(paramsDotStartDateUntilVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "startDateUntil",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: dueDateSince.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "dueDateSince",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDueDateSinceVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDueDateSinceVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.DueDateSince.SetTo(paramsDotDueDateSinceVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "dueDateSince",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: dueDateUntil.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "dueDateUntil",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDueDateUntilVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDueDateUntilVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.DueDateUntil.SetTo(paramsDotDueDateUntilVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "dueDateUntil",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: id[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "id[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotIDVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotIDVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.ID = append(params.ID, paramsDotIDVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "id[]",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: parentIssueId[].
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "parentIssueId[]",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				return d.DecodeArray(func(d uri.Decoder) error {
+					var paramsDotParentIssueIdVal int
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToInt(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotParentIssueIdVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					params.ParentIssueId = append(params.ParentIssueId, paramsDotParentIssueIdVal)
+					return nil
+				})
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "parentIssueId[]",
 			In:   "query",
 			Err:  err,
 		}

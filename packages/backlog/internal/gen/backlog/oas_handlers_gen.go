@@ -6098,9 +6098,97 @@ func (s *Server) handleGetIssuesCountRequest(args [0]string, argsEscaped bool, w
 					In:   "query",
 				}: params.ProjectId,
 				{
+					Name: "issueTypeId[]",
+					In:   "query",
+				}: params.IssueTypeId,
+				{
+					Name: "categoryId[]",
+					In:   "query",
+				}: params.CategoryId,
+				{
+					Name: "versionId[]",
+					In:   "query",
+				}: params.VersionId,
+				{
+					Name: "milestoneId[]",
+					In:   "query",
+				}: params.MilestoneId,
+				{
 					Name: "statusId[]",
 					In:   "query",
 				}: params.StatusId,
+				{
+					Name: "priorityId[]",
+					In:   "query",
+				}: params.PriorityId,
+				{
+					Name: "assigneeId[]",
+					In:   "query",
+				}: params.AssigneeId,
+				{
+					Name: "createdUserId[]",
+					In:   "query",
+				}: params.CreatedUserId,
+				{
+					Name: "resolutionId[]",
+					In:   "query",
+				}: params.ResolutionId,
+				{
+					Name: "parentChild",
+					In:   "query",
+				}: params.ParentChild,
+				{
+					Name: "attachment",
+					In:   "query",
+				}: params.Attachment,
+				{
+					Name: "sharedFile",
+					In:   "query",
+				}: params.SharedFile,
+				{
+					Name: "keyword",
+					In:   "query",
+				}: params.Keyword,
+				{
+					Name: "createdSince",
+					In:   "query",
+				}: params.CreatedSince,
+				{
+					Name: "createdUntil",
+					In:   "query",
+				}: params.CreatedUntil,
+				{
+					Name: "updatedSince",
+					In:   "query",
+				}: params.UpdatedSince,
+				{
+					Name: "updatedUntil",
+					In:   "query",
+				}: params.UpdatedUntil,
+				{
+					Name: "startDateSince",
+					In:   "query",
+				}: params.StartDateSince,
+				{
+					Name: "startDateUntil",
+					In:   "query",
+				}: params.StartDateUntil,
+				{
+					Name: "dueDateSince",
+					In:   "query",
+				}: params.DueDateSince,
+				{
+					Name: "dueDateUntil",
+					In:   "query",
+				}: params.DueDateUntil,
+				{
+					Name: "id[]",
+					In:   "query",
+				}: params.ID,
+				{
+					Name: "parentIssueId[]",
+					In:   "query",
+				}: params.ParentIssueId,
 			},
 			Raw: r,
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
@@ -27,10 +28,26 @@ type Project struct {
 	UseDevAttributes                  bool   `json:"useDevAttributes"`
 }
 
+// ProjectListOptions はプロジェクト一覧取得オプション
+type ProjectListOptions struct {
+	// Archived が nil の場合はアーカイブ済み・未アーカイブ両方を取得する。
+	// false なら未アーカイブのみ、true ならアーカイブ済みのみ。
+	Archived *bool
+	// All は管理者向け。true の場合、参加していないプロジェクトも含めて全件取得する。
+	All bool
+}
+
 // GetProjects はプロジェクト一覧を取得する
-func (c *Client) GetProjects(ctx context.Context) ([]Project, error) {
+func (c *Client) GetProjects(ctx context.Context, opts *ProjectListOptions) ([]Project, error) {
 	query := url.Values{}
-	query.Set("archived", "false")
+	if opts != nil {
+		if opts.Archived != nil {
+			query.Set("archived", strconv.FormatBool(*opts.Archived))
+		}
+		if opts.All {
+			query.Set("all", "true")
+		}
+	}
 
 	resp, err := c.Get(ctx, "/projects", query)
 	if err != nil {

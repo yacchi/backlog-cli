@@ -66,6 +66,49 @@ func TestResolveNamedIDReportsAmbiguousMatches(t *testing.T) {
 	}
 }
 
+func TestParseParentChild(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{name: "empty", input: "", want: 0},
+		{name: "all", input: "all", want: 0},
+		{name: "exclude-child", input: "exclude-child", want: 1},
+		{name: "not-child alias", input: "not-child", want: 1},
+		{name: "child", input: "child", want: 2},
+		{name: "none", input: "none", want: 3},
+		{name: "neither alias", input: "neither", want: 3},
+		{name: "parent", input: "parent", want: 4},
+		{name: "uppercase", input: "PARENT", want: 4},
+		{name: "numeric 0", input: "0", want: 0},
+		{name: "numeric 4", input: "4", want: 4},
+		{name: "numeric with spaces", input: " 2 ", want: 2},
+		{name: "numeric out of range", input: "5", wantErr: true},
+		{name: "negative", input: "-1", wantErr: true},
+		{name: "invalid string", input: "foo", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseParentChild(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ParseParentChild(%q) expected error, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseParentChild(%q) unexpected error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseParentChild(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDescribeProjectUser(t *testing.T) {
 	if got := describeProjectUser(api.User{ID: 10, UserID: "alice", Name: "Alice"}); got != "Alice (alice)" {
 		t.Fatalf("describeProjectUser() = %q, want %q", got, "Alice (alice)")
