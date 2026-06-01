@@ -17,14 +17,20 @@ var listCmd = &cobra.Command{
 
 Examples:
   backlog project list
+  backlog project list --archived
+  backlog project list --all
   backlog project list -o json`,
 	RunE: runList,
 }
 
-var listArchived bool
+var (
+	listArchived bool
+	listAll      bool
+)
 
 func init() {
 	listCmd.Flags().BoolVar(&listArchived, "archived", false, "Include archived projects")
+	listCmd.Flags().BoolVar(&listAll, "all", false, "List all projects on the space (administrators only)")
 }
 
 func runList(c *cobra.Command, args []string) error {
@@ -33,7 +39,14 @@ func runList(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	projects, err := client.GetProjects(c.Context())
+	opts := &api.ProjectListOptions{All: listAll}
+	// --archived 未指定時は未アーカイブのみ。指定時はアーカイブ済みも含める。
+	if !listArchived {
+		notArchived := false
+		opts.Archived = &notArchived
+	}
+
+	projects, err := client.GetProjects(c.Context(), opts)
 	if err != nil {
 		return fmt.Errorf("failed to get projects: %w", err)
 	}
@@ -41,17 +54,6 @@ func runList(c *cobra.Command, args []string) error {
 	if len(projects) == 0 {
 		fmt.Println("No projects found")
 		return nil
-	}
-
-	// アーカイブフィルター
-	if !listArchived {
-		filtered := make([]api.Project, 0)
-		for _, p := range projects {
-			if !p.Archived {
-				filtered = append(filtered, p)
-			}
-		}
-		projects = filtered
 	}
 
 	// 出力

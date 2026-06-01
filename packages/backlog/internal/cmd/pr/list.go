@@ -29,6 +29,9 @@ Examples:
   backlog pr list --repo myrepo --state merged
   backlog pr list --repo myrepo --state all
 
+  # Filter by linked issue
+  backlog pr list --repo myrepo --issue PROJ-123
+
   # Open PR list in browser
   backlog pr list --repo myrepo --web`,
 	RunE: runList,
@@ -42,6 +45,7 @@ var (
 	listCount    bool
 	listAuthor   string
 	listAssignee string
+	listIssue    string
 )
 
 func init() {
@@ -52,6 +56,7 @@ func init() {
 	listCmd.Flags().BoolVar(&listCount, "count", false, "Show only the count of pull requests")
 	listCmd.Flags().StringVarP(&listAuthor, "author", "A", "", "Filter by author (user ID, userId, display name, or @me)")
 	listCmd.Flags().StringVarP(&listAssignee, "assignee", "a", "", "Filter by assignee (user ID, userId, display name, or @me)")
+	listCmd.Flags().StringVar(&listIssue, "issue", "", "Filter by linked issue IDs or keys (comma-separated)")
 	_ = listCmd.MarkFlagRequired("repo")
 }
 
@@ -111,6 +116,15 @@ func runList(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		opts.AssigneeIDs = []int{assigneeID}
+	}
+
+	// 関連課題フィルター
+	if listIssue != "" {
+		issueIDs, err := cmdutil.ResolveIssueIDs(ctx, client, listIssue)
+		if err != nil {
+			return fmt.Errorf("failed to resolve issues: %w", err)
+		}
+		opts.IssueIDs = issueIDs
 	}
 
 	// 件数のみ表示

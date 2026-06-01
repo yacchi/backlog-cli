@@ -114,7 +114,7 @@ func resolveWikiID(client *api.Client, ctx context.Context, projectKey, idOrName
 	}
 
 	// 名前で検索
-	wikis, err := client.GetWikis(ctx, projectKey)
+	wikis, err := client.GetWikis(ctx, projectKey, "")
 	if err != nil {
 		return 0, fmt.Errorf("failed to get wiki list: %w", err)
 	}
