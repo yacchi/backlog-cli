@@ -200,6 +200,12 @@ type Handler interface {
 	//
 	// GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments
 	GetListOfPullRequestAttachment(ctx context.Context, params GetListOfPullRequestAttachmentParams) ([]Attachment, error)
+	// GetListOfRecentlyViewedIssues implements getListOfRecentlyViewedIssues operation.
+	//
+	// Get list of recently viewed issues.
+	//
+	// GET /users/myself/recentlyViewedIssues
+	GetListOfRecentlyViewedIssues(ctx context.Context, params GetListOfRecentlyViewedIssuesParams) ([]RecentlyViewedIssue, error)
 	// GetListOfSharedFilesOnWiki implements getListOfSharedFilesOnWiki operation.
 	//
 	// Get shared files linked to wiki.
@@ -284,6 +290,12 @@ type Handler interface {
 	//
 	// GET /users/{userId}
 	GetUser(ctx context.Context, params GetUserParams) (*User, error)
+	// GetUserRecentUpdates implements getUserRecentUpdates operation.
+	//
+	// Get user recent updates.
+	//
+	// GET /users/{userId}/activities
+	GetUserRecentUpdates(ctx context.Context, params GetUserRecentUpdatesParams) ([]Activity, error)
 	// GetUsers implements getUsers operation.
 	//
 	// Get all users.

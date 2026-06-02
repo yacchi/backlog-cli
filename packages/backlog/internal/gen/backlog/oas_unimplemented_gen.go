@@ -301,6 +301,15 @@ func (UnimplementedHandler) GetListOfPullRequestAttachment(ctx context.Context, 
 	return r, ht.ErrNotImplemented
 }
 
+// GetListOfRecentlyViewedIssues implements getListOfRecentlyViewedIssues operation.
+//
+// Get list of recently viewed issues.
+//
+// GET /users/myself/recentlyViewedIssues
+func (UnimplementedHandler) GetListOfRecentlyViewedIssues(ctx context.Context, params GetListOfRecentlyViewedIssuesParams) (r []RecentlyViewedIssue, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetListOfSharedFilesOnWiki implements getListOfSharedFilesOnWiki operation.
 //
 // Get shared files linked to wiki.
@@ -424,6 +433,15 @@ func (UnimplementedHandler) GetStatuses(ctx context.Context, params GetStatusesP
 //
 // GET /users/{userId}
 func (UnimplementedHandler) GetUser(ctx context.Context, params GetUserParams) (r *User, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetUserRecentUpdates implements getUserRecentUpdates operation.
+//
+// Get user recent updates.
+//
+// GET /users/{userId}/activities
+func (UnimplementedHandler) GetUserRecentUpdates(ctx context.Context, params GetUserRecentUpdatesParams) (r []Activity, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

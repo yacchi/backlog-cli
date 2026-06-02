@@ -109,6 +109,9 @@ var (
 	listStartUntil          string
 	listDueSince            string
 	listDueUntil            string
+	listInvolved            string
+	listIncludeCommented    bool
+	listViewed              bool
 )
 
 func init() {
@@ -149,6 +152,9 @@ func init() {
 	listCmd.Flags().StringVar(&listStartUntil, "start-until", "", "Filter by start date until (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&listDueSince, "due-since", "", "Filter by due date since (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&listDueUntil, "due-until", "", "Filter by due date until (YYYY-MM-DD)")
+	listCmd.Flags().StringVar(&listInvolved, "involved", "", "Show issues the user is involved in (assignee ∪ author); accepts @me, user ID, userId, or display name")
+	listCmd.Flags().BoolVar(&listIncludeCommented, "include-commented", false, "With --involved, also scan comments to include comment-only involvement (slower, opt-in)")
+	listCmd.Flags().BoolVar(&listViewed, "viewed", false, "Show recently viewed issues (opt-in; ignores other filters)")
 }
 
 // Backlog の標準ステータスID（全プロジェクト共通）
@@ -203,6 +209,34 @@ func runList(c *cobra.Command, args []string) error {
 
 	profile := cfg.CurrentProfile()
 	ctx := c.Context()
+
+	// --involved / --viewed の併用ルール
+	if listViewed && listInvolved != "" {
+		return fmt.Errorf("--viewed cannot be combined with --involved")
+	}
+	if listInvolved != "" && (listMine || listAssignee != "" || listAuthor != "") {
+		return fmt.Errorf("--involved cannot be combined with --mine/--assignee/--author (it already includes both assignee and author)")
+	}
+	if listIncludeCommented && listInvolved == "" {
+		return fmt.Errorf("--include-commented requires --involved")
+	}
+
+	// --viewed は単独パス（プロジェクトや他フィルタを必要としない）
+	if listViewed {
+		issues, err := fetchViewedIssues(ctx, client)
+		if err != nil {
+			return err
+		}
+		if listCount {
+			fmt.Println(len(issues))
+			return nil
+		}
+		if len(issues) == 0 {
+			fmt.Println("No issues found")
+			return nil
+		}
+		return renderIssueList(c, ctx, client, cfg, profile, issues, "")
+	}
 
 	// プロジェクト指定の解決
 	//   - "all"（小文字、Backlog のプロジェクトキーは大文字固定のため衝突しない）: 全プロジェクト横断
@@ -463,8 +497,8 @@ func runList(c *cobra.Command, args []string) error {
 		}
 	}
 
-	// 件数のみ表示
-	if listCount {
+	// 件数のみ表示（通常パスのみ。--involved は取得後に len で表示）
+	if listCount && listInvolved == "" {
 		count, err := client.GetIssuesCount(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("failed to get issue count: %w", err)
@@ -473,10 +507,54 @@ func runList(c *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// 課題取得（ページネーション対応）
+	// 課題集合の決定
+	var issues []backlog.Issue
+	if listInvolved != "" {
+		meID, err := cmdutil.ResolveUserID(ctx, client, listInvolved)
+		if err != nil {
+			return err
+		}
+		sinceT, untilT, hasSince, hasUntil, err := parseInvolvedRange(opts.UpdatedSince, opts.UpdatedUntil, cfg.Display().Timezone)
+		if err != nil {
+			return err
+		}
+		issues, err = resolveInvolvedIssues(ctx, client, opts, &involvedParams{
+			meID:             meID,
+			limit:            listLimit,
+			includeCommented: listIncludeCommented,
+			sinceT:           sinceT,
+			untilT:           untilT,
+			hasSince:         hasSince,
+			hasUntil:         hasUntil,
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		issues, err = paginateIssues(ctx, client, opts, listLimit)
+		if err != nil {
+			return fmt.Errorf("failed to get issues: %w", err)
+		}
+	}
+
+	if listCount {
+		fmt.Println(len(issues))
+		return nil
+	}
+
+	if len(issues) == 0 {
+		fmt.Println("No issues found")
+		return nil
+	}
+
+	return renderIssueList(c, ctx, client, cfg, profile, issues, singleProjectKey)
+}
+
+// paginateIssues は opts に従って課題を取得する（limit 件まで、0 は全件）。
+func paginateIssues(ctx context.Context, client *api.Client, opts *api.IssueListOptions, limit int) ([]backlog.Issue, error) {
+	const batchSize = 100
 	var allIssues []backlog.Issue
-	batchSize := 100
-	remaining := listLimit
+	remaining := limit
 	if remaining == 0 {
 		remaining = -1 // unlimited
 	}
@@ -491,14 +569,13 @@ func runList(c *cobra.Command, args []string) error {
 
 		batch, err := client.GetIssues(ctx, opts)
 		if err != nil {
-			return fmt.Errorf("failed to get issues: %w", err)
+			return nil, err
 		}
 
 		allIssues = append(allIssues, batch...)
 
-		// 終了条件
 		if len(batch) < fetchCount {
-			break // これ以上ない
+			break
 		}
 		if remaining > 0 {
 			remaining -= len(batch)
@@ -508,14 +585,11 @@ func runList(c *cobra.Command, args []string) error {
 		}
 	}
 
-	issues := allIssues
+	return allIssues, nil
+}
 
-	if len(issues) == 0 {
-		fmt.Println("No issues found")
-		return nil
-	}
-
-	// 出力
+// renderIssueList は課題リストを profile の出力形式（json/table）で出力する。
+func renderIssueList(c *cobra.Command, ctx context.Context, client *api.Client, cfg *config.Store, profile *config.ResolvedProfile, issues []backlog.Issue, projectKey string) error {
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
@@ -526,7 +600,7 @@ func runList(c *cobra.Command, args []string) error {
 		if markdownOpts.Cache && cacheErr != nil {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
-		outputTable(ctx, client, issues, profile, display, cfg, singleProjectKey, markdownOpts)
+		outputTable(ctx, client, issues, profile, display, cfg, projectKey, markdownOpts)
 		return nil
 	}
 }

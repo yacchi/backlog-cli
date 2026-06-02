@@ -354,6 +354,50 @@ components:
         resourceAlreadyRead:
           type: boolean
 
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+        project:
+          allOf:
+            - $ref: '#/components/schemas/Project'
+          nullable: true
+        type:
+          type: integer
+        content:
+          allOf:
+            - $ref: '#/components/schemas/ActivityContent'
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+
+    ActivityContent:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        key_id:
+          type: integer
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    RecentlyViewedIssue:
+      type: object
+      properties:
+        issue:
+          $ref: '#/components/schemas/Issue'
+        updated:
+          type: string
+
     Wiki:
       type: object
       properties:
@@ -696,6 +740,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
 
+  /users/myself/recentlyViewedIssues:
+    get:
+      operationId: getListOfRecentlyViewedIssues
+      summary: Get list of recently viewed issues
+      parameters:
+        - name: order
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecentlyViewedIssue'
+
   /users/{userId}:
     get:
       operationId: getUser
@@ -713,6 +784,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+
+  /users/{userId}/activities:
+    get:
+      operationId: getUserRecentUpdates
+      summary: Get user recent updates
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: activityTypeId[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: minId
+          in: query
+          schema:
+            type: integer
+        - name: maxId
+          in: query
+          schema:
+            type: integer
+        - name: count
+          in: query
+          schema:
+            type: integer
+        - name: order
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Activity'
 
   /priorities:
     get:

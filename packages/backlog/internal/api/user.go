@@ -39,6 +39,31 @@ func (c *Client) GetUser(ctx context.Context, userID int) (*backlog.User, error)
 	})
 }
 
+// RecentlyViewedIssuesOptions は最近見た課題一覧取得オプション
+type RecentlyViewedIssuesOptions struct {
+	Order  string // asc, desc
+	Offset int
+	Count  int
+}
+
+// GetRecentlyViewedIssues は認証ユーザーが最近見た課題の一覧を取得する
+func (c *Client) GetRecentlyViewedIssues(ctx context.Context, opts *RecentlyViewedIssuesOptions) ([]backlog.RecentlyViewedIssue, error) {
+	params := backlog.GetListOfRecentlyViewedIssuesParams{}
+	if opts != nil {
+		if opts.Order != "" {
+			params.Order = backlog.NewOptString(opts.Order)
+		}
+		if opts.Offset > 0 {
+			params.Offset = backlog.NewOptInt(opts.Offset)
+		}
+		if opts.Count > 0 {
+			params.Count = backlog.NewOptInt(opts.Count)
+		}
+	}
+
+	return c.backlogClient.GetListOfRecentlyViewedIssues(ctx, params)
+}
+
 // FetchCurrentUser はアクセストークンを使用して認証ユーザー情報を取得する
 // Client を使用せずに直接 HTTP リクエストを行うスタンドアロン関数
 // 中継サーバーなど、Client を構築できない場面で使用する
