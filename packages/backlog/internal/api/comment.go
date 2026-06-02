@@ -130,11 +130,14 @@ func (c *Client) GetComment(ctx context.Context, issueIDOrKey string, commentID 
 }
 
 // AddComment は課題にコメントを追加する
-func (c *Client) AddComment(ctx context.Context, issueIDOrKey string, content string, notifiedUserIDs []int) (*Comment, error) {
+func (c *Client) AddComment(ctx context.Context, issueIDOrKey string, content string, notifiedUserIDs []int, attachmentIDs []int) (*Comment, error) {
 	data := url.Values{}
 	data.Set("content", content)
 	for _, id := range notifiedUserIDs {
 		data.Add("notifiedUserId[]", strconv.Itoa(id))
+	}
+	for _, id := range attachmentIDs {
+		data.Add("attachmentId[]", strconv.Itoa(id))
 	}
 
 	resp, err := c.PostForm(ctx, fmt.Sprintf("/issues/%s/comments", issueIDOrKey), data)

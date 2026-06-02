@@ -3,6 +3,8 @@ package issue
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
@@ -22,6 +24,10 @@ Examples:
   # Add a comment using --body flag
   backlog issue comment PROJ-123 --body "This is fixed"
   backlog issue comment PROJ-123 -b "Quick fix applied"
+
+  # Attach local file(s) to a new comment
+  backlog issue comment PROJ-123 -b "See the log" --attach error.log
+  backlog issue comment PROJ-123 -b "Related files" --attach a.png --attach b.log
 
   # Read comment from a file
   backlog issue comment PROJ-123 --body-file comment.txt
@@ -44,13 +50,14 @@ Examples:
 }
 
 var (
-	commentBody      string
-	commentBodyFile  string
-	commentEditor    bool
-	editCommentID    int
-	editLast         bool
-	deleteLast       bool
-	commentDeleteYes bool
+	commentBody        string
+	commentBodyFile    string
+	commentEditor      bool
+	editCommentID      int
+	editLast           bool
+	deleteLast         bool
+	commentDeleteYes   bool
+	commentAttachFiles []string
 )
 
 func init() {
@@ -61,11 +68,17 @@ func init() {
 	commentCmd.Flags().BoolVar(&editLast, "edit-last", false, "Edit your last comment on the issue")
 	commentCmd.Flags().BoolVar(&deleteLast, "delete-last", false, "Delete your last comment on the issue")
 	commentCmd.Flags().BoolVar(&commentDeleteYes, "yes", false, "Skip the delete confirmation prompt")
+	commentCmd.Flags().StringArrayVar(&commentAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 	commentCmd.MarkFlagsMutuallyExclusive("edit", "edit-last", "delete-last")
 }
 
 func runComment(c *cobra.Command, args []string) error {
 	issueKey := args[0]
+
+	// --attach は新規コメント追加時のみ対応（編集・削除では無効）
+	if len(commentAttachFiles) > 0 && (deleteLast || editCommentID > 0 || editLast) {
+		return fmt.Errorf("--attach can only be used when adding a new comment")
+	}
 
 	// 削除モードの判定
 	if deleteLast {
@@ -89,11 +102,11 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 		return err
 	}
 	interactive := ui.IsInteractiveInput()
-	if !interactive && commentBody == "" && commentBodyFile == "" && !commentEditor {
+	if !interactive && commentBody == "" && commentBodyFile == "" && !commentEditor && len(commentAttachFiles) == 0 {
 		return cmdutil.NonInteractiveFlagError(
-			"--body, --body-file, or --editor is required when not running interactively",
+			"--body, --body-file, --editor, or --attach is required when not running interactively",
 			"backlog issue comment",
-			"Use --body <text>, --body-file <path>, or --editor to add a comment without prompts.",
+			"Use --body <text>, --body-file <path>, --editor, or --attach <path> to add a comment without prompts.",
 		)
 	}
 
@@ -115,11 +128,28 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 		return fmt.Errorf("failed to get comment: %w", err)
 	}
 
-	if message == "" {
+	if message == "" && len(commentAttachFiles) == 0 {
 		return fmt.Errorf("comment cannot be empty")
 	}
 
-	comment, err := client.AddComment(c.Context(), issueKey, message, nil)
+	// 添付ファイルのアップロード
+	var attachmentIDs []int
+	if len(commentAttachFiles) > 0 {
+		for _, filePath := range commentAttachFiles {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open %s: %w", filePath, err)
+			}
+			up, err := client.UploadSpaceAttachment(c.Context(), filepath.Base(filePath), f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %w", filePath, err)
+			}
+			attachmentIDs = append(attachmentIDs, up.ID)
+		}
+	}
+
+	comment, err := client.AddComment(c.Context(), issueKey, message, nil, attachmentIDs)
 	if err != nil {
 		return fmt.Errorf("failed to add comment: %w", err)
 	}

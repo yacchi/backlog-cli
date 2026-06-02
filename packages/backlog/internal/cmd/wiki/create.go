@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ Examples:
   backlog wiki create --name "Meeting Notes" --content "# Meeting Notes"
   backlog wiki create --name "Spec" --content-file spec.md
   cat content.md | backlog wiki create --name "Page" --content-file -
+  backlog wiki create --name "Design Doc" --content "..." --attach diagram.png
   backlog wiki create  # Interactive mode`,
 	RunE: runCreate,
 }
@@ -30,6 +32,7 @@ var (
 	createContent     string
 	createContentFile string
 	createMailNotify  bool
+	createAttachFiles []string
 )
 
 func init() {
@@ -37,6 +40,7 @@ func init() {
 	createCmd.Flags().StringVarP(&createContent, "content", "c", "", "Wiki page content")
 	createCmd.Flags().StringVarP(&createContentFile, "content-file", "F", "", "Read content from file (use \"-\" to read from standard input)")
 	createCmd.Flags().BoolVar(&createMailNotify, "notify", false, "Send mail notification")
+	createCmd.Flags().StringArrayVar(&createAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 }
 
 func runCreate(c *cobra.Command, args []string) error {
@@ -105,6 +109,26 @@ func runCreate(c *cobra.Command, args []string) error {
 	wiki, err := client.CreateWiki(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to create wiki page: %w", err)
+	}
+
+	// 添付ファイルのアップロード（Wiki作成APIは添付に非対応のため、作成後に紐付ける）
+	if len(createAttachFiles) > 0 {
+		var attachmentIDs []int
+		for _, filePath := range createAttachFiles {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open %s: %w", filePath, err)
+			}
+			up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
+			_ = f.Close()
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %w", filePath, err)
+			}
+			attachmentIDs = append(attachmentIDs, up.ID)
+		}
+		if _, err := client.AttachFilesToWiki(ctx, wiki.ID, attachmentIDs); err != nil {
+			return fmt.Errorf("failed to attach files to wiki %d: %w", wiki.ID, err)
+		}
 	}
 
 	// 出力
