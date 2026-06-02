@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/browser"
@@ -28,6 +27,12 @@ Examples:
   # List open issues (default)
   backlog issue list
   backlog issue ls
+
+  # Search across all accessible projects (ignores the default project)
+  backlog issue list -p all --mine --state all
+
+  # Limit to multiple projects (comma-separated)
+  backlog issue list -p INFRA,LCS --mine
 
   # Filter by assignee
   backlog issue list --assignee @me
@@ -146,53 +151,127 @@ func init() {
 	listCmd.Flags().StringVar(&listDueUntil, "due-until", "", "Filter by due date until (YYYY-MM-DD)")
 }
 
+// Backlog の標準ステータスID（全プロジェクト共通）
+// 1=未対応, 2=処理中, 3=処理済み, 4=完了
+var (
+	standardOpenStatusIDs   = []int{1, 2, 3}
+	standardClosedStatusIDs = []int{4}
+)
+
+// crossProjectKeyword は全プロジェクト横断検索を表す -p の特殊値。
+// Backlog のプロジェクトキーは大文字固定のため、小文字 "all" は実プロジェクトと衝突しない。
+const crossProjectKeyword = "all"
+
+// parseProjectScope は -p/--project（またはデフォルト設定）の値を解析する。
+//   - "all"（小文字単独）           -> 横断検索（projectKeys は空、crossProject=true）
+//   - "INFRA,LCS" のようなカンマ区切り -> 複数プロジェクト
+//   - 単一プロジェクトキー            -> 従来通り
+//
+// 横断でも複数でもなく、プロジェクトが何も指定されていない場合はエラーを返す。
+func parseProjectScope(raw string) (projectKeys []string, crossProject bool, err error) {
+	for _, part := range strings.Split(raw, ",") {
+		key := strings.TrimSpace(part)
+		if key == "" {
+			continue
+		}
+		if key == crossProjectKeyword {
+			crossProject = true
+			continue
+		}
+		projectKeys = append(projectKeys, key)
+	}
+
+	if crossProject {
+		if len(projectKeys) > 0 {
+			return nil, false, fmt.Errorf("-p all (cross-project) cannot be combined with specific project keys")
+		}
+		return nil, true, nil
+	}
+
+	if len(projectKeys) == 0 {
+		return nil, false, fmt.Errorf("project is required\nSpecify with -p/--project flag, use '-p all' to search across all projects, set in .backlog.yaml, or 'backlog config set profile.default.project <key>'")
+	}
+
+	return projectKeys, false, nil
+}
+
 func runList(c *cobra.Command, args []string) error {
 	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
 		return err
 	}
 
-	if err := cmdutil.RequireProject(cfg); err != nil {
-		return err
-	}
-
-	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
 	ctx := c.Context()
 
+	// プロジェクト指定の解決
+	//   - "all"（小文字、Backlog のプロジェクトキーは大文字固定のため衝突しない）: 全プロジェクト横断
+	//   - "INFRA,LCS": 複数プロジェクト指定
+	//   - 単一: 従来通り
+	projectKeys, crossProject, err := parseProjectScope(cmdutil.GetCurrentProject(cfg))
+	if err != nil {
+		return err
+	}
+
+	// singleProjectKey はプロジェクト固有フィルタ（category 等）の解決に使う。
+	// 横断/複数指定時は空となり、プロジェクト固有フィルタは利用できない。
+	singleProjectKey := ""
+	if len(projectKeys) == 1 {
+		singleProjectKey = projectKeys[0]
+	}
+
 	// ブラウザで開く
 	if listWeb {
-		url := fmt.Sprintf("https://%s.%s/find/%s", profile.Space, profile.Domain, projectKey)
+		var url string
+		if singleProjectKey != "" {
+			url = fmt.Sprintf("https://%s.%s/find/%s", profile.Space, profile.Domain, singleProjectKey)
+		} else {
+			// 横断/複数指定はスペース全体の検索画面を開く
+			url = fmt.Sprintf("https://%s.%s/find", profile.Space, profile.Domain)
+		}
 		return browser.OpenURL(url)
 	}
 
-	// プロジェクト情報取得
-	project, err := client.GetProject(ctx, projectKey)
-	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+	// プロジェクト固有フィルタが単一プロジェクトを要求することを保証する
+	requireSingleProject := func(flag string) (string, error) {
+		if singleProjectKey != "" {
+			return singleProjectKey, nil
+		}
+		if crossProject {
+			return "", fmt.Errorf("--%s cannot be used with cross-project search (-p all); specify a single project with -p/--project", flag)
+		}
+		return "", fmt.Errorf("--%s requires a single project; specify exactly one with -p/--project", flag)
 	}
 
 	// オプション構築
 	opts := &api.IssueListOptions{
-		ProjectIDs: []int{project.ID},
-		Count:      listLimit,
-		Sort:       listSort,
-		Order:      listOrder,
+		Count: listLimit,
+		Sort:  listSort,
+		Order: listOrder,
+	}
+
+	// プロジェクトIDを解決（横断時は projectId[] を送らない）
+	for _, key := range projectKeys {
+		project, err := client.GetProject(ctx, key)
+		if err != nil {
+			return fmt.Errorf("failed to get project %q: %w", key, err)
+		}
+		opts.ProjectIDs = append(opts.ProjectIDs, project.ID)
 	}
 
 	if listSearch != "" {
 		opts.Keyword = listSearch
 	}
 
-	// 担当者フィルター
+	// 担当者フィルター（@me・数値IDは横断でも解決可能、名前指定は単一プロジェクト必須）
 	if listMine {
-		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, "@me")
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, singleProjectKey, "@me")
 		if err != nil {
 			return err
 		}
 		opts.AssigneeIDs = []int{assigneeID}
 	} else if listAssignee != "" {
-		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, projectKey, listAssignee)
+		assigneeID, err := cmdutil.ResolveProjectAssigneeID(ctx, client, singleProjectKey, listAssignee)
 		if err != nil {
 			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
@@ -201,7 +280,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 作成者フィルター
 	if listAuthor != "" {
-		authorID, err := cmdutil.ResolveProjectAuthorID(ctx, client, projectKey, listAuthor)
+		authorID, err := cmdutil.ResolveProjectAuthorID(ctx, client, singleProjectKey, listAuthor)
 		if err != nil {
 			return fmt.Errorf("failed to resolve author: %w", err)
 		}
@@ -210,6 +289,10 @@ func runList(c *cobra.Command, args []string) error {
 
 	// カテゴリフィルター（--category オプション、ghの--labelに相当）
 	if listCategory != "" {
+		projectKey, err := requireSingleProject("category")
+		if err != nil {
+			return err
+		}
 		categoryIDs, err := cmdutil.ResolveCategoryIDs(ctx, client, projectKey, listCategory)
 		if err != nil {
 			return fmt.Errorf("failed to resolve categories: %w", err)
@@ -219,6 +302,10 @@ func runList(c *cobra.Command, args []string) error {
 
 	// マイルストーンフィルター（--milestone オプション）
 	if listMilestone != "" {
+		projectKey, err := requireSingleProject("milestone")
+		if err != nil {
+			return err
+		}
 		milestoneIDs, err := cmdutil.ResolveMilestoneIDs(ctx, client, projectKey, listMilestone)
 		if err != nil {
 			return fmt.Errorf("failed to resolve milestones: %w", err)
@@ -228,6 +315,10 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 課題種別フィルター（--type オプション）
 	if listIssueType != "" {
+		projectKey, err := requireSingleProject("type")
+		if err != nil {
+			return err
+		}
 		issueTypeIDs, err := cmdutil.ResolveIssueTypeIDs(ctx, client, projectKey, listIssueType)
 		if err != nil {
 			return fmt.Errorf("failed to resolve issue types: %w", err)
@@ -255,6 +346,10 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 発生バージョンフィルター（--version オプション）
 	if listVersion != "" {
+		projectKey, err := requireSingleProject("version")
+		if err != nil {
+			return err
+		}
 		versionIDs, err := cmdutil.ResolveVersionIDs(ctx, client, projectKey, listVersion)
 		if err != nil {
 			return fmt.Errorf("failed to resolve versions: %w", err)
@@ -311,6 +406,10 @@ func runList(c *cobra.Command, args []string) error {
 
 	// ステータスフィルター（--status オプション、--state より優先）
 	if listStatus != "" {
+		projectKey, err := requireSingleProject("status")
+		if err != nil {
+			return err
+		}
 		statusIDs, err := cmdutil.ResolveStatusIDs(ctx, client, projectKey, listStatus)
 		if err != nil {
 			return fmt.Errorf("failed to resolve statuses: %w", err)
@@ -320,31 +419,42 @@ func runList(c *cobra.Command, args []string) error {
 		// ステータスフィルター（--state オプション）
 		switch listState {
 		case "open":
-			// Backlogのステータス: 1=未対応, 2=処理中, 3=処理済み
-			// open = 完了以外（4=完了を除く）
-			statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
-			if err == nil {
-				var openStatusIDs []int
-				for _, s := range statuses {
-					// "完了" または "Closed" 以外を含める
-					if s.Name != "完了" && s.Name != "Closed" && s.Name != "Done" {
-						openStatusIDs = append(openStatusIDs, s.ID)
+			if singleProjectKey != "" {
+				// 単一プロジェクトはカスタムステータスを考慮し、名前で判定する
+				// Backlogの標準ステータス: 1=未対応, 2=処理中, 3=処理済み, 4=完了
+				// open = 完了以外（4=完了を除く）
+				statuses, err := client.GetStatuses(ctx, singleProjectKey)
+				if err == nil {
+					var openStatusIDs []int
+					for _, s := range statuses {
+						// "完了" または "Closed" 以外を含める
+						if s.Name != "完了" && s.Name != "Closed" && s.Name != "Done" {
+							openStatusIDs = append(openStatusIDs, s.ID)
+						}
+					}
+					if len(openStatusIDs) > 0 {
+						opts.StatusIDs = openStatusIDs
 					}
 				}
-				if len(openStatusIDs) > 0 {
-					opts.StatusIDs = openStatusIDs
-				}
+			} else {
+				// 横断/複数指定はプロジェクト共通の標準ステータスIDで近似する
+				// （プロジェクト固有のカスタムステータスは対象外）
+				opts.StatusIDs = standardOpenStatusIDs
 			}
 		case "closed":
-			// closed = 完了のみ
-			statuses, err := client.GetStatuses(ctx, strconv.Itoa(project.ID))
-			if err == nil {
-				for _, s := range statuses {
-					if s.Name == "完了" || s.Name == "Closed" || s.Name == "Done" {
-						opts.StatusIDs = []int{s.ID}
-						break
+			if singleProjectKey != "" {
+				// closed = 完了のみ
+				statuses, err := client.GetStatuses(ctx, singleProjectKey)
+				if err == nil {
+					for _, s := range statuses {
+						if s.Name == "完了" || s.Name == "Closed" || s.Name == "Done" {
+							opts.StatusIDs = []int{s.ID}
+							break
+						}
 					}
 				}
+			} else {
+				opts.StatusIDs = standardClosedStatusIDs
 			}
 		case "all":
 			// all = フィルターなし
@@ -416,7 +526,7 @@ func runList(c *cobra.Command, args []string) error {
 		if markdownOpts.Cache && cacheErr != nil {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
-		outputTable(ctx, client, issues, profile, display, cfg, projectKey, markdownOpts)
+		outputTable(ctx, client, issues, profile, display, cfg, singleProjectKey, markdownOpts)
 		return nil
 	}
 }
