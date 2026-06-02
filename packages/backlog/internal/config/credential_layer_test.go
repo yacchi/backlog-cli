@@ -83,6 +83,7 @@ func TestCredentialFileBackendRoundTrip(t *testing.T) {
 	cred := reloaded.Credential(DefaultProfile)
 	if cred == nil {
 		t.Fatal("Credential(default) = nil")
+		return
 	}
 	if cred.AccessToken != "file-access-token" {
 		t.Fatalf("Credential().AccessToken = %q, want %q", cred.AccessToken, "file-access-token")
@@ -172,6 +173,7 @@ func TestCredentialKeyringBackendRoundTrip(t *testing.T) {
 	cred := reloaded.Credential(DefaultProfile)
 	if cred == nil {
 		t.Fatal("Credential(default) = nil")
+		return
 	}
 	if cred.AccessToken != "keyring-access-token" {
 		t.Fatalf("Credential().AccessToken = %q, want %q", cred.AccessToken, "keyring-access-token")
