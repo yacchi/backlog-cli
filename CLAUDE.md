@@ -84,6 +84,7 @@ make clean
 - `docs/design/oauth-relay-server.md` - OAuth中継サーバー設計書
 - `docs/design/relay-config-bundle.md` - Relay Config Bundle仕様書
 - `docs/design/backlog-gfm-conversion.md` - Backlog記法→GFM変換仕様
+- `docs/design/activity-and-involved-issues.md` - activityコマンド/issue list関与課題横断取得仕様
 
 ## ドキュメント運用（プロジェクトメモリ）
 

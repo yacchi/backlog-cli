@@ -6,6 +6,124 @@ import (
 	"io"
 )
 
+// Ref: #/components/schemas/Activity
+type Activity struct {
+	ID          OptInt                `json:"id"`
+	Project     OptNilProject         `json:"project"`
+	Type        OptInt                `json:"type"`
+	Content     OptNilActivityContent `json:"content"`
+	CreatedUser OptUser               `json:"createdUser"`
+	Created     OptString             `json:"created"`
+}
+
+// GetID returns the value of ID.
+func (s *Activity) GetID() OptInt {
+	return s.ID
+}
+
+// GetProject returns the value of Project.
+func (s *Activity) GetProject() OptNilProject {
+	return s.Project
+}
+
+// GetType returns the value of Type.
+func (s *Activity) GetType() OptInt {
+	return s.Type
+}
+
+// GetContent returns the value of Content.
+func (s *Activity) GetContent() OptNilActivityContent {
+	return s.Content
+}
+
+// GetCreatedUser returns the value of CreatedUser.
+func (s *Activity) GetCreatedUser() OptUser {
+	return s.CreatedUser
+}
+
+// GetCreated returns the value of Created.
+func (s *Activity) GetCreated() OptString {
+	return s.Created
+}
+
+// SetID sets the value of ID.
+func (s *Activity) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetProject sets the value of Project.
+func (s *Activity) SetProject(val OptNilProject) {
+	s.Project = val
+}
+
+// SetType sets the value of Type.
+func (s *Activity) SetType(val OptInt) {
+	s.Type = val
+}
+
+// SetContent sets the value of Content.
+func (s *Activity) SetContent(val OptNilActivityContent) {
+	s.Content = val
+}
+
+// SetCreatedUser sets the value of CreatedUser.
+func (s *Activity) SetCreatedUser(val OptUser) {
+	s.CreatedUser = val
+}
+
+// SetCreated sets the value of Created.
+func (s *Activity) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// Ref: #/components/schemas/ActivityContent
+type ActivityContent struct {
+	ID          OptNilInt    `json:"id"`
+	KeyID       OptNilInt    `json:"key_id"`
+	Summary     OptNilString `json:"summary"`
+	Description OptNilString `json:"description"`
+}
+
+// GetID returns the value of ID.
+func (s *ActivityContent) GetID() OptNilInt {
+	return s.ID
+}
+
+// GetKeyID returns the value of KeyID.
+func (s *ActivityContent) GetKeyID() OptNilInt {
+	return s.KeyID
+}
+
+// GetSummary returns the value of Summary.
+func (s *ActivityContent) GetSummary() OptNilString {
+	return s.Summary
+}
+
+// GetDescription returns the value of Description.
+func (s *ActivityContent) GetDescription() OptNilString {
+	return s.Description
+}
+
+// SetID sets the value of ID.
+func (s *ActivityContent) SetID(val OptNilInt) {
+	s.ID = val
+}
+
+// SetKeyID sets the value of KeyID.
+func (s *ActivityContent) SetKeyID(val OptNilInt) {
+	s.KeyID = val
+}
+
+// SetSummary sets the value of Summary.
+func (s *ActivityContent) SetSummary(val OptNilString) {
+	s.Summary = val
+}
+
+// SetDescription sets the value of Description.
+func (s *ActivityContent) SetDescription(val OptNilString) {
+	s.Description = val
+}
+
 type AddCommentReq struct {
 	Content        string `json:"content"`
 	NotifiedUserId []int  `json:"notifiedUserId[]"`
@@ -2460,6 +2578,69 @@ func (o OptLinkSharedFilesToWikiReq) Or(d LinkSharedFilesToWikiReq) LinkSharedFi
 	return d
 }
 
+// NewOptNilActivityContent returns new OptNilActivityContent with value set to v.
+func NewOptNilActivityContent(v ActivityContent) OptNilActivityContent {
+	return OptNilActivityContent{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilActivityContent is optional nullable ActivityContent.
+type OptNilActivityContent struct {
+	Value ActivityContent
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilActivityContent was set.
+func (o OptNilActivityContent) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilActivityContent) Reset() {
+	var v ActivityContent
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilActivityContent) SetTo(v ActivityContent) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilActivityContent) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilActivityContent) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v ActivityContent
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilActivityContent) Get() (v ActivityContent, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilActivityContent) Or(d ActivityContent) ActivityContent {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptNilDocumentTreeNode returns new OptNilDocumentTreeNode with value set to v.
 func NewOptNilDocumentTreeNode(v DocumentTreeNode) OptNilDocumentTreeNode {
 	return OptNilDocumentTreeNode{
@@ -2706,6 +2887,69 @@ func (o OptNilNulabAccount) Get() (v NulabAccount, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptNilNulabAccount) Or(d NulabAccount) NulabAccount {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNilProject returns new OptNilProject with value set to v.
+func NewOptNilProject(v Project) OptNilProject {
+	return OptNilProject{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilProject is optional nullable Project.
+type OptNilProject struct {
+	Value Project
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilProject was set.
+func (o OptNilProject) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilProject) Reset() {
+	var v Project
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilProject) SetTo(v Project) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilProject) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilProject) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v Project
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilProject) Get() (v Project, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilProject) Or(d Project) Project {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -3746,6 +3990,32 @@ func (s *PullRequest) SetUpdatedUser(val OptUser) {
 
 // SetUpdated sets the value of Updated.
 func (s *PullRequest) SetUpdated(val OptString) {
+	s.Updated = val
+}
+
+// Ref: #/components/schemas/RecentlyViewedIssue
+type RecentlyViewedIssue struct {
+	Issue   OptIssue  `json:"issue"`
+	Updated OptString `json:"updated"`
+}
+
+// GetIssue returns the value of Issue.
+func (s *RecentlyViewedIssue) GetIssue() OptIssue {
+	return s.Issue
+}
+
+// GetUpdated returns the value of Updated.
+func (s *RecentlyViewedIssue) GetUpdated() OptString {
+	return s.Updated
+}
+
+// SetIssue sets the value of Issue.
+func (s *RecentlyViewedIssue) SetIssue(val OptIssue) {
+	s.Issue = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *RecentlyViewedIssue) SetUpdated(val OptString) {
 	s.Updated = val
 }
 
