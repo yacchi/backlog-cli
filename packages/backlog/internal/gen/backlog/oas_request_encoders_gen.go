@@ -38,9 +38,9 @@ func encodeAddCommentRequest(
 		}
 	}
 	{
-		// Encode "notifiedUserId" form field.
+		// Encode "notifiedUserId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "notifiedUserId",
+			Name:    "notifiedUserId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
@@ -122,9 +122,9 @@ func encodeAttachFileToWikiRequest(
 
 	q := uri.NewFormEncoder(map[string]string{})
 	{
-		// Encode "attachmentId" form field.
+		// Encode "attachmentId[]" form field.
 		cfg := uri.QueryParameterEncodingConfig{
-			Name:    "attachmentId",
+			Name:    "attachmentId[]",
 			Style:   uri.QueryStyleForm,
 			Explode: true,
 		}
