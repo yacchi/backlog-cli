@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 )
 
@@ -16,7 +17,11 @@ var meCmd = &cobra.Command{
 
 Examples:
   backlog auth me
-  backlog auth me --quiet`,
+  backlog auth me --quiet
+
+  # Output as JSON (includes numeric user id)
+  backlog auth me -o json
+  backlog auth me -o json --jq .id`,
 	RunE: runMe,
 }
 
@@ -54,6 +59,12 @@ func runMe(cmd *cobra.Command, args []string) error {
 	// quiet mode: just check authentication, no output
 	if meQuiet {
 		return nil
+	}
+
+	// JSON出力（profile.Output が json のとき）
+	// /api/v2/users/myself のレスポンスをそのまま出力する
+	if profile := cfg.CurrentProfile(); profile != nil && profile.Output == "json" {
+		return cmdutil.OutputJSONFromProfile(user, profile.JSONFields, profile.JQ, profile.Template)
 	}
 
 	fmt.Printf("User ID:       %s\n", user.UserId.Value)
