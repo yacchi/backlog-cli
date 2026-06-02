@@ -8,7 +8,7 @@ import (
 
 type AddCommentReq struct {
 	Content        string `json:"content"`
-	NotifiedUserId []int  `json:"notifiedUserId"`
+	NotifiedUserId []int  `json:"notifiedUserId[]"`
 }
 
 // GetContent returns the value of Content.
@@ -71,7 +71,7 @@ func (s *ApiKey) SetRoles(val []string) {
 }
 
 type AttachFileToWikiReq struct {
-	AttachmentId []int `json:"attachmentId"`
+	AttachmentId []int `json:"attachmentId[]"`
 }
 
 // GetAttachmentId returns the value of AttachmentId.

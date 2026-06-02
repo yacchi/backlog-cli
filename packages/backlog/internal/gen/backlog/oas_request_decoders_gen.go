@@ -84,7 +84,7 @@ func (s *Server) decodeAddCommentRequest(r *http.Request) (
 			}
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "notifiedUserId",
+					Name:    "notifiedUserId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -112,7 +112,7 @@ func (s *Server) decodeAddCommentRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"notifiedUserId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"notifiedUserId[]\"")
 					}
 				}
 			}
@@ -258,7 +258,7 @@ func (s *Server) decodeAttachFileToWikiRequest(r *http.Request) (
 			q := uri.NewQueryDecoder(form)
 			{
 				cfg := uri.QueryParameterDecodingConfig{
-					Name:    "attachmentId",
+					Name:    "attachmentId[]",
 					Style:   uri.QueryStyleForm,
 					Explode: true,
 				}
@@ -286,7 +286,7 @@ func (s *Server) decodeAttachFileToWikiRequest(r *http.Request) (
 							return nil
 						})
 					}); err != nil {
-						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId\"")
+						return req, rawBody, close, errors.Wrap(err, "decode \"attachmentId[]\"")
 					}
 				}
 			}

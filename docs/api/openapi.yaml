@@ -1581,7 +1581,7 @@ paths:
               properties:
                 content:
                   type: string
-                notifiedUserId:
+                notifiedUserId[]:
                   type: array
                   items:
                     type: integer
@@ -2194,7 +2194,7 @@ paths:
             schema:
               type: object
               properties:
-                attachmentId:
+                attachmentId[]:
                   type: array
                   items:
                     type: integer
