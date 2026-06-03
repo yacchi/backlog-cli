@@ -75,6 +75,7 @@ var envShortcuts = map[string]string{
 	"BACKLOG_AUTH_TIMEOUT":      "BACKLOG_PROFILE_default_AUTH_TIMEOUT",
 	"BACKLOG_NO_BROWSER":        "BACKLOG_PROFILE_default_NO_BROWSER",
 	"BACKLOG_SKIP_CONFIRMATION": "BACKLOG_PROFILE_default_SKIP_CONFIRMATION",
+	"BACKLOG_PRIMARY":           "BACKLOG_PROFILE_default_PRIMARY",
 }
 
 // expandEnvShortcuts は環境変数のショートカットを展開した環境変数リストを返す
@@ -106,6 +107,7 @@ type ResolvedProfile struct {
 	RelayServer            string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
 	Space                  string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
 	Domain                 string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
+	Primary                bool   `json:"primary" jubako:",env:PROFILE_{key}_PRIMARY"`
 	Project                string `json:"project" jubako:",env:PROFILE_{key}_PROJECT"`
 	Output                 string `json:"output" jubako:",env:PROFILE_{key}_OUTPUT"`
 	JSONFields             string `json:"json_fields" jubako:",env:PROFILE_{key}_JSON_FIELDS"`

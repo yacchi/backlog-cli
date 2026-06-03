@@ -242,6 +242,51 @@ func (s *Store) Profiles() map[string]*ResolvedProfile {
 	return s.store.Get().Profiles
 }
 
+// ResolveBySpace はスペースホスト名（例: "ai2.backlog.jp"）からプロファイル名を解決する。
+// 解決ロジック:
+//   - 0件マッチ → エラー
+//   - 1件マッチ → そのプロファイル名を返す
+//   - 2件以上 → primary: true のプロファイルを返す。なければエラー
+func (s *Store) ResolveBySpace(spaceHost string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	resolved := s.store.Get()
+
+	// spaceHost を space + domain に分解
+	parts := strings.SplitN(spaceHost, ".", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("invalid space host %q: expected format \"space.domain\" (e.g. \"myspace.backlog.jp\")", spaceHost)
+	}
+	targetSpace := parts[0]
+	targetDomain := parts[1]
+
+	var matches []string
+	var primaryName string
+
+	for name, profile := range resolved.Profiles {
+		if profile.Space == targetSpace && profile.Domain == targetDomain {
+			matches = append(matches, name)
+			if profile.Primary {
+				primaryName = name
+			}
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("no profile configured for space %s", spaceHost)
+	case 1:
+		return matches[0], nil
+	default:
+		if primaryName != "" {
+			return primaryName, nil
+		}
+		return "", fmt.Errorf("multiple profiles found for %s: %s\nRun: backlog profile set-primary --profile <name>",
+			spaceHost, strings.Join(matches, ", "))
+	}
+}
+
 // Credential は指定プロファイルのクレデンシャルを取得する
 func (s *Store) Credential(profileName string) *Credential {
 	s.mu.RLock()
