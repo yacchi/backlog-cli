@@ -13,32 +13,46 @@ export interface TokenPayload {
 const ALG = "dir";
 const ENC = "A256GCM";
 
+export async function encrypt(
+    payload: Record<string, unknown>,
+    key: Uint8Array,
+): Promise<string> {
+    const encoder = new TextEncoder();
+    return new CompactEncrypt(encoder.encode(JSON.stringify(payload)))
+        .setProtectedHeader({ alg: ALG, enc: ENC })
+        .encrypt(key);
+}
+
+export async function decrypt(
+    jwe: string,
+    key: Uint8Array,
+): Promise<Record<string, unknown>> {
+    const { plaintext } = await compactDecrypt(jwe, key, {
+        keyManagementAlgorithms: [ALG],
+        contentEncryptionAlgorithms: [ENC],
+    });
+    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as Record<string, unknown>;
+
+    if (typeof payload.exp === "number" && payload.exp < Math.floor(Date.now() / 1000)) {
+        throw new Error("token expired");
+    }
+
+    return payload;
+}
+
 export async function encryptToken(
     payload: TokenPayload,
     key: Uint8Array,
 ): Promise<string> {
-    const encoder = new TextEncoder();
-    const jwe = await new CompactEncrypt(encoder.encode(JSON.stringify(payload)))
-        .setProtectedHeader({ alg: ALG, enc: ENC })
-        .encrypt(key);
-    return jwe;
+    return encrypt(payload as unknown as Record<string, unknown>, key);
 }
 
 export async function decryptToken(
     jwe: string,
     key: Uint8Array,
 ): Promise<TokenPayload> {
-    const { plaintext } = await compactDecrypt(jwe, key, {
-        keyManagementAlgorithms: [ALG],
-        contentEncryptionAlgorithms: [ENC],
-    });
-    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as TokenPayload;
-
-    if (payload.exp != null && payload.exp < Math.floor(Date.now() / 1000)) {
-        throw new Error("token expired");
-    }
-
-    return payload;
+    const payload = await decrypt(jwe, key);
+    return payload as unknown as TokenPayload;
 }
 
 export function generateKey(): Uint8Array {
