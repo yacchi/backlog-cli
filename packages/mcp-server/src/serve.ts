@@ -1,0 +1,41 @@
+import { serve } from "@hono/node-server";
+import { createMcpApp, createSandboxClient } from "./index.js";
+import { parseConfig } from "./config/schema.js";
+
+const configJson = process.env.MCP_CONFIG;
+if (!configJson) {
+    console.error("MCP_CONFIG environment variable is required");
+    process.exit(1);
+}
+
+const config = parseConfig(configJson);
+
+let runScript: Parameters<typeof createMcpApp>[0]["runScript"];
+
+const hasSandboxEnabled = Object.values(config.tenants).some(
+    (t) => t.script?.enabled,
+);
+
+if (hasSandboxEnabled) {
+    const sandbox = await createSandboxClient({
+        denoPath: process.env.DENO_PATH,
+        binPath: process.env.BACKLOG_BIN_PATH,
+    });
+
+    runScript = (script, token, tenant) => sandbox.execute(script, token, tenant);
+
+    process.on("SIGTERM", () => sandbox.shutdown());
+    process.on("SIGINT", () => sandbox.shutdown());
+}
+
+const app = createMcpApp({
+    config,
+    binPath: process.env.BACKLOG_BIN_PATH,
+    runScript,
+});
+
+const port = parseInt(process.env.PORT || "8080", 10);
+
+serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+    console.log(`MCP server listening on http://0.0.0.0:${info.port}`);
+});
