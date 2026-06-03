@@ -12,6 +12,46 @@ importers:
         specifier: workspace:*
         version: link:packages/relay-core
 
+  packages/mcp-aws:
+    dependencies:
+      '@backlog-cli/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+      aws-cdk-lib:
+        specifier: ^2.170.0
+        version: 2.233.0(constructs@10.4.4)
+      constructs:
+        specifier: ^10.4.0
+        version: 10.4.4
+      hono:
+        specifier: ^4.7.11
+        version: 4.11.3
+      source-map-support:
+        specifier: ^0.5.21
+        version: 0.5.21
+    devDependencies:
+      '@aws-sdk/client-ssm':
+        specifier: ^3.0.0
+        version: 3.958.0
+      '@types/aws-lambda':
+        specifier: ^8.10.159
+        version: 8.10.159
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.4
+      aws-cdk:
+        specifier: ^2.170.0
+        version: 2.1100.1
+      esbuild:
+        specifier: ^0.27.2
+        version: 0.27.2
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
   packages/mcp-server:
     dependencies:
       '@hono/node-server':

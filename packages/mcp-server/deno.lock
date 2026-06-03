@@ -1,0 +1,35 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:pyodide@*": "0.29.4"
+  },
+  "npm": {
+    "@types/emscripten@1.41.5": {
+      "integrity": "sha512-cMQm7pxu6BxtHyqJ7mQZ2kXWV5SLmugybFdHCBbJ5eHzOo6VhBckEgAT3//rP5FwPHNPeEiq4SmQ5ucBwsOo4Q=="
+    },
+    "pyodide@0.29.4": {
+      "integrity": "sha512-tCseTsqU3kSxZIjkue5zXxTMNEwrKZwOIIEQRBA/VzHxFN1hoCxe4w41phfCdHd9it9RcCNQb5K/Re0InqMgvA==",
+      "dependencies": [
+        "@types/emscripten",
+        "ws"
+      ]
+    },
+    "ws@8.21.0": {
+      "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@hono/node-server@^1.14.0",
+        "npm:@types/node@^24.10.1",
+        "npm:hono@^4.7.10",
+        "npm:jose@6",
+        "npm:tsup@^8.5.0",
+        "npm:typescript@~5.9.3",
+        "npm:vitest@^3.1.4",
+        "npm:zod@^4.3.4"
+      ]
+    }
+  }
+}
