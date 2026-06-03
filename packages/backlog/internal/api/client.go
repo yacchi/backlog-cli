@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -150,12 +151,34 @@ func (c *Client) OAuth2(ctx context.Context, operationName backlog.OperationName
 	return backlog.OAuth2{}, ogenerrors.ErrSkipClientSecurity
 }
 
+// credentialFromEnv は環境変数から認証情報を取得する。
+// BACKLOG_API_KEY > BACKLOG_ACCESS_TOKEN の優先順位。該当なしなら nil を返す。
+func credentialFromEnv() *config.Credential {
+	if key := os.Getenv("BACKLOG_API_KEY"); key != "" {
+		return &config.Credential{
+			AuthType: config.AuthTypeAPIKey,
+			APIKey:   key,
+		}
+	}
+	if token := os.Getenv("BACKLOG_ACCESS_TOKEN"); token != "" {
+		return &config.Credential{
+			AuthType:    config.AuthTypeOAuth,
+			AccessToken: token,
+		}
+	}
+	return nil
+}
+
 // NewClientFromConfig は設定からクライアントを作成する
 func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 	resolved := cfg.Resolved()
 	profile := resolved.GetActiveProfile()
 	project := cfg.Project()
 	cred := resolved.GetActiveCredential()
+
+	if envCred := credentialFromEnv(); envCred != nil {
+		cred = envCred
+	}
 
 	if cred == nil {
 		return nil, fmt.Errorf("not authenticated")
