@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/notification"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/pr"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/priority"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/profile"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/project"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/repo"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/resolution"
@@ -60,9 +62,22 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 			return err
 		}
 
-		// profileフラグが指定されていればアクティブプロファイルを切り替え
-		if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
-			cfg.SetActiveProfile(profile)
+		// --profile と --space の排他チェック
+		profileFlag, _ := cmd.Flags().GetString("profile")
+		spaceFlag, _ := cmd.Flags().GetString("space")
+
+		if profileFlag != "" && spaceFlag != "" {
+			return fmt.Errorf("cannot use --profile and --space together")
+		}
+
+		if profileFlag != "" {
+			cfg.SetActiveProfile(profileFlag)
+		} else if spaceFlag != "" {
+			resolved, err := cfg.ResolveBySpace(spaceFlag)
+			if err != nil {
+				return err
+			}
+			cfg.SetActiveProfile(resolved)
 		}
 
 		// カラー設定
@@ -127,6 +142,7 @@ func Execute() error {
 func init() {
 	// グローバルフラグ
 	rootCmd.PersistentFlags().String("profile", "", "Configuration profile to use")
+	rootCmd.PersistentFlags().String("space", "", "Resolve profile by space host (e.g. myspace.backlog.jp)")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Backlog project key")
 	rootCmd.PersistentFlags().StringP("output", "o", "", "Output format (table, json)")
 	rootCmd.PersistentFlags().String("json", "", "Output JSON with specified fields (comma-separated)")
@@ -152,6 +168,7 @@ func init() {
 	rootCmd.AddCommand(notification.NotificationCmd)
 	rootCmd.AddCommand(pr.PRCmd)
 	rootCmd.AddCommand(priority.PriorityCmd)
+	rootCmd.AddCommand(profile.ProfileCmd)
 	rootCmd.AddCommand(project.ProjectCmd)
 	rootCmd.AddCommand(repo.RepoCmd)
 	rootCmd.AddCommand(resolution.ResolutionCmd)

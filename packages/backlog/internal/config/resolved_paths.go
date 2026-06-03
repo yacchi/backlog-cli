@@ -116,6 +116,12 @@ func PathProfileDomain(key string) string {
 	return "/profile/" + jsonptr.Escape(key) + "/domain"
 }
 
+// PathProfilePrimary returns the JSONPointer path.
+// Path pattern: /profile/{key}/primary
+func PathProfilePrimary(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/primary"
+}
+
 // PathProfileProject returns the JSONPointer path.
 // Path pattern: /profile/{key}/project
 func PathProfileProject(key string) string {
