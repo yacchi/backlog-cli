@@ -36,13 +36,16 @@ Backlog CLI の Remote MCP Server は、Claude Desktop / claude.ai / Claude Code
 - Node.js 22+、Go 1.23+、pnpm がインストール済み
 - AWS アカウント（Lambda デプロイの場合）
 
-### 1. JWE 暗号鍵の生成
+### 1. JWE 暗号鍵の作成 (Secrets Manager)
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+aws secretsmanager create-secret \
+  --name /backlog-mcp/token-key \
+  --secret-string "$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
 ```
 
-この鍵は `token_key` として設定します。ユーザートークンの暗号化に使用されるため、安全に管理してください。
+シークレットの値は base64url エンコードされた 32 バイトのランダム鍵です。
+鍵ローテーションは Secrets Manager のローテーション機構で行います（後述）。
 
 ### 2. 設定ファイルの作成
 
@@ -61,7 +64,6 @@ export const config: McpStackConfig = {
     parameterValue: {
         base_url: "https://your-function-url.lambda-url.ap-northeast-1.on.aws",
         relay_url: "https://your-relay-server.example.com",
-        token_key: "<上で生成した鍵>",
         backlog_apps: [
             {
                 domain: "backlog.jp",
@@ -80,16 +82,20 @@ export const config: McpStackConfig = {
             },
         },
     },
+    // 手順 1 で作成した Secrets Manager シークレット名
+    secretName: "/backlog-mcp/token-key",
 };
 ```
 
+`token_key` は設定ファイルに含めません。Lambda ハンドラがコールドスタート時に Secrets Manager から取得します。
+
 #### Docker デプロイ
 
-環境変数 `MCP_CONFIG` に JSON 文字列で設定を渡します:
+環境変数 `MCP_CONFIG` に JSON 文字列で設定を渡します。Docker の場合は `token_key` を JSON に含めます:
 
 ```bash
 docker run -p 8080:8080 \
-  -e MCP_CONFIG='{"base_url":"https://...","relay_url":"https://...","token_key":"...","backlog_apps":[...],"tenants":{...}}' \
+  -e MCP_CONFIG='{"base_url":"https://...","relay_url":"https://...","token_key":"<base64url-key>","backlog_apps":[...],"tenants":{...}}' \
   backlog-mcp-server
 ```
 
@@ -185,13 +191,34 @@ DENO_DIR=.deno-cache deno cache src/sandbox/sandbox-worker.mjs
 
 ## 鍵ローテーション
 
+### Lambda (Secrets Manager)
+
+Secrets Manager のローテーション機構を使用します。Lambda ハンドラは以下の 2 バージョンを自動取得します:
+
+- **`AWSCURRENT`** → 暗号化 + 復号に使用（`token_key`）
+- **`AWSPREVIOUS`** → 復号のみに使用（`token_key_prev`）
+
+ローテーション時、Secrets Manager が旧値に `AWSPREVIOUS` ラベルを自動付与するため、
+明示的な `token_key_prev` の管理は不要です。
+
+手動ローテーション:
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id /backlog-mcp/token-key \
+  --secret-string "$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
+```
+
+これにより旧値が `AWSPREVIOUS` に移動し、新値が `AWSCURRENT` になります。
+既存の暗号化トークンは旧鍵（`AWSPREVIOUS`）で復号されます。
+
+### Docker / スタンドアロン
+
+`MCP_CONFIG` JSON 内の `token_key` と `token_key_prev` を手動で管理します:
+
 1. 新しい鍵を生成
 2. `token_key_prev` に現在の `token_key` の値を設定
 3. `token_key` に新しい鍵を設定
-4. デプロイ
-5. 全ユーザーが新しいトークンを取得した後（= 旧トークンが全て期限切れ後）、`token_key_prev` を削除
-
-`token_key_prev` が設定されている間、復号は両方の鍵で試行されます。暗号化は常に `token_key` を使用します。
+4. サーバーを再起動
 
 ## セキュリティモデル
 

@@ -3,6 +3,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import { LoggingFormat } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
 import * as path from "node:path";
@@ -15,6 +16,7 @@ export interface McpStackProps extends cdk.StackProps {
 export class McpStack extends cdk.Stack {
     public readonly functionUrl: lambda.FunctionUrl;
     private configParameter: ssm.IParameter;
+    private tokenKeySecret: secretsmanager.ISecret;
     private readonly config: McpStackConfig;
     private lambdaFunction: lambda.Function;
 
@@ -23,6 +25,7 @@ export class McpStack extends cdk.Stack {
         this.config = props.config;
 
         this.configParameter = this.createConfigParameter();
+        this.tokenKeySecret = this.createTokenKeySecret();
         this.lambdaFunction = this.createLambdaFunction();
         this.functionUrl = this.createFunctionUrl();
         this.createOutputs();
@@ -36,9 +39,17 @@ export class McpStack extends cdk.Stack {
         return new ssm.StringParameter(this, "ConfigParameter", {
             parameterName: this.config.parameterName,
             stringValue: parameterValue ?? "{}",
-            description: "Backlog MCP Server configuration",
+            description: "Backlog MCP Server configuration (token keys are in Secrets Manager)",
             tier: ssm.ParameterTier.STANDARD,
         });
+    }
+
+    private createTokenKeySecret(): secretsmanager.ISecret {
+        return secretsmanager.Secret.fromSecretNameV2(
+            this,
+            "TokenKeySecret",
+            this.config.secretName,
+        );
     }
 
     private createLambdaFunction(): lambda.Function {
@@ -55,6 +66,7 @@ export class McpStack extends cdk.Stack {
             environment: {
                 HOME: "/tmp",
                 CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
+                TOKEN_KEY_SECRET_NAME: this.config.secretName,
                 BACKLOG_BIN_PATH: "/var/task/bin/backlog",
                 DENO_PATH: "/var/task/bin/deno",
                 DENO_DIR: "/var/task/.deno-cache",
@@ -96,6 +108,7 @@ export class McpStack extends cdk.Stack {
         });
 
         this.configParameter.grantRead(fn);
+        this.tokenKeySecret.grantRead(fn);
 
         return fn;
     }

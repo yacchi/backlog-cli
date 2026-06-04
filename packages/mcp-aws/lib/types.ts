@@ -1,12 +1,10 @@
 import type { McpServerConfig } from "@backlog-cli/mcp-server";
 
+export type McpConfigWithoutKeys = Omit<McpServerConfig, "token_key" | "token_key_prev">;
+
 export interface McpStackConfig {
     parameterName: string;
-    parameterValue?: McpServerConfig;
+    parameterValue?: McpConfigWithoutKeys;
 
-    functionUrl?: {
-        domainName?: string;
-        certificateArn?: string;
-        hostedZoneId?: string;
-    };
+    secretName: string;
 }

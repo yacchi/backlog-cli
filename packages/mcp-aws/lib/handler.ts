@@ -10,6 +10,7 @@ import {
 export const ENV_VARS = {
     MCP_CONFIG: "MCP_CONFIG",
     CONFIG_PARAMETER_NAME: "CONFIG_PARAMETER_NAME",
+    TOKEN_KEY_SECRET_NAME: "TOKEN_KEY_SECRET_NAME",
     BACKLOG_BIN_PATH: "BACKLOG_BIN_PATH",
     DENO_PATH: "DENO_PATH",
 } as const;
@@ -22,36 +23,84 @@ async function getConfig(): Promise<McpServerConfig> {
         return cachedConfig;
     }
 
+    const baseConfig = await loadBaseConfig();
+    const secretName = process.env[ENV_VARS.TOKEN_KEY_SECRET_NAME];
+    if (secretName) {
+        const { current, previous } = await getTokenKeys(secretName);
+        baseConfig.token_key = current;
+        if (previous) {
+            baseConfig.token_key_prev = previous;
+        }
+    }
+
+    cachedConfig = parseConfig(JSON.stringify(baseConfig));
+    return cachedConfig;
+}
+
+async function loadBaseConfig(): Promise<Record<string, unknown>> {
     const envConfig = process.env[ENV_VARS.MCP_CONFIG];
     if (envConfig) {
-        cachedConfig = parseConfig(envConfig);
-        return cachedConfig;
+        return JSON.parse(envConfig);
     }
 
     const parameterName = process.env[ENV_VARS.CONFIG_PARAMETER_NAME];
-    if (parameterName) {
-        const { SSMClient, GetParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
+    if (!parameterName) {
+        throw new Error(
+            `Either ${ENV_VARS.MCP_CONFIG} or ${ENV_VARS.CONFIG_PARAMETER_NAME} environment variable is required`,
         );
-        const client = new SSMClient({});
-        const response = await client.send(
-            new GetParameterCommand({
-                Name: parameterName,
-                WithDecryption: true,
-            }),
-        );
-
-        if (!response.Parameter?.Value) {
-            throw new Error(`SSM parameter ${parameterName} not found or empty`);
-        }
-
-        cachedConfig = parseConfig(response.Parameter.Value);
-        return cachedConfig;
     }
 
-    throw new Error(
-        `Either ${ENV_VARS.MCP_CONFIG} or ${ENV_VARS.CONFIG_PARAMETER_NAME} environment variable is required`,
+    const { SSMClient, GetParameterCommand } = await import(
+        "@aws-sdk/client-ssm"
     );
+    const client = new SSMClient({});
+    const response = await client.send(
+        new GetParameterCommand({
+            Name: parameterName,
+            WithDecryption: true,
+        }),
+    );
+
+    if (!response.Parameter?.Value) {
+        throw new Error(`SSM parameter ${parameterName} not found or empty`);
+    }
+
+    return JSON.parse(response.Parameter.Value);
+}
+
+async function getTokenKeys(
+    secretName: string,
+): Promise<{ current: string; previous?: string }> {
+    const {
+        SecretsManagerClient,
+        GetSecretValueCommand,
+    } = await import("@aws-sdk/client-secrets-manager");
+    const client = new SecretsManagerClient({});
+
+    const currentResp = await client.send(
+        new GetSecretValueCommand({
+            SecretId: secretName,
+            VersionStage: "AWSCURRENT",
+        }),
+    );
+    if (!currentResp.SecretString) {
+        throw new Error(`Secret ${secretName} (AWSCURRENT) not found or empty`);
+    }
+
+    let previous: string | undefined;
+    try {
+        const prevResp = await client.send(
+            new GetSecretValueCommand({
+                SecretId: secretName,
+                VersionStage: "AWSPREVIOUS",
+            }),
+        );
+        previous = prevResp.SecretString ?? undefined;
+    } catch {
+        // AWSPREVIOUS doesn't exist yet (no rotation has occurred)
+    }
+
+    return { current: currentResp.SecretString, previous };
 }
 
 async function getSandbox(config: McpServerConfig): Promise<CreateMcpAppOptions["runScript"]> {
