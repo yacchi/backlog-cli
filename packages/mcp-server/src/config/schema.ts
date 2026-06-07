@@ -12,7 +12,7 @@ export const ScriptConfigSchema = z.object({
 });
 
 export const McpTenantSchema = z.object({
-    cli_access: CliAccessSchema,
+    cli_access: CliAccessSchema.optional(),
     script: ScriptConfigSchema.optional(),
     skill_projects: z.array(z.string()).optional(),
 });

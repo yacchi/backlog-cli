@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { checkCliAccess, isReadOnlyCommand } from "./cli-access.js";
 
-describe("checkCliAccess", () => {
+describe("checkCliAccess (deprecated — access control moved to CLI)", () => {
     const access = {
         allow: ["issue *", "project *", "wiki *", "api *"],
         deny: ["* --delete", "auth *", "config *"],
@@ -34,7 +34,7 @@ describe("checkCliAccess", () => {
     });
 });
 
-describe("isReadOnlyCommand", () => {
+describe("isReadOnlyCommand (deprecated — access control moved to CLI)", () => {
     it("allows list and view subcommands", () => {
         expect(isReadOnlyCommand("issue list --project PROJ")).toBe(true);
         expect(isReadOnlyCommand("issue view PROJ-42 --json")).toBe(true);

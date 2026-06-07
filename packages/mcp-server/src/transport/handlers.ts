@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import type { McpServerConfig, McpTenant } from "../config/schema.js";
 import { jweAuth, getAuthContext } from "../middleware/jwe-auth.js";
-import { isReadOnlyCommand } from "../middleware/cli-access.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
+import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logToolCall } from "../logging/logger.js";
+
+export interface ScriptFile {
+    content: string;
+    encoding?: "base64" | "gzip+base64" | "utf8";
+    name?: string;
+}
 
 interface JsonRpcRequest {
     jsonrpc: "2.0";
@@ -20,6 +26,31 @@ interface JsonRpcResponse {
 }
 
 const MCP_PROTOCOL_VERSION = "2025-03-26";
+
+const FILES_SCHEMA = {
+    type: "array" as const,
+    items: {
+        type: "object" as const,
+        properties: {
+            content: {
+                type: "string" as const,
+                description: "File content, encoded according to the encoding field.",
+            },
+            encoding: {
+                type: "string" as const,
+                enum: ["base64", "gzip+base64", "utf8"],
+                description: "Content encoding (default: base64).",
+            },
+            name: {
+                type: "string" as const,
+                description: "Optional filename hint (e.g., 'diagram.png'). Used as the temp file name for --attach.",
+            },
+        },
+        required: ["content"],
+    },
+    description:
+        "File contents to pass to CLI commands. Referenced in args as $file[0], $file[1], etc. Written to temp files and substituted with actual paths before CLI execution. Use with --body-file, --attach, or any flag that accepts a file path.",
+};
 
 const HELP_TOOL = {
     name: "backlog_help",
@@ -79,6 +110,7 @@ const QUERY_TOOLS = [
                     description:
                         "CLI arguments for read-only commands (e.g., 'issue list -p PROJ -L 20 --json=issueKey,summary,status')",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["args"],
         },
@@ -101,6 +133,7 @@ const QUERY_TOOLS = [
                     description:
                         "Python code. backlog(args) runs a CLI command and returns the result (parsed JSON with --json, or text). print() output is returned to the user; if no print(), the last expression value is used as fallback. Read-only commands only.",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["script"],
         },
@@ -117,15 +150,16 @@ const MUTATION_TOOLS = [
     {
         name: "backlog_mutate",
         description:
-            `Execute a backlog CLI command that modifies data (create, update, delete). For read-only commands, use backlog_query. ${CLI_REF_HINT}`,
+            `Execute a backlog CLI command that modifies data (create, update, delete). For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[0] instead of inline -b/--body to avoid escaping issues. For read-only commands, use backlog_query. ${CLI_REF_HINT}`,
         inputSchema: {
             type: "object" as const,
             properties: {
                 args: {
                     type: "string" as const,
                     description:
-                        "CLI arguments (e.g., 'issue create -p PROJ -t \"Title\" --type Bug')",
+                        "CLI arguments (e.g., 'issue create -p PROJ -t \"Title\" --body-file $file[0] --type Bug')",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["args"],
         },
@@ -139,7 +173,7 @@ const MUTATION_TOOLS = [
     {
         name: "backlog_mutate_script",
         description:
-            `Execute Python in a sandboxed environment with backlog() helper. Use for chaining multiple CLI calls including write operations (create, update, delete). Python standard library available (json, datetime, re, collections, etc.). Dangerous modules (os, subprocess, socket, etc.) are blocked. ${CLI_REF_HINT}`,
+            `Execute Python in a sandboxed environment with backlog() helper. Use for chaining multiple CLI calls including write operations (create, update, delete). Python standard library available (json, datetime, re, collections, etc.). Dangerous modules (os, subprocess, socket, etc.) are blocked. For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[N] instead of inline -b/--body to avoid escaping issues. ${CLI_REF_HINT}`,
         inputSchema: {
             type: "object" as const,
             properties: {
@@ -148,6 +182,7 @@ const MUTATION_TOOLS = [
                     description:
                         "Python code. backlog(args) runs a CLI command and returns the result (parsed JSON with --json, or text). print() output is returned to the user; if no print(), the last expression value is used as fallback.",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["script"],
         },
@@ -169,7 +204,7 @@ const SKILL_PROMPT = {
 
 export function createTransportHandlers(
     config: McpServerConfig,
-    options?: { binPath?: string; runScript?: (script: string, token: import("../crypto/jwe.js").TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean }) => Promise<{ result: string; error?: string }> },
+    options?: { binPath?: string; runScript?: (script: string, token: import("../crypto/jwe.js").TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
     const resourceMetadataUrl = `${config.base_url}/.well-known/oauth-protected-resource`;
@@ -292,8 +327,7 @@ export function createTransportHandlers(
                         const result = await executeBacklogCommand(
                             "whoami --json",
                             token,
-                            tenant,
-                            options?.binPath,
+                            { readOnly: true, binPath: options?.binPath },
                         );
                         log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined });
                         return jsonRpcResult(req.id, {
@@ -305,8 +339,7 @@ export function createTransportHandlers(
                     const result = await executeBacklogCommand(
                         "api /api/v2/users",
                         token,
-                        tenant,
-                        options?.binPath,
+                        { readOnly: true, binPath: options?.binPath },
                     );
                     if (result.exitCode !== 0) {
                         log.finish({ error: result.output, category: "cli_error" });
@@ -344,60 +377,24 @@ export function createTransportHandlers(
                 }
             }
 
-            case "backlog_query": {
-                const args = toolArgs.args as string | undefined;
-                if (!args) {
-                    return jsonRpcError(req.id, -32602, "Missing 'args' parameter");
-                }
-
-                const log = logToolCall({ tool: "backlog_query", input: { args }, tenant: tenantKey });
-
-                if (!isReadOnlyCommand(args)) {
-                    log.finish({ error: "rejected: not a read-only command", category: "access_denied" });
-                    return jsonRpcResult(req.id, {
-                        content: [{
-                            type: "text",
-                            text: "backlog_query only accepts read-only commands (list, view, GET). Use backlog_mutate for write operations.",
-                        }],
-                        isError: true,
-                    });
-                }
-
-                try {
-                    const result = await executeBacklogCommand(
-                        args,
-                        token,
-                        tenant,
-                        options?.binPath,
-                    );
-                    log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined, category: result.exitCode !== 0 ? "cli_error" : undefined });
-                    return jsonRpcResult(req.id, {
-                        content: [{ type: "text", text: result.output }],
-                        isError: result.exitCode !== 0,
-                    });
-                } catch (err) {
-                    log.finish({ error: (err as Error).message, category: "exception" });
-                    return jsonRpcResult(req.id, {
-                        content: [{ type: "text", text: `Error: ${(err as Error).message}` }],
-                        isError: true,
-                    });
-                }
-            }
-
+            case "backlog_query":
             case "backlog_mutate": {
                 const args = toolArgs.args as string | undefined;
                 if (!args) {
                     return jsonRpcError(req.id, -32602, "Missing 'args' parameter");
                 }
+                const files = toolArgs.files as ScriptFile[] | undefined;
+                const readOnly = toolName === "backlog_query";
 
-                const log = logToolCall({ tool: "backlog_mutate", input: { args }, tenant: tenantKey });
+                const log = logToolCall({ tool: toolName, input: { args }, tenant: tenantKey });
 
+                const filePaths = files?.length ? materializeFiles(files) : null;
                 try {
+                    const resolvedArgs = filePaths ? substituteFileRefs(args, filePaths.paths) : args;
                     const result = await executeBacklogCommand(
-                        args,
+                        resolvedArgs,
                         token,
-                        tenant,
-                        options?.binPath,
+                        { readOnly, binPath: options?.binPath },
                     );
                     log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined, category: result.exitCode !== 0 ? "cli_error" : undefined });
                     return jsonRpcResult(req.id, {
@@ -410,6 +407,8 @@ export function createTransportHandlers(
                         content: [{ type: "text", text: `Error: ${(err as Error).message}` }],
                         isError: true,
                     });
+                } finally {
+                    filePaths?.cleanup();
                 }
             }
 
@@ -419,6 +418,7 @@ export function createTransportHandlers(
                 if (!script) {
                     return jsonRpcError(req.id, -32602, "Missing 'script' parameter");
                 }
+                const files = toolArgs.files as ScriptFile[] | undefined;
 
                 const log = logToolCall({ tool: toolName, input: { script }, tenant: tenantKey });
 
@@ -434,7 +434,7 @@ export function createTransportHandlers(
 
                 if (options?.runScript) {
                     try {
-                        const result = await options.runScript(script, token, tenant, { readOnly });
+                        const result = await options.runScript(script, token, tenant, { readOnly, files });
                         log.finish({
                             output: result.result,
                             error: result.error,

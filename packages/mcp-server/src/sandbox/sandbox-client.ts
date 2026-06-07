@@ -5,8 +5,9 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TokenPayload } from "../crypto/jwe.js";
 import type { McpTenant } from "../config/schema.js";
+import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
-import { isReadOnlyCommand } from "../middleware/cli-access.js";
+import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logSandbox } from "../logging/logger.js";
 
 const BOOT_TIMEOUT = 60_000;
@@ -24,6 +25,7 @@ export interface SandboxClient {
         token: TokenPayload,
         tenant: McpTenant | undefined,
         readOnly?: boolean,
+        files?: ScriptFile[],
     ): Promise<{ result: string; error?: string }>;
     shutdown(): void;
 }
@@ -121,11 +123,13 @@ export async function createSandboxClient(
     }
 
     return {
-        async execute(script, token, tenant, readOnly) {
+        async execute(script, token, tenant, readOnly, files) {
             const s = await ensureRunning();
 
+            const filePaths = files?.length ? materializeFiles(files) : null;
+
             const { server: cbServer, port: cbPort } = await startCallbackServer(
-                token, tenant, readOnly ?? false, options?.binPath,
+                token, tenant, readOnly ?? false, options?.binPath, filePaths?.paths,
             );
 
             const controller = new AbortController();
@@ -168,6 +172,7 @@ export async function createSandboxClient(
             } finally {
                 clearTimeout(timeout);
                 cbServer.close();
+                filePaths?.cleanup();
             }
         },
 
@@ -182,6 +187,7 @@ function startCallbackServer(
     tenant: McpTenant | undefined,
     readOnly: boolean,
     binPath?: string,
+    filePaths?: string[],
 ): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
     const maxCalls = tenant?.script?.max_cli_calls ?? 20;
     let callCount = 0;
@@ -204,16 +210,10 @@ function startCallbackServer(
                 return;
             }
 
-            const args = Array.isArray(parsed.args) ? parsed.args.join(" ") : String(parsed.args);
+            let args = Array.isArray(parsed.args) ? parsed.args.join(" ") : String(parsed.args);
 
-            if (readOnly && !isReadOnlyCommand(args)) {
-                res.writeHead(403);
-                res.end(
-                    JSON.stringify({
-                        error: "Write operations are not allowed in analyze mode. Only read commands (list, view, GET) are permitted.",
-                    }),
-                );
-                return;
+            if (filePaths?.length) {
+                args = substituteFileRefs(args, filePaths);
             }
 
             callCount++;
@@ -231,8 +231,7 @@ function startCallbackServer(
                 const result = await executeBacklogCommand(
                     args,
                     token,
-                    tenant,
-                    binPath,
+                    { readOnly, binPath },
                 );
 
                 if (result.exitCode !== 0) {

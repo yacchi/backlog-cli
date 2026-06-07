@@ -9,19 +9,21 @@ import type { TokenPayload } from "./crypto/jwe.js";
 export { encrypt, decrypt, encryptToken, decryptToken, generateKey, importKey, exportKey } from "./crypto/jwe.js";
 export type { TokenPayload } from "./crypto/jwe.js";
 export { McpServerConfigSchema, parseConfig } from "./config/schema.js";
-export type { McpServerConfig, McpTenant, CliAccess } from "./config/schema.js";
-export { checkCliAccess, isReadOnlyCommand } from "./middleware/cli-access.js";
+export type { McpServerConfig, McpTenant } from "./config/schema.js";
 export { executeBacklogCommand } from "./tools/backlog.js";
+export { materializeFiles, substituteFileRefs } from "./tools/files.js";
 export { createSandboxClient } from "./sandbox/sandbox-client.js";
 export type { SandboxClient, SandboxOptions } from "./sandbox/sandbox-client.js";
 export type { TokenExchange } from "./oauth/handlers.js";
+export type { ScriptFile } from "./transport/handlers.js";
 export { logToolCall, logSandbox } from "./logging/logger.js";
 import type { TokenExchange } from "./oauth/handlers.js";
+import type { ScriptFile } from "./transport/handlers.js";
 
 export interface CreateMcpAppOptions {
     config: McpServerConfig;
     binPath?: string;
-    runScript?: (script: string, token: TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean }) => Promise<{ result: string; error?: string }>;
+    runScript?: (script: string, token: TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }>;
     tokenExchange?: TokenExchange;
     callbackPath?: string;
 }

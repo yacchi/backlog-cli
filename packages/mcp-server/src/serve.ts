@@ -22,7 +22,7 @@ if (hasSandboxEnabled) {
         binPath: process.env.BACKLOG_BIN_PATH,
     });
 
-    runScript = (script, token, tenant) => sandbox.execute(script, token, tenant);
+    runScript = (script, token, tenant, opts) => sandbox.execute(script, token, tenant, opts?.readOnly, opts?.files);
 
     process.on("SIGTERM", () => sandbox.shutdown());
     process.on("SIGINT", () => sandbox.shutdown());

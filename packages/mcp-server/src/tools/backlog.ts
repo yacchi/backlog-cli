@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { McpTenant } from "../config/schema.js";
 import type { TokenPayload } from "../crypto/jwe.js";
-import { checkCliAccess } from "../middleware/cli-access.js";
 
 const DEFAULT_TIMEOUT = 30_000;
 
@@ -15,17 +13,9 @@ export interface BacklogToolResult {
 export async function executeBacklogCommand(
     args: string,
     token: TokenPayload,
-    tenant: McpTenant | undefined,
-    binPath?: string,
+    options?: { readOnly?: boolean; binPath?: string },
 ): Promise<BacklogToolResult> {
-    if (tenant && !checkCliAccess(args, tenant.cli_access)) {
-        return {
-            output: `Access denied: command "${args}" is not allowed by tenant policy`,
-            exitCode: 1,
-        };
-    }
-
-    const cliPath = binPath ?? resolveDefaultBinPath();
+    const cliPath = options?.binPath ?? resolveDefaultBinPath();
     const parsedArgs = parseArgs(args);
 
     return new Promise((resolve, reject) => {
@@ -37,6 +27,7 @@ export async function executeBacklogCommand(
                     BACKLOG_ACCESS_TOKEN: token.bl_access_token,
                     BACKLOG_SPACE: token.space,
                     BACKLOG_DOMAIN: token.domain,
+                    ...(options?.readOnly ? { BACKLOG_ACCESS_MODE: "read-only" } : {}),
                     HOME: "/tmp",
                     PATH: process.env.PATH,
                 },
