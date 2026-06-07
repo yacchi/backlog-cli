@@ -107,10 +107,13 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 		}
 
 		// jsonフラグはJSON出力を有効にし、フィールドを設定
+		// --json（値なし）は NoOptDefVal="*" により全フィールド出力
 		if jsonFields, _ := cmd.Flags().GetString("json"); jsonFields != "" {
 			activeProfile := cfg.GetActiveProfile()
 			setOptions = append(setOptions, jubako.String(config.PathProfileOutput(activeProfile), "json"))
-			setOptions = append(setOptions, jubako.String(config.PathProfileJsonFields(activeProfile), jsonFields))
+			if jsonFields != "*" {
+				setOptions = append(setOptions, jubako.String(config.PathProfileJsonFields(activeProfile), jsonFields))
+			}
 		}
 
 		// jqフラグはアクティブプロファイルに設定
@@ -145,7 +148,8 @@ func init() {
 	rootCmd.PersistentFlags().String("space", "", "Resolve profile by space host (e.g. myspace.backlog.jp)")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "Backlog project key")
 	rootCmd.PersistentFlags().StringP("output", "o", "", "Output format (table, json)")
-	rootCmd.PersistentFlags().String("json", "", "Output JSON with specified fields (comma-separated)")
+	rootCmd.PersistentFlags().String("json", "", "Output JSON with specified fields (comma-separated, omit for all)")
+	rootCmd.PersistentFlags().Lookup("json").NoOptDefVal = "*"
 	rootCmd.PersistentFlags().String("jq", "", "Filter JSON output using a jq expression")
 	rootCmd.PersistentFlags().StringP("format", "f", "", "Format JSON output using a Go template (e.g. '{{.summary}}')")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
@@ -177,4 +181,19 @@ func init() {
 	rootCmd.AddCommand(user.UserCmd)
 	rootCmd.AddCommand(watching.WatchingCmd)
 	rootCmd.AddCommand(wiki.WikiCmd)
+
+	// whoami: top-level alias for "auth me"
+	whoamiCmd := &cobra.Command{
+		Use:   "whoami",
+		Short: "Show current authenticated user (alias for 'auth me')",
+		Long: `Display detailed information about the currently authenticated Backlog user.
+This is an alias for 'backlog auth me'.
+
+Examples:
+  backlog whoami
+  backlog whoami -o json
+  backlog whoami -o json --jq .id`,
+		RunE: auth.RunMe,
+	}
+	rootCmd.AddCommand(whoamiCmd)
 }

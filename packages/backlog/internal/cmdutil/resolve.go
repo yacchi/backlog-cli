@@ -463,7 +463,27 @@ func resolveProjectUserID(ctx context.Context, client *api.Client, projectKey, i
 		return id, nil
 	}
 	if projectKey == "" {
-		return 0, fmt.Errorf("project is required to resolve %s names", singular)
+		// プロジェクト未指定時（-p all 等）はスペースレベルのユーザー一覧にフォールバック
+		spaceUsers, err := client.GetUsers(ctx)
+		if err != nil {
+			return 0, err
+		}
+		options := make([]NamedResolverOption, len(spaceUsers))
+		for i, u := range spaceUsers {
+			var aliases []string
+			description := u.Name.Value
+			if u.UserId.Value != "" {
+				aliases = []string{u.UserId.Value}
+				description = fmt.Sprintf("%s (%s)", u.Name.Value, u.UserId.Value)
+			}
+			options[i] = NamedResolverOption{
+				ID:          u.ID.Value,
+				Label:       u.Name.Value,
+				Aliases:     aliases,
+				Description: description,
+			}
+		}
+		return ResolveNamedID(value, singular, plural, options)
 	}
 
 	users, err := client.GetProjectUsers(ctx, projectKey)

@@ -10,6 +10,9 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 )
 
+// RunMe is the exported handler for "auth me" / "whoami".
+var RunMe = runMe
+
 var meCmd = &cobra.Command{
 	Use:   "me",
 	Short: "Show current authenticated user information",

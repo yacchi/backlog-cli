@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
@@ -67,7 +68,18 @@ Examples:
   backlog issue list -L 0
 
   # Open issue list in browser
-  backlog issue list --web`,
+  backlog issue list --web
+
+Available JSON fields (--json):
+  id, issueKey, keyId, projectId, issueType, summary, description,
+  resolution, priority, status, assignee, category, versions, milestone,
+  startDate, dueDate, estimatedHours, actualHours, parentIssueId,
+  createdUser, created, updatedUser, updated, customFields, attachments,
+  sharedFiles, stars
+
+Available table fields (default: key,status,priority,assignee,due_date,summary):
+  key, status, priority, assignee, summary, type, created, updated,
+  created_user, due_date, start_date, category, milestone, version, url`,
 	RunE: runList,
 }
 
@@ -209,6 +221,22 @@ func runList(c *cobra.Command, args []string) error {
 
 	profile := cfg.CurrentProfile()
 	ctx := c.Context()
+
+	// 日付フラグのバリデーション（YYYY-MM-DD形式のみ受け付ける）
+	for _, df := range []struct{ name, value string }{
+		{"--updated-since", listUpdatedSince},
+		{"--updated-until", listUpdatedUntil},
+		{"--created-since", listCreatedSince},
+		{"--created-until", listCreatedUntil},
+		{"--start-since", listStartSince},
+		{"--start-until", listStartUntil},
+		{"--due-since", listDueSince},
+		{"--due-until", listDueUntil},
+	} {
+		if err := validateDateFlag(df.name, df.value); err != nil {
+			return err
+		}
+	}
 
 	// --involved / --viewed の併用ルール
 	if listViewed && listInvolved != "" {
@@ -852,4 +880,14 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 	default:
 		return "-"
 	}
+}
+
+func validateDateFlag(name, value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		return fmt.Errorf("invalid %s %q: expected YYYY-MM-DD format (e.g. 2026-01-15)", name, value)
+	}
+	return nil
 }
