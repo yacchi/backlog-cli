@@ -35,16 +35,45 @@ export interface JWKS {
 }
 
 /**
- * Tenant configuration for CDK (allows JWKS as object).
- * The JWKS object will be serialized to JSON string before storing in Parameter Store.
+ * Relay bundle signing configuration for a tenant.
  */
-export interface TenantConfigWithJwksObject {
-  allowed_domain: string;
-  passphrase_hash?: string;
-  /** JWKS as object (will be serialized to JSON string) */
+export interface RelayTenantInput {
   jwks?: JWKS;
   active_keys?: string;
   info_ttl?: number;
+  /** Plaintext passphrase — auto-hashed with bcrypt at CDK synth time */
+  passphrase?: string;
+  /** Pre-computed bcrypt hash (mutually exclusive with passphrase) */
+  passphrase_hash?: string;
+  /** Auto-generated passphrase length in characters (default: 32) */
+  passphrase_length?: number;
+}
+
+/**
+ * MCP access control configuration for a tenant.
+ */
+export interface McpTenantConfig {
+  cli_access: {
+    allow: string[];
+    deny?: string[];
+  };
+  script?: {
+    enabled?: boolean;
+    max_cli_calls?: number;
+    timeout_ms?: number;
+  };
+  skill_projects?: string[];
+}
+
+/**
+ * Unified tenant configuration keyed by "space.domain" (e.g. "your-space.backlog.jp").
+ * Combines relay bundle signing and MCP access control in one place.
+ */
+export interface UnifiedTenantInput {
+  /** Relay bundle signing configuration */
+  relay?: RelayTenantInput;
+  /** MCP access control configuration */
+  mcp?: McpTenantConfig;
 }
 
 /**
@@ -125,8 +154,19 @@ export interface ParameterStoreConfig {
 }
 
 /**
+ * Backlog OAuth app configuration.
+ * client_secret is separated into Secrets Manager at deploy time.
+ */
+export interface BacklogAppInput {
+  domain: string;
+  client_id: string;
+  client_secret: string;
+}
+
+/**
  * Parameter Store value format.
- * This extends CoreRelayConfig but allows JWKS as objects (will be serialized).
+ * Secrets (client_secret, JWKS private keys, passphrase_hash) are extracted
+ * and stored in Secrets Manager by the CDK stack. SSM only holds non-secret config.
  */
 export interface ParameterStoreValue {
   server: {
@@ -134,12 +174,9 @@ export interface ParameterStoreValue {
     base_url?: string;
     allowed_host_patterns?: string;
   };
-  backlog_apps: Array<{
-    domain: string;
-    client_id: string;
-    client_secret: string;
-  }>;
-  tenants?: TenantConfigWithJwksObject[];
+  backlog_apps: BacklogAppInput[];
+  /** Unified tenant config keyed by "space.domain" (e.g. "your-space.backlog.jp") */
+  tenants?: Record<string, UnifiedTenantInput>;
   access_control?: {
     allowed_space_patterns?: string;
     allowed_project_patterns?: string;
@@ -155,29 +192,71 @@ export interface ParameterStoreValue {
 }
 
 /**
+ * MCP server configuration.
+ * When present, the relay Lambda also serves MCP endpoints (/mcp/*).
+ * MCP tenant config is specified in the unified tenants dict (each tenant's `mcp` field).
+ */
+export interface McpConfig {
+  /** Secrets Manager secret name for MCP JWE token key (default: "/backlog-mcp/token-key") */
+  tokenKeySecretName?: string;
+  /** Token key rotation interval in days (default: 30, 0 to disable) */
+  tokenKeyRotationDays?: number;
+}
+
+/**
  * Relay server CDK configuration.
  */
 export interface RelayConfig extends ParameterStoreConfig {
   /** CloudFront configuration (optional) */
   cloudFront?: CloudFrontConfig;
+  /** MCP server configuration (optional) */
+  mcp?: McpConfig;
 }
 
 /**
- * Serialize JWKS objects to JSON strings in tenant configurations.
- * Returns RelayConfigInput (before Zod parsing) since port has a default.
+ * Build the SSM parameter value from CDK config.
+ * Strips secrets (client_secret, JWKS, passphrase) and converts the unified
+ * tenant dict into relay-core's array format + separate mcp_tenants dict.
  */
-export function serializeParameterValue(value: ParameterStoreValue): CoreRelayConfigInput {
-  const tenants = value.tenants?.map((tenant) => ({
-    ...tenant,
-    jwks: tenant.jwks ? JSON.stringify(tenant.jwks) : undefined,
-  }));
+export function buildSsmParameterValue(
+  value: ParameterStoreValue,
+): { config: CoreRelayConfigInput; mcpTenants: Record<string, unknown> } {
+  const relayTenants: Array<{
+    allowed_domain: string;
+    active_keys?: string;
+    info_ttl?: number;
+  }> = [];
+  const mcpTenants: Record<string, unknown> = {};
 
-  return {
+  for (const [spaceDomain, tenant] of Object.entries(value.tenants ?? {})) {
+    if (tenant.relay) {
+      relayTenants.push({
+        allowed_domain: spaceDomain,
+        active_keys: tenant.relay.active_keys ?? "auto-1",
+        info_ttl: tenant.relay.info_ttl,
+      });
+    }
+    if (tenant.mcp) {
+      mcpTenants[spaceDomain] = {
+        cli_access: tenant.mcp.cli_access,
+        script: tenant.mcp.script,
+        skill_projects: tenant.mcp.skill_projects,
+      };
+    }
+  }
+
+  const config: CoreRelayConfigInput = {
     server: value.server,
-    backlog_apps: value.backlog_apps,
-    tenants,
+    backlog_apps: value.backlog_apps.map((app) => ({
+      domain: app.domain,
+      client_id: app.client_id,
+      client_secret: "__from_secrets_manager__",
+    })),
+    tenants: relayTenants.length > 0 ? relayTenants : undefined,
     access_control: value.access_control,
     rate_limit: value.rate_limit,
     cache: value.cache,
   };
+
+  return { config, mcpTenants };
 }

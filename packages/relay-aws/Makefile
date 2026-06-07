@@ -1,12 +1,20 @@
-.PHONY: build deploy synth assets copy-assets clean
+.PHONY: build deploy synth assets copy-assets deps clean
 
 # Paths
 ROOT_DIR := ../..
 WEB_DIST_DIR := $(ROOT_DIR)/packages/web/dist
 LOCAL_ASSETS_DIR := dist/web-assets
+RELAY_CORE_DIR := $(ROOT_DIR)/packages/relay-core
+MCP_SERVER_DIR := $(ROOT_DIR)/packages/mcp-server
 
 # Build: prepare assets for CDK bundling
 build: assets
+
+# Build workspace dependencies (relay-core, mcp-server)
+# Required because esbuild resolves these packages via dist/ (compiled JS),
+# not TypeScript source. Without this, source changes are not picked up.
+deps:
+	pnpm --filter @backlog-cli/relay-core --filter @backlog-cli/mcp-server build
 
 # Copy web assets to local staging directory
 assets:
@@ -23,13 +31,13 @@ ifndef OUTPUT_DIR
 endif
 	cp -r $(LOCAL_ASSETS_DIR) $(OUTPUT_DIR)
 
-# CDK synth (includes asset build)
-synth: assets
-	pnpm cdk synth
+# CDK synth (includes asset + deps build)
+synth: deps assets
+	pnpm cdk synth BacklogOAuthRelay
 
-# CDK deploy (includes asset build)
-deploy: assets
-	pnpm cdk deploy
+# CDK deploy (includes asset + deps build)
+deploy: deps assets
+	pnpm cdk deploy BacklogOAuthRelay
 
 # Clean
 clean:
