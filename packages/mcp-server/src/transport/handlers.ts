@@ -27,6 +27,20 @@ interface JsonRpcResponse {
 
 const MCP_PROTOCOL_VERSION = "2025-03-26";
 
+const SERVER_INSTRUCTIONS = `Backlog CLI MCP Server — provides Backlog project management via the \`backlog\` CLI, a GitHub CLI (gh) compatible command-line tool for Backlog.
+
+## IMPORTANT: Prefer local CLI when available
+
+If the \`backlog\` CLI is installed locally (check with \`backlog --version\`), prefer running CLI commands directly in the shell instead of using these MCP tools. The local CLI provides faster execution, richer interactive features, and access to local configuration (.backlog.yaml).
+
+Use these MCP tools only when:
+- The local CLI is not installed (e.g., Claude.ai web, non-developer environments)
+- You have already confirmed the CLI is unavailable in this session
+
+## CLI Reference (backlog_help)
+
+Whether using the local CLI or MCP tools, call \`backlog_help\` to look up command syntax and flags. The \`backlog\` CLI follows GitHub CLI (gh) conventions — subcommand structure, \`--json\` output, and flag patterns are similar. If you know gh, you can apply the same patterns to \`backlog\`.`;
+
 const FILES_SCHEMA = {
     type: "array" as const,
     items: {
@@ -258,6 +272,7 @@ export function createTransportHandlers(
                         name: "backlog-mcp-server",
                         version: "0.1.0",
                     },
+                    instructions: SERVER_INSTRUCTIONS,
                 });
 
             case "notifications/initialized":
@@ -448,8 +463,10 @@ export function createTransportHandlers(
                 const readOnly = toolName === "backlog_query_script";
 
                 if (options?.runScript) {
+                    const filePaths = files?.length ? materializeFiles(files) : null;
                     try {
-                        const result = await options.runScript(script, token, tenant, { readOnly, files });
+                        const resolvedScript = filePaths ? substituteFileRefs(script, filePaths.paths) : script;
+                        const result = await options.runScript(resolvedScript, token, tenant, { readOnly, files });
                         log.finish({
                             output: result.result,
                             error: result.error,
@@ -468,6 +485,8 @@ export function createTransportHandlers(
                             content: [{ type: "text", text: `Sandbox error: ${(err as Error).message}` }],
                             isError: true,
                         });
+                    } finally {
+                        filePaths?.cleanup();
                     }
                 }
 

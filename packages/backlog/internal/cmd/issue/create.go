@@ -25,7 +25,7 @@ var createCmd = &cobra.Command{
 
 Without the title or body text supplied through flags, the command will
 interactively prompt for the required information. When standard input is
-not a terminal, provide --title, --type, --priority, and --assignee.
+not a terminal, provide --title, --type, and --priority.
 
 Examples:
   # Interactive mode
@@ -66,7 +66,6 @@ type createPromptState struct {
 	Title    string
 	Type     string
 	Priority int
-	Assignee string
 }
 
 func init() {
@@ -110,17 +109,11 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	interactive := ui.IsInteractiveInput()
 	if !interactive {
-		var users []api.User
-		if createAssignee == "" {
-			users, _ = client.GetProjectUsers(ctx, projectKey)
-		}
-
 		if err := validateNonInteractiveCreateFlags(createPromptState{
 			Title:    createTitle,
 			Type:     createType,
 			Priority: createPriority,
-			Assignee: createAssignee,
-		}, issueTypes, users); err != nil {
+		}, issueTypes); err != nil {
 			return err
 		}
 	}
@@ -216,8 +209,6 @@ func runCreate(c *cobra.Command, args []string) error {
 			}
 			input.AssigneeID, _ = strconv.Atoi(selected)
 		}
-	} else {
-		return fmt.Errorf("--assignee is required when not running interactively")
 	}
 
 	// 説明（ボディ）
@@ -302,7 +293,7 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 }
 
-func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api.IssueType, users []api.User) error {
+func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api.IssueType) error {
 	var missing []string
 	if state.Title == "" {
 		missing = append(missing, "--title")
@@ -312,9 +303,6 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 	}
 	if state.Priority <= 0 {
 		missing = append(missing, "--priority")
-	}
-	if state.Assignee == "" {
-		missing = append(missing, "--assignee")
 	}
 	if len(missing) == 0 {
 		return nil
@@ -344,24 +332,6 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 			"  --priority 3 # 中",
 			"  --priority 4 # 低",
 		)
-	}
-	if slices.Contains(missing, "--assignee") {
-		lines = append(lines, "",
-			"Use one of the following for --assignee:",
-			"  --assignee 0 # unassigned",
-			"  --assignee @me",
-			"  --assignee <user-id|userId|display-name>",
-		)
-		if len(users) == 0 {
-		} else {
-			for _, user := range users {
-				if user.UserID != "" {
-					lines = append(lines, fmt.Sprintf("  --assignee %s # %s (ID: %d)", user.UserID, user.Name, user.ID))
-				} else {
-					lines = append(lines, fmt.Sprintf("  --assignee %d # %s", user.ID, user.Name))
-				}
-			}
-		}
 	}
 
 	lines = append(lines, "", "Run 'backlog issue create --help' for usage.")

@@ -76,13 +76,14 @@ describe("MCP transport — initialize", () => {
         expect(res.result.capabilities.prompts).toBeDefined();
     });
 
-    it("does not include instructions in initialize", async () => {
+    it("includes instructions in initialize", async () => {
         const res = await jsonRpcRequest(app, "initialize", {
             protocolVersion: "2025-03-26",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
         });
-        expect(res.result.instructions).toBeUndefined();
+        expect(res.result.instructions).toBeTypeOf("string");
+        expect(res.result.instructions).toContain("Prefer local CLI");
     });
 });
 

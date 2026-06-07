@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	internalapi "github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
+	"golang.org/x/term"
 )
 
 var (
@@ -183,7 +184,9 @@ func runAPI(cmd *cobra.Command, args []string) error {
 
 		if isJSON {
 			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				enc.SetIndent("", "  ")
+			}
 			_ = enc.Encode(jsonData)
 		} else {
 			_, _ = os.Stdout.Write(resp.Body)
