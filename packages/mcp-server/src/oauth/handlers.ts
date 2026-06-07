@@ -52,10 +52,6 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         return refreshViaRelay(config.relay_url, domain, space, refreshTokenValue);
     }
 
-    function findBacklogApp(domain: string) {
-        return config.backlog_apps.find((a) => a.domain === domain);
-    }
-
     function jsonError(
         c: Context,
         status: number,
@@ -205,16 +201,6 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        const backlogApp = findBacklogApp(domain);
-        if (!backlogApp) {
-            return jsonError(
-                c,
-                400,
-                "invalid_request",
-                `Unsupported domain: ${domain}`,
-            );
-        }
-
         // Encrypt authorize state into relay state param
         const authorizeState: AuthorizeState = {
             client_id: clientId,
@@ -241,7 +227,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             `https://${space}.${domain}/OAuth2AccessRequest.action`,
         );
         authUrl.searchParams.set("response_type", "code");
-        authUrl.searchParams.set("client_id", backlogApp.client_id);
+        authUrl.searchParams.set("client_id", config.backlog_app.client_id);
         authUrl.searchParams.set("redirect_uri", callbackUrl);
         authUrl.searchParams.set("state", encryptedState);
 
@@ -293,15 +279,6 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                     400,
                 );
             }
-        }
-
-        // Exchange code for tokens via relay server
-        const backlogApp = findBacklogApp(authorizeState.domain);
-        if (!backlogApp) {
-            return c.html(
-                errorPage("Configuration Error", "Unknown domain"),
-                500,
-            );
         }
 
         let backlogTokens: TokenResponse;
@@ -577,11 +554,6 @@ function parseScope(
         if (match) {
             return { space: match[1], domain: match[2] };
         }
-    }
-
-    // Default: use first backlog_app
-    if (config.backlog_apps.length === 1) {
-        return { space: undefined, domain: config.backlog_apps[0].domain };
     }
 
     return { space: undefined, domain: undefined };

@@ -102,11 +102,11 @@ export class RelayStack extends cdk.Stack {
     const value = this.config.parameterValue;
     if (!value) return undefined;
 
-    const hasApps = value.backlog_apps.length > 0;
+    const hasApp = !!value.backlog_app;
     const hasRelayTenants = Object.values(value.tenants ?? {}).some(
       (t) => t.relay != null,
     );
-    if (!hasApps && !hasRelayTenants) return undefined;
+    if (!hasApp && !hasRelayTenants) return undefined;
 
     const secretName = `${this.config.parameterName}-secrets`;
     const secret = new secretsmanager.Secret(this, "RelaySecretsSecret", {
@@ -119,10 +119,9 @@ export class RelayStack extends cdk.Stack {
         "Backlog relay secrets (client_secret, JWKS, passphrase_hash)",
     });
 
-    const appsSecrets: Record<string, { client_secret: string }> = {};
-    for (const app of value.backlog_apps) {
-      appsSecrets[app.domain] = { client_secret: app.client_secret };
-    }
+    const appSecret = value.backlog_app
+      ? { client_secret: value.backlog_app.client_secret }
+      : undefined;
 
     const tenantConfigs: Record<
       string,
@@ -151,7 +150,7 @@ export class RelayStack extends cdk.Stack {
 
     const rotationLambda = this.createRotationFunction("RelaySecrets", {
       SECRET_TYPE: "relay-secrets",
-      APPS_SECRETS: JSON.stringify(appsSecrets),
+      APP_SECRET: JSON.stringify(appSecret ?? {}),
       TENANT_CONFIGS: JSON.stringify(tenantConfigs),
     });
 
@@ -245,7 +244,7 @@ export class RelayStack extends cdk.Stack {
 
     const baseValue = this.config.parameterValue ?? {
       server: { port: 8080 },
-      backlog_apps: [],
+      backlog_app: { client_id: "", client_secret: "" },
     };
 
     // Build SSM value: strips secrets, converts unified tenants to relay-core array + mcp_tenants dict

@@ -22,10 +22,9 @@ export const McpServerConfigSchema = z.object({
     relay_url: z.string().url().optional(),
     token_key: z.string().min(1),
     token_key_prev: z.string().optional(),
-    backlog_apps: z.array(z.object({
-        domain: z.string().min(1),
+    backlog_app: z.object({
         client_id: z.string().min(1),
-    })).min(1),
+    }),
     tenants: z.record(z.string(), McpTenantSchema).default({}),
 });
 

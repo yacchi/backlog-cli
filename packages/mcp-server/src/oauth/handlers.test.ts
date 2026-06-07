@@ -10,7 +10,7 @@ function makeConfig(overrides?: Partial<McpServerConfig>): McpServerConfig {
         base_url: "https://mcp.example.com",
         relay_url: "https://relay.example.com",
         token_key: exportKey(testKey),
-        backlog_apps: [{ domain: "backlog.jp", client_id: "test-client-id" }],
+        backlog_app: { client_id: "test-client-id" },
         tenants: {
             "mycompany.backlog.jp": {
                 cli_access: { allow: ["*"], deny: [] },

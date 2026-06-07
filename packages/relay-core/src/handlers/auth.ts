@@ -7,7 +7,6 @@ import type { Context } from "hono";
 import type {
   RelayConfig,
   AuditLogger,
-  BacklogAppConfig,
 } from "../config/types.js";
 import { AccessControl } from "../middleware/access-control.js";
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
@@ -31,13 +30,6 @@ export function createAuthHandlers(
 ): Hono {
   const app = new Hono();
   const accessControl = new AccessControl(config.access_control);
-
-  /**
-   * Find Backlog app configuration by domain.
-   */
-  function findBacklogApp(domain: string): BacklogAppConfig | undefined {
-    return config.backlog_apps.find((app) => app.domain === domain);
-  }
 
   /**
    * Build callback URL for OAuth redirect.
@@ -192,17 +184,6 @@ export function createAuthHandlers(
       return writeError(c, 403, "access_denied", (err as Error).message);
     }
 
-    // Find Backlog app config
-    const backlogApp = findBacklogApp(domain);
-    if (!backlogApp) {
-      return writeError(
-        c,
-        400,
-        "invalid_request",
-        `domain '${domain}' is not supported`
-      );
-    }
-
     // Encode state
     const encodedState = encodeState({
       port,
@@ -232,7 +213,7 @@ export function createAuthHandlers(
       `https://${space}.${domain}/OAuth2AccessRequest.action`
     );
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", backlogApp.client_id);
+    authUrl.searchParams.set("client_id", config.backlog_app.client_id);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", encodedState);
 

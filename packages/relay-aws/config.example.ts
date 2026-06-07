@@ -16,13 +16,10 @@ export const config: RelayConfig = {
   parameterName: "/backlog-relay/config",
   parameterValue: {
     server: {},
-    backlog_apps: [
-      {
-        domain: "backlog.jp",
-        client_id: "your-client-id",
-        client_secret: "your-client-secret",
-      },
-    ],
+    backlog_app: {
+      client_id: "your-client-id",
+      client_secret: "your-client-secret",
+    },
 
     // ============================================================
     // 統合テナント設定

@@ -7,7 +7,6 @@ import type { Context } from "hono";
 import type {
   RelayConfig,
   AuditLogger,
-  BacklogAppConfig,
 } from "../config/types.js";
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
@@ -53,13 +52,6 @@ export function createTokenHandlers(
   const app = new Hono();
 
   /**
-   * Find Backlog app configuration by domain.
-   */
-  function findBacklogApp(domain: string): BacklogAppConfig | undefined {
-    return config.backlog_apps.find((app) => app.domain === domain);
-  }
-
-  /**
    * Build callback URL for OAuth redirect (needed for code exchange).
    */
   function buildCallbackUrl(c: Context): string {
@@ -91,11 +83,11 @@ export function createTokenHandlers(
    * Request token from Backlog OAuth server.
    */
   async function requestToken(
-    backlogApp: BacklogAppConfig,
+    domain: string,
     space: string,
     params: URLSearchParams
   ): Promise<TokenResponse> {
-    const tokenUrl = `https://${space}.${backlogApp.domain}/api/v2/oauth2/token`;
+    const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
 
     const response = await fetch(tokenUrl, {
       method: "POST",
@@ -114,12 +106,14 @@ export function createTokenHandlers(
     return JSON.parse(body) as TokenResponse;
   }
 
+  const backlogApp = config.backlog_app;
+
   /**
    * Exchange authorization code for tokens.
    */
   async function exchangeCode(
     c: Context,
-    backlogApp: BacklogAppConfig,
+    domain: string,
     space: string,
     code: string
   ): Promise<TokenResponse> {
@@ -130,14 +124,14 @@ export function createTokenHandlers(
     params.set("client_id", backlogApp.client_id);
     params.set("client_secret", backlogApp.client_secret);
 
-    return requestToken(backlogApp, space, params);
+    return requestToken(domain, space, params);
   }
 
   /**
    * Refresh access token.
    */
   async function refreshToken(
-    backlogApp: BacklogAppConfig,
+    domain: string,
     space: string,
     refreshTokenValue: string
   ): Promise<TokenResponse> {
@@ -147,7 +141,7 @@ export function createTokenHandlers(
     params.set("client_id", backlogApp.client_id);
     params.set("client_secret", backlogApp.client_secret);
 
-    return requestToken(backlogApp, space, params);
+    return requestToken(domain, space, params);
   }
 
   /**
@@ -208,17 +202,6 @@ export function createTokenHandlers(
       );
     }
 
-    // Find Backlog app config
-    const backlogApp = findBacklogApp(req.domain);
-    if (!backlogApp) {
-      return writeError(
-        c,
-        400,
-        "invalid_request",
-        `domain '${req.domain}' is not supported`
-      );
-    }
-
     let tokenResp: TokenResponse;
     let auditAction: string;
 
@@ -234,7 +217,7 @@ export function createTokenHandlers(
               "code is required for authorization_code grant"
             );
           }
-          tokenResp = await exchangeCode(c, backlogApp, req.space, req.code);
+          tokenResp = await exchangeCode(c, req.domain, req.space, req.code);
           break;
 
         case "refresh_token":
@@ -248,7 +231,7 @@ export function createTokenHandlers(
             );
           }
           tokenResp = await refreshToken(
-            backlogApp,
+            req.domain,
             req.space,
             req.refresh_token
           );

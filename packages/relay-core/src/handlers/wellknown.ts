@@ -221,7 +221,7 @@ function preferJapanese(acceptLanguage: string | undefined): boolean {
 /**
  * Create well-known handlers with the given configuration.
  */
-export function createWellKnownHandlers(config: RelayConfig): Hono {
+export function createWellKnownHandlers(_config: RelayConfig): Hono {
   const app = new Hono();
 
   /**
@@ -244,7 +244,7 @@ export function createWellKnownHandlers(config: RelayConfig): Hono {
     const response: WellKnownResponse = {
       version: "1.0",
       capabilities: ["oauth2", "token-exchange", "token-refresh"],
-      supported_domains: config.backlog_apps.map((app) => app.domain),
+      supported_domains: ["backlog.jp", "backlog.com"],
     };
 
     // Set cache headers for discovery endpoint

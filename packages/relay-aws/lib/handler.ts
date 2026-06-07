@@ -41,7 +41,7 @@ export const ENV_VARS = {
 } as const;
 
 interface RelaySecrets {
-    apps: Record<string, { client_secret: string }>;
+    app?: { client_secret: string };
     tenants: Record<string, { jwks?: string; passphrase_hash?: string }>;
 }
 
@@ -132,12 +132,11 @@ async function getRelayConfig(): Promise<RelayConfig> {
     if (secretName) {
         const secrets = await loadRelaySecrets(secretName);
 
-        if (Array.isArray(raw.backlog_apps) && secrets.apps) {
-            raw.backlog_apps = (raw.backlog_apps as Array<Record<string, unknown>>).map((app) => ({
-                ...app,
-                client_secret: secrets.apps[app.domain as string]?.client_secret
-                    ?? (app.client_secret || ""),
-            }));
+        if (raw.backlog_app && secrets.app) {
+            raw.backlog_app = {
+                ...(raw.backlog_app as Record<string, unknown>),
+                client_secret: secrets.app.client_secret,
+            };
         }
 
         if (Array.isArray(raw.tenants) && secrets.tenants) {
@@ -222,10 +221,9 @@ async function buildMcpConfig(
         base_url: baseUrl,
         token_key: current,
         token_key_prev: previous,
-        backlog_apps: relayConfig.backlog_apps.map((a) => ({
-            domain: a.domain,
-            client_id: a.client_id,
-        })),
+        backlog_app: {
+            client_id: relayConfig.backlog_app.client_id,
+        },
         tenants: mcpTenants,
     };
 
@@ -237,13 +235,7 @@ async function buildMcpConfig(
  * (which includes client_secret). No HTTP round-trip needed.
  */
 function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
-    function findApp(domain: string) {
-        const app = relayConfig.backlog_apps.find((a) => a.domain === domain);
-        if (!app) {
-            throw new Error(`Unsupported domain: ${domain}`);
-        }
-        return app;
-    }
+    const app = relayConfig.backlog_app;
 
     async function requestToken(
         tokenUrl: string,
@@ -263,7 +255,6 @@ function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
 
     return {
         async exchangeCode(domain, space, code, redirectUri) {
-            const app = findApp(domain);
             const params = new URLSearchParams();
             params.set("grant_type", "authorization_code");
             params.set("code", code);
@@ -272,17 +263,16 @@ function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
             if (redirectUri) {
                 params.set("redirect_uri", redirectUri);
             }
-            const tokenUrl = `https://${space}.${app.domain}/api/v2/oauth2/token`;
+            const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
             return requestToken(tokenUrl, params);
         },
         async refreshToken(domain, space, refreshTokenValue) {
-            const app = findApp(domain);
             const params = new URLSearchParams();
             params.set("grant_type", "refresh_token");
             params.set("refresh_token", refreshTokenValue);
             params.set("client_id", app.client_id);
             params.set("client_secret", app.client_secret);
-            const tokenUrl = `https://${space}.${app.domain}/api/v2/oauth2/token`;
+            const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
             return requestToken(tokenUrl, params);
         },
     };

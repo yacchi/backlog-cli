@@ -33,7 +33,7 @@ interface TenantConfig {
 }
 
 interface RelaySecretsValue {
-    apps: Record<string, AppSecret>;
+    app?: AppSecret;
     tenants: Record<
         string,
         { jwks?: string; passphrase_hash?: string; passphrase?: string }
@@ -123,9 +123,9 @@ async function createRelaySecrets(
         if (!(e instanceof ResourceNotFoundException)) throw e;
     }
 
-    const appsSecrets = JSON.parse(
-        process.env.APPS_SECRETS ?? "{}",
-    ) as Record<string, AppSecret>;
+    const appSecret = JSON.parse(
+        process.env.APP_SECRET ?? "{}",
+    ) as AppSecret | Record<string, never>;
     const tenantConfigs = JSON.parse(
         process.env.TENANT_CONFIGS ?? "{}",
     ) as Record<string, TenantConfig>;
@@ -140,7 +140,7 @@ async function createRelaySecrets(
         );
         if (resp.SecretString) {
             const parsed = JSON.parse(resp.SecretString);
-            if (parsed.apps && parsed.tenants) {
+            if (parsed.tenants) {
                 existing = parsed as RelaySecretsValue;
             }
         }
@@ -148,7 +148,10 @@ async function createRelaySecrets(
         // First rotation — no structured value yet
     }
 
-    const result: RelaySecretsValue = { apps: appsSecrets, tenants: {} };
+    const result: RelaySecretsValue = {
+        app: "client_secret" in appSecret ? appSecret as AppSecret : undefined,
+        tenants: {},
+    };
 
     for (const [spaceDomain, config] of Object.entries(tenantConfigs)) {
         const prev = existing?.tenants[spaceDomain];

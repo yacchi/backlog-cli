@@ -155,10 +155,10 @@ export interface ParameterStoreConfig {
 
 /**
  * Backlog OAuth app configuration.
+ * A single app registration works for all Backlog domains.
  * client_secret is separated into Secrets Manager at deploy time.
  */
 export interface BacklogAppInput {
-  domain: string;
   client_id: string;
   client_secret: string;
 }
@@ -174,7 +174,7 @@ export interface ParameterStoreValue {
     base_url?: string;
     allowed_host_patterns?: string;
   };
-  backlog_apps: BacklogAppInput[];
+  backlog_app: BacklogAppInput;
   /** Unified tenant config keyed by "space.domain" (e.g. "your-space.backlog.jp") */
   tenants?: Record<string, UnifiedTenantInput>;
   access_control?: {
@@ -247,11 +247,10 @@ export function buildSsmParameterValue(
 
   const config: CoreRelayConfigInput = {
     server: value.server,
-    backlog_apps: value.backlog_apps.map((app) => ({
-      domain: app.domain,
-      client_id: app.client_id,
+    backlog_app: {
+      client_id: value.backlog_app.client_id,
       client_secret: "__from_secrets_manager__",
-    })),
+    },
     tenants: relayTenants.length > 0 ? relayTenants : undefined,
     access_control: value.access_control,
     rate_limit: value.rate_limit,

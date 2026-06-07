@@ -9,9 +9,9 @@ import { z } from "zod";
 
 /**
  * Backlog application configuration schema.
+ * A single OAuth app registration works for all Backlog domains.
  */
 export const BacklogAppConfigSchema = z.object({
-  domain: z.string().min(1, "domain is required"),
   client_id: z.string().min(1, "client_id is required"),
   client_secret: z.string().min(1, "client_secret is required"),
 });
@@ -70,7 +70,7 @@ export const CacheConfigSchema = z.object({
  */
 export const RelayConfigSchema = z.object({
   server: ServerConfigSchema,
-  backlog_apps: z.array(BacklogAppConfigSchema).min(1, "At least one backlog_apps entry is required"),
+  backlog_app: BacklogAppConfigSchema,
   tenants: z.array(TenantConfigSchema).optional(),
   access_control: AccessControlConfigSchema.optional(),
   rate_limit: RateLimitConfigSchema.optional(),
