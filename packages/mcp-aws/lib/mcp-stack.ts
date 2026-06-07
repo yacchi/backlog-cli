@@ -53,6 +53,7 @@ export class McpStack extends cdk.Stack {
     }
 
     private createLambdaFunction(): lambda.Function {
+        const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
         const mcsServerDir = path.resolve(import.meta.dirname, "..", "..", "mcp-server");
 
         const fn = new NodejsFunction(this, "McpFunction", {
@@ -68,8 +69,7 @@ export class McpStack extends cdk.Stack {
                 CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
                 TOKEN_KEY_SECRET_NAME: this.config.secretName,
                 BACKLOG_BIN_PATH: "/var/task/bin/backlog",
-                DENO_PATH: "/var/task/bin/deno",
-                DENO_DIR: "/var/task/.deno-cache",
+                SANDBOX_WORKER_PATH: "/var/task/bin/sandbox-worker",
             },
             description: "Backlog MCP Server (Streamable HTTP)",
             bundling: {
@@ -82,19 +82,18 @@ export class McpStack extends cdk.Stack {
                     beforeInstall(): string[] {
                         return [];
                     },
-                    afterBundling(inputDir: string, outputDir: string): string[] {
-                        const backlogDir = path.join(inputDir, "..", "..", "backlog");
+                    afterBundling(_inputDir: string, outputDir: string): string[] {
+                        const workerSrc = `${mcsServerDir}/src/sandbox/sandbox-worker.mjs`;
+                        const compiledWorker = `${mcsServerDir}/vendor/sandbox-worker`;
                         return [
                             `mkdir -p "${outputDir}/bin"`,
                             // Go CLI binary (linux/arm64)
-                            `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C "${backlogDir}" -o "${outputDir}/bin/backlog" ./cmd/backlog`,
+                            `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C "${repoRoot}" -o "${outputDir}/bin/backlog" ./cmd/backlog`,
                             `chmod +x "${outputDir}/bin/backlog"`,
-                            // Deno binary — must be pre-placed at mcp-server/vendor/deno
-                            `test -f "${mcsServerDir}/vendor/deno" && cp "${mcsServerDir}/vendor/deno" "${outputDir}/bin/deno" && chmod +x "${outputDir}/bin/deno" || echo "WARN: vendor/deno not found — sandbox disabled"`,
-                            // Sandbox worker
-                            `cp "${mcsServerDir}/src/sandbox/sandbox-worker.mjs" "${outputDir}/sandbox-worker.mjs"`,
-                            // Deno cache (Pyodide WASM, pre-resolved via 'deno cache sandbox-worker.mjs')
-                            `test -d "${mcsServerDir}/.deno-cache" && cp -r "${mcsServerDir}/.deno-cache" "${outputDir}/.deno-cache" || true`,
+                            // Sandbox worker — compile to standalone binary with deno compile
+                            // Uses isolated temp dir to avoid node_modules interference from mcp-server
+                            `if [ -f "${compiledWorker}" ]; then cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; else tmpdir=$(mktemp -d) && cp "${workerSrc}" "$tmpdir/" && DENO_TLS_CA_STORE=system deno compile --target aarch64-unknown-linux-gnu --allow-read --allow-write=/tmp --allow-net=127.0.0.1 --output "${compiledWorker}" "$tmpdir/sandbox-worker.mjs" && rm -rf "$tmpdir" && cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; fi`,
+                            `chmod +x "${outputDir}/bin/sandbox-worker"`,
                         ];
                     },
                 },
