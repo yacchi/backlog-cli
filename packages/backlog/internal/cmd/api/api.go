@@ -70,10 +70,12 @@ func init() {
 }
 
 func runAPI(cmd *cobra.Command, args []string) error {
-	client, _, err := cmdutil.GetAPIClient(cmd)
+	client, cfg, err := cmdutil.GetAPIClient(cmd)
 	if err != nil {
 		return err
 	}
+
+	profile := cfg.CurrentProfile()
 
 	endpoint := args[0]
 	if !strings.HasPrefix(endpoint, "/") {
@@ -172,9 +174,14 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	if !silent && len(resp.Body) > 0 {
-		// Try to pretty print JSON
 		var jsonData interface{}
-		if err := json.Unmarshal(resp.Body, &jsonData); err == nil {
+		isJSON := json.Unmarshal(resp.Body, &jsonData) == nil
+
+		if isJSON && (profile.Output == "json" || profile.JQ != "" || profile.Template != "") {
+			return cmdutil.OutputJSONFromProfile(jsonData, profile.JSONFields, profile.JQ, profile.Template)
+		}
+
+		if isJSON {
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
 			_ = enc.Encode(jsonData)
