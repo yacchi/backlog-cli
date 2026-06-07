@@ -18,7 +18,7 @@ const hasSandboxEnabled = Object.values(config.tenants).some(
 
 if (hasSandboxEnabled) {
     const sandbox = await createSandboxClient({
-        denoPath: process.env.DENO_PATH,
+        workerPath: process.env.SANDBOX_WORKER_PATH,
         binPath: process.env.BACKLOG_BIN_PATH,
     });
 

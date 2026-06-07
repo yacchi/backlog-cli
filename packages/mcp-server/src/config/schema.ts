@@ -19,7 +19,7 @@ export const McpTenantSchema = z.object({
 
 export const McpServerConfigSchema = z.object({
     base_url: z.string().url(),
-    relay_url: z.string().url(),
+    relay_url: z.string().url().optional(),
     token_key: z.string().min(1),
     token_key_prev: z.string().optional(),
     backlog_apps: z.array(z.object({

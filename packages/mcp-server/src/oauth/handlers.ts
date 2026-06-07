@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { McpServerConfig } from "../config/schema.js";
 import { encrypt, decrypt, encryptToken, decryptToken, importKey } from "../crypto/jwe.js";
 import type {
@@ -11,19 +11,53 @@ import type {
     AuthorizeState,
 } from "./types.js";
 
-export function createOAuthHandlers(config: McpServerConfig): Hono {
+export interface TokenExchange {
+    exchangeCode(domain: string, space: string, code: string, redirectUri?: string): Promise<TokenResponse>;
+    refreshToken(domain: string, space: string, refreshToken: string): Promise<TokenResponse>;
+}
+
+export interface OAuthHandlerOptions {
+    tokenExchange?: TokenExchange;
+    callbackPath?: string;
+}
+
+export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHandlerOptions): Hono {
     const app = new Hono();
     const tokenKey = importKey(config.token_key);
     const tokenKeyPrev = config.token_key_prev
         ? importKey(config.token_key_prev)
         : undefined;
 
+    const tokenExchange = options?.tokenExchange;
+
+    const backlogRedirectUri = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
+
+    async function doExchangeCode(domain: string, space: string, code: string): Promise<TokenResponse> {
+        if (tokenExchange) {
+            return tokenExchange.exchangeCode(domain, space, code, backlogRedirectUri);
+        }
+        if (!config.relay_url) {
+            throw new Error("relay_url is required when tokenExchange is not provided");
+        }
+        return exchangeCodeViaRelay(config.relay_url, domain, space, code);
+    }
+
+    async function doRefreshToken(domain: string, space: string, refreshTokenValue: string): Promise<TokenResponse> {
+        if (tokenExchange) {
+            return tokenExchange.refreshToken(domain, space, refreshTokenValue);
+        }
+        if (!config.relay_url) {
+            throw new Error("relay_url is required when tokenExchange is not provided");
+        }
+        return refreshViaRelay(config.relay_url, domain, space, refreshTokenValue);
+    }
+
     function findBacklogApp(domain: string) {
         return config.backlog_apps.find((a) => a.domain === domain);
     }
 
     function jsonError(
-        c: Parameters<Parameters<typeof app.post>[1]>[0],
+        c: Context,
         status: number,
         error: string,
         description?: string,
@@ -202,7 +236,7 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
         );
 
         // Redirect to Backlog OAuth
-        const callbackUrl = `${config.base_url}/mcp/authorize/callback`;
+        const callbackUrl = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
         const authUrl = new URL(
             `https://${space}.${domain}/OAuth2AccessRequest.action`,
         );
@@ -272,8 +306,7 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
 
         let backlogTokens: TokenResponse;
         try {
-            backlogTokens = await exchangeCodeViaRelay(
-                config.relay_url,
+            backlogTokens = await doExchangeCode(
                 authorizeState.domain,
                 authorizeState.space,
                 code,
@@ -288,31 +321,8 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
             );
         }
 
-        // Wrap Backlog tokens into JWE
-        const now = Math.floor(Date.now() / 1000);
-        const accessTokenJwe = await encryptToken(
-            {
-                bl_access_token: backlogTokens.access_token,
-                bl_expires_at: now + backlogTokens.expires_in,
-                space: authorizeState.space,
-                domain: authorizeState.domain,
-                iat: now,
-                exp: now + backlogTokens.expires_in,
-            },
-            tokenKey,
-        );
-
-        const refreshTokenJwe = await encryptToken(
-            {
-                bl_refresh_token: backlogTokens.refresh_token,
-                space: authorizeState.space,
-                domain: authorizeState.domain,
-                iat: now,
-            },
-            tokenKey,
-        );
-
         // Build authorization code that wraps the JWE tokens
+        const now = Math.floor(Date.now() / 1000);
         // This code will be exchanged at /mcp/token by the MCP client
         const mcpCode = await encryptToken(
             {
@@ -342,20 +352,14 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
         try {
             const contentType = c.req.header("content-type") || "";
             if (contentType.includes("application/x-www-form-urlencoded")) {
-                const body = await c.req.parseBody();
+                const params = new URLSearchParams(await c.req.text());
                 req = {
-                    grant_type: String(body.grant_type || ""),
-                    code: body.code ? String(body.code) : undefined,
-                    redirect_uri: body.redirect_uri
-                        ? String(body.redirect_uri)
-                        : undefined,
-                    client_id: body.client_id ? String(body.client_id) : undefined,
-                    code_verifier: body.code_verifier
-                        ? String(body.code_verifier)
-                        : undefined,
-                    refresh_token: body.refresh_token
-                        ? String(body.refresh_token)
-                        : undefined,
+                    grant_type: params.get("grant_type") || "",
+                    code: params.get("code") || undefined,
+                    redirect_uri: params.get("redirect_uri") || undefined,
+                    client_id: params.get("client_id") || undefined,
+                    code_verifier: params.get("code_verifier") || undefined,
+                    refresh_token: params.get("refresh_token") || undefined,
                 };
             } else {
                 req = await c.req.json();
@@ -382,7 +386,7 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
     });
 
     async function handleCodeExchange(
-        c: Parameters<Parameters<typeof app.post>[1]>[0],
+        c: Context,
         req: TokenRequest,
     ): Promise<Response> {
         if (!req.code) {
@@ -447,7 +451,7 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
     }
 
     async function handleRefreshToken(
-        c: Parameters<Parameters<typeof app.post>[1]>[0],
+        c: Context,
         req: TokenRequest,
     ): Promise<Response> {
         if (!req.refresh_token) {
@@ -486,11 +490,9 @@ export function createOAuthHandlers(config: McpServerConfig): Hono {
             return jsonError(c, 400, "invalid_grant", "Malformed refresh token");
         }
 
-        // Refresh via relay server
         let backlogTokens: TokenResponse;
         try {
-            backlogTokens = await refreshViaRelay(
-                config.relay_url,
+            backlogTokens = await doRefreshToken(
                 refreshPayload.domain,
                 refreshPayload.space,
                 refreshPayload.bl_refresh_token,
