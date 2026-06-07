@@ -51,10 +51,6 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := checkAccessMode(cmd); err != nil {
-			return err
-		}
-
 		// デバッグモードの有効化
 		if debugFlag, _ := cmd.Flags().GetBool("debug"); debugFlag {
 			debug.Enable()

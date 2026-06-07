@@ -102,12 +102,13 @@ func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client 
 		tokenRefreshMargin: 5 * time.Minute,
 	}
 
-	// RetryTransportを設定したHTTPクライアントを作成
 	c.httpClient = &http.Client{
 		Timeout: 30 * time.Second,
-		Transport: &RetryTransport{
-			Base:       http.DefaultTransport,
-			MaxRetries: 5, // リトライ回数（必要に応じて設定可能にしてもよい）
+		Transport: &ReadOnlyTransport{
+			Base: &RetryTransport{
+				Base:       http.DefaultTransport,
+				MaxRetries: 5,
+			},
 		},
 	}
 
@@ -311,7 +312,8 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	// relay サーバーへのリクエストは read-only transport を経由させない
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return fmt.Errorf("token refresh request failed: %w", err)
 	}
