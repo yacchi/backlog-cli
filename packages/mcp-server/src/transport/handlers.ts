@@ -77,7 +77,7 @@ const QUERY_TOOLS = [
                 args: {
                     type: "string" as const,
                     description:
-                        "CLI arguments for read-only commands (e.g., 'issue list -p PROJ -L 20 --json issueKey,summary,status')",
+                        "CLI arguments for read-only commands (e.g., 'issue list -p PROJ -L 20 --json=issueKey,summary,status')",
                 },
             },
             required: ["args"],
@@ -541,7 +541,7 @@ You have access to backlog tools which execute the Backlog CLI — a command-lin
 ### Issues (Query — use \`backlog_query\`)
 \`\`\`
 # Basic listing and viewing
-issue list -p PROJ -L 20 --json issueKey,summary,status,assignee
+issue list -p PROJ -L 20 --json=issueKey,summary,status,assignee
 issue view PROJ-42 --json
 issue view PROJ-42 --comments
 
@@ -597,16 +597,17 @@ api /api/v2/projects/PROJ/statuses
 
 ## Output Flags
 - \`--json\`: Output all fields as JSON
-- \`--json field1,field2\`: Output specific fields as JSON
+- \`--json=field1,field2\`: Output specific fields as JSON (must use \`=\` syntax)
 - \`--jq '.[] | select(.status.name == "Open")'\`: Filter with jq
 - \`--format '{{.issueKey}}: {{.summary}}'\`: Go template format
 - \`-L N\`: Limit results (0 = all)
 
 ## Important Notes
+- **\`--json\` with fields requires \`=\`**: Use \`--json=issueKey,summary\` (not \`--json issueKey,summary\`). Without \`=\`, the field list is treated as a separate argument
 - **Status/Priority are numeric IDs**: Use \`api /api/v2/projects/PROJ/statuses\` and \`api /api/v2/priorities\` to look up IDs first
 - **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`). Example: \`issue view PROJ-42 -c default --json\`
 - **User lookup**: Use the \`who\` tool (not \`api /api/v2/users/myself\`). \`whoami --json\` also works for yourself
-- **\`-F\` with special characters**: Avoid newlines/quotes in \`-F\` values. For long text, use \`-b\`/\`--body\` flags or \`-F "key=@file.txt"\` to read from a file
+- **Newlines in text**: Use \`\\n\` inside double quotes for newlines (e.g., \`-b "line1\\nline2"\`)
 
 ## Tips
 - Always use \`--json\` for structured data — easier to process

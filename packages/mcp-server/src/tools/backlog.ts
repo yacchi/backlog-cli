@@ -65,17 +65,54 @@ function resolveDefaultBinPath(): string {
     return resolve(__dirname, "..", "bin", "backlog");
 }
 
+const DOUBLE_QUOTE_ESCAPES: Record<string, string> = {
+    n: "\n",
+    t: "\t",
+    r: "\r",
+    "\\": "\\",
+    '"': '"',
+};
+
 function parseArgs(argsString: string): string[] {
     const args: string[] = [];
     let current = "";
     let inSingle = false;
     let inDouble = false;
     let escape = false;
+    let escapeInDouble = false;
 
     for (const ch of argsString) {
+        if (escapeInDouble) {
+            current += DOUBLE_QUOTE_ESCAPES[ch] ?? ("\\" + ch);
+            escapeInDouble = false;
+            continue;
+        }
+
         if (escape) {
             current += ch;
             escape = false;
+            continue;
+        }
+
+        if (inSingle) {
+            if (ch === "'") {
+                inSingle = false;
+            } else {
+                current += ch;
+            }
+            continue;
+        }
+
+        if (inDouble) {
+            if (ch === "\\") {
+                escapeInDouble = true;
+                continue;
+            }
+            if (ch === '"') {
+                inDouble = false;
+            } else {
+                current += ch;
+            }
             continue;
         }
 
@@ -84,17 +121,17 @@ function parseArgs(argsString: string): string[] {
             continue;
         }
 
-        if (ch === "'" && !inDouble) {
-            inSingle = !inSingle;
+        if (ch === "'") {
+            inSingle = true;
             continue;
         }
 
-        if (ch === '"' && !inSingle) {
-            inDouble = !inDouble;
+        if (ch === '"') {
+            inDouble = true;
             continue;
         }
 
-        if (ch === " " && !inSingle && !inDouble) {
+        if (ch === " ") {
             if (current) {
                 args.push(current);
                 current = "";
@@ -105,6 +142,9 @@ function parseArgs(argsString: string): string[] {
         current += ch;
     }
 
+    if (escape) {
+        current += "\\";
+    }
     if (current) {
         args.push(current);
     }

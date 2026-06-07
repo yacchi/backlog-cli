@@ -20,9 +20,36 @@ describe("parseArgs", () => {
         ]);
     });
 
-    it("handles escaped characters", () => {
+    it("handles escaped characters outside quotes", () => {
         expect(parseArgs("issue create --summary Hello\\ World")).toEqual([
             "issue", "create", "--summary", "Hello World",
+        ]);
+    });
+
+    it("interprets escape sequences inside double quotes", () => {
+        // MCP JSON delivers literal backslash + n as two chars; parseArgs converts to newline
+        const input = 'issue create -b "line1\\nline2"';
+        expect(parseArgs(input)).toEqual([
+            "issue", "create", "-b", "line1\nline2",
+        ]);
+    });
+
+    it("handles escaped double quote inside double quotes", () => {
+        expect(parseArgs('issue create -b "say \\"hello\\""')).toEqual([
+            "issue", "create", "-b", 'say "hello"',
+        ]);
+    });
+
+    it("preserves unknown escapes inside double quotes", () => {
+        const input = 'issue create -b "path\\x"';
+        expect(parseArgs(input)).toEqual([
+            "issue", "create", "-b", "path\\x",
+        ]);
+    });
+
+    it("preserves all characters inside single quotes", () => {
+        expect(parseArgs("issue create -b 'line1\\nline2'")).toEqual([
+            "issue", "create", "-b", "line1\\nline2",
         ]);
     });
 
