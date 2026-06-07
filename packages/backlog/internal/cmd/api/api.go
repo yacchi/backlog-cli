@@ -8,16 +8,19 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	internalapi "github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
+	"golang.org/x/term"
 )
 
 var (
 	method      string
 	rawFields   []string
+	typedFields []string
 	inputFile   string
 	silent      bool
 	includeResp bool
@@ -32,7 +35,12 @@ var APICmd = &cobra.Command{
 The endpoint argument should be a full API path starting with /api/v2 (or other versions).
 The path will be prefixed with "https://{space}.{domain}".
 
-Query parameters can be added with -F or --raw-field flag.
+Pass one or more -F/--field values in key=value format to add parameters.
+The -F flag has type conversion based on value format:
+  - integers and booleans (true/false) are sent as-is
+  - values starting with @ are read from a file (use @- for stdin)
+  - all other values are treated as strings
+Use --raw-field to always send the value as a literal string.
 
 Examples:
   # Get space information
@@ -44,11 +52,8 @@ Examples:
   # Create an issue with POST
   backlog api /api/v2/issues -X POST -F "projectId=12345" -F "summary=New Issue" -F "issueTypeId=1" -F "priorityId=3"
 
-  # Get projects
-  backlog api /api/v2/projects
-
-  # Get priorities
-  backlog api /api/v2/priorities
+  # Read a field value from file
+  backlog api /api/v2/issues -X POST -F "projectId=12345" -F "summary=Bug" -F "description=@body.txt"
 
   # Pass request body from stdin
   echo '{"name":"test"}' | backlog api /api/v2/projects -X POST --input -`,
@@ -58,17 +63,20 @@ Examples:
 
 func init() {
 	APICmd.Flags().StringVarP(&method, "method", "X", "GET", "HTTP method to use (GET, POST, PATCH, DELETE)")
-	APICmd.Flags().StringArrayVarP(&rawFields, "raw-field", "F", nil, "Add a field to the request (key=value or key[]=value)")
+	APICmd.Flags().StringArrayVar(&rawFields, "raw-field", nil, "Add a string parameter in key=value format")
+	APICmd.Flags().StringArrayVarP(&typedFields, "field", "F", nil, "Add a typed parameter in key=value format (integers, booleans auto-converted; @file reads value from file)")
 	APICmd.Flags().StringVar(&inputFile, "input", "", "Read request body from file (use - for stdin)")
 	APICmd.Flags().BoolVarP(&silent, "silent", "s", false, "Do not print response body")
 	APICmd.Flags().BoolVarP(&includeResp, "include", "i", false, "Include response headers in output")
 }
 
 func runAPI(cmd *cobra.Command, args []string) error {
-	client, _, err := cmdutil.GetAPIClient(cmd)
+	client, cfg, err := cmdutil.GetAPIClient(cmd)
 	if err != nil {
 		return err
 	}
+
+	profile := cfg.CurrentProfile()
 
 	endpoint := args[0]
 	if !strings.HasPrefix(endpoint, "/") {
@@ -79,18 +87,36 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	queryParams := url.Values{}
 	formData := url.Values{}
 
+	addField := func(key, value string) {
+		if method == "GET" {
+			queryParams.Add(key, value)
+		} else {
+			formData.Add(key, value)
+		}
+	}
+
+	// -f/--raw-field: string values as-is
 	for _, field := range rawFields {
+		parts := strings.SplitN(field, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid field format: %s (expected key=value)", field)
+		}
+		addField(parts[0], parts[1])
+	}
+
+	// -F/--field: type conversion (integers, booleans; @file reads from file)
+	for _, field := range typedFields {
 		parts := strings.SplitN(field, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid field format: %s (expected key=value)", field)
 		}
 		key, value := parts[0], parts[1]
 
-		if method == "GET" {
-			queryParams.Add(key, value)
-		} else {
-			formData.Add(key, value)
+		resolved, err := resolveTypedValue(value)
+		if err != nil {
+			return fmt.Errorf("field %s: %w", key, err)
 		}
+		addField(key, resolved)
 	}
 
 	// Handle input from file/stdin for request body
@@ -149,11 +175,18 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	if !silent && len(resp.Body) > 0 {
-		// Try to pretty print JSON
 		var jsonData interface{}
-		if err := json.Unmarshal(resp.Body, &jsonData); err == nil {
+		isJSON := json.Unmarshal(resp.Body, &jsonData) == nil
+
+		if isJSON && (profile.Output == "json" || profile.JQ != "" || profile.Template != "") {
+			return cmdutil.OutputJSONFromProfile(jsonData, profile.JSONFields, profile.JQ, profile.Template)
+		}
+
+		if isJSON {
 			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				enc.SetIndent("", "  ")
+			}
 			_ = enc.Encode(jsonData)
 		} else {
 			_, _ = os.Stdout.Write(resp.Body)
@@ -260,4 +293,36 @@ func doDeleteRequest(ctx context.Context, client *internalapi.Client, path strin
 		Headers:    resp.Header,
 		Body:       respBody,
 	}, nil
+}
+
+// resolveTypedValue applies gh-compatible type conversion for -F/--field values.
+// @file reads from file, @- reads from stdin, booleans and integers pass through as-is.
+func resolveTypedValue(value string) (string, error) {
+	if strings.HasPrefix(value, "@") {
+		path := value[1:]
+		var r io.Reader
+		if path == "-" {
+			r = os.Stdin
+		} else {
+			f, err := os.Open(path)
+			if err != nil {
+				return "", fmt.Errorf("failed to open %s: %w", path, err)
+			}
+			defer func() { _ = f.Close() }()
+			r = f
+		}
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return "", fmt.Errorf("failed to read %s: %w", path, err)
+		}
+		return strings.TrimRight(string(data), "\r\n"), nil
+	}
+
+	if value == "true" || value == "false" || value == "null" {
+		return value, nil
+	}
+	if _, err := strconv.Atoi(value); err == nil {
+		return value, nil
+	}
+	return value, nil
 }

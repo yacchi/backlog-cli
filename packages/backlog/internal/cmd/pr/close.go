@@ -71,7 +71,14 @@ func runClose(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !closeYes {
+	if !closeYes && !ui.AssumeYes() {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog pr close",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to close PR #%d: %s?", pr.Number, pr.Summary),

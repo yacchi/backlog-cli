@@ -2,6 +2,14 @@ import { Hono } from "hono";
 import type { McpServerConfig, McpTenant } from "../config/schema.js";
 import { jweAuth, getAuthContext } from "../middleware/jwe-auth.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
+import { materializeFiles, substituteFileRefs } from "../tools/files.js";
+import { logToolCall } from "../logging/logger.js";
+
+export interface ScriptFile {
+    content: string;
+    encoding?: "base64" | "gzip+base64" | "utf8";
+    name?: string;
+}
 
 interface JsonRpcRequest {
     jsonrpc: "2.0";
@@ -19,37 +27,184 @@ interface JsonRpcResponse {
 
 const MCP_PROTOCOL_VERSION = "2025-03-26";
 
-const TOOLS = [
+const SERVER_INSTRUCTIONS = `Backlog CLI MCP Server — provides Backlog project management via the \`backlog\` CLI, a GitHub CLI (gh) compatible command-line tool for Backlog.
+
+## IMPORTANT: Prefer local CLI when available
+
+If the \`backlog\` CLI is installed locally (check with \`backlog --version\`), prefer running CLI commands directly in the shell instead of using these MCP tools. The local CLI provides faster execution, richer interactive features, and access to local configuration (.backlog.yaml).
+
+Use these MCP tools only when:
+- The local CLI is not installed (e.g., Claude.ai web, non-developer environments)
+- You have already confirmed the CLI is unavailable in this session
+
+## CLI Reference (backlog_help)
+
+Whether using the local CLI or MCP tools, call \`backlog_help\` to look up command syntax and flags. The \`backlog\` CLI follows GitHub CLI (gh) conventions — subcommand structure, \`--json\` output, and flag patterns are similar. If you know gh, you can apply the same patterns to \`backlog\`.`;
+
+const FILES_SCHEMA = {
+    type: "array" as const,
+    items: {
+        type: "object" as const,
+        properties: {
+            content: {
+                type: "string" as const,
+                description: "File content, encoded according to the encoding field.",
+            },
+            encoding: {
+                type: "string" as const,
+                enum: ["base64", "gzip+base64", "utf8"],
+                description: "Content encoding (default: base64).",
+            },
+            name: {
+                type: "string" as const,
+                description: "Optional filename hint (e.g., 'diagram.png'). Used as the temp file name for --attach.",
+            },
+        },
+        required: ["content"],
+    },
+    description:
+        "File contents to pass to CLI commands. Referenced in args as $file[0], $file[1], etc. Written to temp files and substituted with actual paths before CLI execution. Use with --body-file, --attach, or any flag that accepts a file path.",
+};
+
+const HELP_TOOL = {
+    name: "backlog_help",
+    description:
+        "Get the Backlog CLI reference — available commands, flags, output formats, and usage examples. IMPORTANT: Call this BEFORE using any other backlog tool if you have not already done so in this conversation.",
+    inputSchema: {
+        type: "object" as const,
+        properties: {
+            command: {
+                type: "string" as const,
+                description:
+                    "Optional: a specific command to get help for (e.g., 'issue list', 'wiki', 'api'). Omit for the full reference.",
+            },
+        },
+    },
+    annotations: {
+        title: "Backlog CLI Help",
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+    },
+};
+
+const CLI_REF_HINT = "Call backlog_help first to learn available commands and flags.";
+
+const QUERY_TOOLS = [
     {
-        name: "backlog",
+        name: "who",
         description:
-            "Execute a backlog CLI command (similar to gh CLI). Returns command output. Use --json flag for structured output, --jq for filtering.",
+            "Look up Backlog users. Without query: returns the authenticated user's own profile. With query: searches users by name, userId, or email address.",
+        inputSchema: {
+            type: "object" as const,
+            properties: {
+                query: {
+                    type: "string" as const,
+                    description:
+                        "Search query — matched against name, userId, and email (case-insensitive, partial match). Omit to get your own profile.",
+                },
+            },
+        },
+        annotations: {
+            title: "Who",
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: false,
+        },
+    },
+    {
+        name: "backlog_query",
+        description:
+            `Execute a read-only backlog CLI command (similar to gh CLI). Supports list, view, and GET API calls. Use --json flag for structured output, --jq for filtering. For user lookup, use the who tool. For write operations, use backlog_mutate. ${CLI_REF_HINT}`,
         inputSchema: {
             type: "object" as const,
             properties: {
                 args: {
                     type: "string" as const,
                     description:
-                        "CLI arguments (e.g., 'issue list --project PROJ -L 20 --json issueKey,summary,status')",
+                        "CLI arguments for read-only commands (e.g., 'issue list -p PROJ -L 20 --json=issueKey,summary,status')",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["args"],
         },
+        annotations: {
+            title: "Backlog Query",
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: false,
+        },
     },
     {
-        name: "run_script",
+        name: "backlog_query_script",
         description:
-            "Execute Python in a sandboxed environment with backlog() helper. Use for chaining multiple CLI calls, filtering, aggregating, or computing derived data in one round trip. Python standard library available (json, datetime, re, collections, etc.). Dangerous modules (os, subprocess, socket, etc.) are blocked.",
+            `Execute a read-only Python analysis script with backlog() helper. Only read commands (list, view, GET API calls) are allowed — write operations are blocked. Use for multi-step data retrieval, aggregation, filtering, and reporting across multiple API calls in one round trip. Python standard library available (json, datetime, re, collections, etc.). ${CLI_REF_HINT}`,
         inputSchema: {
             type: "object" as const,
             properties: {
                 script: {
                     type: "string" as const,
                     description:
-                        "Python code. Available: backlog(args) returns parsed JSON (runs CLI with --json). The last expression is the return value.",
+                        "Python code. backlog(args) runs a CLI command and returns the result (parsed JSON with --json, or text). print() output is returned to the user; if no print(), the last expression value is used as fallback. Read-only commands only.",
                 },
+                files: FILES_SCHEMA,
             },
             required: ["script"],
+        },
+        annotations: {
+            title: "Analyze Backlog Data",
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: false,
+        },
+    },
+];
+
+const MUTATION_TOOLS = [
+    {
+        name: "backlog_mutate",
+        description:
+            `Execute a backlog CLI command that modifies data (create, update, delete). For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[0] instead of inline -b/--body to avoid escaping issues. For read-only commands, use backlog_query. ${CLI_REF_HINT}`,
+        inputSchema: {
+            type: "object" as const,
+            properties: {
+                args: {
+                    type: "string" as const,
+                    description:
+                        "CLI arguments (e.g., 'issue create -p PROJ -t \"Title\" --body-file $file[0] --type Bug')",
+                },
+                files: FILES_SCHEMA,
+            },
+            required: ["args"],
+        },
+        annotations: {
+            title: "Backlog Mutate",
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: false,
+        },
+    },
+    {
+        name: "backlog_mutate_script",
+        description:
+            `Execute Python in a sandboxed environment with backlog() helper. Use for chaining multiple CLI calls including write operations (create, update, delete). Python standard library available (json, datetime, re, collections, etc.). Dangerous modules (os, subprocess, socket, etc.) are blocked. For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[N] instead of inline -b/--body to avoid escaping issues. ${CLI_REF_HINT}`,
+        inputSchema: {
+            type: "object" as const,
+            properties: {
+                script: {
+                    type: "string" as const,
+                    description:
+                        "Python code. backlog(args) runs a CLI command and returns the result (parsed JSON with --json, or text). print() output is returned to the user; if no print(), the last expression value is used as fallback.",
+                },
+                files: FILES_SCHEMA,
+            },
+            required: ["script"],
+        },
+        annotations: {
+            title: "Run Script",
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: false,
         },
     },
 ];
@@ -63,10 +218,11 @@ const SKILL_PROMPT = {
 
 export function createTransportHandlers(
     config: McpServerConfig,
-    options?: { binPath?: string; runScript?: (script: string, token: import("../crypto/jwe.js").TokenPayload, tenant: McpTenant | undefined) => Promise<{ result: string; error?: string }> },
+    options?: { binPath?: string; runScript?: (script: string, token: import("../crypto/jwe.js").TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
-    const auth = jweAuth(config.token_key, config.token_key_prev);
+    const resourceMetadataUrl = `${config.base_url}/.well-known/oauth-protected-resource`;
+    const auth = jweAuth(config.token_key, config.token_key_prev, resourceMetadataUrl);
 
     app.post("/mcp", auth, async (c) => {
         let req: JsonRpcRequest;
@@ -89,8 +245,6 @@ export function createTransportHandlers(
     });
 
     app.get("/mcp", auth, (c) => {
-        // SSE endpoint — for now return 200 with empty event stream
-        // Full SSE implementation for server-initiated notifications is Phase 4
         c.header("Content-Type", "text/event-stream");
         c.header("Cache-Control", "no-cache");
         c.header("Connection", "keep-alive");
@@ -118,6 +272,7 @@ export function createTransportHandlers(
                         name: "backlog-mcp-server",
                         version: "0.1.0",
                     },
+                    instructions: SERVER_INSTRUCTIONS,
                 });
 
             case "notifications/initialized":
@@ -148,10 +303,11 @@ export function createTransportHandlers(
     }
 
     function getAvailableTools(tenant: McpTenant | undefined) {
+        const tools = [HELP_TOOL, ...QUERY_TOOLS, ...MUTATION_TOOLS];
         if (tenant?.script?.enabled) {
-            return TOOLS;
+            return tools;
         }
-        return TOOLS.filter((t) => t.name !== "run_script");
+        return tools.filter((t) => t.name === "who" || t.name === "backlog_query" || t.name === "backlog_mutate" || t.name === "backlog_help");
     }
 
     async function handleToolCall(
@@ -162,95 +318,181 @@ export function createTransportHandlers(
         const params = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
         const toolName = params?.name;
         const toolArgs = params?.arguments ?? {};
+        const tenantKey = `${token.space}.${token.domain}`;
 
         switch (toolName) {
-            case "backlog": {
-                const args = toolArgs.args as string | undefined;
-                if (!args) {
-                    return jsonRpcError(req.id, -32602, "Missing 'args' parameter");
-                }
-
+            case "backlog_help": {
+                const command = (toolArgs.command as string | undefined)?.trim();
+                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: tenantKey });
                 try {
-                    const result = await executeBacklogCommand(
-                        args,
+                    const cliRef = await executeBacklogCommand(
+                        'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
                         token,
-                        tenant,
-                        options?.binPath,
+                        { readOnly: true, binPath: options?.binPath },
                     );
+                    const full = buildCliReferencePrompt(token.space, token.domain, cliRef.output);
+                    let text = full;
+                    if (command) {
+                        const sections = extractCommandSection(full, command);
+                        text = sections ?? `No specific help found for "${command}". Here is the full reference:\n\n${full}`;
+                    }
+                    log.finish({ output: `${text.length} chars` });
                     return jsonRpcResult(req.id, {
-                        content: [
-                            {
-                                type: "text",
-                                text: result.output,
-                            },
-                        ],
-                        isError: result.exitCode !== 0,
+                        content: [{ type: "text", text }],
                     });
                 } catch (err) {
+                    log.finish({ error: (err as Error).message, category: "exception" });
+                    const fallback = buildCliReferencePrompt(token.space, token.domain);
                     return jsonRpcResult(req.id, {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Error: ${(err as Error).message}`,
-                            },
-                        ],
+                        content: [{ type: "text", text: fallback }],
+                    });
+                }
+            }
+
+            case "who": {
+                const query = (toolArgs.query as string | undefined)?.trim();
+                const log = logToolCall({ tool: "who", input: { query }, tenant: tenantKey });
+                try {
+                    if (!query) {
+                        const result = await executeBacklogCommand(
+                            "whoami --json",
+                            token,
+                            { readOnly: true, binPath: options?.binPath },
+                        );
+                        log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined });
+                        return jsonRpcResult(req.id, {
+                            content: [{ type: "text", text: result.output }],
+                            isError: result.exitCode !== 0,
+                        });
+                    }
+
+                    const result = await executeBacklogCommand(
+                        "api /api/v2/users",
+                        token,
+                        { readOnly: true, binPath: options?.binPath },
+                    );
+                    if (result.exitCode !== 0) {
+                        log.finish({ error: result.output, category: "cli_error" });
+                        return jsonRpcResult(req.id, {
+                            content: [{ type: "text", text: result.output }],
+                            isError: true,
+                        });
+                    }
+
+                    const users = JSON.parse(result.output) as Array<Record<string, unknown>>;
+                    const q = query.toLowerCase();
+                    const matched = users.filter((u) => {
+                        const name = String(u.name ?? "").toLowerCase();
+                        const userId = String(u.userId ?? "").toLowerCase();
+                        const mail = String(u.mailAddress ?? "").toLowerCase();
+                        return name.includes(q) || userId.includes(q) || mail.includes(q);
+                    });
+
+                    if (matched.length === 0) {
+                        log.finish({ output: `No users found matching "${query}"` });
+                        return jsonRpcResult(req.id, {
+                            content: [{ type: "text", text: `No users found matching "${query}"` }],
+                        });
+                    }
+                    log.finish({ output: `${matched.length} users matched` });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: JSON.stringify(matched, null, 2) }],
+                    });
+                } catch (err) {
+                    log.finish({ error: (err as Error).message, category: "exception" });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: `Error: ${(err as Error).message}` }],
                         isError: true,
                     });
                 }
             }
 
-            case "run_script": {
+            case "backlog_query":
+            case "backlog_mutate": {
+                const args = toolArgs.args as string | undefined;
+                if (!args) {
+                    return jsonRpcError(req.id, -32602, "Missing 'args' parameter");
+                }
+                const files = toolArgs.files as ScriptFile[] | undefined;
+                const readOnly = toolName === "backlog_query";
+
+                const log = logToolCall({ tool: toolName, input: { args }, tenant: tenantKey });
+
+                const filePaths = files?.length ? materializeFiles(files) : null;
+                try {
+                    const resolvedArgs = filePaths ? substituteFileRefs(args, filePaths.paths) : args;
+                    const result = await executeBacklogCommand(
+                        resolvedArgs,
+                        token,
+                        { readOnly, binPath: options?.binPath },
+                    );
+                    log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined, category: result.exitCode !== 0 ? "cli_error" : undefined });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: result.output }],
+                        isError: result.exitCode !== 0,
+                    });
+                } catch (err) {
+                    log.finish({ error: (err as Error).message, category: "exception" });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: `Error: ${(err as Error).message}` }],
+                        isError: true,
+                    });
+                } finally {
+                    filePaths?.cleanup();
+                }
+            }
+
+            case "backlog_query_script":
+            case "backlog_mutate_script": {
                 const script = toolArgs.script as string | undefined;
                 if (!script) {
                     return jsonRpcError(req.id, -32602, "Missing 'script' parameter");
                 }
+                const files = toolArgs.files as ScriptFile[] | undefined;
+
+                const log = logToolCall({ tool: toolName, input: { script }, tenant: tenantKey });
 
                 if (!tenant?.script?.enabled) {
+                    log.finish({ error: `${toolName} is not enabled for this tenant`, category: "tenant_disabled" });
                     return jsonRpcResult(req.id, {
-                        content: [
-                            {
-                                type: "text",
-                                text: "run_script is not enabled for this tenant",
-                            },
-                        ],
+                        content: [{ type: "text", text: `${toolName} is not enabled for this tenant` }],
                         isError: true,
                     });
                 }
 
+                const readOnly = toolName === "backlog_query_script";
+
                 if (options?.runScript) {
+                    const filePaths = files?.length ? materializeFiles(files) : null;
                     try {
-                        const result = await options.runScript(script, token, tenant);
+                        const resolvedScript = filePaths ? substituteFileRefs(script, filePaths.paths) : script;
+                        const result = await options.runScript(resolvedScript, token, tenant, { readOnly, files });
+                        log.finish({
+                            output: result.result,
+                            error: result.error,
+                            category: result.error ? "script_error" : undefined,
+                        });
                         return jsonRpcResult(req.id, {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: result.error
-                                        ? `Error: ${result.error}`
-                                        : result.result,
-                                },
-                            ],
+                            content: [{
+                                type: "text",
+                                text: result.error ? `Error: ${result.error}` : result.result,
+                            }],
                             isError: !!result.error,
                         });
                     } catch (err) {
+                        log.finish({ error: (err as Error).message, category: "sandbox_error" });
                         return jsonRpcResult(req.id, {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Sandbox error: ${(err as Error).message}`,
-                                },
-                            ],
+                            content: [{ type: "text", text: `Sandbox error: ${(err as Error).message}` }],
                             isError: true,
                         });
+                    } finally {
+                        filePaths?.cleanup();
                     }
                 }
 
+                log.finish({ error: `${toolName} sandbox is not available`, category: "sandbox_unavailable" });
                 return jsonRpcResult(req.id, {
-                    content: [
-                        {
-                            type: "text",
-                            text: "run_script sandbox is not available",
-                        },
-                    ],
+                    content: [{ type: "text", text: `${toolName} sandbox is not available` }],
                     isError: true,
                 });
             }
@@ -269,7 +511,19 @@ export function createTransportHandlers(
             return jsonRpcError(req.id, -32602, `Unknown prompt: ${params?.name}`);
         }
 
-        const prompt = buildCliReferencePrompt(token.space, token.domain);
+        let cliRefOutput: string | undefined;
+        try {
+            const cliRef = await executeBacklogCommand(
+                'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
+                token,
+                { readOnly: true, binPath: options?.binPath },
+            );
+            cliRefOutput = cliRef.output;
+        } catch {
+            // fall through to static-only prompt
+        }
+
+        const prompt = buildCliReferencePrompt(token.space, token.domain, cliRefOutput);
         return jsonRpcResult(req.id, {
             description: SKILL_PROMPT.description,
             messages: [
@@ -303,65 +557,71 @@ function jsonRpcError(
     return { jsonrpc: "2.0", id: id ?? null, error: { code, message, data } };
 }
 
-function buildCliReferencePrompt(space: string, domain: string): string {
-    return `# Backlog CLI Reference
+function buildCliReferencePrompt(space: string, domain: string, cliRefOutput?: string): string {
+    const mcpContext = `# Backlog CLI Reference
 
-You have access to the \`backlog\` tool which executes the Backlog CLI — a command-line interface similar to GitHub CLI (gh).
+You have access to backlog tools which execute the Backlog CLI — a command-line interface similar to GitHub CLI (gh).
 
 ## Connection Info
 - Space: ${space}
 - Domain: ${domain}
 
-## Common Commands
+## Tools
 
-### Issues
-\`\`\`
-backlog issue list --project PROJ -L 20 --json issueKey,summary,status,assignee
-backlog issue view PROJ-42 --json
-backlog issue view PROJ-42 --comments
-backlog issue create --project PROJ --summary "Title" --description "Body" --type Bug
-backlog issue update PROJ-42 --status InProgress --assignee @me
-backlog issue list --project PROJ --assignee @me --status Open,InProgress --json issueKey,summary,dueDate
-\`\`\`
+| Tool | Purpose | Commands |
+|------|---------|----------|
+| \`who\` | User lookup | No query = yourself, with query = search by name/userId/email |
+| \`backlog_query\` | Read-only CLI | list, view, api GET |
+| \`backlog_mutate\` | Write CLI | create, update, delete, api POST/PUT/DELETE |
+| \`backlog_query_script\` | Read-only Python script | backlog() helper with list/view only |
+| \`backlog_mutate_script\` | Read+write Python script | backlog() helper with all commands |
 
-### Projects
-\`\`\`
-backlog project list --json projectKey,name,id
-backlog project view PROJ --json
-\`\`\`
-
-### Wiki
-\`\`\`
-backlog wiki list --project PROJ --json id,name
-backlog wiki view 12345
-\`\`\`
-
-### Notifications
-\`\`\`
-backlog notification list -L 10 --json
-\`\`\`
-
-### Activity
-\`\`\`
-backlog activity list --project PROJ -L 20 --json
-\`\`\`
-
-### Raw API Access
-\`\`\`
-backlog api /api/v2/issues/count -X GET -f projectId[]=12345
-backlog api /api/v2/space --json
-\`\`\`
-
-## Output Flags
-- \`--json field1,field2\`: Output specific fields as JSON
-- \`--jq '.[] | select(.status.name == "Open")'\`: Filter with jq
-- \`--format '{{.issueKey}}: {{.summary}}'\`: Go template format
-- \`-L N\`: Limit results (0 = all)
-
-## Tips
-- Use \`--json\` for structured data, easier to process
-- \`@me\` refers to the current user
-- Commands follow the same patterns as \`gh\` (GitHub CLI)
-- For complex queries combining multiple API calls, use the \`run_script\` tool with Python
+## Important Rules
+- **\`issue list\` requires \`-p\` (project)**: Use \`-p PROJ\` for a specific project, or \`-p all\` to search across all projects
+- **\`--json\` with fields requires \`=\`**: Use \`--json=issueKey,summary\` (not \`--json issueKey,summary\`)
+- **\`@me\`** refers to the current authenticated user
+- **User lookup**: Use the \`who\` tool — no args for yourself, with query to search users
+- **Status/Priority are numeric IDs**: Use \`project view PROJ --json=statuses\` and \`priority list --json\` to look up IDs first
+- **Before creating an issue**, resolve: issue type (\`project view PROJ --json=issueTypes\`), priority (\`priority list --json\`), assignee (\`who\` tool)
+- **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`)
+- **Newlines in text**: Use \`\\n\` inside double quotes (e.g., \`-b "line1\\nline2"\`)
+- For read-only analysis combining multiple API calls, use \`backlog_query_script\`
+- For scripts that include write operations, use \`backlog_mutate_script\`
 `;
+
+    if (cliRefOutput) {
+        return mcpContext + "\n" + cliRefOutput;
+    }
+
+    return mcpContext;
+}
+
+function extractCommandSection(reference: string, command: string): string | null {
+    const q = command.toLowerCase();
+    const lines = reference.split("\n");
+    const sections: string[] = [];
+    let capture = false;
+    let depth = 0;
+
+    for (const line of lines) {
+        const headingMatch = line.match(/^(#{2,3})\s+(.+)/);
+        if (headingMatch) {
+            const level = headingMatch[1].length;
+            const title = headingMatch[2].toLowerCase();
+            if (title.includes(q)) {
+                capture = true;
+                depth = level;
+                sections.push(line);
+                continue;
+            }
+            if (capture && level <= depth) {
+                capture = false;
+            }
+        }
+        if (capture) {
+            sections.push(line);
+        }
+    }
+
+    return sections.length > 0 ? sections.join("\n").trim() : null;
 }

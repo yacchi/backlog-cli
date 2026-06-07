@@ -75,18 +75,33 @@ describe("MCP transport — initialize", () => {
         expect(res.result.capabilities.tools).toBeDefined();
         expect(res.result.capabilities.prompts).toBeDefined();
     });
+
+    it("includes instructions in initialize", async () => {
+        const res = await jsonRpcRequest(app, "initialize", {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+        });
+        expect(res.result.instructions).toBeTypeOf("string");
+        expect(res.result.instructions).toContain("Prefer local CLI");
+    });
 });
 
 describe("MCP transport — tools/list", () => {
-    it("lists backlog tool only when script disabled", async () => {
+    it("lists query and mutation tools when script disabled", async () => {
         const app = createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/list");
         const tools = res.result.tools;
-        expect(tools).toHaveLength(1);
-        expect(tools[0].name).toBe("backlog");
+        const names = tools.map((t: { name: string }) => t.name);
+        expect(names).toContain("backlog_help");
+        expect(names).toContain("who");
+        expect(names).toContain("backlog_query");
+        expect(names).toContain("backlog_mutate");
+        expect(names).not.toContain("backlog_query_script");
+        expect(names).not.toContain("backlog_mutate_script");
     });
 
-    it("lists both tools when script enabled", async () => {
+    it("lists all tools when script enabled", async () => {
         const config = makeConfig();
         config.tenants["mycompany.backlog.jp"].script = {
             enabled: true,
@@ -96,8 +111,13 @@ describe("MCP transport — tools/list", () => {
         const app = createMcpApp({ config });
         const res = await jsonRpcRequest(app, "tools/list");
         const tools = res.result.tools;
-        expect(tools).toHaveLength(2);
-        expect(tools.map((t: { name: string }) => t.name)).toContain("run_script");
+        const names = tools.map((t: { name: string }) => t.name);
+        expect(names).toContain("backlog_help");
+        expect(names).toContain("who");
+        expect(names).toContain("backlog_query");
+        expect(names).toContain("backlog_mutate");
+        expect(names).toContain("backlog_query_script");
+        expect(names).toContain("backlog_mutate_script");
     });
 });
 
@@ -189,6 +209,37 @@ describe("MCP transport — prompts", () => {
             name: "nonexistent",
         });
         expect(res.error).toBeDefined();
+    });
+});
+
+describe("MCP transport — tools/call backlog_help", () => {
+    const app = createMcpApp({ config: makeConfig() });
+
+    it("returns full CLI reference without command arg", async () => {
+        const res = await jsonRpcRequest(app, "tools/call", {
+            name: "backlog_help",
+            arguments: {},
+        });
+        expect(res.result.content[0].text).toContain("Backlog CLI Reference");
+        expect(res.result.content[0].text).toContain("mycompany");
+        expect(res.result.content[0].text).toContain("backlog.jp");
+    });
+
+    it("returns filtered section for specific command", async () => {
+        const res = await jsonRpcRequest(app, "tools/call", {
+            name: "backlog_help",
+            arguments: { command: "issue" },
+        });
+        expect(res.result.content[0].text).toContain("issue");
+        expect(res.result.isError).toBeUndefined();
+    });
+
+    it("falls back to full reference for unknown command", async () => {
+        const res = await jsonRpcRequest(app, "tools/call", {
+            name: "backlog_help",
+            arguments: { command: "nonexistent_command" },
+        });
+        expect(res.result.content[0].text).toContain("Backlog CLI Reference");
     });
 });
 

@@ -5,13 +5,16 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TokenPayload } from "../crypto/jwe.js";
 import type { McpTenant } from "../config/schema.js";
+import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
+import { materializeFiles, substituteFileRefs } from "../tools/files.js";
+import { logSandbox } from "../logging/logger.js";
 
 const BOOT_TIMEOUT = 60_000;
 const SCRIPT_TIMEOUT = 30_000;
 
 export interface SandboxOptions {
-    denoPath?: string;
+    /** Path to the compiled sandbox worker binary (deno compile output) */
     workerPath?: string;
     binPath?: string;
 }
@@ -21,6 +24,8 @@ export interface SandboxClient {
         script: string,
         token: TokenPayload,
         tenant: McpTenant | undefined,
+        readOnly?: boolean,
+        files?: ScriptFile[],
     ): Promise<{ result: string; error?: string }>;
     shutdown(): void;
 }
@@ -28,8 +33,6 @@ export interface SandboxClient {
 interface SandboxState {
     port: number;
     process: ReturnType<typeof spawn>;
-    callbackServer: ReturnType<typeof createServer>;
-    callbackPort: number;
 }
 
 export async function createSandboxClient(
@@ -37,52 +40,59 @@ export async function createSandboxClient(
 ): Promise<SandboxClient> {
     let state: SandboxState | null = null;
 
-    async function ensureRunning(
-        token: TokenPayload,
-        tenant: McpTenant | undefined,
-    ): Promise<SandboxState> {
-        if (state && !state.process.killed) {
-            return state;
+    function isAlive(): boolean {
+        if (!state) return false;
+        if (state.process.killed) return false;
+        if (state.process.exitCode !== null) return false;
+        try {
+            process.kill(state.process.pid!, 0);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function cleanup(): void {
+        if (!state) return;
+        try { state.process.kill(); } catch { /* already dead */ }
+        state = null;
+    }
+
+    async function ensureRunning(): Promise<SandboxState> {
+        if (isAlive()) {
+            return state!;
         }
 
-        // Start callback server for backlog() IPC
-        const { server: callbackServer, port: callbackPort } = await startCallbackServer(
-            token,
-            tenant,
-            options?.binPath,
-        );
+        cleanup();
 
-        const callbackUrl = `http://127.0.0.1:${callbackPort}`;
-        const denoPath = options?.denoPath ?? resolveDefaultDenoPath();
         const workerPath = options?.workerPath ?? resolveDefaultWorkerPath();
 
-        const proc = spawn(denoPath, [
-            "run",
-            "--allow-read",
-            `--allow-net=127.0.0.1`,
-            "--deny-env",
-            "--deny-run",
-            "--deny-write",
-            workerPath,
-            callbackUrl,
-        ], {
+        const proc = spawn(workerPath, [], {
             stdio: ["pipe", "pipe", "pipe"],
         });
 
-        // Wait for port from stdout
+        logSandbox("info", "Starting sandbox worker", { workerPath });
+
         const port = await new Promise<number>((resolve, reject) => {
             const timer = setTimeout(
-                () => reject(new Error("Deno sandbox boot timeout")),
+                () => {
+                    logSandbox("error", "Deno sandbox boot timeout", { workerPath, timeout_ms: BOOT_TIMEOUT });
+                    reject(new Error("Deno sandbox boot timeout"));
+                },
                 BOOT_TIMEOUT,
             );
+
+            const stderrChunks: Buffer[] = [];
 
             const rl = createInterface({ input: proc.stdout! });
             rl.on("line", (line) => {
                 clearTimeout(timer);
                 try {
                     const data = JSON.parse(line) as { port: number };
+                    logSandbox("info", "Sandbox worker started", { port: data.port });
                     resolve(data.port);
                 } catch {
+                    logSandbox("error", "Bad port line from sandbox worker", { line });
                     reject(new Error(`Bad port line: ${line}`));
                 }
                 rl.close();
@@ -90,26 +100,37 @@ export async function createSandboxClient(
 
             proc.on("error", (err) => {
                 clearTimeout(timer);
+                logSandbox("error", `Sandbox process error: ${err.message}`, { workerPath });
                 reject(err);
             });
 
             proc.on("exit", (code) => {
                 clearTimeout(timer);
-                reject(new Error(`Deno exited with code ${code}`));
+                const stderr = Buffer.concat(stderrChunks).toString().trim();
+                const detail = stderr ? `\n${stderr.slice(0, 500)}` : "";
+                logSandbox("error", "Sandbox boot failed", { exit_code: code, stderr: stderr.slice(0, 1000), workerPath });
+                reject(new Error(`Sandbox boot failed (exit code ${code}).${detail}`));
             });
 
-            proc.stderr?.on("data", (data) => {
+            proc.stderr?.on("data", (data: Buffer) => {
+                stderrChunks.push(data);
                 process.stderr.write(data);
             });
         });
 
-        state = { port, process: proc, callbackServer, callbackPort };
+        state = { port, process: proc };
         return state;
     }
 
     return {
-        async execute(script, token, tenant) {
-            const s = await ensureRunning(token, tenant);
+        async execute(script, token, tenant, readOnly, files) {
+            const s = await ensureRunning();
+
+            const filePaths = files?.length ? materializeFiles(files) : null;
+
+            const { server: cbServer, port: cbPort } = await startCallbackServer(
+                token, tenant, readOnly ?? false, options?.binPath, filePaths?.paths,
+            );
 
             const controller = new AbortController();
             const timeout = setTimeout(
@@ -120,45 +141,56 @@ export async function createSandboxClient(
             try {
                 const res = await fetch(`http://127.0.0.1:${s.port}`, {
                     method: "POST",
-                    body: script,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        script,
+                        callbackUrl: `http://127.0.0.1:${cbPort}`,
+                    }),
                     signal: controller.signal,
                 });
                 const data = (await res.json()) as {
                     ok: boolean;
                     result?: string;
                     error?: string;
+                    category?: string;
                 };
                 if (data.ok) {
                     return { result: data.result ?? "" };
                 }
-                return { result: "", error: data.error ?? "Unknown error" };
+                const errorPrefix = data.category ? `[${data.category}] ` : "";
+                return { result: "", error: `${errorPrefix}${data.error ?? "Unknown error"}` };
             } catch (err) {
                 if ((err as Error).name === "AbortError") {
-                    return { result: "", error: "Script execution timed out" };
+                    const limitMs = tenant?.script?.timeout_ms ?? SCRIPT_TIMEOUT;
+                    logSandbox("error", "Script execution timed out", { timeout_ms: limitMs, script: script.slice(0, 2000) });
+                    return { result: "", error: `Script execution timed out after ${limitMs / 1000}s. Consider reducing the number of backlog() calls or simplifying the script.` };
                 }
-                return { result: "", error: (err as Error).message };
+
+                logSandbox("error", `Sandbox execute error: ${(err as Error).message}`, { script: script.slice(0, 2000) });
+                cleanup();
+                throw err;
             } finally {
                 clearTimeout(timeout);
+                cbServer.close();
+                filePaths?.cleanup();
             }
         },
 
         shutdown() {
-            if (state) {
-                state.process.kill();
-                state.callbackServer.close();
-                state = null;
-            }
+            cleanup();
         },
     };
 }
 
-async function startCallbackServer(
+function startCallbackServer(
     token: TokenPayload,
     tenant: McpTenant | undefined,
+    readOnly: boolean,
     binPath?: string,
+    filePaths?: string[],
 ): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
-    let callCount = 0;
     const maxCalls = tenant?.script?.max_cli_calls ?? 20;
+    let callCount = 0;
 
     return new Promise((resolvePromise) => {
         const server = createServer(async (req, res) => {
@@ -169,7 +201,7 @@ async function startCallbackServer(
             }
 
             const body = await readBody(req);
-            let parsed: { args: string };
+            let parsed: { args: string | string[] };
             try {
                 parsed = JSON.parse(body);
             } catch {
@@ -178,27 +210,28 @@ async function startCallbackServer(
                 return;
             }
 
+            let args = Array.isArray(parsed.args) ? parsed.args.join(" ") : String(parsed.args);
+
+            if (filePaths?.length) {
+                args = substituteFileRefs(args, filePaths);
+            }
+
             callCount++;
             if (callCount > maxCalls) {
                 res.writeHead(429);
                 res.end(
                     JSON.stringify({
-                        error: `CLI call limit exceeded (max ${maxCalls})`,
+                        error: `CLI call limit exceeded: ${callCount}/${maxCalls} calls used. Reduce the number of backlog() calls or request a higher limit in tenant config (script.max_cli_calls).`,
                     }),
                 );
                 return;
             }
 
             try {
-                const jsonArgs = parsed.args.includes("--json")
-                    ? parsed.args
-                    : `${parsed.args} --json`;
-
                 const result = await executeBacklogCommand(
-                    jsonArgs,
+                    args,
                     token,
-                    tenant,
-                    binPath,
+                    { readOnly, binPath },
                 );
 
                 if (result.exitCode !== 0) {
@@ -245,12 +278,7 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
     });
 }
 
-function resolveDefaultDenoPath(): string {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    return resolve(__dirname, "..", "bin", "deno");
-}
-
 function resolveDefaultWorkerPath(): string {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    return resolve(__dirname, "..", "src", "sandbox", "sandbox-worker.mjs");
+    return resolve(__dirname, "..", "bin", "sandbox-worker");
 }

@@ -21,14 +21,14 @@ var listCmd = &cobra.Command{
 Examples:
   backlog notification list
   backlog notification list --unread
-  backlog notification list --count 50
+  backlog notification list -L 50
   backlog notification list --sender @me
   backlog notification list --order asc`,
 	RunE: runList,
 }
 
 var (
-	listCount  int
+	listLimit  int
 	listUnread bool
 	listOrder  string
 	listSender string
@@ -37,7 +37,7 @@ var (
 )
 
 func init() {
-	listCmd.Flags().IntVarP(&listCount, "count", "c", 20, "Number of notifications to show")
+	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 20, "Maximum number of notifications to fetch")
 	listCmd.Flags().BoolVar(&listUnread, "unread", false, "Show only unread notifications")
 	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
 	listCmd.Flags().StringVar(&listSender, "sender", "", "Filter by sender (user ID, userId, display name, or @me)")
@@ -57,7 +57,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	// 通知一覧取得
 	opts := &api.NotificationListOptions{
-		Count: listCount,
+		Count: listLimit,
 		Order: listOrder,
 		MinID: listMinID,
 		MaxID: listMaxID,

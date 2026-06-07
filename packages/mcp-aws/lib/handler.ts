@@ -12,7 +12,7 @@ export const ENV_VARS = {
     CONFIG_PARAMETER_NAME: "CONFIG_PARAMETER_NAME",
     TOKEN_KEY_SECRET_NAME: "TOKEN_KEY_SECRET_NAME",
     BACKLOG_BIN_PATH: "BACKLOG_BIN_PATH",
-    DENO_PATH: "DENO_PATH",
+    SANDBOX_WORKER_PATH: "SANDBOX_WORKER_PATH",
 } as const;
 
 let cachedConfig: McpServerConfig | null = null;
@@ -113,12 +113,12 @@ async function getSandbox(config: McpServerConfig): Promise<CreateMcpAppOptions[
 
     if (!cachedSandbox) {
         cachedSandbox = await createSandboxClient({
-            denoPath: process.env[ENV_VARS.DENO_PATH],
+            workerPath: process.env[ENV_VARS.SANDBOX_WORKER_PATH],
             binPath: process.env[ENV_VARS.BACKLOG_BIN_PATH],
         });
     }
 
-    return (script, token, tenant) => cachedSandbox!.execute(script, token, tenant);
+    return (script, token, tenant, opts) => cachedSandbox!.execute(script, token, tenant, opts?.readOnly);
 }
 
 export const handler = async (event: LambdaEvent, context: LambdaContext) => {

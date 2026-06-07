@@ -12,14 +12,14 @@ export const ScriptConfigSchema = z.object({
 });
 
 export const McpTenantSchema = z.object({
-    cli_access: CliAccessSchema,
+    cli_access: CliAccessSchema.optional(),
     script: ScriptConfigSchema.optional(),
     skill_projects: z.array(z.string()).optional(),
 });
 
 export const McpServerConfigSchema = z.object({
     base_url: z.string().url(),
-    relay_url: z.string().url(),
+    relay_url: z.string().url().optional(),
     token_key: z.string().min(1),
     token_key_prev: z.string().optional(),
     backlog_apps: z.array(z.object({

@@ -1,41 +1,45 @@
 // Deno persistent sandbox worker — runs Pyodide (Python on WASM) in a restricted environment.
-// Launched as: deno run --deny-net --deny-env --deny-run --deny-write --allow-read=<cache> sandbox-worker.mjs
-//
 // Communicates with Node.js parent via HTTP on 127.0.0.1:<random-port>.
-// Pyodide is kept warm across requests.
+// Pyodide WASM environment is kept warm across requests.
+// All other state (callbackUrl, Python user variables) is per-request only.
 
 import { loadPyodide } from "npm:pyodide";
 
-// IPC callback URL (passed as argv)
-const callbackUrl = Deno.args[0];
-if (!callbackUrl) {
-    console.error("Usage: sandbox-worker.mjs <callback-url>");
-    Deno.exit(1);
-}
-
 const pyodide = await loadPyodide();
 
-// Register backlog() bridge — calls back to Node.js over HTTP
+// Mutex: serialize all script executions so no request-scoped state leaks between them.
+// Pyodide/WASM is single-threaded anyway — concurrent execution would just interleave awaits.
+let execLock = Promise.resolve();
+
+// Per-request callback URL — only valid during a serialized execution window
+let requestCallbackUrl = "";
+
 pyodide.registerJsModule("_backlog_bridge", {
     call: (args) => {
-        const resp = fetchSync(callbackUrl, args);
-        return resp;
+        const url = requestCallbackUrl;
+        if (!url) {
+            return Promise.reject(new Error("No callback URL — backlog() called outside request scope"));
+        }
+        return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ args }),
+        }).then((r) => r.text());
     },
 });
 
-// Setup sandbox restrictions
+// Setup sandbox restrictions + helpers (runs once at boot)
 await pyodide.runPythonAsync(`
 import sys
 
-# Blocked modules — dangerous I/O, network, process, and code execution modules
+# Blocked modules — only things genuinely dangerous inside Pyodide/WASM.
+# Most I/O and network modules (os, socket, http, urllib.request, etc.) are
+# already non-functional in WASM — the real sandbox boundary is Pyodide + the
+# open()/input() builtin overrides above.  We keep a minimal deny-list for
+# defense-in-depth: process spawning, FFI, arbitrary code execution via
+# deserialization, and package-management escape hatches.
 _BLOCKED_TOP = frozenset({
-    'os', 'subprocess', 'socket', 'http', 'urllib', 'xmlrpc',
-    'shutil', 'pathlib', 'signal', 'ctypes', 'multiprocessing',
-    'tempfile', 'glob', 'fcntl', 'termios', 'pty', 'resource',
-    'select', 'selectors', 'asyncio', 'concurrent',
-    'threading', 'mmap', 'webbrowser', 'ftplib', 'smtplib',
-    'imaplib', 'poplib', 'nntplib', 'telnetlib', 'socketserver',
-    'ssl', 'sqlite3', 'dbm', 'shelve', 'pickle',
+    'subprocess', 'ctypes', 'pickle',
     'code', 'codeop', 'compileall', 'py_compile',
     'ensurepip', 'venv', 'pip', 'setuptools',
 })
@@ -85,14 +89,50 @@ io.open = _blocked_open
 
 # Setup backlog() helper
 from _backlog_bridge import call as _bl_call
+import json as _json
 
-def backlog(args):
-    """Execute a backlog CLI command and return parsed JSON result."""
-    result = _bl_call(args)
-    if hasattr(result, 'to_py'):
-        return result.to_py()
-    return result
+async def backlog(args):
+    """Execute a backlog CLI command and return the result as native Python types."""
+    raw = await _bl_call(args)
+    if hasattr(raw, 'to_py'):
+        raw = raw.to_py()
+    text = str(raw)
+    try:
+        data = _json.loads(text)
+    except (ValueError, TypeError):
+        return text
+    if isinstance(data, dict) and 'error' in data and len(data) == 1:
+        raise RuntimeError(data['error'])
+    return data
+
+def _format_result(val):
+    if val is None:
+        return "None"
+    try:
+        return _json.dumps(val, ensure_ascii=False, default=str, indent=2)
+    except (TypeError, ValueError):
+        return str(val)
+
+# stdout capture buffer (structure only — truncated per request)
+class _CaptureIO(io.StringIO):
+    pass
+
+_capture_buf = _CaptureIO()
+
+# Set of user-defined variable names to clean up between requests
+_SANDBOX_BUILTINS = frozenset(dir())
 `);
+
+function autoAwaitBacklog(script) {
+    return script.split("\n").map((line) => {
+        if (line.trimStart().startsWith("#")) return line;
+        return line.replace(/\bbacklog\s*\(/g, (match, offset) => {
+            const before = line.substring(0, offset);
+            if (/\bawait\s+$/.test(before)) return match;
+            return "await " + match;
+        });
+    }).join("\n");
+}
 
 // HTTP server for IPC with Node.js
 const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, async (req) => {
@@ -100,38 +140,85 @@ const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, async (req) => {
         return new Response("POST only", { status: 405 });
     }
 
-    const script = await req.text();
-    try {
-        const result = await pyodide.runPythonAsync(script);
+    const body = await req.json();
+    const script = autoAwaitBacklog(body.script || "");
+    const callbackUrl = body.callbackUrl || "";
+
+    if (!callbackUrl) {
         return new Response(
-            JSON.stringify({ ok: true, result: String(result ?? "None") }),
-            { headers: { "content-type": "application/json" } },
-        );
-    } catch (e) {
-        const errorLines = String(e).split("\n").filter((l) => l.trim());
-        return new Response(
-            JSON.stringify({ ok: false, error: errorLines.pop() || String(e) }),
+            JSON.stringify({ ok: false, error: "Missing callbackUrl", category: "runtime_error" }),
             { status: 400, headers: { "content-type": "application/json" } },
         );
     }
+
+    // Serialize execution: wait for any prior request to finish
+    const response = await new Promise((resolve) => {
+        execLock = execLock.then(async () => {
+            requestCallbackUrl = callbackUrl;
+            try {
+                const result = await executeScript(script);
+                resolve(result);
+            } finally {
+                requestCallbackUrl = "";
+            }
+        });
+    });
+
+    return response;
 });
+
+async function executeScript(script) {
+    try {
+        // Clean user variables from previous execution
+        await pyodide.runPythonAsync(`
+import sys as _sys
+for _n in list(globals().keys()):
+    if not _n.startswith('_') and _n not in _SANDBOX_BUILTINS:
+        del globals()[_n]
+_capture_buf.truncate(0)
+_capture_buf.seek(0)
+_sys.stdout = _capture_buf
+`);
+        const result = await pyodide.runPythonAsync(script);
+        const captured = await pyodide.runPythonAsync(`
+_sys.stdout = _sys.__stdout__
+_capture_buf.getvalue()
+`);
+        const printed = String(captured ?? "").trimEnd();
+        if (captured?.destroy) captured.destroy();
+
+        let output;
+        if (printed) {
+            output = printed;
+        } else if (result != null && result !== undefined) {
+            pyodide.globals.set("__last__", result);
+            const formatted = await pyodide.runPythonAsync("_format_result(__last__)");
+            output = String(formatted ?? "");
+            if (formatted?.destroy) formatted.destroy();
+        } else {
+            output = "None";
+        }
+        if (result?.destroy) result.destroy();
+
+        return new Response(
+            JSON.stringify({ ok: true, result: output }),
+            { headers: { "content-type": "application/json" } },
+        );
+    } catch (e) {
+        try { await pyodide.runPythonAsync("import sys; sys.stdout = sys.__stdout__"); } catch { /* ignore */ }
+        const fullError = String(e);
+        const errorLines = fullError.split("\n").filter((l) => l.trim());
+        const lastLine = errorLines.pop() || fullError;
+        const category = lastLine.startsWith("ImportError") ? "import_error"
+            : lastLine.startsWith("PermissionError") ? "permission_error"
+            : lastLine.startsWith("SyntaxError") ? "syntax_error"
+            : "runtime_error";
+        return new Response(
+            JSON.stringify({ ok: false, error: lastLine, category }),
+            { status: 400, headers: { "content-type": "application/json" } },
+        );
+    }
+}
 
 // Report port to parent
 console.log(JSON.stringify({ port: server.addr.port }));
-
-// Synchronous fetch for backlog() bridge
-// Pyodide runs Python synchronously, so we need sync HTTP.
-// Deno doesn't have sync fetch, so we use XMLHttpRequest polyfill approach.
-// Actually, Pyodide's JS→Python bridge handles async transparently when using
-// registerJsModule with async functions, but only in runPythonAsync.
-// For synchronous calls within user scripts, we'd need a different approach.
-// For now, the backlog() function works because Pyodide can await JS promises
-// when the Python code is run via runPythonAsync.
-function fetchSync(url, args) {
-    // This returns a Promise that Pyodide can handle via its async bridge
-    return fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ args }),
-    }).then((r) => r.json());
-}

@@ -2,6 +2,7 @@ package issue
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -154,13 +155,18 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 		return fmt.Errorf("failed to add comment: %w", err)
 	}
 
-	ui.Success("Added comment #%d to %s", comment.ID, issueKey)
-
 	profile := cfg.CurrentProfile()
-	url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
-	fmt.Printf("URL: %s\n", ui.Cyan(url))
-
-	return nil
+	switch profile.Output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(comment)
+	default:
+		ui.Success("Added comment #%d to %s", comment.ID, issueKey)
+		url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
+		fmt.Printf("URL: %s\n", ui.Cyan(url))
+		return nil
+	}
 }
 
 // runEditComment は既存のコメントを編集する
@@ -244,13 +250,18 @@ func runEditComment(c *cobra.Command, issueKey string) error {
 		return fmt.Errorf("failed to update comment #%d: %w", targetCommentID, err)
 	}
 
-	ui.Success("Updated comment #%d on %s", comment.ID, issueKey)
-
 	profile := cfg.CurrentProfile()
-	url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
-	fmt.Printf("URL: %s\n", ui.Cyan(url))
-
-	return nil
+	switch profile.Output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(comment)
+	default:
+		ui.Success("Updated comment #%d on %s", comment.ID, issueKey)
+		url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
+		fmt.Printf("URL: %s\n", ui.Cyan(url))
+		return nil
+	}
 }
 
 // findMyLastComment は指定されたユーザーの最後のコメントを探す
@@ -274,7 +285,7 @@ func findMyLastComment(ctx context.Context, client *api.Client, issueKey string,
 
 // runDeleteLastComment は自分の最後のコメントを削除する
 func runDeleteLastComment(c *cobra.Command, issueKey string) error {
-	client, _, err := cmdutil.GetAPIClient(c)
+	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
 		return err
 	}
@@ -293,7 +304,14 @@ func runDeleteLastComment(c *cobra.Command, issueKey string) error {
 	}
 
 	// 確認プロンプト
-	if !commentDeleteYes {
+	if !commentDeleteYes && !ui.AssumeYes() {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog issue comment --delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		// コメント内容を表示
 		fmt.Printf("Comment #%d:\n", comment.ID)
 		content := comment.Content
@@ -314,11 +332,19 @@ func runDeleteLastComment(c *cobra.Command, issueKey string) error {
 	}
 
 	// コメントを削除
-	_, err = client.DeleteComment(ctx, issueKey, comment.ID)
+	deletedComment, err := client.DeleteComment(ctx, issueKey, comment.ID)
 	if err != nil {
 		return fmt.Errorf("failed to delete comment #%d: %w", comment.ID, err)
 	}
 
-	ui.Success("Deleted comment #%d from %s", comment.ID, issueKey)
-	return nil
+	profile := cfg.CurrentProfile()
+	switch profile.Output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(deletedComment)
+	default:
+		ui.Success("Deleted comment #%d from %s", comment.ID, issueKey)
+		return nil
+	}
 }

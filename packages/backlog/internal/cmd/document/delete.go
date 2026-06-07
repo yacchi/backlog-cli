@@ -46,7 +46,14 @@ func runDelete(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get document: %w", err)
 	}
 
-	if !deleteYes {
+	if !deleteYes && !ui.AssumeYes() {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog document delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to delete document: %s (ID: %s)?", doc.Title, doc.ID),

@@ -12,17 +12,25 @@ export function getAuthContext(c: Context): AuthContext {
     return c.get(AUTH_CONTEXT_KEY) as AuthContext;
 }
 
-export function jweAuth(tokenKey: string, tokenKeyPrev?: string) {
+export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadataUrl?: string) {
     const key = importKey(tokenKey);
     const prevKey = tokenKeyPrev ? importKey(tokenKeyPrev) : undefined;
+
+    function unauthorized(c: Context, description: string) {
+        const wwwAuth = resourceMetadataUrl
+            ? `Bearer resource_metadata="${resourceMetadataUrl}"`
+            : "Bearer";
+        c.header("WWW-Authenticate", wwwAuth);
+        return c.json(
+            { error: "unauthorized", error_description: description },
+            401,
+        );
+    }
 
     return async (c: Context, next: Next) => {
         const auth = c.req.header("authorization");
         if (!auth?.startsWith("Bearer ")) {
-            return c.json(
-                { error: "unauthorized", error_description: "Missing Bearer token" },
-                401,
-            );
+            return unauthorized(c, "Missing Bearer token");
         }
 
         const jwe = auth.slice(7);
@@ -34,24 +42,15 @@ export function jweAuth(tokenKey: string, tokenKeyPrev?: string) {
                 try {
                     token = await decryptToken(jwe, prevKey);
                 } catch {
-                    return c.json(
-                        { error: "invalid_token", error_description: "Token expired or invalid" },
-                        401,
-                    );
+                    return unauthorized(c, "Token expired or invalid");
                 }
             } else {
-                return c.json(
-                    { error: "invalid_token", error_description: "Token expired or invalid" },
-                    401,
-                );
+                return unauthorized(c, "Token expired or invalid");
             }
         }
 
         if (!token.bl_access_token) {
-            return c.json(
-                { error: "invalid_token", error_description: "Not an access token" },
-                401,
-            );
+            return unauthorized(c, "Not an access token");
         }
 
         c.set(AUTH_CONTEXT_KEY, { token } satisfies AuthContext);

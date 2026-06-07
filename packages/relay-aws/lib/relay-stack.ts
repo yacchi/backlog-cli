@@ -1,8 +1,9 @@
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import { LoggingFormat, AssetHashType } from "aws-cdk-lib/aws-lambda";
+import { LoggingFormat } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
@@ -15,9 +16,14 @@ import { execSync } from "node:child_process";
 import {
   CloudFrontCacheConfig,
   RelayConfig,
-  serializeParameterValue,
+  buildSsmParameterValue,
 } from "./types.js";
 import type { RelayConfig as CoreRelayConfig } from "@backlog-cli/relay-core";
+import { hashSync } from "bcryptjs";
+
+// ============================================================
+// バージョン定数
+// ============================================================
 
 // ============================================================
 // デフォルト設定値
@@ -46,8 +52,16 @@ export class RelayStack extends cdk.Stack {
   public readonly functionUrl: lambda.FunctionUrl;
   public readonly distribution?: cloudfront.Distribution;
   private configParameter: ssm.IParameter;
+  private relaySecretsSecret?: secretsmanager.Secret;
+  private tokenKeySecret?: secretsmanager.ISecret;
   private readonly config: RelayConfig;
   private lambdaFunction: lambda.Function;
+
+  private get mcpEnabled(): boolean {
+    const tenants = this.config.parameterValue?.tenants;
+    if (!tenants) return false;
+    return Object.values(tenants).some((t) => t.mcp != null);
+  }
 
   constructor(scope: Construct, id: string, props: RelayStackProps) {
     super(scope, id, props);
@@ -55,8 +69,16 @@ export class RelayStack extends cdk.Stack {
     this.config = props.config;
     const cloudFrontEnabled = this.config.cloudFront?.enabled ?? false;
 
-    // SSM Parameter Store に設定を保存
+    // Relay secrets → Secrets Manager
+    this.relaySecretsSecret = this.createRelaySecretsSecret();
+
+    // SSM Parameter Store に設定を保存 (secrets are stripped)
     this.configParameter = this.createConfigParameter();
+
+    // MCP token key secret (auto-generated)
+    if (this.mcpEnabled) {
+      this.tokenKeySecret = this.createMcpTokenKeySecret();
+    }
 
     // Lambda 関数を作成
     this.lambdaFunction = this.createLambdaFunction();
@@ -72,7 +94,135 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
+   * Relay secrets (client_secret, JWKS, passphrase_hash) を Secrets Manager に保存.
+   * Auto-generates Ed25519 JWKS and passphrase for tenants that don't provide them.
+   * Uses SM rotation schedule with rotateImmediatelyOnUpdate for initialization.
+   */
+  private createRelaySecretsSecret(): secretsmanager.Secret | undefined {
+    const value = this.config.parameterValue;
+    if (!value) return undefined;
+
+    const hasApps = value.backlog_apps.length > 0;
+    const hasRelayTenants = Object.values(value.tenants ?? {}).some(
+      (t) => t.relay != null,
+    );
+    if (!hasApps && !hasRelayTenants) return undefined;
+
+    const secretName = `${this.config.parameterName}-secrets`;
+    const secret = new secretsmanager.Secret(this, "RelaySecretsSecret", {
+      secretName,
+      generateSecretString: {
+        excludePunctuation: true,
+        passwordLength: 8,
+      },
+      description:
+        "Backlog relay secrets (client_secret, JWKS, passphrase_hash)",
+    });
+
+    const appsSecrets: Record<string, { client_secret: string }> = {};
+    for (const app of value.backlog_apps) {
+      appsSecrets[app.domain] = { client_secret: app.client_secret };
+    }
+
+    const tenantConfigs: Record<
+      string,
+      { jwks?: string; passphrase_hash?: string; passphrase_length?: number; kid: string }
+    > = {};
+    for (const [spaceDomain, tenant] of Object.entries(
+      value.tenants ?? {},
+    )) {
+      if (!tenant.relay) continue;
+      const config: (typeof tenantConfigs)[string] = {
+        kid: tenant.relay.active_keys ?? "auto-1",
+      };
+      if (tenant.relay.jwks) {
+        config.jwks = JSON.stringify(tenant.relay.jwks);
+      }
+      if (tenant.relay.passphrase) {
+        config.passphrase_hash = hashSync(tenant.relay.passphrase, 12);
+      } else if (tenant.relay.passphrase_hash) {
+        config.passphrase_hash = tenant.relay.passphrase_hash;
+      }
+      if (tenant.relay.passphrase_length) {
+        config.passphrase_length = tenant.relay.passphrase_length;
+      }
+      tenantConfigs[spaceDomain] = config;
+    }
+
+    const rotationLambda = this.createRotationFunction("RelaySecrets", {
+      SECRET_TYPE: "relay-secrets",
+      APPS_SECRETS: JSON.stringify(appsSecrets),
+      TENANT_CONFIGS: JSON.stringify(tenantConfigs),
+    });
+
+    secret.addRotationSchedule("RelaySecretsRotation", {
+      rotationLambda,
+      automaticallyAfter: cdk.Duration.days(0),
+      rotateImmediatelyOnUpdate: true,
+    });
+
+    return secret;
+  }
+
+
+  /**
+   * MCP token key secret — auto-generated via Secrets Manager.
+   * Uses AWSCURRENT/AWSPREVIOUS for key rotation.
+   */
+  private createMcpTokenKeySecret(): secretsmanager.Secret {
+    const secretName =
+      this.config.mcp?.tokenKeySecretName ?? "/backlog-mcp/token-key";
+    const rotationDays = this.config.mcp?.tokenKeyRotationDays ?? 30;
+
+    const secret = new secretsmanager.Secret(this, "McpTokenKeySecret", {
+      secretName,
+      generateSecretString: {
+        excludePunctuation: true,
+        passwordLength: 43,
+      },
+      description: "MCP JWE token encryption key (base64url-encoded 32 bytes)",
+    });
+
+    if (rotationDays > 0) {
+      const rotationLambda = this.createRotationFunction("McpTokenKey", {
+        SECRET_TYPE: "mcp-token-key",
+      });
+      secret.addRotationSchedule("McpTokenKeyRotation", {
+        rotationLambda,
+        automaticallyAfter: cdk.Duration.days(rotationDays),
+      });
+    }
+
+    return secret;
+  }
+
+  /**
+   * Rotation Lambda factory — shared rotation-handler.ts, dispatched by SECRET_TYPE env var.
+   */
+  private createRotationFunction(
+    id: string,
+    environment: Record<string, string>,
+  ): lambda.Function {
+    return new NodejsFunction(this, `${id}RotationFunction`, {
+      entry: path.join(import.meta.dirname, "rotation-handler.ts"),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_24_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(60),
+      loggingFormat: LoggingFormat.JSON,
+      description: `Secrets rotation handler (${id})`,
+      environment,
+      bundling: {
+        format: OutputFormat.ESM,
+        target: "node24",
+      },
+    });
+  }
+
+  /**
    * SSM Parameter Store に設定を保存
+   * Secrets are stripped — only non-secret config is stored here.
    */
   private createConfigParameter(): ssm.StringParameter {
     const parameterName = this.config.parameterName;
@@ -93,19 +243,27 @@ export class RelayStack extends cdk.Stack {
       }
     }
 
-    // JWKS オブジェクトを文字列化し、ホストパターンを追加
     const baseValue = this.config.parameterValue ?? {
       server: { port: 8080 },
       backlog_apps: [],
     };
-    const serializedValue = serializeParameterValue(baseValue);
+
+    // Build SSM value: strips secrets, converts unified tenants to relay-core array + mcp_tenants dict
+    const { config: ssmConfig, mcpTenants } = buildSsmParameterValue(baseValue);
 
     // Add allowed host patterns
     const valueWithPatterns = addAllowedHostPatterns(
-      serializedValue as CoreRelayConfig,
-      patterns
+      ssmConfig as CoreRelayConfig,
+      patterns,
     );
-    const parameterValue = JSON.stringify(valueWithPatterns);
+
+    // Inject MCP tenants into SSM parameter (handler extracts before relay-core parsing)
+    const finalValue: Record<string, unknown> = { ...valueWithPatterns };
+    if (Object.keys(mcpTenants).length > 0) {
+      finalValue.mcp_tenants = mcpTenants;
+    }
+
+    const parameterValue = JSON.stringify(finalValue);
 
     return new ssm.StringParameter(this, "ConfigParameter", {
       parameterName,
@@ -120,30 +278,54 @@ export class RelayStack extends cdk.Stack {
    * NodejsFunctionで自動的にesbuildバンドルを行う
    *
    * afterBundling で make copy-assets を呼び出し、
-   * Makefile 側でアセットのビルドと配置を一括管理
+   * Makefile 側でアセットのビルドと配置を一括管理。
+   * MCP 有効時は Go CLI + Deno + sandbox-worker もバンドル。
    */
   private createLambdaFunction(): lambda.Function {
     // Package directory (for make command)
     const packageDir = path.resolve(import.meta.dirname, "..");
+    const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
+    const mcpServerDir = path.resolve(import.meta.dirname, "..", "..", "mcp-server");
     // Asset directory name - single source of truth
     const assetsDirName = "web-dist";
+
+    const mcpEnabled = this.mcpEnabled;
+
+    // MCP 有効時は追加の環境変数
+    const mcpEnv: Record<string, string> = mcpEnabled
+      ? {
+          TOKEN_KEY_SECRET_NAME: this.tokenKeySecret!.secretName,
+          BACKLOG_BIN_PATH: "/var/task/bin/backlog",
+          SANDBOX_WORKER_PATH: "/var/task/bin/sandbox-worker",
+        }
+      : {};
+
+    // Relay secrets の環境変数
+    const relaySecretsEnv: Record<string, string> = this.relaySecretsSecret
+      ? { RELAY_SECRETS_NAME: this.relaySecretsSecret.secretName }
+      : {};
 
     const fn = new NodejsFunction(this, "RelayFunction", {
       entry: path.join(import.meta.dirname, "handler.ts"),
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
-      memorySize: 512,
+      memorySize: mcpEnabled ? 1024 : 512,
       loggingFormat: LoggingFormat.JSON,
-      timeout: cdk.Duration.seconds(10),
+      timeout: mcpEnabled
+        ? cdk.Duration.seconds(120)
+        : cdk.Duration.seconds(10),
       environment: {
         HOME: "/tmp",
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
         WEB_ASSETS_DIR: assetsDirName,
-        // Force update timestamp - change this to redeploy Lambda
         DEPLOY_VERSION: "2026-01-05-landing-page-v4",
+        ...relaySecretsEnv,
+        ...mcpEnv,
       },
-      description: "Backlog CLI OAuth Relay Server (TypeScript)",
+      description: mcpEnabled
+        ? "Backlog CLI Relay + MCP Server"
+        : "Backlog CLI OAuth Relay Server (TypeScript)",
       bundling: {
         format: OutputFormat.ESM,
         target: "node24",
@@ -155,10 +337,27 @@ export class RelayStack extends cdk.Stack {
             return [];
           },
           afterBundling(_inputDir: string, outputDir: string): string[] {
-            // Copy pre-built web assets to the Lambda bundle via Makefile
-            return [
+            const commands = [
+              // Copy pre-built web assets to the Lambda bundle via Makefile
               `make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}/${assetsDirName}"`,
             ];
+
+            if (mcpEnabled) {
+              const workerSrc = `${mcpServerDir}/src/sandbox/sandbox-worker.mjs`;
+              const compiledWorker = `${mcpServerDir}/vendor/sandbox-worker`;
+              commands.push(
+                // Go CLI binary (linux/arm64)
+                `mkdir -p "${outputDir}/bin"`,
+                `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C "${repoRoot}" -o "${outputDir}/bin/backlog" ./cmd/backlog`,
+                `chmod +x "${outputDir}/bin/backlog"`,
+                // Sandbox worker — compile to standalone binary with deno compile
+                // Uses isolated temp dir to avoid node_modules interference from mcp-server
+                `if [ -f "${compiledWorker}" ]; then cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; else tmpdir=$(mktemp -d) && cp "${workerSrc}" "$tmpdir/" && DENO_TLS_CA_STORE=system deno compile --target aarch64-unknown-linux-gnu --allow-read --allow-write=/tmp --allow-net=127.0.0.1 --output "${compiledWorker}" "$tmpdir/sandbox-worker.mjs" && rm -rf "$tmpdir" && cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; fi`,
+                `chmod +x "${outputDir}/bin/sandbox-worker"`,
+              );
+            }
+
+            return commands;
           },
         },
       },
@@ -172,6 +371,14 @@ export class RelayStack extends cdk.Stack {
 
     // Parameter Store の読み取り権限を付与
     this.configParameter.grantRead(fn);
+
+    // Secrets Manager の読み取り権限を付与
+    if (this.relaySecretsSecret) {
+      this.relaySecretsSecret.grantRead(fn);
+    }
+    if (this.tokenKeySecret) {
+      this.tokenKeySecret.grantRead(fn);
+    }
 
     return fn;
   }
@@ -225,9 +432,14 @@ export class RelayStack extends cdk.Stack {
     // OAC + Lambda Function URL で POST/PUT を使うために必要
     const contentHashEdgeFunction = this.createContentHashEdgeFunction();
 
+    // Viewer Response: Lambda Function URL がリネームした
+    // WWW-Authenticate ヘッダーを復元（MCP OAuth で必要）
+    const restoreAuthHeaderFunction = this.createRestoreAuthHeaderFunction();
+
     // 共通のビヘイビア設定（最大限の機能を含む）
     // - X-Original-Host ヘッダーを注入・転送
     // - Lambda@Edge でPOST/PUTのボディハッシュを計算
+    // - WWW-Authenticate ヘッダーの復元
     // 新しいエンドポイント追加時に設定漏れを防ぐため、
     // デフォルトは全機能有効とし、不要なルートのみ上書きする
     const baseBehavior = {
@@ -238,6 +450,10 @@ export class RelayStack extends cdk.Stack {
         {
           function: forwardHostFunction,
           eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        },
+        {
+          function: restoreAuthHeaderFunction,
+          eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE,
         },
       ],
       edgeLambdas: [
@@ -333,6 +549,25 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
+   * CloudFront Function: x-amzn-remapped-www-authenticate → www-authenticate
+   * Lambda Function URL は WWW-Authenticate を自動リネームするため復元が必要
+   */
+  private createRestoreAuthHeaderFunction(): cloudfront.Function {
+    const functionPath = path.join(
+      import.meta.dirname,
+      "..",
+      "cloudfront-functions",
+      "restore-auth-header.js",
+    );
+
+    return new cloudfront.Function(this, "RestoreAuthHeaderFunction", {
+      comment: "Restore WWW-Authenticate header (remapped by Lambda Function URL)",
+      code: cloudfront.FunctionCode.fromFile({ filePath: functionPath }),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+  }
+
+  /**
    * CloudFront Function: x-original-host ヘッダーを追加
    * Viewer Request で Host ヘッダーを x-original-host にコピー
    * 注意: X-Forwarded-Host は予約ヘッダーのため使用不可
@@ -370,6 +605,7 @@ export class RelayStack extends cdk.Stack {
         "Origin",
         "Referer",
         "X-Original-Host",
+        "X-MCP-Authorization",
       ),
       queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
       cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
@@ -527,6 +763,20 @@ export class RelayStack extends cdk.Stack {
       value: this.configParameter.parameterName,
       description: "SSM Parameter Store name for relay server config",
     });
+
+    if (this.mcpEnabled) {
+      const base = cloudFrontEnabled
+        ? this.distribution
+          ? `https://${this.distribution.distributionDomainName}`
+          : undefined
+        : this.functionUrl.url.replace(/\/$/, "");
+      if (base) {
+        new cdk.CfnOutput(this, "McpEndpoint", {
+          value: `${base}/mcp`,
+          description: "MCP endpoint URL (add to Claude Desktop config)",
+        });
+      }
+    }
   }
 
 }

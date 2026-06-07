@@ -1,7 +1,9 @@
 package issue
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -88,11 +90,16 @@ func runClose(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to close issue: %w", err)
 	}
 
-	ui.Success("Closed %s", issue.IssueKey.Value)
-
 	profile := cfg.CurrentProfile()
-	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
-	fmt.Printf("URL: %s\n", ui.Cyan(url))
-
-	return nil
+	switch profile.Output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(issue)
+	default:
+		ui.Success("Closed %s", issue.IssueKey.Value)
+		url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
+		fmt.Printf("URL: %s\n", ui.Cyan(url))
+		return nil
+	}
 }

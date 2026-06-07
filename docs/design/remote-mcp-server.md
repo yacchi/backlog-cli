@@ -32,62 +32,64 @@ Backlog CLI の Remote MCP Server は、Claude Desktop / claude.ai / Claude Code
 
 ### 前提条件
 
-- Relay サーバーがデプロイ済み（Backlog OAuth Client ID/Secret を管理）
 - Node.js 22+、Go 1.23+、pnpm がインストール済み
 - AWS アカウント（Lambda デプロイの場合）
 
-### 1. JWE 暗号鍵の作成 (Secrets Manager)
+### 1. 設定ファイルの作成
+
+#### Relay 統合デプロイ（推奨）
 
 ```bash
-aws secretsmanager create-secret \
-  --name /backlog-mcp/token-key \
-  --secret-string "$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
-```
-
-シークレットの値は base64url エンコードされた 32 バイトのランダム鍵です。
-鍵ローテーションは Secrets Manager のローテーション機構で行います（後述）。
-
-### 2. 設定ファイルの作成
-
-#### Lambda デプロイ (CDK)
-
-```bash
-cd packages/mcp-aws
+cd packages/relay-aws
 cp config.example.ts config.ts
 ```
 
-`config.ts` を編集:
+`config.ts` を編集。テナント設定は `tenants` ディクトに統合されています:
 
 ```typescript
-export const config: McpStackConfig = {
-    parameterName: "/backlog-mcp/config",
+export const config: RelayConfig = {
+    parameterName: "/backlog-relay/config",
     parameterValue: {
-        base_url: "https://your-function-url.lambda-url.ap-northeast-1.on.aws",
-        relay_url: "https://your-relay-server.example.com",
+        server: {},
         backlog_apps: [
             {
                 domain: "backlog.jp",
-                client_id: "<Relay と同じ client_id>",
+                client_id: "your-client-id",
+                client_secret: "your-client-secret",
             },
         ],
         tenants: {
             "your-space.backlog.jp": {
-                cli_access: {
-                    allow: ["issue list *", "issue view *", "project list *", "project view *",
-                            "wiki list *", "wiki view *", "notification list *",
-                            "api /api/v2/* -X GET"],
-                    deny: [],
+                // Relay バンドル署名設定（オプション）
+                relay: {
+                    jwks: { keys: [{ kty: "OKP", crv: "Ed25519", kid: "2025-01", x: "...", d: "..." }] },
+                    active_keys: "2025-01",
+                    passphrase: "your-passphrase",  // デプロイ時に自動 bcrypt ハッシュ化
                 },
-                script: { enabled: false, max_cli_calls: 20, timeout_ms: 30000 },
+                // MCP アクセス制御設定（オプション）
+                mcp: {
+                    cli_access: {
+                        allow: ["issue list *", "issue view *", "project list *", "project view *",
+                                "wiki list *", "wiki view *", "notification list *",
+                                "api /api/v2/* -X GET"],
+                        deny: [],
+                    },
+                    script: { enabled: false, max_cli_calls: 20, timeout_ms: 30000 },
+                },
             },
         },
     },
-    // 手順 1 で作成した Secrets Manager シークレット名
-    secretName: "/backlog-mcp/token-key",
+    // MCP 有効化（いずれかのテナントに mcp 設定がある場合に自動検出）
+    mcp: {
+        tokenKeyRotationDays: 30,  // MCP token key の自動ローテーション間隔
+    },
 };
 ```
 
-`token_key` は設定ファイルに含めません。Lambda ハンドラがコールドスタート時に Secrets Manager から取得します。
+**シークレットの自動管理:**
+- `client_secret`、JWKS 秘密鍵、passphrase ハッシュ → Secrets Manager に自動分離
+- MCP token key → Secrets Manager で自動生成・ローテーション
+- SSM Parameter Store には非秘匿情報のみ保存
 
 #### Docker デプロイ
 
@@ -99,16 +101,19 @@ docker run -p 8080:8080 \
   backlog-mcp-server
 ```
 
-### 3. デプロイ
+### 2. デプロイ
 
 #### Lambda (CDK)
 
 ```bash
-cd packages/mcp-aws
+cd packages/relay-aws
 pnpm cdk deploy
 ```
 
-デプロイ後に出力される `FunctionUrl` を `config.ts` の `base_url` に設定し、再度デプロイします。
+デプロイ後に出力される `FunctionUrl` を `config.ts` の `server.base_url` に設定し、再度デプロイします。
+初回デプロイで Secrets Manager に以下が自動作成されます:
+- Relay secrets（client_secret, JWKS, passphrase_hash）
+- MCP token key（ランダム生成、自動ローテーション）
 
 #### Docker
 
@@ -189,27 +194,33 @@ DENO_DIR=.deno-cache deno cache src/sandbox/sandbox-worker.mjs
 - `max_cli_calls`: 1 回のスクリプト実行で呼べる `backlog()` の回数上限
 - `timeout_ms`: スクリプト実行のタイムアウト
 
-## 鍵ローテーション
+## シークレット管理
 
-### Lambda (Secrets Manager)
+### Secrets Manager 構成
 
-Secrets Manager のローテーション機構を使用します。Lambda ハンドラは以下の 2 バージョンを自動取得します:
+CDK スタックが以下の 2 つの Secrets Manager シークレットを自動作成します:
+
+| シークレット | 名前 | 内容 |
+|------------|------|------|
+| Relay secrets | `{parameterName}-secrets` | apps の client_secret + tenants の JWKS/passphrase_hash |
+| MCP token key | 設定可能 (default: `/backlog-mcp/token-key`) | base64url 32 バイト AES-256 鍵 |
+
+SSM Parameter Store には非秘匿情報のみ保存されます。Lambda ハンドラがコールドスタート時に
+SM から秘匿情報を読み込み、SSM の設定とマージして使用します。
+
+### MCP token key ローテーション
+
+CDK スタックがローテーション Lambda を自動作成し、設定間隔（デフォルト 30 日）で鍵をローテーションします。
 
 - **`AWSCURRENT`** → 暗号化 + 復号に使用（`token_key`）
 - **`AWSPREVIOUS`** → 復号のみに使用（`token_key_prev`）
 
-ローテーション時、Secrets Manager が旧値に `AWSPREVIOUS` ラベルを自動付与するため、
-明示的な `token_key_prev` の管理は不要です。
+`mcp.tokenKeyRotationDays` で間隔を設定。`0` でローテーション無効。
 
 手動ローテーション:
 ```bash
-aws secretsmanager put-secret-value \
-  --secret-id /backlog-mcp/token-key \
-  --secret-string "$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
+aws secretsmanager rotate-secret --secret-id /backlog-mcp/token-key
 ```
-
-これにより旧値が `AWSPREVIOUS` に移動し、新値が `AWSCURRENT` になります。
-既存の暗号化トークンは旧鍵（`AWSPREVIOUS`）で復号されます。
 
 ### Docker / スタンドアロン
 
@@ -226,30 +237,61 @@ aws secretsmanager put-secret-value \
 |------|------|
 | トークン窃取 | JWE 暗号化 + HTTPS 必須 |
 | トークンリプレイ | `exp` クレームで有効期限を強制 |
-| 鍵漏洩 | 鍵ローテーション対応 (`token_key_prev`) |
+| 鍵漏洩 | SM 自動ローテーション + `AWSPREVIOUS` で旧鍵復号 |
+| シークレット漏洩 | client_secret/JWKS/passphrase を SM に分離、SSM には非秘匿情報のみ |
 | 不正な redirect_uri | DCR 時に登録された URI を client_id JWE に内包し、認可時に検証 |
 | コマンドインジェクション | `execFile` で引数を配列渡し（シェル経由しない） |
 | CLI 設定ファイル干渉 | `HOME=/tmp` で既存設定を隔離 |
 | sandbox エスケープ | Deno 権限 (OS 層) + Pyodide import 制限 (アプリ層) の二重防御 |
 | CLI 乱用 | `max_cli_calls` で呼出回数制限 |
 
+## デプロイ方式
+
+### A. Relay 統合デプロイ（推奨）
+
+既存の Relay サーバーと同一 Lambda で MCP エンドポイントを提供します。
+
+- CloudFront / ドメインを共有（追加インフラ不要）
+- トークン交換がインプロセス（HTTP ラウンドトリップ不要）
+- テナントの `mcp` フィールドで有効化（統合テナント設定）
+- シークレットは SM に自動分離、SSM には非秘匿情報のみ
+
+MCP 有効時（いずれかのテナントに `mcp` 設定がある場合）、CDK スタックが自動的に:
+- Go CLI バイナリ + Deno + sandbox-worker を Lambda にバンドル
+- MCP token key を SM で自動生成 + ローテーション Lambda 作成
+- Relay secrets（client_secret, JWKS, passphrase_hash）を SM に保存
+- メモリ 512MB → 1024MB、タイムアウト 10s → 120s に拡張
+
+`TokenExchange` インターフェースにより、MCP OAuth ハンドラが Relay の `BacklogAppConfig`（client_secret 含む）を使って Backlog API に直接トークン交換を行います。`relay_url` 経由の HTTP 呼び出しは不要です。
+
+### B. スタンドアロンデプロイ
+
+`packages/mcp-aws/` を使用して独立した Lambda としてデプロイします。
+Relay サーバーへの HTTP 呼び出し（`relay_url`）でトークン交換を行います。
+
 ## パッケージ構成
 
 ```
 packages/
-├── mcp-server/          # MCP サーバー本体
+├── mcp-server/          # MCP サーバー本体（ライブラリ）
 │   ├── src/
 │   │   ├── index.ts          # Hono app エントリーポイント
 │   │   ├── serve.ts          # standalone サーバー (node:http)
 │   │   ├── config/schema.ts  # Zod バリデーション
 │   │   ├── crypto/jwe.ts     # JWE 暗号化/復号 (jose)
-│   │   ├── oauth/            # MCP OAuth AS (DCR + PKCE)
+│   │   ├── oauth/            # MCP OAuth AS (DCR + PKCE + TokenExchange)
 │   │   ├── transport/        # Streamable HTTP (POST/GET/DELETE /mcp)
 │   │   ├── middleware/       # JWE 認証 + CLI アクセス制御
 │   │   ├── tools/            # backlog CLI ツール
 │   │   └── sandbox/          # Deno + Pyodide sandbox
 │   └── Dockerfile            # Docker / Lambda Web Adapter 兼用
-└── mcp-aws/             # Lambda デプロイ (CDK)
+├── relay-aws/           # Relay + MCP 統合デプロイ (CDK) ← 推奨
+│   ├── lib/relay-stack.ts    # CDK スタック（SM シークレット + MCP 条件付きバンドル）
+│   ├── lib/handler.ts        # Lambda ハンドラ（SM マージ + relay + MCP マウント）
+│   ├── lib/rotation-handler.ts  # MCP token key ローテーション Lambda
+│   ├── lib/types.ts          # 統合設定型（UnifiedTenantInput, McpConfig）
+│   └── config.example.ts     # 設定テンプレート
+└── mcp-aws/             # MCP スタンドアロンデプロイ (CDK)
     ├── lib/mcp-stack.ts      # CDK スタック定義
     ├── lib/handler.ts        # Lambda ハンドラ
     └── config.example.ts     # 設定テンプレート

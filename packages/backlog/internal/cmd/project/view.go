@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -12,6 +11,16 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
+
+// ProjectDetail はプロジェクト情報にメタデータを付加した構造体
+type ProjectDetail struct {
+	api.Project
+	Statuses     []api.Status    `json:"statuses,omitempty"`
+	IssueTypes   []api.IssueType `json:"issueTypes,omitempty"`
+	Categories   []api.Category  `json:"categories,omitempty"`
+	MemberCount  int             `json:"memberCount,omitempty"`
+	VersionCount int             `json:"versionCount,omitempty"`
+}
 
 var viewCmd = &cobra.Command{
 	Use:   "view [project-key]",
@@ -62,22 +71,40 @@ func runView(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
+	// プロジェクトメタデータを取得
+	detail := &ProjectDetail{Project: *project}
+	if statuses, err := client.GetStatuses(ctx, projectKey); err == nil {
+		detail.Statuses = statuses
+	}
+	if issueTypes, err := client.GetIssueTypes(ctx, projectKey); err == nil {
+		detail.IssueTypes = issueTypes
+	}
+	if categories, err := client.GetCategories(ctx, projectKey); err == nil {
+		detail.Categories = categories
+	}
+	if versions, err := client.GetVersions(ctx, projectKey); err == nil {
+		detail.VersionCount = len(versions)
+	}
+	if users, err := client.GetProjectUsers(ctx, projectKey); err == nil {
+		detail.MemberCount = len(users)
+	}
+
 	// 出力
 	switch profile.Output {
 	case "json":
-		return cmdutil.OutputJSONFromProfile(project, profile.JSONFields, profile.JQ, profile.Template)
+		return cmdutil.OutputJSONFromProfile(detail, profile.JSONFields, profile.JQ, profile.Template)
 	default:
-		return renderProjectDetail(ctx, client, project, profile)
+		return renderProjectDetail(detail, profile)
 	}
 }
 
-func renderProjectDetail(ctx context.Context, client *api.Client, project *api.Project, profile *config.ResolvedProfile) error {
+func renderProjectDetail(detail *ProjectDetail, profile *config.ResolvedProfile) error {
 	// ヘッダー
-	fmt.Printf("%s %s\n", ui.Bold(project.ProjectKey), project.Name)
+	fmt.Printf("%s %s\n", ui.Bold(detail.ProjectKey), detail.Name)
 	fmt.Println(strings.Repeat("─", 60))
 
-	// ステータス
-	if project.Archived {
+	// プロジェクトステータス
+	if detail.Archived {
 		fmt.Printf("Status: %s\n", ui.Gray("Archived"))
 	} else {
 		fmt.Printf("Status: %s\n", ui.Green("Active"))
@@ -85,16 +112,16 @@ func renderProjectDetail(ctx context.Context, client *api.Client, project *api.P
 
 	// 機能
 	features := []string{}
-	if project.UseWiki {
+	if detail.UseWiki {
 		features = append(features, "Wiki")
 	}
-	if project.UseFileSharing {
+	if detail.UseFileSharing {
 		features = append(features, "File Sharing")
 	}
-	if project.SubtaskingEnabled {
+	if detail.SubtaskingEnabled {
 		features = append(features, "Subtasking")
 	}
-	if project.ChartEnabled {
+	if detail.ChartEnabled {
 		features = append(features, "Chart")
 	}
 
@@ -102,54 +129,56 @@ func renderProjectDetail(ctx context.Context, client *api.Client, project *api.P
 		fmt.Printf("Features: %s\n", strings.Join(features, ", "))
 	}
 
-	fmt.Printf("Text Format: %s\n", project.TextFormattingRule)
+	fmt.Printf("Text Format: %s\n", detail.TextFormattingRule)
 
-	// 統計情報
+	// メタデータ
 	fmt.Println()
-	fmt.Println(ui.Bold("Statistics"))
+	fmt.Println(ui.Bold("Metadata"))
 	fmt.Println(strings.Repeat("─", 60))
 
+	// ステータス一覧
+	if len(detail.Statuses) > 0 {
+		statuses := make([]string, len(detail.Statuses))
+		for i, s := range detail.Statuses {
+			statuses[i] = fmt.Sprintf("%s (ID:%d)", s.Name, s.ID)
+		}
+		fmt.Printf("Statuses: %s\n", strings.Join(statuses, ", "))
+	}
+
 	// 課題種別
-	issueTypes, err := client.GetIssueTypes(ctx, project.ProjectKey)
-	if err == nil && len(issueTypes) > 0 {
-		types := make([]string, len(issueTypes))
-		for i, t := range issueTypes {
-			types[i] = t.Name
+	if len(detail.IssueTypes) > 0 {
+		types := make([]string, len(detail.IssueTypes))
+		for i, t := range detail.IssueTypes {
+			types[i] = fmt.Sprintf("%s (ID:%d)", t.Name, t.ID)
 		}
 		fmt.Printf("Issue Types: %s\n", strings.Join(types, ", "))
 	}
 
 	// カテゴリー
-	categories, err := client.GetCategories(ctx, project.ProjectKey)
-	if err == nil && len(categories) > 0 {
-		cats := make([]string, len(categories))
-		for i, c := range categories {
+	if len(detail.Categories) > 0 {
+		cats := make([]string, len(detail.Categories))
+		for i, c := range detail.Categories {
 			cats[i] = c.Name
 		}
 		fmt.Printf("Categories: %s\n", strings.Join(cats, ", "))
 	}
 
-	// バージョン
-	versions, err := client.GetVersions(ctx, project.ProjectKey)
-	if err == nil {
-		activeVersions := 0
-		for _, v := range versions {
-			if !v.Archived {
-				activeVersions++
-			}
+	// 統計
+	if detail.VersionCount > 0 || detail.MemberCount > 0 {
+		fmt.Println()
+		fmt.Println(ui.Bold("Statistics"))
+		fmt.Println(strings.Repeat("─", 60))
+		if detail.VersionCount > 0 {
+			fmt.Printf("Versions: %d\n", detail.VersionCount)
 		}
-		fmt.Printf("Versions: %d active, %d total\n", activeVersions, len(versions))
-	}
-
-	// メンバー
-	users, err := client.GetProjectUsers(ctx, project.ProjectKey)
-	if err == nil {
-		fmt.Printf("Members: %d\n", len(users))
+		if detail.MemberCount > 0 {
+			fmt.Printf("Members: %d\n", detail.MemberCount)
+		}
 	}
 
 	// URL
 	fmt.Println()
-	url := fmt.Sprintf("https://%s.%s/projects/%s", profile.Space, profile.Domain, project.ProjectKey)
+	url := fmt.Sprintf("https://%s.%s/projects/%s", profile.Space, profile.Domain, detail.ProjectKey)
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil

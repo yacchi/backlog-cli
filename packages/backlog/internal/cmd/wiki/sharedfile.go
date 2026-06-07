@@ -148,7 +148,14 @@ func runWikiSharedFileUnlink(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !wikiSharedFileUnlinkYes {
+	if !wikiSharedFileUnlinkYes && !ui.AssumeYes() {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog wiki sharedfile unlink",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Unlink shared file %d from wiki %d?", fileID, wikiID),

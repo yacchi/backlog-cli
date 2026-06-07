@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
+
+var userListSearch string
 
 var listCmd = &cobra.Command{
 	Use:     "list",
@@ -19,9 +22,14 @@ var listCmd = &cobra.Command{
 
 Examples:
   backlog user list
+  backlog user list --search 藤江
   backlog user list --output json
   backlog user list --json id,userId,name`,
 	RunE: runList,
+}
+
+func init() {
+	listCmd.Flags().StringVarP(&userListSearch, "search", "s", "", "Filter users by name or userId (case-insensitive substring match)")
 }
 
 func runList(cmd *cobra.Command, args []string) error {
@@ -33,6 +41,19 @@ func runList(cmd *cobra.Command, args []string) error {
 	users, err := client.GetUsers(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get users: %w", err)
+	}
+
+	if userListSearch != "" {
+		query := strings.ToLower(userListSearch)
+		filtered := users[:0]
+		for _, u := range users {
+			if strings.Contains(strings.ToLower(u.Name.Value), query) ||
+				strings.Contains(strings.ToLower(u.UserId.Value), query) ||
+				strings.Contains(strings.ToLower(u.MailAddress.Value), query) {
+				filtered = append(filtered, u)
+			}
+		}
+		users = filtered
 	}
 
 	if len(users) == 0 {

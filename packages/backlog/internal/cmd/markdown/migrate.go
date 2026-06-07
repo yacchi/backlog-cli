@@ -21,6 +21,7 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/markdown"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
 
 var migrateCmd = &cobra.Command{
@@ -169,6 +170,9 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 	if empty, err := isDirEmpty(dir); err != nil {
 		return err
 	} else if !empty {
+		if !ui.IsInteractiveInput() {
+			return fmt.Errorf("directory %s is not empty\nUse a different --dir or remove the existing directory first", dir)
+		}
 		confirm := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Directory %s is not empty. Continue?", dir),
@@ -1052,7 +1056,14 @@ func runMigrateClean(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load metadata: %w", err)
 	}
 
-	if !migrateCleanForce {
+	if !migrateCleanForce && !ui.AssumeYes() {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--force is required when not running interactively",
+				"backlog markdown migrate clean",
+				"Use --force to skip the confirmation prompt.",
+			)
+		}
 		confirm := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Remove workspace %s?", dir),
