@@ -139,7 +139,7 @@ func runIssueSharedFileUnlink(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !(issueSharedFileUnlinkYes || ui.AssumeYes()) {
+	if !issueSharedFileUnlinkYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

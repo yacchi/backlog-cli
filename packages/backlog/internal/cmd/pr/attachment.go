@@ -178,7 +178,7 @@ func runPRAttachmentDelete(c *cobra.Command, args []string) error {
 	}
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
-	if !(prAttachmentDeleteYes || ui.AssumeYes()) {
+	if !prAttachmentDeleteYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

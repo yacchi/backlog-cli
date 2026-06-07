@@ -71,7 +71,7 @@ func runClose(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !(closeYes || ui.AssumeYes()) {
+	if !closeYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

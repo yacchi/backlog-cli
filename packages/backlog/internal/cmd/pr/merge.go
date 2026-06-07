@@ -69,7 +69,7 @@ func runMerge(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !(mergeYes || ui.AssumeYes()) {
+	if !mergeYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

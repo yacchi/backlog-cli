@@ -50,7 +50,7 @@ func TestReadOnlyTransport(t *testing.T) {
 					t.Errorf("unexpected error for %s in mode %q: %v", tt.method, tt.mode, err)
 				}
 				if resp != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 			}
 		})

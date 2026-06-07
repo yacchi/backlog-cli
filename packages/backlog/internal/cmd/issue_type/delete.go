@@ -125,7 +125,7 @@ func runIssueTypeDelete(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !(issueTypeDeleteYes || ui.AssumeYes()) {
+	if !issueTypeDeleteYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

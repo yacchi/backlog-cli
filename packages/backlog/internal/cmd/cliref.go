@@ -81,10 +81,10 @@ func init() {
 }
 
 func writeCliReference(w io.Writer, root *cobra.Command, exclude map[string]bool, diff bool) {
-	fmt.Fprintln(w, "# Backlog CLI Reference")
+	_, _ = fmt.Fprintln(w, "# Backlog CLI Reference")
 
 	if diff {
-		fmt.Fprintln(w, "NOTE: This CLI follows gh (GitHub CLI) conventions. Flags common with gh (--body, --title, --assignee, --limit, --state, --web, etc.) are omitted below. Only Backlog-specific flags and differences are listed.")
+		_, _ = fmt.Fprintln(w, "NOTE: This CLI follows gh (GitHub CLI) conventions. Flags common with gh (--body, --title, --assignee, --limit, --state, --web, etc.) are omitted below. Only Backlog-specific flags and differences are listed.")
 	}
 
 	writeGlobalFlags(w, root, diff)
@@ -98,7 +98,7 @@ func writeGlobalFlags(w io.Writer, root *cobra.Command, diff bool) {
 		"json": true, "jq": true, "format": true, "no-color": true,
 	}
 
-	fmt.Fprintln(w, "\n## Global Flags")
+	_, _ = fmt.Fprintln(w, "\n## Global Flags")
 	root.PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Hidden {
 			return
@@ -135,9 +135,9 @@ func writeCommandTree(w io.Writer, cmd *cobra.Command, prefix string, exclude ma
 		usageArgs := extractUsageArgs(child.Use)
 		desc := child.Short
 		if usageArgs != "" {
-			fmt.Fprintf(w, "\n## %s %s — %s\n", fullName, usageArgs, desc)
+			_, _ = fmt.Fprintf(w, "\n## %s %s — %s\n", fullName, usageArgs, desc)
 		} else {
-			fmt.Fprintf(w, "\n## %s — %s\n", fullName, desc)
+			_, _ = fmt.Fprintf(w, "\n## %s — %s\n", fullName, desc)
 		}
 
 		inGhGroup := diff && isInGhGroup(fullName)
@@ -165,7 +165,7 @@ func extractUsageArgs(use string) string {
 // writeLocalFlags safely enumerates local flags, recovering from panics
 // caused by shorthand conflicts during Cobra's persistent flag merge.
 func writeLocalFlags(w io.Writer, cmd *cobra.Command, skipGhFlags bool) {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Hidden {
@@ -218,7 +218,7 @@ func writeFlag(w io.Writer, f *pflag.Flag) {
 	b.WriteString(f.Usage)
 	b.WriteByte('\n')
 
-	fmt.Fprint(w, b.String())
+	_, _ = fmt.Fprint(w, b.String())
 }
 
 func visibleSubcommands(cmd *cobra.Command) []*cobra.Command {

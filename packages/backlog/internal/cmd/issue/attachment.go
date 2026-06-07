@@ -143,7 +143,7 @@ func runIssueAttachmentDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !(issueAttachmentDeleteYes || ui.AssumeYes()) {
+	if !issueAttachmentDeleteYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

@@ -49,7 +49,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 
 	var approvalHandler config.BundleApprovalHandler
-	if !(assumeYes || ui.AssumeYes()) && term.IsTerminal(int(syscall.Stdin)) {
+	if (!assumeYes && !ui.AssumeYes()) && term.IsTerminal(int(syscall.Stdin)) {
 		approvalHandler = func(_ context.Context, info config.BundleApprovalInfo) (bool, error) {
 			fmt.Println("Bundle information:")
 			fmt.Printf("  Allowed domain: %s\n", info.AllowedDomain)

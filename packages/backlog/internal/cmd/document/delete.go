@@ -46,7 +46,7 @@ func runDelete(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get document: %w", err)
 	}
 
-	if !(deleteYes || ui.AssumeYes()) {
+	if !deleteYes && !ui.AssumeYes() {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",
