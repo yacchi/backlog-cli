@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
 
@@ -48,17 +49,12 @@ func runEdit(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := cmdutil.RequireProject(cfg); err != nil {
-		return err
-	}
-
-	projectKey := cmdutil.GetCurrentProject(cfg)
 	profile := cfg.CurrentProfile()
 	idOrName := args[0]
 	ctx := c.Context()
 
-	// Wiki IDを解決
-	wikiID, err := resolveWikiID(client, ctx, projectKey, idOrName)
+	// Wiki IDを解決（名前指定の場合のみプロジェクトが必要）
+	wikiID, err := resolveWikiID(client, ctx, cfg, idOrName)
 	if err != nil {
 		return err
 	}
@@ -107,13 +103,16 @@ func runEdit(c *cobra.Command, args []string) error {
 	}
 }
 
-func resolveWikiID(client *api.Client, ctx context.Context, projectKey, idOrName string) (int, error) {
-	// まずIDとして解釈
+func resolveWikiID(client *api.Client, ctx context.Context, cfg *config.Store, idOrName string) (int, error) {
 	if id, err := strconv.Atoi(idOrName); err == nil {
 		return id, nil
 	}
 
-	// 名前で検索
+	if err := cmdutil.RequireProject(cfg); err != nil {
+		return 0, err
+	}
+	projectKey := cmdutil.GetCurrentProject(cfg)
+
 	wikis, err := client.GetWikis(ctx, projectKey, "")
 	if err != nil {
 		return 0, fmt.Errorf("failed to get wiki list: %w", err)

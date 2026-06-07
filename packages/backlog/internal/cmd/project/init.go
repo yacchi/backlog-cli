@@ -35,7 +35,7 @@ var (
 func init() {
 	initCmd.Flags().StringVar(&initSpace, "space", "", "Backlog space (optional)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Backlog domain (optional)")
-	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing file")
+	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing file")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {

@@ -69,7 +69,14 @@ func runMerge(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !mergeYes {
+	if !(mergeYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog pr merge",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to merge PR #%d: %s?", pr.Number, pr.Summary),

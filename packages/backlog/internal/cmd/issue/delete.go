@@ -50,7 +50,14 @@ func runDelete(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !deleteYes {
+	if !(deleteYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog issue delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to delete %s: %s?", issue.IssueKey.Value, issue.Summary.Value),

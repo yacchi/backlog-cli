@@ -202,7 +202,14 @@ func runWikiAttachmentDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !wikiAttachmentDeleteYes {
+	if !(wikiAttachmentDeleteYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog wiki attachment delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Delete attachment %d from wiki %d?", attachmentID, wikiID),

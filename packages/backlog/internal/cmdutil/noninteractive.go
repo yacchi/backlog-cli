@@ -12,6 +12,7 @@ func NonInteractiveFlagError(summary, helpCommand string, hints ...string) error
 	if len(hints) > 0 {
 		lines = append(lines, "", strings.Join(hints, "\n"))
 	}
+	lines = append(lines, "Or set BACKLOG_ASSUME_YES=1 to skip all confirmation prompts.")
 	if helpCommand != "" {
 		lines = append(lines, "", fmt.Sprintf("Run '%s --help' for usage.", helpCommand))
 	}

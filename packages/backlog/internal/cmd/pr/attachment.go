@@ -178,7 +178,14 @@ func runPRAttachmentDelete(c *cobra.Command, args []string) error {
 	}
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
-	if !prAttachmentDeleteYes {
+	if !(prAttachmentDeleteYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog pr attachment delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Delete attachment %d from PR #%d?", attachmentID, number),

@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -279,19 +280,26 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	// 作成
-	fmt.Println("Creating issue...")
+	profile := cfg.CurrentProfile()
+	if profile.Output != "json" {
+		fmt.Println("Creating issue...")
+	}
 	issue, err := client.CreateIssue(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to create issue: %w", err)
 	}
 
-	ui.Success("Created issue %s", issue.IssueKey.Value)
-
-	profile := cfg.CurrentProfile()
-	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
-	fmt.Printf("URL: %s\n", ui.Cyan(url))
-
-	return nil
+	switch profile.Output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(issue)
+	default:
+		ui.Success("Created issue %s", issue.IssueKey.Value)
+		url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
+		fmt.Printf("URL: %s\n", ui.Cyan(url))
+		return nil
+	}
 }
 
 func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api.IssueType, users []api.User) error {

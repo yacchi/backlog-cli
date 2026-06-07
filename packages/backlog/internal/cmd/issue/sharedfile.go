@@ -139,7 +139,14 @@ func runIssueSharedFileUnlink(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !issueSharedFileUnlinkYes {
+	if !(issueSharedFileUnlinkYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog issue sharedfile unlink",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Unlink shared file %d from %s?", fileID, issueKey),

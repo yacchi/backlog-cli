@@ -40,16 +40,11 @@ func runDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := cmdutil.RequireProject(cfg); err != nil {
-		return err
-	}
-
-	projectKey := cmdutil.GetCurrentProject(cfg)
 	idOrName := args[0]
 	ctx := c.Context()
 
-	// Wiki IDを解決
-	wikiID, err := resolveWikiID(client, ctx, projectKey, idOrName)
+	// Wiki IDを解決（名前指定の場合のみプロジェクトが必要）
+	wikiID, err := resolveWikiID(client, ctx, cfg, idOrName)
 	if err != nil {
 		return err
 	}
@@ -61,7 +56,14 @@ func runDelete(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !deleteYes {
+	if !(deleteYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog wiki delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		var confirm bool
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Are you sure you want to delete wiki page: %s (ID: %d)?", wiki.Name, wiki.ID),

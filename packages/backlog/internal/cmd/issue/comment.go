@@ -293,7 +293,14 @@ func runDeleteLastComment(c *cobra.Command, issueKey string) error {
 	}
 
 	// 確認プロンプト
-	if !commentDeleteYes {
+	if !(commentDeleteYes || ui.AssumeYes()) {
+		if !ui.IsInteractiveInput() {
+			return cmdutil.NonInteractiveFlagError(
+				"--yes is required when not running interactively",
+				"backlog issue comment --delete",
+				"Use --yes to skip the confirmation prompt.",
+			)
+		}
 		// コメント内容を表示
 		fmt.Printf("Comment #%d:\n", comment.ID)
 		content := comment.Content
