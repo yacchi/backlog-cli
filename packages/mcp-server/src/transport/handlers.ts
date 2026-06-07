@@ -561,7 +561,9 @@ issue list -p all --updated-since 2025-01-01 -L 50 --json
 ### Issues (Mutation — use \`backlog_mutate\`)
 \`\`\`
 issue create -p PROJ -t "Title" -b "Body" --type Bug
-issue update PROJ-42 --status InProgress --assignee @me
+issue edit PROJ-42 --status <statusId> --assignee @me
+issue close PROJ-42
+issue comment PROJ-42 -b "Comment text"
 \`\`\`
 
 ### Projects
@@ -574,6 +576,7 @@ project view PROJ --json
 \`\`\`
 wiki list -p PROJ --json
 wiki view 12345 --json
+wiki create -p PROJ --name "Page Title" --content "Body text"
 \`\`\`
 
 ### Notifications
@@ -589,7 +592,7 @@ activity list -p PROJ -L 20 --json
 ### Raw API Access
 \`\`\`
 api /api/v2/issues/count -X GET -F projectId[]=12345
-api /api/v2/space --json
+api /api/v2/projects/PROJ/statuses
 \`\`\`
 
 ## Output Flags
@@ -598,6 +601,12 @@ api /api/v2/space --json
 - \`--jq '.[] | select(.status.name == "Open")'\`: Filter with jq
 - \`--format '{{.issueKey}}: {{.summary}}'\`: Go template format
 - \`-L N\`: Limit results (0 = all)
+
+## Important Notes
+- **Status/Priority are numeric IDs**: Use \`api /api/v2/projects/PROJ/statuses\` and \`api /api/v2/priorities\` to look up IDs first
+- **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`). Example: \`issue view PROJ-42 -c default --json\`
+- **User lookup**: Use the \`who\` tool (not \`api /api/v2/users/myself\`). \`whoami --json\` also works for yourself
+- **\`-F\` with special characters**: Avoid newlines/quotes in \`-F\` values. For long text, use \`-b\`/\`--body\` flags or \`-F "key=@file.txt"\` to read from a file
 
 ## Tips
 - Always use \`--json\` for structured data — easier to process
