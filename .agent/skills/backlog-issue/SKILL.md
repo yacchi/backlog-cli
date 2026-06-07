@@ -102,17 +102,22 @@ backlog issue list --output json
 
 ## Create Issue
 
+Non-interactive mode (MCP/script) requires **3 values to be resolved first**:
+
+| Required | Flag | Accepts | How to resolve |
+|----------|------|---------|----------------|
+| Issue type | `--type` | ID or name | `backlog issue-type list -p PROJ --json` or `backlog project view PROJ --json=issueTypes` |
+| Priority | `--priority` | ID only | `backlog priority list --json` (2=高, 3=中, 4=低) |
+| Assignee | `--assignee` | ID, userId, name, `@me` | `backlog user list --json` or `@me` for self |
+
 ```bash
 # Interactive
 backlog issue create
 
-# With options
-backlog issue create -t "Title" -b "Description"
-backlog issue create -t "Title" --body-file desc.md
-echo "Description" | backlog issue create -t "Title" -F -
-
-# With type and priority
-backlog issue create -t "Bug" --type Bug --priority High
+# Non-interactive (all 3 required)
+backlog issue create -t "Title" -b "Description" --type Bug --priority 3 --assignee @me
+backlog issue create -t "Title" --body-file desc.md --type タスク --priority 2 --assignee user123
+echo "Description" | backlog issue create -t "Title" -F - --type Bug --priority 3 -a @me
 ```
 
 ## Add/Edit/Delete Comment

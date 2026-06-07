@@ -559,8 +559,14 @@ issue list -p all --updated-since 2025-01-01 -L 50 --json
 \`\`\`
 
 ### Issues (Mutation — use \`backlog_mutate\`)
+
+**Before creating an issue, resolve these 3 required values:**
+1. **Issue type** (\`--type\`): ID or name → get from \`project view PROJ --json=issueTypes\`
+2. **Priority** (\`--priority\`): numeric ID only → get from \`priority list --json\` (2=高, 3=中, 4=低)
+3. **Assignee** (\`--assignee\`): user ID, userId, display name, or \`@me\` → get from \`who\` tool
+
 \`\`\`
-issue create -p PROJ -t "Title" -b "Body" --type Bug
+issue create -p PROJ -t "Title" -b "Body" --type Bug --priority 3 --assignee @me
 issue edit PROJ-42 --status <statusId> --assignee @me
 issue close PROJ-42
 issue comment PROJ-42 -b "Comment text"
@@ -569,7 +575,16 @@ issue comment PROJ-42 -b "Comment text"
 ### Projects
 \`\`\`
 project list --json
-project view PROJ --json
+project view PROJ --json     # includes statuses, issueTypes, categories
+\`\`\`
+
+### Issue Metadata (Query — use \`backlog_query\`)
+\`\`\`
+# Before creating issues, look up available IDs:
+project view PROJ --json=statuses,issueTypes   # project-level statuses & issue types
+priority list --json                            # global priority list (ID + name)
+resolution list --json                          # global resolution list
+issue-type list -p PROJ --json                  # issue types for a project
 \`\`\`
 
 ### Wiki
@@ -604,7 +619,7 @@ api /api/v2/projects/PROJ/statuses
 
 ## Important Notes
 - **\`--json\` with fields requires \`=\`**: Use \`--json=issueKey,summary\` (not \`--json issueKey,summary\`). Without \`=\`, the field list is treated as a separate argument
-- **Status/Priority are numeric IDs**: Use \`api /api/v2/projects/PROJ/statuses\` and \`api /api/v2/priorities\` to look up IDs first
+- **Status/Priority are numeric IDs**: Use \`project view PROJ --json=statuses\` and \`priority list --json\` to look up IDs first
 - **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`). Example: \`issue view PROJ-42 -c default --json\`
 - **User lookup**: Use the \`who\` tool (not \`api /api/v2/users/myself\`). \`whoami --json\` also works for yourself
 - **Newlines in text**: Use \`\\n\` inside double quotes for newlines (e.g., \`-b "line1\\nline2"\`)
