@@ -19,7 +19,7 @@ var listCmd = &cobra.Command{
 
 Examples:
   backlog watching list
-  backlog watching list --count 50
+  backlog watching list -L 50
   backlog watching list --unread
   backlog watching list --sort created --order asc
   backlog watching list --issue PROJ-123`,
@@ -27,7 +27,7 @@ Examples:
 }
 
 var (
-	listCount  int
+	listLimit  int
 	listSort   string
 	listOrder  string
 	listUnread bool
@@ -35,7 +35,7 @@ var (
 )
 
 func init() {
-	listCmd.Flags().IntVarP(&listCount, "count", "c", 20, "Number of items to show")
+	listCmd.Flags().IntVarP(&listLimit, "limit", "L", 20, "Maximum number of items to fetch")
 	listCmd.Flags().StringVar(&listSort, "sort", "issueUpdated", "Sort field: created, updated, or issueUpdated")
 	listCmd.Flags().StringVar(&listOrder, "order", "desc", "Sort order: asc or desc")
 	listCmd.Flags().BoolVar(&listUnread, "unread", false, "Show only items with unread updates")
@@ -60,7 +60,7 @@ func runList(c *cobra.Command, args []string) error {
 
 	// ウォッチ一覧取得
 	opts := &api.WatchingListOptions{
-		Count: listCount,
+		Count: listLimit,
 		Order: listOrder,
 		Sort:  listSort,
 	}
