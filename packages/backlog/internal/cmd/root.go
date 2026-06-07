@@ -73,11 +73,25 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 		if profileFlag != "" {
 			cfg.SetActiveProfile(profileFlag)
 		} else if spaceFlag != "" {
-			resolved, err := cfg.ResolveBySpace(spaceFlag)
+			profileName, created, err := cfg.EnsureSpaceProfile(ctx, spaceFlag)
 			if err != nil {
 				return err
 			}
-			cfg.SetActiveProfile(resolved)
+			cfg.SetActiveProfile(profileName)
+
+			if created && !isAuthCommand(cmd) {
+				if cfg.Credential(profileName) == nil {
+					space, domain, _ := config.ParseSpaceHost(spaceFlag)
+					if ui.IsInteractiveInput() {
+						fmt.Printf("Authentication required for %s\n", spaceFlag)
+						if err := auth.RunLoginForProfile(ctx, cfg); err != nil {
+							return fmt.Errorf("authentication failed for %s: %w", spaceFlag, err)
+						}
+					} else {
+						return fmt.Errorf("authentication required for %s\nRun: backlog auth login --space %s --domain %s", spaceFlag, space, domain)
+					}
+				}
+			}
 		}
 
 		// カラー設定
@@ -135,6 +149,15 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 
 		return nil
 	},
+}
+
+func isAuthCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "auth" {
+			return true
+		}
+	}
+	return false
 }
 
 func Execute() error {

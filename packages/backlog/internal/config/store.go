@@ -287,6 +287,76 @@ func (s *Store) ResolveBySpace(spaceHost string) (string, error) {
 	}
 }
 
+// ParseSpaceHost はスペースホスト名を space と domain に分解する。
+func ParseSpaceHost(spaceHost string) (space, domain string, err error) {
+	parts := strings.SplitN(spaceHost, ".", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("invalid space host %q: expected format \"space.domain\" (e.g. \"myspace.backlog.jp\")", spaceHost)
+	}
+	return parts[0], parts[1], nil
+}
+
+// EnsureSpaceProfile はスペースホスト名に対応するプロファイルを返す。
+// 既存プロファイルがあればそれを返し、なければ新規作成する。
+func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profileName string, created bool, err error) {
+	// 既存プロファイルの検索
+	resolved, resolveErr := s.ResolveBySpace(spaceHost)
+	if resolveErr == nil {
+		return resolved, false, nil
+	}
+
+	// パースエラーの場合はそのまま返す
+	space, domain, parseErr := ParseSpaceHost(spaceHost)
+	if parseErr != nil {
+		return "", false, parseErr
+	}
+
+	// プロファイル名の決定
+	candidateName := space
+	profiles := s.Profiles()
+	if existing, ok := profiles[candidateName]; ok {
+		if existing.Space != space || existing.Domain != domain {
+			candidateName = spaceHost
+		}
+	}
+
+	// primary プロファイルから relay_server をコピー
+	relayServer := ""
+	for _, p := range profiles {
+		if p.Primary && p.RelayServer != "" {
+			relayServer = p.RelayServer
+			break
+		}
+	}
+	if relayServer == "" {
+		if dp, ok := profiles[DefaultProfile]; ok && dp.RelayServer != "" {
+			relayServer = dp.RelayServer
+		}
+	}
+
+	// プロファイル作成
+	if err := s.SetProfileValue(LayerUser, candidateName, "space", space); err != nil {
+		return "", false, fmt.Errorf("failed to create profile: %w", err)
+	}
+	if err := s.SetProfileValue(LayerUser, candidateName, "domain", domain); err != nil {
+		return "", false, fmt.Errorf("failed to create profile: %w", err)
+	}
+	if relayServer != "" {
+		if err := s.SetProfileValue(LayerUser, candidateName, "relay_server", relayServer); err != nil {
+			return "", false, fmt.Errorf("failed to create profile: %w", err)
+		}
+	}
+
+	if err := s.Save(ctx); err != nil {
+		return "", false, fmt.Errorf("failed to save profile: %w", err)
+	}
+	if err := s.Reload(ctx); err != nil {
+		return "", false, fmt.Errorf("failed to reload config: %w", err)
+	}
+
+	return candidateName, true, nil
+}
+
 // Credential は指定プロファイルのクレデンシャルを取得する
 func (s *Store) Credential(profileName string) *Credential {
 	s.mu.RLock()

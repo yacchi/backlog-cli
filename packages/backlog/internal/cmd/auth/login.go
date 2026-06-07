@@ -77,6 +77,23 @@ which is useful for automation or when terminal input is not available.`,
 	RunE: runLogin,
 }
 
+// RunLoginForProfile triggers an interactive login for the currently active profile.
+// Called by the root command's auto-auth flow when --space targets a new space.
+func RunLoginForProfile(ctx context.Context, cfg *config.Store) error {
+	profile := cfg.CurrentProfile()
+	if profile != nil && profile.RelayServer != "" {
+		authMethod, err := ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
+		if err != nil {
+			return err
+		}
+		if authMethod == authMethodAPIKey {
+			return runAPIKeyLogin(ctx, cfg)
+		}
+		return runOAuthLogin(ctx, cfg)
+	}
+	return runAPIKeyLogin(ctx, cfg)
+}
+
 func runLogin(cmd *cobra.Command, args []string) error {
 	// 設定読み込み
 	cfg, err := config.Load(cmd.Context())
@@ -148,35 +165,33 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	// オプションのマージ
 	opts := mergeLoginOptions(cfg)
 
-	// 設定変更の確認フロー
-	configChanged := false
+	// フラグからのオーバーライド
+	flagOverride := false
 	if loginSpace != "" {
 		opts.space = loginSpace
-		configChanged = true
+		flagOverride = true
 	}
 	if loginDomain != "" {
 		opts.domain = loginDomain
-		configChanged = true
+		flagOverride = true
 	}
 
 	// --reuse オプションが指定されていない場合のみ確認ダイアログを表示
 	if !opts.reuse {
-		// 既存設定があり、コマンドライン引数で指定されていない場合
-		if !configChanged && opts.space != "" && opts.domain != "" {
+		if !flagOverride && opts.space != "" && opts.domain != "" {
 			fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
 			changeSettings, err := ui.Confirm("Change space/domain settings?", false)
 			if err != nil {
 				return err
 			}
 			if changeSettings {
-				configChanged = true
 				opts.space = ""
 				opts.domain = ""
 			}
 		}
 	}
 
-	// ドメイン選択（未設定または変更モードの場合）
+	// ドメイン選択（未設定の場合）
 	supportedDomains := []string{"backlog.jp", "backlog.com"}
 	if opts.domain == "" {
 		var err error
@@ -184,12 +199,11 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 		if err != nil {
 			return err
 		}
-		configChanged = true
 	} else if !slices.Contains(supportedDomains, opts.domain) {
 		return fmt.Errorf("domain '%s' is not supported\nSupported: %v", opts.domain, supportedDomains)
 	}
 
-	// スペース入力（未設定または変更モードの場合）
+	// スペース入力（未設定の場合）
 	if opts.space == "" {
 		var err error
 		opts.space, err = ui.Input("Enter space name:", "")
@@ -199,7 +213,6 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 		if opts.space == "" {
 			return fmt.Errorf("space name is required")
 		}
-		configChanged = true
 	}
 
 	// API Key入力
@@ -233,8 +246,10 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	}
 	fmt.Println()
 
-	// 認証情報保存（プロファイルに紐づける）
+	// 対象スペースが現プロファイルと異なる場合、新プロファイルを作成
 	profileName := cfg.GetActiveProfile()
+	profileName = ensureTargetProfile(ctx, cfg, profileName, opts.space, opts.domain)
+
 	cred := &config.Credential{
 		AuthType:  config.AuthTypeAPIKey,
 		APIKey:    apiKey,
@@ -246,17 +261,13 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
-	// 設定が変更された場合はプロファイルに保存
-	if configChanged {
-		_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
-		_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
+	_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
+	_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
 
-		if err := cfg.Reload(ctx); err != nil {
-			return fmt.Errorf("failed to reload config: %w", err)
-		}
+	if err := cfg.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
 	}
 
-	// 設定を保存
 	if err := cfg.Save(ctx); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
@@ -445,8 +456,10 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 		fmt.Println()
 	}
 
-	// 8. 認証情報保存（プロファイルに紐づける）
+	// 8. 認証情報保存（対象スペースが現プロファイルと異なる場合、新プロファイルを作成）
 	profileName := cfg.GetActiveProfile()
+	profileName = ensureTargetProfile(ctx, cfg, profileName, space, domain)
+
 	cred := &config.Credential{
 		AuthType:     config.AuthTypeOAuth,
 		AccessToken:  tokenResp.AccessToken,
@@ -462,7 +475,6 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
-	// 設定を保存
 	if err := cfg.Save(ctx); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
@@ -648,8 +660,10 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 		fmt.Println()
 	}
 
-	// 8. 認証情報保存
+	// 8. 認証情報保存（対象スペースが現プロファイルと異なる場合、新プロファイルを作成）
 	profileName := cfg.GetActiveProfile()
+	profileName = ensureTargetProfile(ctx, cfg, profileName, space, domain)
+
 	cred := &config.Credential{
 		AuthType:     config.AuthTypeOAuth,
 		AccessToken:  tokenResp.AccessToken,
@@ -665,7 +679,6 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
-	// 設定を保存
 	if err := cfg.Save(ctx); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
@@ -731,4 +744,32 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 	debug.Log("relay info verified", "allowed_domain", allowedDomain)
 	fmt.Printf("Verified trusted relay server for %s\n", allowedDomain)
 	return nil
+}
+
+// ensureTargetProfile checks if the target space differs from the current
+// profile's space. If so, it creates a new profile via EnsureSpaceProfile
+// and switches the active profile to avoid overwriting existing credentials.
+func ensureTargetProfile(ctx context.Context, cfg *config.Store, currentProfile, space, domain string) string {
+	profile := cfg.CurrentProfile()
+	if profile == nil {
+		return currentProfile
+	}
+	if profile.Space == space && profile.Domain == domain {
+		return currentProfile
+	}
+	if space == "" || domain == "" {
+		return currentProfile
+	}
+
+	spaceHost := space + "." + domain
+	newProfile, created, err := cfg.EnsureSpaceProfile(ctx, spaceHost)
+	if err != nil {
+		debug.Log("failed to ensure target profile", "space_host", spaceHost, "error", err)
+		return currentProfile
+	}
+	if created {
+		fmt.Printf("Created profile %q for %s\n", newProfile, spaceHost)
+	}
+	cfg.SetActiveProfile(newProfile)
+	return newProfile
 }
