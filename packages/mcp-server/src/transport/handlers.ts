@@ -308,15 +308,30 @@ export function createTransportHandlers(
         switch (toolName) {
             case "backlog_help": {
                 const command = (toolArgs.command as string | undefined)?.trim();
-                const full = buildCliReferencePrompt(token.space, token.domain);
-                let text = full;
-                if (command) {
-                    const sections = extractCommandSection(full, command);
-                    text = sections ?? `No specific help found for "${command}". Here is the full reference:\n\n${full}`;
+                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: tenantKey });
+                try {
+                    const cliRef = await executeBacklogCommand(
+                        'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
+                        token,
+                        { readOnly: true, binPath: options?.binPath },
+                    );
+                    const full = buildCliReferencePrompt(token.space, token.domain, cliRef.output);
+                    let text = full;
+                    if (command) {
+                        const sections = extractCommandSection(full, command);
+                        text = sections ?? `No specific help found for "${command}". Here is the full reference:\n\n${full}`;
+                    }
+                    log.finish({ output: `${text.length} chars` });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text }],
+                    });
+                } catch (err) {
+                    log.finish({ error: (err as Error).message, category: "exception" });
+                    const fallback = buildCliReferencePrompt(token.space, token.domain);
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: fallback }],
+                    });
                 }
-                return jsonRpcResult(req.id, {
-                    content: [{ type: "text", text }],
-                });
             }
 
             case "who": {
@@ -477,7 +492,19 @@ export function createTransportHandlers(
             return jsonRpcError(req.id, -32602, `Unknown prompt: ${params?.name}`);
         }
 
-        const prompt = buildCliReferencePrompt(token.space, token.domain);
+        let cliRefOutput: string | undefined;
+        try {
+            const cliRef = await executeBacklogCommand(
+                'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
+                token,
+                { readOnly: true, binPath: options?.binPath },
+            );
+            cliRefOutput = cliRef.output;
+        } catch {
+            // fall through to static-only prompt
+        }
+
+        const prompt = buildCliReferencePrompt(token.space, token.domain, cliRefOutput);
         return jsonRpcResult(req.id, {
             description: SKILL_PROMPT.description,
             messages: [
@@ -511,8 +538,8 @@ function jsonRpcError(
     return { jsonrpc: "2.0", id: id ?? null, error: { code, message, data } };
 }
 
-function buildCliReferencePrompt(space: string, domain: string): string {
-    return `# Backlog CLI Reference
+function buildCliReferencePrompt(space: string, domain: string, cliRefOutput?: string): string {
+    const mcpContext = `# Backlog CLI Reference
 
 You have access to backlog tools which execute the Backlog CLI — a command-line interface similar to GitHub CLI (gh).
 
@@ -532,103 +559,22 @@ You have access to backlog tools which execute the Backlog CLI — a command-lin
 
 ## Important Rules
 - **\`issue list\` requires \`-p\` (project)**: Use \`-p PROJ\` for a specific project, or \`-p all\` to search across all projects
-- **\`--json\`**: Use \`--json\` for all fields, or \`--json field1,field2\` for specific fields
+- **\`--json\` with fields requires \`=\`**: Use \`--json=issueKey,summary\` (not \`--json issueKey,summary\`)
 - **\`@me\`** refers to the current authenticated user
 - **User lookup**: Use the \`who\` tool — no args for yourself, with query to search users
-
-## Common Commands
-
-### Issues (Query — use \`backlog_query\`)
-\`\`\`
-# Basic listing and viewing
-issue list -p PROJ -L 20 --json=issueKey,summary,status,assignee
-issue view PROJ-42 --json
-issue view PROJ-42 --comments
-
-# Filter by assignee
-issue list -p all --assignee @me --status Open,InProgress --json
-
-# My involved issues (assigned + commented + created)
-# Use --involved to find issues where the user is involved, not just assigned
-# Add --include-commented to also include issues where the user commented
-issue list -p all --involved @me --include-commented --state all --json
-issue list -p all --involved @me --include-commented --updated-since 2025-01-01 -L 50 --json
-
-# Date-based search
-issue list -p all --updated-since 2025-01-01 -L 50 --json
-\`\`\`
-
-### Issues (Mutation — use \`backlog_mutate\`)
-
-**Before creating an issue, resolve these 3 required values:**
-1. **Issue type** (\`--type\`): ID or name → get from \`project view PROJ --json=issueTypes\`
-2. **Priority** (\`--priority\`): numeric ID only → get from \`priority list --json\` (2=高, 3=中, 4=低)
-3. **Assignee** (\`--assignee\`): user ID, userId, display name, or \`@me\` → get from \`who\` tool
-
-\`\`\`
-issue create -p PROJ -t "Title" -b "Body" --type Bug --priority 3 --assignee @me
-issue edit PROJ-42 --status <statusId> --assignee @me
-issue close PROJ-42
-issue comment PROJ-42 -b "Comment text"
-\`\`\`
-
-### Projects
-\`\`\`
-project list --json
-project view PROJ --json     # includes statuses, issueTypes, categories
-\`\`\`
-
-### Issue Metadata (Query — use \`backlog_query\`)
-\`\`\`
-# Before creating issues, look up available IDs:
-project view PROJ --json=statuses,issueTypes   # project-level statuses & issue types
-priority list --json                            # global priority list (ID + name)
-resolution list --json                          # global resolution list
-issue-type list -p PROJ --json                  # issue types for a project
-\`\`\`
-
-### Wiki
-\`\`\`
-wiki list -p PROJ --json
-wiki view 12345 --json
-wiki create -p PROJ --name "Page Title" --content "Body text"
-\`\`\`
-
-### Notifications
-\`\`\`
-notification list -L 10 --json
-\`\`\`
-
-### Activity
-\`\`\`
-activity list -p PROJ -L 20 --json
-\`\`\`
-
-### Raw API Access
-\`\`\`
-api /api/v2/issues/count -X GET -F projectId[]=12345
-api /api/v2/projects/PROJ/statuses
-\`\`\`
-
-## Output Flags
-- \`--json\`: Output all fields as JSON
-- \`--json=field1,field2\`: Output specific fields as JSON (must use \`=\` syntax)
-- \`--jq '.[] | select(.status.name == "Open")'\`: Filter with jq
-- \`--format '{{.issueKey}}: {{.summary}}'\`: Go template format
-- \`-L N\`: Limit results (0 = all)
-
-## Important Notes
-- **\`--json\` with fields requires \`=\`**: Use \`--json=issueKey,summary\` (not \`--json issueKey,summary\`). Without \`=\`, the field list is treated as a separate argument
 - **Status/Priority are numeric IDs**: Use \`project view PROJ --json=statuses\` and \`priority list --json\` to look up IDs first
-- **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`). Example: \`issue view PROJ-42 -c default --json\`
-- **User lookup**: Use the \`who\` tool (not \`api /api/v2/users/myself\`). \`whoami --json\` also works for yourself
-- **Newlines in text**: Use \`\\n\` inside double quotes for newlines (e.g., \`-b "line1\\nline2"\`)
-
-## Tips
-- Always use \`--json\` for structured data — easier to process
+- **Before creating an issue**, resolve: issue type (\`project view PROJ --json=issueTypes\`), priority (\`priority list --json\`), assignee (\`who\` tool)
+- **\`issue view\` with comments**: Use \`-c default\` or \`-c all\` (not bare \`--comments\`)
+- **Newlines in text**: Use \`\\n\` inside double quotes (e.g., \`-b "line1\\nline2"\`)
 - For read-only analysis combining multiple API calls, use \`backlog_query_script\`
 - For scripts that include write operations, use \`backlog_mutate_script\`
 `;
+
+    if (cliRefOutput) {
+        return mcpContext + "\n" + cliRefOutput;
+    }
+
+    return mcpContext;
 }
 
 function extractCommandSection(reference: string, command: string): string | null {

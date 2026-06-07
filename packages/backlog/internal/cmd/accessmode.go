@@ -30,6 +30,7 @@ var readOnlyTopLevel = map[string]bool{
 	"priority":   true,
 	"resolution": true,
 	"profile":    true,
+	"cli-ref":    true,
 }
 
 func checkAccessMode(cmd *cobra.Command) error {
