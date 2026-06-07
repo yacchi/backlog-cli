@@ -6,13 +6,13 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmdutil"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 	"golang.org/x/term"
 )
 
 var (
-	assumeYes  bool
 	noDefaults bool
 )
 
@@ -30,7 +30,6 @@ Examples:
 }
 
 func init() {
-	importCmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "Skip confirmation and import immediately")
 	importCmd.Flags().BoolVar(&noDefaults, "no-defaults", false, "Do not update default profile values")
 }
 
@@ -49,7 +48,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 
 	var approvalHandler config.BundleApprovalHandler
-	if (!assumeYes && !ui.AssumeYes()) && term.IsTerminal(int(syscall.Stdin)) {
+	if !cmdutil.SkipConfirmation(cmd) && term.IsTerminal(int(syscall.Stdin)) {
 		approvalHandler = func(_ context.Context, info config.BundleApprovalInfo) (bool, error) {
 			fmt.Println("Bundle information:")
 			fmt.Printf("  Allowed domain: %s\n", info.AllowedDomain)

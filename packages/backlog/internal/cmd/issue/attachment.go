@@ -125,10 +125,7 @@ Examples:
 	RunE: runIssueAttachmentDelete,
 }
 
-var issueAttachmentDeleteYes bool
-
 func init() {
-	issueAttachmentDeleteCmd.Flags().BoolVar(&issueAttachmentDeleteYes, "yes", false, "Skip confirmation prompt")
 }
 
 func runIssueAttachmentDelete(c *cobra.Command, args []string) error {
@@ -143,7 +140,7 @@ func runIssueAttachmentDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !issueAttachmentDeleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

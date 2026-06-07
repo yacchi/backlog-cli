@@ -25,12 +25,7 @@ Examples:
 	RunE: runDelete,
 }
 
-var (
-	deleteYes bool
-)
-
 func init() {
-	deleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "Skip confirmation prompt")
 }
 
 func runDelete(c *cobra.Command, args []string) error {
@@ -54,7 +49,7 @@ func runDelete(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !deleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

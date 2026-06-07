@@ -27,14 +27,12 @@ Examples:
 
 var (
 	closeRepo         string
-	closeYes          bool
 	closeComment      string
 	closeDeleteBranch bool
 )
 
 func init() {
 	closeCmd.Flags().StringVarP(&closeRepo, "repo", "R", "", "Repository name (required)")
-	closeCmd.Flags().BoolVar(&closeYes, "yes", false, "Skip confirmation prompt")
 	closeCmd.Flags().StringVarP(&closeComment, "comment", "c", "", "Add a comment when closing")
 	closeCmd.Flags().BoolVarP(&closeDeleteBranch, "delete-branch", "d", false, "Delete the head branch (not supported by Backlog API)")
 	_ = closeCmd.MarkFlagRequired("repo")
@@ -71,7 +69,7 @@ func runClose(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !closeYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

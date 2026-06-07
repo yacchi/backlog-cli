@@ -118,10 +118,7 @@ Examples:
 	RunE: runIssueSharedFileUnlink,
 }
 
-var issueSharedFileUnlinkYes bool
-
 func init() {
-	issueSharedFileUnlinkCmd.Flags().BoolVar(&issueSharedFileUnlinkYes, "yes", false, "Skip confirmation prompt")
 	sharedFileCmd.AddCommand(issueSharedFileListCmd)
 	sharedFileCmd.AddCommand(issueSharedFileLinkCmd)
 	sharedFileCmd.AddCommand(issueSharedFileUnlinkCmd)
@@ -139,7 +136,7 @@ func runIssueSharedFileUnlink(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !issueSharedFileUnlinkYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

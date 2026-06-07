@@ -15,12 +15,6 @@ func IsInteractiveInput() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
-// AssumeYes reports whether confirmations should be auto-accepted.
-// Set BACKLOG_ASSUME_YES=1 to skip all confirmation prompts (e.g. in MCP or CI).
-func AssumeYes() bool {
-	return os.Getenv("BACKLOG_ASSUME_YES") != ""
-}
-
 // Select は選択肢から1つを選ばせる
 func Select(message string, options []string) (string, error) {
 	var result string

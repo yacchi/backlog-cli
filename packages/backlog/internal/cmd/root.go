@@ -154,6 +154,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("format", "f", "", "Format JSON output using a Go template (e.g. '{{.summary}}')")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolP("yes", "y", false, "Skip confirmation prompts (env: BACKLOG_ASSUME_YES)")
 
 	// サブコマンド登録
 	rootCmd.AddCommand(activity.ActivityCmd)

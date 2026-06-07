@@ -147,12 +147,10 @@ Examples:
 
 var (
 	prAttachmentDeleteRepo string
-	prAttachmentDeleteYes  bool
 )
 
 func init() {
 	prAttachmentDeleteCmd.Flags().StringVarP(&prAttachmentDeleteRepo, "repo", "R", "", "Repository name (required)")
-	prAttachmentDeleteCmd.Flags().BoolVar(&prAttachmentDeleteYes, "yes", false, "Skip confirmation prompt")
 	_ = prAttachmentDeleteCmd.MarkFlagRequired("repo")
 	prAttachmentCmd.AddCommand(prAttachmentListCmd)
 	prAttachmentCmd.AddCommand(prAttachmentDownloadCmd)
@@ -178,7 +176,7 @@ func runPRAttachmentDelete(c *cobra.Command, args []string) error {
 	}
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
-	if !prAttachmentDeleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

@@ -57,7 +57,6 @@ var (
 	editCommentID      int
 	editLast           bool
 	deleteLast         bool
-	commentDeleteYes   bool
 	commentAttachFiles []string
 )
 
@@ -68,7 +67,6 @@ func init() {
 	commentCmd.Flags().IntVar(&editCommentID, "edit", 0, "Edit an existing comment by ID")
 	commentCmd.Flags().BoolVar(&editLast, "edit-last", false, "Edit your last comment on the issue")
 	commentCmd.Flags().BoolVar(&deleteLast, "delete-last", false, "Delete your last comment on the issue")
-	commentCmd.Flags().BoolVar(&commentDeleteYes, "yes", false, "Skip the delete confirmation prompt")
 	commentCmd.Flags().StringArrayVar(&commentAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 	commentCmd.MarkFlagsMutuallyExclusive("edit", "edit-last", "delete-last")
 }
@@ -304,7 +302,7 @@ func runDeleteLastComment(c *cobra.Command, issueKey string) error {
 	}
 
 	// 確認プロンプト
-	if !commentDeleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

@@ -28,12 +28,10 @@ Examples:
 
 var (
 	issueTypeDeleteSubstitute string
-	issueTypeDeleteYes        bool
 )
 
 func init() {
 	deleteCmd.Flags().StringVar(&issueTypeDeleteSubstitute, "substitute", "", "Substitute issue type ID or name for reassigning issues")
-	deleteCmd.Flags().BoolVar(&issueTypeDeleteYes, "yes", false, "Skip confirmation prompt")
 }
 
 func runIssueTypeDelete(c *cobra.Command, args []string) error {
@@ -125,7 +123,7 @@ func runIssueTypeDelete(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !issueTypeDeleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

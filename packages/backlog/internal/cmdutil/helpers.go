@@ -11,6 +11,15 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 )
 
+// SkipConfirmation reports whether confirmation prompts should be skipped.
+// It checks the global --yes flag and the BACKLOG_ASSUME_YES environment variable.
+func SkipConfirmation(cmd *cobra.Command) bool {
+	if yes, _ := cmd.Flags().GetBool("yes"); yes {
+		return true
+	}
+	return os.Getenv("BACKLOG_ASSUME_YES") != ""
+}
+
 // GetConfigStore はConfigStoreを取得する
 // グローバルフラグはrootCmd.PersistentPreRunEで適用済み
 func GetConfigStore(cmd *cobra.Command) (*config.Store, error) {

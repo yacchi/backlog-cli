@@ -1056,7 +1056,7 @@ func runMigrateClean(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load metadata: %w", err)
 	}
 
-	if !migrateCleanForce && !ui.AssumeYes() {
+	if !migrateCleanForce && !cmdutil.SkipConfirmation(cmd) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--force is required when not running interactively",

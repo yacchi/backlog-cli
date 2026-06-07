@@ -27,13 +27,11 @@ Examples:
 
 var (
 	mergeRepo    string
-	mergeYes     bool
 	mergeComment string
 )
 
 func init() {
 	mergeCmd.Flags().StringVarP(&mergeRepo, "repo", "R", "", "Repository name (required)")
-	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Skip confirmation prompt")
 	mergeCmd.Flags().StringVarP(&mergeComment, "comment", "c", "", "Add a comment when merging")
 	_ = mergeCmd.MarkFlagRequired("repo")
 }
@@ -69,7 +67,7 @@ func runMerge(c *cobra.Command, args []string) error {
 	}
 
 	// 確認プロンプト
-	if !mergeYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

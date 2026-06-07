@@ -181,12 +181,6 @@ Examples:
 	RunE: runWikiAttachmentDelete,
 }
 
-var wikiAttachmentDeleteYes bool
-
-func init() {
-	wikiAttachmentDeleteCmd.Flags().BoolVar(&wikiAttachmentDeleteYes, "yes", false, "Skip confirmation prompt")
-}
-
 func runWikiAttachmentDelete(c *cobra.Command, args []string) error {
 	wikiID, err := strconv.Atoi(args[0])
 	if err != nil {
@@ -202,7 +196,7 @@ func runWikiAttachmentDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !wikiAttachmentDeleteYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",

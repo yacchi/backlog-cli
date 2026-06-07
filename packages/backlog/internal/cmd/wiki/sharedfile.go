@@ -124,10 +124,7 @@ Examples:
 	RunE: runWikiSharedFileUnlink,
 }
 
-var wikiSharedFileUnlinkYes bool
-
 func init() {
-	wikiSharedFileUnlinkCmd.Flags().BoolVar(&wikiSharedFileUnlinkYes, "yes", false, "Skip confirmation prompt")
 	wikiSharedFileCmd.AddCommand(wikiSharedFileListCmd)
 	wikiSharedFileCmd.AddCommand(wikiSharedFileLinkCmd)
 	wikiSharedFileCmd.AddCommand(wikiSharedFileUnlinkCmd)
@@ -148,7 +145,7 @@ func runWikiSharedFileUnlink(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !wikiSharedFileUnlinkYes && !ui.AssumeYes() {
+	if !cmdutil.SkipConfirmation(c) {
 		if !ui.IsInteractiveInput() {
 			return cmdutil.NonInteractiveFlagError(
 				"--yes is required when not running interactively",
