@@ -178,10 +178,9 @@ export function createCertsHandlers(config: RelayConfig): Hono {
       return c.text("tenant not found", 404);
     }
 
-    // Get JWKS from tenant config (extended tenant config would have jwks field)
-    const jwks = (tenant as TenantConfig & { jwks?: string }).jwks;
+    const jwks = config.jwks;
     if (!jwks) {
-      return c.text("tenant jwks is empty", 500);
+      return c.text("server jwks not configured", 500);
     }
 
     try {

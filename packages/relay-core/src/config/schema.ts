@@ -22,8 +22,6 @@ export const BacklogAppConfigSchema = z.object({
 export const TenantConfigSchema = z.object({
   allowed_domain: z.string().min(1, "allowed_domain is required"),
   passphrase_hash: z.string().optional(),
-  jwks: z.string().optional(),
-  active_keys: z.string().optional(),
   info_ttl: z.number().positive().optional(),
 });
 
@@ -71,6 +69,7 @@ export const CacheConfigSchema = z.object({
 export const RelayConfigSchema = z.object({
   server: ServerConfigSchema,
   backlog_app: BacklogAppConfigSchema,
+  jwks: z.string().optional(),
   tenants: z.array(TenantConfigSchema).optional(),
   access_control: AccessControlConfigSchema.optional(),
   rate_limit: RateLimitConfigSchema.optional(),

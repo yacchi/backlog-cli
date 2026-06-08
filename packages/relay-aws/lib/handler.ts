@@ -18,8 +18,8 @@ import {
 import {
     createMcpApp,
     createSandboxClient,
-    decrypt,
-    importKey,
+    verify,
+    loadSigningKeys,
     parseConfig as parseMcpConfig,
     type McpServerConfig,
     type CreateMcpAppOptions,
@@ -35,13 +35,13 @@ export const ENV_VARS = {
     RELAY_CONFIG: "RELAY_CONFIG",
     CONFIG_PARAMETER_NAME: "CONFIG_PARAMETER_NAME",
     RELAY_SECRETS_NAME: "RELAY_SECRETS_NAME",
-    TOKEN_KEY_SECRET_NAME: "TOKEN_KEY_SECRET_NAME",
     BACKLOG_BIN_PATH: "BACKLOG_BIN_PATH",
     SANDBOX_WORKER_PATH: "SANDBOX_WORKER_PATH",
 } as const;
 
 interface RelaySecrets {
     app?: { client_secret: string };
+    server?: { jwks?: string };
     tenants: Record<string, { jwks?: string; passphrase_hash?: string }>;
 }
 
@@ -119,7 +119,7 @@ async function loadRelaySecrets(
 /**
  * Parse relay configuration.
  * Merges secrets from SM into SSM config before passing to relay-core's Zod parser.
- * Unknown keys like mcp_tenants are stripped by Zod.
+ * Unknown keys like mcp_spaces are stripped by Zod.
  */
 async function getRelayConfig(): Promise<RelayConfig> {
     if (cachedRelayConfig) {
@@ -139,10 +139,17 @@ async function getRelayConfig(): Promise<RelayConfig> {
             };
         }
 
+        // Server-level JWKS: prefer server.jwks, fallback to first tenant's jwks (migration)
+        const serverJwks = secrets.server?.jwks
+            ?? Object.values(secrets.tenants ?? {}).find((t) => t.jwks)?.jwks;
+        if (serverJwks) {
+            raw.jwks = serverJwks;
+        }
+
+        // Merge per-tenant passphrase_hash from secrets
         if (Array.isArray(raw.tenants) && secrets.tenants) {
             raw.tenants = (raw.tenants as Array<Record<string, unknown>>).map((t) => ({
                 ...t,
-                jwks: secrets.tenants[t.allowed_domain as string]?.jwks ?? t.jwks,
                 passphrase_hash: secrets.tenants[t.allowed_domain as string]?.passphrase_hash
                     ?? t.passphrase_hash,
             }));
@@ -154,62 +161,18 @@ async function getRelayConfig(): Promise<RelayConfig> {
 }
 
 /**
- * Fetch JWE token keys from Secrets Manager.
- */
-async function getTokenKeys(
-    secretName: string,
-): Promise<{ current: string; previous?: string }> {
-    const {
-        SecretsManagerClient,
-        GetSecretValueCommand,
-    } = await import("@aws-sdk/client-secrets-manager");
-    const client = new SecretsManagerClient({});
-
-    const currentResp = await client.send(
-        new GetSecretValueCommand({
-            SecretId: secretName,
-            VersionStage: "AWSCURRENT",
-        }),
-    );
-    if (!currentResp.SecretString) {
-        throw new Error(`Secret ${secretName} (AWSCURRENT) not found or empty`);
-    }
-
-    let previous: string | undefined;
-    try {
-        const prevResp = await client.send(
-            new GetSecretValueCommand({
-                SecretId: secretName,
-                VersionStage: "AWSPREVIOUS",
-            }),
-        );
-        previous = prevResp.SecretString ?? undefined;
-    } catch {
-        // AWSPREVIOUS doesn't exist yet (no rotation has occurred)
-    }
-
-    return { current: currentResp.SecretString, previous };
-}
-
-/**
- * Build McpServerConfig from raw SSM config + relay config + Secrets Manager keys.
+ * Build McpServerConfig from raw SSM config + relay secrets (JWKS).
+ * MCP uses JWS (Ed25519) with the same JWKS as relay — no separate token key needed.
  */
 async function buildMcpConfig(
     relayConfig: RelayConfig,
     eventBaseUrl?: string,
 ): Promise<McpServerConfig | null> {
     const raw = await loadRawConfig();
-    const mcpTenants = raw.mcp_tenants as Record<string, unknown> | undefined;
-    if (!mcpTenants || Object.keys(mcpTenants).length === 0) {
+    const mcpSpaces = raw.mcp_spaces as Array<{ pattern: string; writable: boolean }> | undefined;
+    if (!mcpSpaces || mcpSpaces.length === 0) {
         return null;
     }
-
-    const secretName = process.env[ENV_VARS.TOKEN_KEY_SECRET_NAME];
-    if (!secretName) {
-        return null;
-    }
-
-    const { current, previous } = await getTokenKeys(secretName);
 
     const baseUrl = relayConfig.server.base_url || eventBaseUrl;
     if (!baseUrl) {
@@ -217,14 +180,29 @@ async function buildMcpConfig(
         return null;
     }
 
+    // Get JWKS from relay secrets (server-level)
+    const secretName = process.env[ENV_VARS.RELAY_SECRETS_NAME];
+    if (!secretName) {
+        console.warn("MCP integration requires RELAY_SECRETS_NAME");
+        return null;
+    }
+    const secrets = await loadRelaySecrets(secretName);
+    const jwksJson = secrets.server?.jwks
+        ?? Object.values(secrets.tenants ?? {}).find((t) => t.jwks)?.jwks;
+    if (!jwksJson) {
+        console.warn("MCP integration requires server.jwks in relay secrets");
+        return null;
+    }
+
     const mcpConfigObj: Record<string, unknown> = {
         base_url: baseUrl,
-        token_key: current,
-        token_key_prev: previous,
+        jwks: jwksJson,
         backlog_app: {
             client_id: relayConfig.backlog_app.client_id,
         },
-        tenants: mcpTenants,
+        spaces: mcpSpaces,
+        script: raw.mcp_script,
+        default_spaces: raw.mcp_default_spaces ?? [],
     };
 
     return parseMcpConfig(JSON.stringify(mcpConfigObj));
@@ -279,15 +257,12 @@ function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
 }
 
 /**
- * Create sandbox runner if any MCP tenant enables scripting.
+ * Create sandbox runner if MCP has spaces configured.
  */
 async function getSandbox(
     mcpConfig: McpServerConfig,
 ): Promise<CreateMcpAppOptions["runScript"]> {
-    const hasSandboxEnabled = Object.values(mcpConfig.tenants).some(
-        (t) => t.script?.enabled,
-    );
-    if (!hasSandboxEnabled) {
+    if (mcpConfig.spaces.length === 0) {
         return undefined;
     }
 
@@ -298,7 +273,7 @@ async function getSandbox(
         });
     }
 
-    return (script, token, tenant, opts) => cachedSandbox!.execute(script, token, tenant, opts?.readOnly);
+    return (script, token, scriptConfig, opts) => cachedSandbox!.execute(script, token, scriptConfig, opts?.readOnly);
 }
 
 /**
@@ -340,18 +315,18 @@ export const handler = async (event: LambdaEvent, context: LambdaContext) => {
     const auditLogger = createAWSAuditLogger();
     const portalAssets = getPortalAssets();
 
+    const serverJwks = relayConfig.jwks;
     const relayApp = createRelayApp({
         config: relayConfig,
         auditLogger,
         verifyPassphrase,
-        createBundle,
+        createBundle: (tenant, domain, relayUrl) => createBundle(tenant, domain, relayUrl, serverJwks),
         portalAssets,
     });
 
     const app = new Hono();
 
     // CORS for MCP browser clients (e.g. MCP Inspector).
-    // Applied at the top level because Hono's app.route() does not copy sub-app middleware.
     app.use("*", cors({
         origin: "*",
         allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
@@ -370,7 +345,7 @@ export const handler = async (event: LambdaEvent, context: LambdaContext) => {
         const tokenExchange = createDirectTokenExchange(relayConfig);
         const runScript = await getSandbox(mcpConfig);
 
-        const mcpApp = createMcpApp({
+        const mcpApp = await createMcpApp({
             config: mcpConfig,
             binPath: process.env[ENV_VARS.BACKLOG_BIN_PATH],
             runScript,
@@ -379,33 +354,22 @@ export const handler = async (event: LambdaEvent, context: LambdaContext) => {
         });
 
         // Shared /auth/callback: Backlog OAuth allows only one redirect_uri per app.
-        // MCP authorize redirects Backlog to /auth/callback (same as CLI relay).
-        // Dispatch by trying MCP state decryption first; fall through to relay on failure.
-        const mcpTokenKey = importKey(mcpConfig.token_key);
-        const mcpTokenKeyPrev = mcpConfig.token_key_prev
-            ? importKey(mcpConfig.token_key_prev)
-            : undefined;
+        // Dispatch by trying MCP JWT verification; fall through to relay on failure.
+        const mcpKeys = await loadSigningKeys(mcpConfig.jwks);
 
         app.get("/auth/callback", async (c) => {
             const state = c.req.query("state");
             if (state) {
-                const tryMcp = async (key: Uint8Array): Promise<Response | null> => {
-                    try {
-                        await decrypt(state, key);
-                        const url = new URL(c.req.url);
-                        url.pathname = "/mcp/authorize/callback";
-                        return await mcpApp.fetch(
-                            new Request(url.toString(), c.req.raw),
-                        );
-                    } catch {
-                        return null;
-                    }
-                };
-
-                const resp =
-                    (await tryMcp(mcpTokenKey)) ??
-                    (mcpTokenKeyPrev ? await tryMcp(mcpTokenKeyPrev) : null);
-                if (resp) return resp;
+                try {
+                    await verify(state, mcpKeys.verifyKeys);
+                    const url = new URL(c.req.url);
+                    url.pathname = "/mcp/authorize/callback";
+                    return await mcpApp.fetch(
+                        new Request(url.toString(), c.req.raw),
+                    );
+                } catch {
+                    // Not an MCP state — fall through to relay
+                }
             }
             return relayApp.fetch(c.req.raw);
         });

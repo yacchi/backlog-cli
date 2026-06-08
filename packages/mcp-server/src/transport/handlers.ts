@@ -1,9 +1,12 @@
 import { Hono } from "hono";
-import type { McpServerConfig, McpTenant } from "../config/schema.js";
-import { jweAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwe-auth.js";
+import type { CryptoKey } from "jose";
+import type { McpServerConfig, SpaceAccess, ScriptConfig } from "../config/schema.js";
+import { matchSpacePattern } from "../config/schema.js";
+import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logToolCall } from "../logging/logger.js";
+import type { TokenPayload } from "../crypto/jwt.js";
 
 export interface ScriptFile {
     content: string;
@@ -229,11 +232,13 @@ const SKILL_PROMPT = {
 
 export function createTransportHandlers(
     config: McpServerConfig,
-    options?: { binPath?: string; runScript?: (script: string, token: import("../crypto/jwe.js").TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
+    verifyKeys: Map<string, CryptoKey>,
+    options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
     const resourceMetadataUrl = `${config.base_url}/.well-known/oauth-protected-resource`;
-    const auth = jweAuth(config.token_key, config.token_key_prev, resourceMetadataUrl);
+    const auth = jwtAuth(verifyKeys, resourceMetadataUrl);
+    const hasScript = !!options?.runScript;
 
     app.post("/mcp", auth, async (c) => {
         let req: JsonRpcRequest;
@@ -264,10 +269,15 @@ export function createTransportHandlers(
             }
         }
 
-        const tenantKey = `${token.space}.${token.domain}`;
-        const tenant = config.tenants[tenantKey];
+        const spaceKey = `${token.space}.${token.domain}`;
+        const access = matchSpacePattern(spaceKey, config.spaces);
+        if (!access) {
+            return c.json(
+                jsonRpcError(req.id ?? null, -32001, `Space '${spaceKey}' is not allowed on this server`),
+            );
+        }
 
-        const result = await handleMethod(req, token, tenant);
+        const result = await handleMethod(req, token, access);
         return c.json(result);
     });
 
@@ -284,8 +294,8 @@ export function createTransportHandlers(
 
     async function handleMethod(
         req: JsonRpcRequest,
-        token: import("../crypto/jwe.js").TokenPayload,
-        tenant: McpTenant | undefined,
+        token: TokenPayload,
+        access: SpaceAccess,
     ): Promise<JsonRpcResponse> {
         switch (req.method) {
             case "initialize":
@@ -307,11 +317,11 @@ export function createTransportHandlers(
 
             case "tools/list":
                 return jsonRpcResult(req.id, {
-                    tools: getAvailableTools(tenant),
+                    tools: getAvailableTools(access),
                 });
 
             case "tools/call":
-                return handleToolCall(req, token, tenant);
+                return handleToolCall(req, token);
 
             case "prompts/list":
                 return jsonRpcResult(req.id, {
@@ -329,18 +339,20 @@ export function createTransportHandlers(
         }
     }
 
-    function getAvailableTools(tenant: McpTenant | undefined) {
-        const tools = [HELP_TOOL, ...QUERY_TOOLS, ...MUTATION_TOOLS];
-        if (tenant?.script?.enabled) {
-            return tools;
+    function getAvailableTools(access: SpaceAccess) {
+        const tools = [...QUERY_TOOLS];
+        if (access.writable) {
+            tools.push(...MUTATION_TOOLS);
         }
-        return tools.filter((t) => t.name === "who" || t.name === "backlog_query" || t.name === "backlog_mutate" || t.name === "backlog_help");
+        if (!hasScript) {
+            return [HELP_TOOL, ...tools.filter((t) => !t.name.endsWith("_script"))];
+        }
+        return [HELP_TOOL, ...tools];
     }
 
     async function handleToolCall(
         req: JsonRpcRequest,
-        token: import("../crypto/jwe.js").TokenPayload,
-        tenant: McpTenant | undefined,
+        token: TokenPayload,
     ): Promise<JsonRpcResponse> {
         const params = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
         const toolName = params?.name;
@@ -360,19 +372,39 @@ export function createTransportHandlers(
             });
         }
 
-        const effectiveToken: import("../crypto/jwe.js").TokenPayload = {
+        const effectiveToken: TokenPayload = {
             ...token,
             space: resolved.space,
             domain: resolved.domain,
             bl_access_token: resolved.bl_access_token,
         };
-        const tenantKey = `${resolved.space}.${resolved.domain}`;
-        const effectiveTenant = config.tenants[tenantKey] ?? tenant;
+        const spaceKey = `${resolved.space}.${resolved.domain}`;
+        const effectiveAccess = matchSpacePattern(spaceKey, config.spaces);
+        if (!effectiveAccess) {
+            return jsonRpcResult(req.id, {
+                content: [{
+                    type: "text",
+                    text: `Space '${spaceKey}' is not allowed on this server.`,
+                }],
+                isError: true,
+            });
+        }
+
+        const isMutation = toolName === "backlog_mutate" || toolName === "backlog_mutate_script";
+        if (isMutation && !effectiveAccess.writable) {
+            return jsonRpcResult(req.id, {
+                content: [{
+                    type: "text",
+                    text: `Write operations are not allowed for space '${spaceKey}'. This space is read-only.`,
+                }],
+                isError: true,
+            });
+        }
 
         switch (toolName) {
             case "backlog_help": {
                 const command = (toolArgs.command as string | undefined)?.trim();
-                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: tenantKey });
+                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: spaceKey });
                 try {
                     const cliRef = await executeBacklogCommand(
                         'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
@@ -400,7 +432,7 @@ export function createTransportHandlers(
 
             case "who": {
                 const query = (toolArgs.query as string | undefined)?.trim();
-                const log = logToolCall({ tool: "who", input: { query }, tenant: tenantKey });
+                const log = logToolCall({ tool: "who", input: { query }, tenant: spaceKey });
                 try {
                     if (!query) {
                         const result = await executeBacklogCommand(
@@ -463,9 +495,9 @@ export function createTransportHandlers(
                     return jsonRpcError(req.id, -32602, "Missing 'args' parameter");
                 }
                 const files = toolArgs.files as ScriptFile[] | undefined;
-                const readOnly = toolName === "backlog_query";
+                const readOnly = toolName === "backlog_query" || !effectiveAccess.writable;
 
-                const log = logToolCall({ tool: toolName, input: { args }, tenant: tenantKey });
+                const log = logToolCall({ tool: toolName, input: { args }, tenant: spaceKey });
 
                 const filePaths = files?.length ? materializeFiles(files) : null;
                 try {
@@ -499,51 +531,43 @@ export function createTransportHandlers(
                 }
                 const files = toolArgs.files as ScriptFile[] | undefined;
 
-                const log = logToolCall({ tool: toolName, input: { script }, tenant: tenantKey });
+                const log = logToolCall({ tool: toolName, input: { script }, tenant: spaceKey });
 
-                if (!effectiveTenant?.script?.enabled) {
-                    log.finish({ error: `${toolName} is not enabled for this tenant`, category: "tenant_disabled" });
+                if (!options?.runScript) {
+                    log.finish({ error: `${toolName} sandbox is not available`, category: "sandbox_unavailable" });
                     return jsonRpcResult(req.id, {
-                        content: [{ type: "text", text: `${toolName} is not enabled for this tenant` }],
+                        content: [{ type: "text", text: `${toolName} sandbox is not available` }],
                         isError: true,
                     });
                 }
 
-                const readOnly = toolName === "backlog_query_script";
+                const readOnly = toolName === "backlog_query_script" || !effectiveAccess.writable;
 
-                if (options?.runScript) {
-                    const filePaths = files?.length ? materializeFiles(files) : null;
-                    try {
-                        const resolvedScript = filePaths ? substituteFileRefs(script, filePaths.paths) : script;
-                        const result = await options.runScript(resolvedScript, effectiveToken, effectiveTenant, { readOnly, files });
-                        log.finish({
-                            output: result.result,
-                            error: result.error,
-                            category: result.error ? "script_error" : undefined,
-                        });
-                        return jsonRpcResult(req.id, {
-                            content: [{
-                                type: "text",
-                                text: result.error ? `Error: ${result.error}` : result.result,
-                            }],
-                            isError: !!result.error,
-                        });
-                    } catch (err) {
-                        log.finish({ error: (err as Error).message, category: "sandbox_error" });
-                        return jsonRpcResult(req.id, {
-                            content: [{ type: "text", text: `Sandbox error: ${(err as Error).message}` }],
-                            isError: true,
-                        });
-                    } finally {
-                        filePaths?.cleanup();
-                    }
+                const filePaths = files?.length ? materializeFiles(files) : null;
+                try {
+                    const resolvedScript = filePaths ? substituteFileRefs(script, filePaths.paths) : script;
+                    const result = await options.runScript(resolvedScript, effectiveToken, config.script, { readOnly, files });
+                    log.finish({
+                        output: result.result,
+                        error: result.error,
+                        category: result.error ? "script_error" : undefined,
+                    });
+                    return jsonRpcResult(req.id, {
+                        content: [{
+                            type: "text",
+                            text: result.error ? `Error: ${result.error}` : result.result,
+                        }],
+                        isError: !!result.error,
+                    });
+                } catch (err) {
+                    log.finish({ error: (err as Error).message, category: "sandbox_error" });
+                    return jsonRpcResult(req.id, {
+                        content: [{ type: "text", text: `Sandbox error: ${(err as Error).message}` }],
+                        isError: true,
+                    });
+                } finally {
+                    filePaths?.cleanup();
                 }
-
-                log.finish({ error: `${toolName} sandbox is not available`, category: "sandbox_unavailable" });
-                return jsonRpcResult(req.id, {
-                    content: [{ type: "text", text: `${toolName} sandbox is not available` }],
-                    isError: true,
-                });
             }
 
             default:
@@ -553,7 +577,7 @@ export function createTransportHandlers(
 
     async function handlePromptGet(
         req: JsonRpcRequest,
-        token: import("../crypto/jwe.js").TokenPayload,
+        token: TokenPayload,
     ): Promise<JsonRpcResponse> {
         const params = req.params as { name?: string } | undefined;
         if (params?.name !== "backlog-cli-reference") {

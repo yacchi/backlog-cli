@@ -1,8 +1,9 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
-import { encrypt, decrypt, encryptToken, importKey } from "../crypto/jwe.js";
-import type { SpaceToken } from "../crypto/jwe.js";
+import { matchSpacePattern } from "../config/schema.js";
+import { sign, verify, signToken } from "../crypto/jwt.js";
+import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
 import type {
     DcrRequest,
     DcrResponse,
@@ -46,29 +47,32 @@ export function parseScopes(
         for (const part of parts) {
             const match = part.match(SCOPE_PATTERN);
             if (match) {
-                spaces.push({ space: match[1], domain: match[2] });
+                const key = `${match[1]}.${match[2]}`;
+                if (matchSpacePattern(key, config.spaces)) {
+                    spaces.push({ space: match[1], domain: match[2] });
+                }
             }
         }
         if (spaces.length > 0) return spaces;
     }
 
-    const tenantKeys = Object.keys(config.tenants);
-    if (tenantKeys.length === 1) {
-        const match = tenantKeys[0].match(/^([^.]+)\.(.+)$/);
-        if (match) {
-            return [{ space: match[1], domain: match[2] }];
+    if (config.default_spaces.length > 0) {
+        const spaces: SpaceRef[] = [];
+        for (const key of config.default_spaces) {
+            const parsed = key.match(/^([^.]+)\.(.+)$/);
+            if (parsed) {
+                spaces.push({ space: parsed[1], domain: parsed[2] });
+            }
         }
+        if (spaces.length > 0) return spaces;
     }
 
     return [];
 }
 
-export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHandlerOptions): Hono {
+export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, options?: OAuthHandlerOptions): Hono {
     const app = new Hono();
-    const tokenKey = importKey(config.token_key);
-    const tokenKeyPrev = config.token_key_prev
-        ? importKey(config.token_key_prev)
-        : undefined;
+    const { signingKey, signingKid, verifyKeys } = keys;
 
     const tokenExchange = options?.tokenExchange;
 
@@ -94,15 +98,9 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         return refreshViaRelay(config.relay_url, domain, space, refreshTokenValue);
     }
 
-    async function decryptState(jwe: string): Promise<AuthorizeState> {
-        try {
-            return (await decrypt(jwe, tokenKey)) as unknown as AuthorizeState;
-        } catch {
-            if (tokenKeyPrev) {
-                return (await decrypt(jwe, tokenKeyPrev)) as unknown as AuthorizeState;
-            }
-            throw new Error("Invalid or expired state");
-        }
+    async function verifyState(jwt: string): Promise<AuthorizeState> {
+        const payload = await verify(jwt, verifyKeys);
+        return payload as unknown as AuthorizeState;
     }
 
     async function readSpaceCookie(c: Context, ref: SpaceRef): Promise<SpaceToken | null> {
@@ -110,15 +108,9 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         const value = getCookie(c, name);
         if (!value) return null;
         try {
-            const payload = await decrypt(value, tokenKey);
+            const payload = await verify(value, verifyKeys);
             return payload as unknown as SpaceToken;
         } catch {
-            if (tokenKeyPrev) {
-                try {
-                    const payload = await decrypt(value, tokenKeyPrev);
-                    return payload as unknown as SpaceToken;
-                } catch { /* fall through */ }
-            }
             return null;
         }
     }
@@ -174,9 +166,10 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             iat: Math.floor(Date.now() / 1000),
         };
 
-        const clientId = await encrypt(
+        const clientId = await sign(
             clientPayload as unknown as Record<string, unknown>,
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         const resp: DcrResponse = {
@@ -240,7 +233,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
         let clientPayload: ClientIdPayload;
         try {
-            const raw = await decryptClientId(clientId, tokenKey, tokenKeyPrev);
+            const raw = await verifyClientId(clientId, verifyKeys);
             clientPayload = {
                 redirect_uris: raw.redirect_uris ?? [],
                 client_name: raw.client_name,
@@ -280,17 +273,19 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             requiredSpaces,
         };
 
-        const session = await encrypt(
+        const session = await sign(
             {
                 ...authorizeState,
                 iat: Math.floor(Date.now() / 1000),
                 exp: Math.floor(Date.now() / 1000) + 600,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
+        const spacePatterns = config.spaces.map((s) => s.pattern);
         c.header("Cache-Control", "no-store");
-        return c.html(renderAuthPage(requiredSpaces, session));
+        return c.html(renderAuthPage(requiredSpaces, session, spacePatterns));
     });
 
     // GET /mcp/authorize/space — Per-space OAuth popup
@@ -303,27 +298,31 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             return c.html(errorPage("Invalid Request", "Missing parameters"), 400);
         }
 
-        let authorizeState: AuthorizeState;
+        const tenantKey = `${space}.${domain}`;
+        if (!matchSpacePattern(tenantKey, config.spaces)) {
+            return c.html(
+                errorPage("Space Not Allowed", `Space '${tenantKey}' is not allowed on this server.`),
+                403,
+            );
+        }
+
         try {
-            authorizeState = await decryptState(session);
+            await verifyState(session);
         } catch {
             return c.html(errorPage("Session Expired", "Please try again"), 400);
         }
 
-        const popupState: AuthorizeState = {
-            ...authorizeState,
-            space,
-            domain,
-            popup: true,
-        };
-
-        const encryptedState = await encrypt(
+        const now = Math.floor(Date.now() / 1000);
+        const signedState = await sign(
             {
-                ...popupState,
-                iat: Math.floor(Date.now() / 1000),
-                exp: Math.floor(Date.now() / 1000) + 600,
+                space,
+                domain,
+                popup: true,
+                iat: now,
+                exp: now + 600,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         const callbackUrl = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
@@ -333,7 +332,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         authUrl.searchParams.set("response_type", "code");
         authUrl.searchParams.set("client_id", config.backlog_app.client_id);
         authUrl.searchParams.set("redirect_uri", callbackUrl);
-        authUrl.searchParams.set("state", encryptedState);
+        authUrl.searchParams.set("state", signedState);
 
         c.header("Cache-Control", "no-store");
         return c.redirect(authUrl.toString(), 302);
@@ -342,7 +341,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
     // GET /mcp/authorize/callback — Backlog redirects here after user consent
     app.get("/mcp/authorize/callback", async (c) => {
         const code = c.req.query("code");
-        const encryptedState = c.req.query("state");
+        const signedState = c.req.query("state");
         const errorParam = c.req.query("error");
 
         if (errorParam) {
@@ -350,7 +349,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             return c.html(errorPage("Authorization Failed", desc), 400);
         }
 
-        if (!code || !encryptedState) {
+        if (!code || !signedState) {
             return c.html(
                 errorPage("Invalid Request", "Missing code or state"),
                 400,
@@ -359,7 +358,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
         let authorizeState: AuthorizeState;
         try {
-            authorizeState = await decryptState(encryptedState);
+            authorizeState = await verifyState(signedState);
         } catch {
             return c.html(
                 errorPage("Session Expired", "Please try again"),
@@ -395,9 +394,10 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 bl_expires_at: now + backlogTokens.expires_in,
             };
 
-            const cookieValue = await encrypt(
+            const cookieValue = await sign(
                 spaceToken as unknown as Record<string, unknown>,
-                tokenKey,
+                signingKey,
+                signingKid,
             );
 
             setCookie(c, spaceCookieName(authorizeState.space, authorizeState.domain), cookieValue, {
@@ -413,7 +413,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         }
 
         // Legacy single-space flow (no popup flag)
-        const mcpCode = await encryptToken(
+        const mcpCode = await signToken(
             {
                 bl_access_token: backlogTokens.access_token,
                 bl_refresh_token: backlogTokens.refresh_token,
@@ -423,7 +423,8 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 iat: now,
                 exp: now + 300,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         const redirectUrl = new URL(authorizeState.redirect_uri);
@@ -443,7 +444,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         }
 
         try {
-            await decryptState(session);
+            await verifyState(session);
         } catch {
             return c.json({ error: "invalid session" }, 400);
         }
@@ -486,7 +487,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
         let authorizeState: AuthorizeState;
         try {
-            authorizeState = await decryptState(session);
+            authorizeState = await verifyState(session);
         } catch {
             return c.html(errorPage("Session Expired", "Please try again"), 400);
         }
@@ -513,7 +514,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         const primary = spaceTokens[0];
         const now = Math.floor(Date.now() / 1000);
 
-        const mcpCode = await encrypt(
+        const mcpCode = await sign(
             {
                 spaces: spaceTokens,
                 space: primary.space,
@@ -524,7 +525,8 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 iat: now,
                 exp: now + 300,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         // Clear space cookies
@@ -595,17 +597,9 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
         let codePayload: Record<string, unknown>;
         try {
-            codePayload = await decrypt(req.code, tokenKey);
+            codePayload = await verify(req.code, verifyKeys);
         } catch {
-            if (tokenKeyPrev) {
-                try {
-                    codePayload = await decrypt(req.code, tokenKeyPrev);
-                } catch {
-                    return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
-                }
-            } else {
-                return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
-            }
+            return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
         }
 
         const now = Math.floor(Date.now() / 1000);
@@ -616,7 +610,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             const minExpires = Math.min(...spaces.map((s) => s.bl_expires_at));
             const expiresIn = Math.max(minExpires - now, 60);
 
-            const accessTokenJwe = await encryptToken(
+            const accessTokenJwt = await signToken(
                 {
                     spaces,
                     space: primary.space,
@@ -626,7 +620,8 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                     iat: now,
                     exp: now + expiresIn,
                 },
-                tokenKey,
+                signingKey,
+                signingKid,
             );
 
             const refreshSpaces = spaces.map((s) => ({
@@ -637,7 +632,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 bl_expires_at: s.bl_expires_at,
             }));
 
-            const refreshTokenJwe = await encrypt(
+            const refreshTokenJwt = await sign(
                 {
                     spaces: refreshSpaces,
                     space: primary.space,
@@ -645,14 +640,15 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                     bl_refresh_token: primary.bl_refresh_token,
                     iat: now,
                 },
-                tokenKey,
+                signingKey,
+                signingKid,
             );
 
             return c.json({
-                access_token: accessTokenJwe,
+                access_token: accessTokenJwt,
                 token_type: "Bearer",
                 expires_in: expiresIn,
-                refresh_token: refreshTokenJwe,
+                refresh_token: refreshTokenJwt,
             });
         }
 
@@ -666,7 +662,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         const bl_expires_at = (codePayload.bl_expires_at as number) ?? now + 3600;
         const expiresIn = Math.max(bl_expires_at - now, 60);
 
-        const accessTokenJwe = await encryptToken(
+        const accessTokenJwt = await signToken(
             {
                 bl_access_token,
                 bl_expires_at,
@@ -675,24 +671,26 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 iat: now,
                 exp: now + expiresIn,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        const refreshTokenJwe = await encryptToken(
+        const refreshTokenJwt = await signToken(
             {
                 bl_refresh_token,
                 space: codePayload.space as string,
                 domain: codePayload.domain as string,
                 iat: now,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         return c.json({
-            access_token: accessTokenJwe,
+            access_token: accessTokenJwt,
             token_type: "Bearer",
             expires_in: expiresIn,
-            refresh_token: refreshTokenJwe,
+            refresh_token: refreshTokenJwt,
         });
     }
 
@@ -711,25 +709,9 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
         let refreshPayload: Record<string, unknown>;
         try {
-            refreshPayload = await decrypt(req.refresh_token, tokenKey);
+            refreshPayload = await verify(req.refresh_token, verifyKeys);
         } catch {
-            if (tokenKeyPrev) {
-                try {
-                    refreshPayload = await decrypt(
-                        req.refresh_token,
-                        tokenKeyPrev,
-                    );
-                } catch {
-                    return jsonError(
-                        c,
-                        400,
-                        "invalid_grant",
-                        "Invalid refresh token",
-                    );
-                }
-            } else {
-                return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
-            }
+            return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
         }
 
         const spaces = refreshPayload.spaces as SpaceToken[] | undefined;
@@ -767,7 +749,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             const minExpires = Math.min(...refreshedSpaces.map((s) => s.bl_expires_at));
             const expiresIn = Math.max(minExpires - now, 60);
 
-            const accessTokenJwe = await encryptToken(
+            const accessTokenJwt = await signToken(
                 {
                     spaces: refreshedSpaces,
                     space: primary.space,
@@ -777,7 +759,8 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                     iat: now,
                     exp: now + expiresIn,
                 },
-                tokenKey,
+                signingKey,
+                signingKid,
             );
 
             const refreshSpaces = refreshedSpaces.map((s) => ({
@@ -788,7 +771,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 bl_expires_at: s.bl_expires_at,
             }));
 
-            const refreshTokenJwe = await encrypt(
+            const refreshTokenJwt = await sign(
                 {
                     spaces: refreshSpaces,
                     space: primary.space,
@@ -796,14 +779,15 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                     bl_refresh_token: primary.bl_refresh_token,
                     iat: now,
                 },
-                tokenKey,
+                signingKey,
+                signingKid,
             );
 
             return c.json({
-                access_token: accessTokenJwe,
+                access_token: accessTokenJwt,
                 token_type: "Bearer",
                 expires_in: expiresIn,
-                refresh_token: refreshTokenJwe,
+                refresh_token: refreshTokenJwt,
             });
         }
 
@@ -829,7 +813,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const accessTokenJwe = await encryptToken(
+        const accessTokenJwt = await signToken(
             {
                 bl_access_token: backlogTokens.access_token,
                 bl_expires_at: now + backlogTokens.expires_in,
@@ -838,24 +822,26 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 iat: now,
                 exp: now + backlogTokens.expires_in,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        const refreshTokenJwe = await encryptToken(
+        const refreshTokenJwt = await signToken(
             {
                 bl_refresh_token: backlogTokens.refresh_token,
                 space,
                 domain,
                 iat: now,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         return c.json({
-            access_token: accessTokenJwe,
+            access_token: accessTokenJwt,
             token_type: "Bearer",
             expires_in: backlogTokens.expires_in,
-            refresh_token: refreshTokenJwe,
+            refresh_token: refreshTokenJwt,
         });
     }
 
@@ -864,19 +850,12 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
 // --- Helper functions ---
 
-async function decryptClientId(
+async function verifyClientId(
     clientId: string,
-    key: Uint8Array,
-    prevKey?: Uint8Array,
+    verifyKeys: Map<string, import("jose").CryptoKey>,
 ): Promise<ClientIdPayload> {
-    try {
-        return (await decrypt(clientId, key)) as unknown as ClientIdPayload;
-    } catch {
-        if (prevKey) {
-            return (await decrypt(clientId, prevKey)) as unknown as ClientIdPayload;
-        }
-        throw new Error("Invalid client_id");
-    }
+    const payload = await verify(clientId, verifyKeys);
+    return payload as unknown as ClientIdPayload;
 }
 
 async function exchangeCodeViaRelay(
@@ -988,7 +967,7 @@ setTimeout(()=>window.close(),1500);
 </body></html>`;
 }
 
-function renderAuthPage(spaces: SpaceRef[], session: string): string {
+function renderAuthPage(spaces: SpaceRef[], session: string, spacePatterns: string[]): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1059,9 +1038,14 @@ h1 { text-align:center; }
 <script>
 const SESSION = ${JSON.stringify(session)};
 const INITIAL = ${JSON.stringify(spaces.map((s) => spaceKey(s.space, s.domain)))};
+const SPACE_PATTERNS = ${JSON.stringify(spacePatterns)}.map(p => new RegExp("^" + p + "$"));
 const LS_KEY = "backlog_mcp_spaces";
 const authenticated = new Set();
 const allSpaces = new Map();
+
+function isSpaceAllowed(key) {
+  return SPACE_PATTERNS.some(re => re.test(key));
+}
 
 function loadSavedSpaces() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
@@ -1158,6 +1142,11 @@ function addSpaceFromInput() {
     errEl.style.display = "block";
     return;
   }
+  if (!isSpaceAllowed(val)) {
+    errEl.textContent = "This space is not allowed on this server.";
+    errEl.style.display = "block";
+    return;
+  }
   addSpace(val, true);
   input.value = "";
 }
@@ -1186,10 +1175,10 @@ setInterval(async () => {
 
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 
-// Init: merge scope spaces + localStorage saved spaces
+// Init: merge scope spaces + localStorage saved spaces, filtered by space patterns
 const saved = loadSavedSpaces();
 const merged = new Set([...INITIAL, ...saved]);
-for (const key of merged) addSpace(key, false);
+for (const key of merged) { if (isSpaceAllowed(key)) addSpace(key, false); }
 saveSpaces();
 </script>
 </body>

@@ -249,15 +249,6 @@ async function signEd25519(
   return new Uint8Array(signature);
 }
 
-/**
- * Split comma-separated key list.
- */
-function splitKeyList(value: string): string[] {
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
 
 /**
  * Normalize JWKS by deriving public keys from private keys.
@@ -408,13 +399,12 @@ async function signManifest(
 export async function createBundle(
   tenant: TenantConfig,
   allowedDomain: string,
-  relayUrl: string
+  relayUrl: string,
+  jwksJson?: string,
 ): Promise<Uint8Array> {
-  if (!tenant.jwks) {
-    throw new Error("Tenant JWKS is not configured");
-  }
-  if (!tenant.active_keys) {
-    throw new Error("Tenant active keys are not configured");
+  const jwksStr = jwksJson ?? (tenant as TenantConfig & { jwks?: string }).jwks;
+  if (!jwksStr) {
+    throw new Error("JWKS is not configured");
   }
 
   const now = new Date();
@@ -423,13 +413,16 @@ export async function createBundle(
   );
 
   // Parse and normalize JWKS
-  const jwks: JWKS = JSON.parse(tenant.jwks);
+  const jwks: JWKS = JSON.parse(jwksStr);
   const jwkByKid = await normalizeJWKS(jwks);
 
-  // Get active key IDs
-  const activeKeyIds = splitKeyList(tenant.active_keys);
+  // Use keys[0] as signing key
+  const activeKeyIds = jwks.keys
+    .map((k) => k.kid)
+    .filter((kid): kid is string => !!kid)
+    .slice(0, 1);
   if (activeKeyIds.length === 0) {
-    throw new Error("No active keys for tenant");
+    throw new Error("No keys with kid in JWKS");
   }
 
   // Build manifest relay keys with thumbprints

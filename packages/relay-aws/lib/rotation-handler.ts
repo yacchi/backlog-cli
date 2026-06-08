@@ -1,12 +1,11 @@
 /**
  * Secrets Manager rotation handler.
  *
- * Handles two secret types (via SECRET_TYPE env var):
- *
- * - "mcp-token-key": Generates a random base64url-encoded 32-byte AES-256 key.
- * - "relay-secrets": Initializes/rotates relay secrets (client_secret, JWKS, passphrase).
- *   Auto-generates Ed25519 JWKS and passphrase for tenants that don't provide them.
- *   JWKS is always preserved across rotations; passphrase is regenerated.
+ * Handles relay-secrets rotation:
+ *   Initializes/rotates relay secrets (client_secret, JWKS, passphrase).
+ *   JWKS is stored at server level (shared by all tenants and MCP).
+ *   Auto-generates Ed25519 JWKS if not provided.
+ *   Passphrase is per-tenant, regenerated on rotation.
  *
  * Follows the 4-step SM rotation protocol:
  * https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets-lambda-function-overview.html
@@ -26,14 +25,13 @@ interface AppSecret {
 }
 
 interface TenantConfig {
-    kid: string;
-    jwks?: string;
     passphrase_hash?: string;
     passphrase_length?: number;
 }
 
 interface RelaySecretsValue {
     app?: AppSecret;
+    server?: { jwks?: string };
     tenants: Record<
         string,
         { jwks?: string; passphrase_hash?: string; passphrase?: string }
@@ -53,6 +51,15 @@ function generateEdKeypairJwks(kid: string): string {
     return JSON.stringify({ keys: [{ ...jwk, kid }] });
 }
 
+function hasJwksKeys(jwksJson: string): boolean {
+    try {
+        const parsed = JSON.parse(jwksJson) as { keys?: unknown[] };
+        return Array.isArray(parsed.keys) && parsed.keys.length > 0;
+    } catch {
+        return false;
+    }
+}
+
 function generatePassphrase(length = 32): { passphrase: string; passphrase_hash: string } {
     const byteLength = Math.ceil((length * 3) / 4);
     const passphrase = randomBytes(byteLength).toString("base64url").slice(0, length);
@@ -63,41 +70,6 @@ function generatePassphrase(length = 32): { passphrase: string; passphrase_hash:
 // ============================================================
 // createSecret step — generates new secret value as AWSPENDING
 // ============================================================
-
-async function createMcpTokenKey(
-    secretId: string,
-    clientRequestToken: string,
-): Promise<void> {
-    const {
-        GetSecretValueCommand,
-        PutSecretValueCommand,
-        ResourceNotFoundException,
-    } = await import("@aws-sdk/client-secrets-manager");
-    const client = await getSmClient();
-
-    try {
-        await client.send(
-            new GetSecretValueCommand({
-                SecretId: secretId,
-                VersionId: clientRequestToken,
-                VersionStage: "AWSPENDING",
-            }),
-        );
-        return;
-    } catch (e) {
-        if (!(e instanceof ResourceNotFoundException)) throw e;
-    }
-
-    const key = randomBytes(32).toString("base64url");
-    await client.send(
-        new PutSecretValueCommand({
-            SecretId: secretId,
-            ClientRequestToken: clientRequestToken,
-            SecretString: key,
-            VersionStages: ["AWSPENDING"],
-        }),
-    );
-}
 
 async function createRelaySecrets(
     secretId: string,
@@ -126,6 +98,7 @@ async function createRelaySecrets(
     const appSecret = JSON.parse(
         process.env.APP_SECRET ?? "{}",
     ) as AppSecret | Record<string, never>;
+    const serverJwksInput = process.env.SERVER_JWKS || "";
     const tenantConfigs = JSON.parse(
         process.env.TENANT_CONFIGS ?? "{}",
     ) as Record<string, TenantConfig>;
@@ -140,7 +113,7 @@ async function createRelaySecrets(
         );
         if (resp.SecretString) {
             const parsed = JSON.parse(resp.SecretString);
-            if (parsed.tenants) {
+            if (parsed.tenants || parsed.server) {
                 existing = parsed as RelaySecretsValue;
             }
         }
@@ -148,25 +121,34 @@ async function createRelaySecrets(
         // First rotation — no structured value yet
     }
 
+    // Server-level JWKS: use provided (if has keys) > existing server > existing tenant (migration) > auto-generate
+    let jwks: string;
+    const parsedInput = serverJwksInput ? JSON.parse(serverJwksInput) as { keys?: unknown[] } : null;
+    if (parsedInput?.keys && parsedInput.keys.length > 0) {
+        jwks = serverJwksInput;
+    } else if (existing?.server?.jwks && hasJwksKeys(existing.server.jwks)) {
+        jwks = existing.server.jwks;
+    } else {
+        // Migration: check if any existing tenant has JWKS
+        const existingTenantJwks = Object.values(existing?.tenants ?? {}).find((t) => t.jwks)?.jwks;
+        if (existingTenantJwks) {
+            jwks = existingTenantJwks;
+            console.log("Migrated JWKS from tenant to server level");
+        } else {
+            jwks = generateEdKeypairJwks("auto-1");
+            console.log("Auto-generated server-level Ed25519 keypair (kid: auto-1)");
+        }
+    }
+
     const result: RelaySecretsValue = {
         app: "client_secret" in appSecret ? appSecret as AppSecret : undefined,
+        server: { jwks },
         tenants: {},
     };
 
     for (const [spaceDomain, config] of Object.entries(tenantConfigs)) {
         const prev = existing?.tenants[spaceDomain];
         const entry: RelaySecretsValue["tenants"][string] = {};
-
-        if (config.jwks) {
-            entry.jwks = config.jwks;
-        } else if (prev?.jwks) {
-            entry.jwks = prev.jwks;
-        } else {
-            entry.jwks = generateEdKeypairJwks(config.kid);
-            console.log(
-                `Auto-generated Ed25519 keypair for ${spaceDomain} (kid: ${config.kid})`,
-            );
-        }
 
         if (config.passphrase_hash) {
             entry.passphrase_hash = config.passphrase_hash;
@@ -236,21 +218,12 @@ async function finishSecret(
 // ============================================================
 
 export async function handler(event: RotationEvent): Promise<void> {
-    const secretType = process.env.SECRET_TYPE ?? "mcp-token-key";
-
     switch (event.Step) {
         case "createSecret":
-            if (secretType === "relay-secrets") {
-                await createRelaySecrets(
-                    event.SecretId,
-                    event.ClientRequestToken,
-                );
-            } else {
-                await createMcpTokenKey(
-                    event.SecretId,
-                    event.ClientRequestToken,
-                );
-            }
+            await createRelaySecrets(
+                event.SecretId,
+                event.ClientRequestToken,
+            );
             break;
         case "setSecret":
         case "testSecret":

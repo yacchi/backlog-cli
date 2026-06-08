@@ -1,6 +1,7 @@
 import type { Context, Next } from "hono";
-import { decryptToken, importKey } from "../crypto/jwe.js";
-import type { TokenPayload } from "../crypto/jwe.js";
+import type { CryptoKey } from "jose";
+import { verifyToken } from "../crypto/jwt.js";
+import type { TokenPayload } from "../crypto/jwt.js";
 
 export interface AuthContext {
     token: TokenPayload;
@@ -48,10 +49,7 @@ export function resolveSpaceToken(
     return null;
 }
 
-export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadataUrl?: string) {
-    const key = importKey(tokenKey);
-    const prevKey = tokenKeyPrev ? importKey(tokenKeyPrev) : undefined;
-
+export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?: string) {
     function unauthorized(c: Context, description: string) {
         const wwwAuth = resourceMetadataUrl
             ? `Bearer resource_metadata="${resourceMetadataUrl}"`
@@ -69,20 +67,12 @@ export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadat
             return unauthorized(c, "Missing Bearer token");
         }
 
-        const jwe = auth.slice(7);
+        const jwt = auth.slice(7);
         let token: TokenPayload;
         try {
-            token = await decryptToken(jwe, key);
+            token = await verifyToken(jwt, verifyKeys);
         } catch {
-            if (prevKey) {
-                try {
-                    token = await decryptToken(jwe, prevKey);
-                } catch {
-                    return unauthorized(c, "Token expired or invalid");
-                }
-            } else {
-                return unauthorized(c, "Token expired or invalid");
-            }
+            return unauthorized(c, "Token expired or invalid");
         }
 
         const hasAccess = token.bl_access_token || (token.spaces && token.spaces.length > 0);
@@ -91,6 +81,6 @@ export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadat
         }
 
         c.set(AUTH_CONTEXT_KEY, { token } satisfies AuthContext);
-        await next();
+        return next();
     };
 }

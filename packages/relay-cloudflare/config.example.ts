@@ -39,35 +39,26 @@ export const config: RelayConfigInput = {
     // base_url: "https://your-worker.your-subdomain.workers.dev",
     allowed_host_patterns: "*.workers.dev",
   },
-  backlog_apps: [
-    {
-      domain: "backlog.jp",
-      client_id: "your-client-id-for-backlog-jp",
-      client_secret: "your-client-secret-for-backlog-jp",
-    },
-    // backlog.com も使う場合は追加
-    // {
-    //   domain: "backlog.com",
-    //   client_id: "your-client-id-for-backlog-com",
-    //   client_secret: "your-client-secret-for-backlog-com",
-    // },
-  ],
-  // マルチテナント設定（オプション）
+  backlog_app: {
+    client_id: "your-client-id",
+    client_secret: "your-client-secret",
+  },
+  // サーバーレベルの署名鍵（全テナント共通）
+  // jwks: JSON.stringify({
+  //   keys: [
+  //     {
+  //       kty: "OKP",
+  //       crv: "Ed25519",
+  //       kid: "2025-01",
+  //       x: "...",  // 公開鍵
+  //       d: "...",  // 秘密鍵
+  //     },
+  //   ],
+  // }),
+  // テナント設定（オプション）
   // tenants: [
   //   {
   //     allowed_domain: "your-space.backlog.jp",
-  //     jwks: JSON.stringify({
-  //       keys: [
-  //         {
-  //           kty: "OKP",
-  //           crv: "Ed25519",
-  //           kid: "2025-01",
-  //           x: "...",  // 公開鍵
-  //           d: "...",  // 秘密鍵
-  //         },
-  //       ],
-  //     }),
-  //     active_keys: "2025-01",
   //     info_ttl: 600,
   //     passphrase_hash: "$2a$12$...",
   //   },

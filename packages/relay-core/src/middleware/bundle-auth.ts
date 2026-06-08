@@ -65,6 +65,8 @@ interface JWKS {
 export interface BundleAuthOptions {
   /** Function to find tenant by domain */
   findTenant: (domain: string) => BundleAuthTenantConfig | undefined;
+  /** Server-level JWKS (used if tenant.jwks is not set) */
+  jwks?: string;
   /** Audit logger */
   auditLogger: AuditLogger;
   /** Paths to skip authentication (e.g., ["/certs", "/info"]) */
@@ -215,7 +217,7 @@ function shouldSkipAuth(path: string, skipPaths: string[]): boolean {
 export function createBundleAuthMiddleware(
   options: BundleAuthOptions
 ): MiddlewareHandler {
-  const { findTenant, auditLogger, skipPaths = ["/certs", "/info"] } = options;
+  const { findTenant, jwks: serverJwks, auditLogger, skipPaths = ["/certs", "/info"] } = options;
 
   return async (c: Context, next: () => Promise<void>) => {
     const path = c.req.path;
@@ -289,8 +291,7 @@ export function createBundleAuthMiddleware(
     }
     const token = authHeader.slice(7);
 
-    // Get JWKS from tenant
-    const jwks = tenant.jwks;
+    const jwks = tenant.jwks ?? serverJwks;
     if (!jwks) {
       auditLogger.log(
         createAuditEvent({

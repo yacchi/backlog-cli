@@ -12,9 +12,7 @@ const config = parseConfig(configJson);
 
 let runScript: Parameters<typeof createMcpApp>[0]["runScript"];
 
-const hasSandboxEnabled = Object.values(config.tenants).some(
-    (t) => t.script?.enabled,
-);
+const hasSandboxEnabled = config.spaces.length > 0;
 
 if (hasSandboxEnabled) {
     const sandbox = await createSandboxClient({
@@ -22,13 +20,13 @@ if (hasSandboxEnabled) {
         binPath: process.env.BACKLOG_BIN_PATH,
     });
 
-    runScript = (script, token, tenant, opts) => sandbox.execute(script, token, tenant, opts?.readOnly, opts?.files);
+    runScript = (script, token, scriptConfig, opts) => sandbox.execute(script, token, scriptConfig, opts?.readOnly, opts?.files);
 
     process.on("SIGTERM", () => sandbox.shutdown());
     process.on("SIGINT", () => sandbox.shutdown());
 }
 
-const app = createMcpApp({
+const app = await createMcpApp({
     config,
     binPath: process.env.BACKLOG_BIN_PATH,
     runScript,

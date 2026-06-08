@@ -3,8 +3,8 @@ import { createInterface } from "node:readline";
 import { createServer } from "node:http";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { TokenPayload } from "../crypto/jwe.js";
-import type { McpTenant } from "../config/schema.js";
+import type { TokenPayload } from "../crypto/jwt.js";
+import type { ScriptConfig } from "../config/schema.js";
 import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
@@ -14,7 +14,6 @@ const BOOT_TIMEOUT = 60_000;
 const SCRIPT_TIMEOUT = 30_000;
 
 export interface SandboxOptions {
-    /** Path to the compiled sandbox worker binary (deno compile output) */
     workerPath?: string;
     binPath?: string;
 }
@@ -23,7 +22,7 @@ export interface SandboxClient {
     execute(
         script: string,
         token: TokenPayload,
-        tenant: McpTenant | undefined,
+        scriptConfig: ScriptConfig | undefined,
         readOnly?: boolean,
         files?: ScriptFile[],
     ): Promise<{ result: string; error?: string }>;
@@ -123,19 +122,19 @@ export async function createSandboxClient(
     }
 
     return {
-        async execute(script, token, tenant, readOnly, files) {
+        async execute(script, token, scriptConfig, readOnly, files) {
             const s = await ensureRunning();
 
             const filePaths = files?.length ? materializeFiles(files) : null;
 
             const { server: cbServer, port: cbPort } = await startCallbackServer(
-                token, tenant, readOnly ?? false, options?.binPath, filePaths?.paths,
+                token, scriptConfig, readOnly ?? false, options?.binPath, filePaths?.paths,
             );
 
             const controller = new AbortController();
             const timeout = setTimeout(
                 () => controller.abort(),
-                tenant?.script?.timeout_ms ?? SCRIPT_TIMEOUT,
+                scriptConfig?.timeout_ms ?? SCRIPT_TIMEOUT,
             );
 
             try {
@@ -161,7 +160,7 @@ export async function createSandboxClient(
                 return { result: "", error: `${errorPrefix}${data.error ?? "Unknown error"}` };
             } catch (err) {
                 if ((err as Error).name === "AbortError") {
-                    const limitMs = tenant?.script?.timeout_ms ?? SCRIPT_TIMEOUT;
+                    const limitMs = scriptConfig?.timeout_ms ?? SCRIPT_TIMEOUT;
                     logSandbox("error", "Script execution timed out", { timeout_ms: limitMs, script: script.slice(0, 2000) });
                     return { result: "", error: `Script execution timed out after ${limitMs / 1000}s. Consider reducing the number of backlog() calls or simplifying the script.` };
                 }
@@ -184,12 +183,12 @@ export async function createSandboxClient(
 
 function startCallbackServer(
     token: TokenPayload,
-    tenant: McpTenant | undefined,
+    scriptConfig: ScriptConfig | undefined,
     readOnly: boolean,
     binPath?: string,
     filePaths?: string[],
 ): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
-    const maxCalls = tenant?.script?.max_cli_calls ?? 20;
+    const maxCalls = scriptConfig?.max_cli_calls ?? 20;
     let callCount = 0;
 
     return new Promise((resolvePromise) => {
@@ -221,7 +220,7 @@ function startCallbackServer(
                 res.writeHead(429);
                 res.end(
                     JSON.stringify({
-                        error: `CLI call limit exceeded: ${callCount}/${maxCalls} calls used. Reduce the number of backlog() calls or request a higher limit in tenant config (script.max_cli_calls).`,
+                        error: `CLI call limit exceeded: ${callCount}/${maxCalls} calls used. Reduce the number of backlog() calls or request a higher limit in config (script.max_cli_calls).`,
                     }),
                 );
                 return;
