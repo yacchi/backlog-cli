@@ -5,6 +5,7 @@
 import {
   createRelayApp,
   createBundle,
+  generateProvisioningToken,
   verifyPassphrase,
   type RelayConfig,
   type AuditLogger,
@@ -64,6 +65,7 @@ export default {
       auditLogger,
       verifyPassphrase,
       createBundle,
+      generateProvisionToken: generateProvisioningToken,
       // Note: portalAssets not available in Cloudflare Workers
       // Portal SPA should be hosted separately (e.g., Cloudflare Pages)
     });

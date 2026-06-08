@@ -18,4 +18,5 @@ func init() {
 	ConfigCmd.AddCommand(importCmd)
 	ConfigCmd.AddCommand(bundleCmd)
 	ConfigCmd.AddCommand(hashCmd)
+	ConfigCmd.AddCommand(setupCmd)
 }

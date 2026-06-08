@@ -8,6 +8,7 @@ import { handle, type LambdaEvent, type LambdaContext } from "hono/aws-lambda";
 import {
     createRelayApp,
     createBundle,
+    generateProvisioningToken,
     verifyPassphrase,
     parseConfig,
     type RelayConfig,
@@ -321,6 +322,7 @@ export const handler = async (event: LambdaEvent, context: LambdaContext) => {
         auditLogger,
         verifyPassphrase,
         createBundle: (tenant, domain, relayUrl) => createBundle(tenant, domain, relayUrl, serverJwks),
+        generateProvisionToken: (tenant, domain, relayUrl) => generateProvisioningToken(tenant, domain, relayUrl, serverJwks),
         portalAssets,
     });
 

@@ -13,6 +13,7 @@ export const AuditActions = {
   ACCESS_DENIED: "access_denied",
   PORTAL_VERIFY: "portal_verify",
   PORTAL_DOWNLOAD: "portal_download",
+  PORTAL_PROVISION: "portal_provision",
   RELAY_BUNDLE: "relay_bundle",
   BUNDLE_AUTH: "bundle_auth",
 } as const;
