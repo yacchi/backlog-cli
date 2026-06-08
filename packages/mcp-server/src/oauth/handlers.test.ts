@@ -168,15 +168,11 @@ describe("GET /mcp/authorize", () => {
             scope: "backlog:mycompany.backlog.jp",
         });
         const res = await app.request(`/mcp/authorize?${params}`);
-        expect(res.status).toBe(302);
+        expect(res.status).toBe(200);
 
-        const location = res.headers.get("location")!;
-        expect(location).toContain("mycompany.backlog.jp/OAuth2AccessRequest.action");
-        expect(location).toContain("client_id=test-client-id");
-        expect(location).toContain(
-            "redirect_uri=" +
-                encodeURIComponent("https://mcp.example.com/mcp/authorize/callback"),
-        );
+        const html = await res.text();
+        expect(html).toContain("mycompany.backlog.jp");
+        expect(html).toContain("Authenticate Backlog Spaces");
     });
 
     it("rejects mismatched redirect_uri", async () => {

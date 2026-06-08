@@ -318,7 +318,7 @@ export class RelayStack extends cdk.Stack {
         HOME: "/tmp",
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
         WEB_ASSETS_DIR: assetsDirName,
-        DEPLOY_VERSION: "2026-01-05-landing-page-v4",
+        DEPLOY_VERSION: "2026-06-08-multi-space-auth",
         ...relaySecretsEnv,
         ...mcpEnv,
       },

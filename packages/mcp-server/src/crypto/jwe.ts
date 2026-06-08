@@ -1,6 +1,15 @@
 import { CompactEncrypt, compactDecrypt } from "jose";
 
+export interface SpaceToken {
+    space: string;
+    domain: string;
+    bl_access_token: string;
+    bl_refresh_token: string;
+    bl_expires_at: number;
+}
+
 export interface TokenPayload {
+    spaces?: SpaceToken[];
     bl_access_token?: string;
     bl_refresh_token?: string;
     bl_expires_at?: number;

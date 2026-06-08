@@ -12,6 +12,42 @@ export function getAuthContext(c: Context): AuthContext {
     return c.get(AUTH_CONTEXT_KEY) as AuthContext;
 }
 
+export function resolveSpaceToken(
+    token: TokenPayload,
+    spaceKey?: string,
+): { space: string; domain: string; bl_access_token: string } | null {
+    if (!spaceKey) {
+        return {
+            space: token.space,
+            domain: token.domain,
+            bl_access_token: token.bl_access_token ?? token.spaces?.[0]?.bl_access_token ?? "",
+        };
+    }
+
+    if (token.spaces) {
+        const found = token.spaces.find(
+            (s) => `${s.space}.${s.domain}` === spaceKey,
+        );
+        if (found) {
+            return {
+                space: found.space,
+                domain: found.domain,
+                bl_access_token: found.bl_access_token,
+            };
+        }
+    }
+
+    if (`${token.space}.${token.domain}` === spaceKey && token.bl_access_token) {
+        return {
+            space: token.space,
+            domain: token.domain,
+            bl_access_token: token.bl_access_token,
+        };
+    }
+
+    return null;
+}
+
 export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadataUrl?: string) {
     const key = importKey(tokenKey);
     const prevKey = tokenKeyPrev ? importKey(tokenKeyPrev) : undefined;
@@ -49,7 +85,8 @@ export function jweAuth(tokenKey: string, tokenKeyPrev?: string, resourceMetadat
             }
         }
 
-        if (!token.bl_access_token) {
+        const hasAccess = token.bl_access_token || (token.spaces && token.spaces.length > 0);
+        if (!hasAccess) {
             return unauthorized(c, "Not an access token");
         }
 

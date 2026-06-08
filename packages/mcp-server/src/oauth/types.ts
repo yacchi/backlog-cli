@@ -42,6 +42,11 @@ export interface ClientIdPayload {
     iat: number;
 }
 
+export interface SpaceRef {
+    space: string;
+    domain: string;
+}
+
 export interface AuthorizeState {
     client_id: string;
     redirect_uri: string;
@@ -50,4 +55,6 @@ export interface AuthorizeState {
     state: string;
     space: string;
     domain: string;
+    requiredSpaces?: SpaceRef[];
+    popup?: boolean;
 }
