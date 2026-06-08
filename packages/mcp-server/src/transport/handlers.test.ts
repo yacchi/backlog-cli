@@ -1,31 +1,39 @@
 import { describe, it, expect } from "vitest";
 import { createMcpApp } from "../index.js";
-import { generateKey, exportKey, encryptToken } from "../crypto/jwe.js";
+import { loadSigningKeys, signToken } from "../crypto/jwt.js";
+import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
-import type { TokenPayload } from "../crypto/jwe.js";
+import type { TokenPayload } from "../crypto/jwt.js";
 
-const testKey = generateKey();
+let testJwksJson: string;
+let testKid: string;
+
+async function initTestKeys() {
+    if (testJwksJson) return;
+    const { publicKey, privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
+    const privJwk = await exportJWK(privateKey);
+    testKid = "test-key-1";
+    const jwks = { keys: [{ ...privJwk, kid: testKid, kty: "OKP", crv: "Ed25519" }] };
+    testJwksJson = JSON.stringify(jwks);
+}
 
 function makeConfig(): McpServerConfig {
     return {
         base_url: "https://mcp.example.com",
         relay_url: "https://relay.example.com",
-        token_key: exportKey(testKey),
+        jwks: testJwksJson,
         backlog_app: { client_id: "test-client-id" },
-        tenants: {
-            "mycompany.backlog.jp": {
-                cli_access: {
-                    allow: ["issue *", "project *", "wiki *"],
-                    deny: ["* --delete", "auth *", "config *"],
-                },
-            },
-        },
+        spaces: [
+            { pattern: "mycompany\\.backlog\\.jp", writable: true },
+        ],
+        default_spaces: ["mycompany.backlog.jp"],
     };
 }
 
 async function makeAccessToken(): Promise<string> {
+    const keys = await loadSigningKeys(testJwksJson);
     const now = Math.floor(Date.now() / 1000);
-    return encryptToken(
+    return signToken(
         {
             bl_access_token: "test-backlog-token",
             bl_expires_at: now + 3600,
@@ -34,12 +42,13 @@ async function makeAccessToken(): Promise<string> {
             iat: now,
             exp: now + 3600,
         },
-        testKey,
+        keys.signingKey,
+        keys.signingKid,
     );
 }
 
 async function jsonRpcRequest(
-    app: ReturnType<typeof createMcpApp>,
+    app: Awaited<ReturnType<typeof createMcpApp>>,
     method: string,
     params?: Record<string, unknown>,
     token?: string,
@@ -62,9 +71,9 @@ async function jsonRpcRequest(
 }
 
 describe("MCP transport — initialize", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("returns server info and capabilities", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "initialize", {
             protocolVersion: "2025-03-26",
             capabilities: {},
@@ -77,6 +86,8 @@ describe("MCP transport — initialize", () => {
     });
 
     it("includes instructions in initialize", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "initialize", {
             protocolVersion: "2025-03-26",
             capabilities: {},
@@ -88,8 +99,9 @@ describe("MCP transport — initialize", () => {
 });
 
 describe("MCP transport — tools/list", () => {
-    it("lists query and mutation tools when script disabled", async () => {
-        const app = createMcpApp({ config: makeConfig() });
+    it("lists query and mutation tools (no script tools without sandbox)", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/list");
         const tools = res.result.tools;
         const names = tools.map((t: { name: string }) => t.name);
@@ -100,31 +112,12 @@ describe("MCP transport — tools/list", () => {
         expect(names).not.toContain("backlog_query_script");
         expect(names).not.toContain("backlog_mutate_script");
     });
-
-    it("lists all tools when script enabled", async () => {
-        const config = makeConfig();
-        config.tenants["mycompany.backlog.jp"].script = {
-            enabled: true,
-            max_cli_calls: 20,
-            timeout_ms: 30000,
-        };
-        const app = createMcpApp({ config });
-        const res = await jsonRpcRequest(app, "tools/list");
-        const tools = res.result.tools;
-        const names = tools.map((t: { name: string }) => t.name);
-        expect(names).toContain("backlog_help");
-        expect(names).toContain("who");
-        expect(names).toContain("backlog_query");
-        expect(names).toContain("backlog_mutate");
-        expect(names).toContain("backlog_query_script");
-        expect(names).toContain("backlog_mutate_script");
-    });
 });
 
 describe("MCP transport — auth", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("rejects request without Bearer token", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -138,16 +131,20 @@ describe("MCP transport — auth", () => {
     });
 
     it("rejects expired token", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const keys = await loadSigningKeys(testJwksJson);
         const now = Math.floor(Date.now() / 1000);
-        const expired = await encryptToken(
+        const expired = await signToken(
             {
                 bl_access_token: "expired",
-                space: "test",
+                space: "mycompany",
                 domain: "backlog.jp",
                 iat: now - 7200,
                 exp: now - 3600,
             },
-            testKey,
+            keys.signingKey,
+            keys.signingKid,
         );
         const res = await app.request("/mcp", {
             method: "POST",
@@ -166,9 +163,9 @@ describe("MCP transport — auth", () => {
 });
 
 describe("MCP transport — tools/call backlog", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("rejects missing args", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/call", {
             name: "backlog",
             arguments: {},
@@ -178,6 +175,8 @@ describe("MCP transport — tools/call backlog", () => {
     });
 
     it("rejects unknown tool", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/call", {
             name: "nonexistent",
             arguments: {},
@@ -187,15 +186,17 @@ describe("MCP transport — tools/call backlog", () => {
 });
 
 describe("MCP transport — prompts", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("lists prompts", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "prompts/list");
         expect(res.result.prompts).toHaveLength(1);
         expect(res.result.prompts[0].name).toBe("backlog-cli-reference");
     });
 
     it("gets prompt content", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "prompts/get", {
             name: "backlog-cli-reference",
         });
@@ -205,6 +206,8 @@ describe("MCP transport — prompts", () => {
     });
 
     it("rejects unknown prompt", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "prompts/get", {
             name: "nonexistent",
         });
@@ -213,9 +216,9 @@ describe("MCP transport — prompts", () => {
 });
 
 describe("MCP transport — tools/call backlog_help", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("returns full CLI reference without command arg", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/call", {
             name: "backlog_help",
             arguments: {},
@@ -226,6 +229,8 @@ describe("MCP transport — tools/call backlog_help", () => {
     });
 
     it("returns filtered section for specific command", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/call", {
             name: "backlog_help",
             arguments: { command: "issue" },
@@ -235,6 +240,8 @@ describe("MCP transport — tools/call backlog_help", () => {
     });
 
     it("falls back to full reference for unknown command", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "tools/call", {
             name: "backlog_help",
             arguments: { command: "nonexistent_command" },
@@ -244,10 +251,83 @@ describe("MCP transport — tools/call backlog_help", () => {
 });
 
 describe("MCP transport — ping", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("responds to ping", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await jsonRpcRequest(app, "ping");
         expect(res.result).toEqual({});
+    });
+});
+
+describe("MCP transport — space access control", () => {
+    it("rejects requests from disallowed primary space", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+        const token = await signToken(
+            {
+                bl_access_token: "token-for-unknown",
+                bl_expires_at: now + 3600,
+                space: "unknown",
+                domain: "backlog.jp",
+                iat: now,
+                exp: now + 3600,
+            },
+            keys.signingKey,
+            keys.signingKid,
+        );
+        const res = await jsonRpcRequest(app, "initialize", {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+        }, token);
+        expect(res.error).toBeDefined();
+        expect(res.error.message).toContain("unknown.backlog.jp");
+    });
+
+    it("rejects tool calls targeting disallowed space", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+        const token = await signToken(
+            {
+                bl_access_token: "primary-token",
+                bl_expires_at: now + 3600,
+                space: "mycompany",
+                domain: "backlog.jp",
+                spaces: [
+                    { space: "mycompany", domain: "backlog.jp", bl_access_token: "primary-token", bl_refresh_token: "r1", bl_expires_at: now + 3600 },
+                    { space: "rogue", domain: "backlog.jp", bl_access_token: "rogue-token", bl_refresh_token: "r2", bl_expires_at: now + 3600 },
+                ],
+                iat: now,
+                exp: now + 3600,
+            },
+            keys.signingKey,
+            keys.signingKid,
+        );
+        const res = await jsonRpcRequest(app, "tools/call", {
+            name: "backlog_query",
+            arguments: { args: "issue list -p ALL", space: "rogue.backlog.jp" },
+        }, token);
+        expect(res.result.isError).toBe(true);
+        expect(res.result.content[0].text).toContain("rogue.backlog.jp");
+        expect(res.result.content[0].text).toContain("not allowed");
+    });
+
+    it("rejects mutation on read-only space", async () => {
+        await initTestKeys();
+        const config = makeConfig();
+        config.spaces = [
+            { pattern: "mycompany\\.backlog\\.jp", writable: false },
+        ];
+        const app = await createMcpApp({ config });
+        const res = await jsonRpcRequest(app, "tools/call", {
+            name: "backlog_mutate",
+            arguments: { args: "issue create -p PROJ -t test" },
+        });
+        expect(res.result.isError).toBe(true);
+        expect(res.result.content[0].text).toContain("read-only");
     });
 });

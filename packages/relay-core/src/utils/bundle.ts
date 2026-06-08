@@ -249,15 +249,6 @@ async function signEd25519(
   return new Uint8Array(signature);
 }
 
-/**
- * Split comma-separated key list.
- */
-function splitKeyList(value: string): string[] {
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
 
 /**
  * Normalize JWKS by deriving public keys from private keys.
@@ -403,18 +394,96 @@ async function signManifest(
 }
 
 /**
+ * Provisioning token expiry in seconds (15 minutes).
+ */
+const PROVISIONING_TOKEN_EXPIRY_SECONDS = 15 * 60;
+
+/**
+ * Generate a provisioning token JWT for CLI setup.
+ *
+ * The token is self-contained: it carries relay_url, space, and domain
+ * so the CLI can decode it (unverified) to discover where to fetch the bundle,
+ * then verify the signature via JWKS before proceeding.
+ */
+export async function generateProvisioningToken(
+  tenant: TenantConfig,
+  allowedDomain: string,
+  relayUrl: string,
+  jwksJson?: string,
+): Promise<string> {
+  const jwksStr = jwksJson ?? (tenant as TenantConfig & { jwks?: string }).jwks;
+  if (!jwksStr) {
+    throw new Error("JWKS is not configured");
+  }
+
+  const jwks: JWKS = JSON.parse(jwksStr);
+  const jwkByKid = await normalizeJWKS(jwks);
+
+  const activeKeyIds = jwks.keys
+    .map((k) => k.kid)
+    .filter((kid): kid is string => !!kid)
+    .slice(0, 1);
+  if (activeKeyIds.length === 0) {
+    throw new Error("No keys with kid in JWKS");
+  }
+
+  const kid = activeKeyIds[0];
+  const jwk = jwkByKid.get(kid);
+  if (!jwk || !jwk.d) {
+    throw new Error(`JWKS key ${kid} missing private key`);
+  }
+
+  const parts = allowedDomain.split(".");
+  const space = parts.length >= 3 ? parts[0] : "";
+  const backlogDomain = parts.length >= 3 ? parts.slice(1).join(".") : allowedDomain;
+
+  const now = Math.floor(Date.now() / 1000);
+  const jtiBytes = randomBytes(16);
+  const jti = base64UrlEncode(jtiBytes);
+
+  const header = {
+    alg: "EdDSA",
+    typ: "JWT",
+    kid,
+  };
+
+  const claims = {
+    sub: allowedDomain,
+    relay_url: relayUrl,
+    space,
+    domain: backlogDomain,
+    purpose: "provision",
+    iat: now,
+    nbf: now,
+    exp: now + PROVISIONING_TOKEN_EXPIRY_SECONDS,
+    jti,
+  };
+
+  const headerB64 = base64UrlEncode(JSON.stringify(header));
+  const claimsB64 = base64UrlEncode(JSON.stringify(claims));
+  const signingInput = headerB64 + "." + claimsB64;
+
+  const seed = base64UrlDecode(jwk.d);
+  const signature = await signEd25519(
+    seed,
+    new TextEncoder().encode(signingInput)
+  );
+
+  return signingInput + "." + base64UrlEncode(signature);
+}
+
+/**
  * Create a configuration bundle for a tenant.
  */
 export async function createBundle(
   tenant: TenantConfig,
   allowedDomain: string,
-  relayUrl: string
+  relayUrl: string,
+  jwksJson?: string,
 ): Promise<Uint8Array> {
-  if (!tenant.jwks) {
-    throw new Error("Tenant JWKS is not configured");
-  }
-  if (!tenant.active_keys) {
-    throw new Error("Tenant active keys are not configured");
+  const jwksStr = jwksJson ?? (tenant as TenantConfig & { jwks?: string }).jwks;
+  if (!jwksStr) {
+    throw new Error("JWKS is not configured");
   }
 
   const now = new Date();
@@ -423,13 +492,16 @@ export async function createBundle(
   );
 
   // Parse and normalize JWKS
-  const jwks: JWKS = JSON.parse(tenant.jwks);
+  const jwks: JWKS = JSON.parse(jwksStr);
   const jwkByKid = await normalizeJWKS(jwks);
 
-  // Get active key IDs
-  const activeKeyIds = splitKeyList(tenant.active_keys);
+  // Use keys[0] as signing key
+  const activeKeyIds = jwks.keys
+    .map((k) => k.kid)
+    .filter((kid): kid is string => !!kid)
+    .slice(0, 1);
   if (activeKeyIds.length === 0) {
-    throw new Error("No active keys for tenant");
+    throw new Error("No keys with kid in JWKS");
   }
 
   // Build manifest relay keys with thumbprints

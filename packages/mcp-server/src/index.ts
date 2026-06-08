@@ -3,13 +3,14 @@ import { cors } from "hono/cors";
 import { createWellKnownHandlers } from "./oauth/wellknown.js";
 import { createOAuthHandlers } from "./oauth/handlers.js";
 import { createTransportHandlers } from "./transport/handlers.js";
-import type { McpServerConfig, McpTenant } from "./config/schema.js";
-import type { TokenPayload } from "./crypto/jwe.js";
+import type { McpServerConfig, ScriptConfig } from "./config/schema.js";
+import type { TokenPayload } from "./crypto/jwt.js";
+import { loadSigningKeys } from "./crypto/jwt.js";
 
-export { encrypt, decrypt, encryptToken, decryptToken, generateKey, importKey, exportKey } from "./crypto/jwe.js";
-export type { TokenPayload } from "./crypto/jwe.js";
-export { McpServerConfigSchema, parseConfig } from "./config/schema.js";
-export type { McpServerConfig, McpTenant } from "./config/schema.js";
+export { sign, verify, signToken, verifyToken, loadSigningKeys } from "./crypto/jwt.js";
+export type { TokenPayload, SigningKeys } from "./crypto/jwt.js";
+export { McpServerConfigSchema, parseConfig, matchSpacePattern } from "./config/schema.js";
+export type { McpServerConfig, ScriptConfig, SpacePattern, SpaceAccess } from "./config/schema.js";
 export { executeBacklogCommand } from "./tools/backlog.js";
 export { materializeFiles, substituteFileRefs } from "./tools/files.js";
 export { createSandboxClient } from "./sandbox/sandbox-client.js";
@@ -23,14 +24,16 @@ import type { ScriptFile } from "./transport/handlers.js";
 export interface CreateMcpAppOptions {
     config: McpServerConfig;
     binPath?: string;
-    runScript?: (script: string, token: TokenPayload, tenant: McpTenant | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }>;
+    runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }>;
     tokenExchange?: TokenExchange;
     callbackPath?: string;
 }
 
-export function createMcpApp(options: CreateMcpAppOptions): Hono {
+export async function createMcpApp(options: CreateMcpAppOptions): Promise<Hono> {
     const { config } = options;
     const app = new Hono();
+
+    const keys = await loadSigningKeys(config.jwks);
 
     app.use("*", cors({
         origin: "*",
@@ -40,11 +43,11 @@ export function createMcpApp(options: CreateMcpAppOptions): Hono {
     }));
 
     app.route("/", createWellKnownHandlers(config));
-    app.route("/", createOAuthHandlers(config, {
+    app.route("/", createOAuthHandlers(config, keys, {
         tokenExchange: options.tokenExchange,
         callbackPath: options.callbackPath,
     }));
-    app.route("/", createTransportHandlers(config, {
+    app.route("/", createTransportHandlers(config, keys.verifyKeys, {
         binPath: options.binPath,
         runScript: options.runScript,
     }));

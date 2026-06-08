@@ -132,15 +132,6 @@ function splitDomain(domain: string): { space: string; backlogDomain: string } {
   return { space, backlogDomain };
 }
 
-/**
- * Split comma-separated key list.
- */
-function splitKeyList(value: string): string[] {
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
 
 /**
  * Find tenant by allowed domain.
@@ -206,27 +197,18 @@ async function signEd25519(
 async function buildRelayInfoSignatures(
   payloadB64: string,
   jwksJson: string,
-  activeKeys: string
 ): Promise<RelayInfoSignature[]> {
-  const activeKeyIds = splitKeyList(activeKeys);
-  if (activeKeyIds.length === 0) {
-    throw new Error("active_keys is empty");
-  }
-
   const jwks: JWKS = JSON.parse(jwksJson);
-  const jwkByKid = new Map<string, JWK>();
-  for (const key of jwks.keys) {
-    if (key.kid) {
-      jwkByKid.set(key.kid, key);
-    }
+  if (!jwks.keys || jwks.keys.length === 0) {
+    throw new Error("jwks has no keys");
   }
 
   const signatures: RelayInfoSignature[] = [];
 
-  for (const kid of activeKeyIds) {
-    const jwk = jwkByKid.get(kid);
-    if (!jwk) {
-      throw new Error(`jwks missing key: ${kid}`);
+  // Sign with keys[0] (signing key)
+  for (const jwk of jwks.keys.slice(0, 1)) {
+    const kid = jwk.kid;
+    if (!kid) {
     }
     if (!jwk.d) {
       throw new Error(`jwk ${kid} missing private key`);
@@ -283,14 +265,13 @@ export function createInfoHandlers(config: RelayConfig): Hono {
       return c.text("tenant not found", 404);
     }
 
-    const jwks = tenant.jwks;
-    const activeKeys = tenant.active_keys;
-    if (!jwks || !activeKeys) {
-      return c.text("tenant not configured for info endpoint", 500);
+    const jwks = config.jwks;
+    if (!jwks) {
+      return c.text("server jwks not configured", 500);
     }
 
     // Compute ETag
-    const etag = await computeInfoETag(jwks, activeKeys);
+    const etag = await computeInfoETag(jwks, "");
 
     // Check If-None-Match
     const ifNoneMatch = c.req.header("If-None-Match");
@@ -321,7 +302,6 @@ export function createInfoHandlers(config: RelayConfig): Hono {
       const signatures = await buildRelayInfoSignatures(
         payloadB64,
         jwks,
-        activeKeys
       );
 
       const response: RelayInfoResponse = {

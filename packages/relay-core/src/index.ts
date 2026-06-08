@@ -50,7 +50,7 @@ export { encodeState, decodeState, extractSessionId } from "./utils/state.js";
 export type { EncodedStateClaims } from "./utils/state.js";
 export { extractRequestContext } from "./utils/request.js";
 export type { RequestContext } from "./utils/request.js";
-export { createBundle } from "./utils/bundle.js";
+export { createBundle, generateProvisioningToken } from "./utils/bundle.js";
 export { verifyPassphrase } from "./utils/passphrase.js";
 
 // Re-export middleware
@@ -91,6 +91,12 @@ export interface CreateRelayAppOptions {
     domain: string,
     relayUrl: string
   ) => Promise<Uint8Array>;
+  /** Provisioning token generation function (required for provisioning key feature) */
+  generateProvisionToken?: (
+    tenant: TenantConfig,
+    domain: string,
+    relayUrl: string
+  ) => Promise<string>;
   /** Portal SPA assets (required for portal SPA serving) */
   portalAssets?: PortalAssets;
 }
@@ -140,6 +146,7 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
 
   // Mount portal handlers if both functions are provided
   if (options.verifyPassphrase && options.createBundle) {
+    const noopProvision = async () => { throw new Error("provisioning not configured"); };
     app.route(
       "/",
       createPortalHandlers(
@@ -147,6 +154,7 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
         auditLogger,
         options.verifyPassphrase,
         options.createBundle,
+        options.generateProvisionToken ?? noopProvision,
         options.portalAssets
       )
     );

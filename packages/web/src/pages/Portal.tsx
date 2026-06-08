@@ -12,11 +12,15 @@ interface TenantInfo {
   backlog_domain: string;
 }
 
+type SetupMethod = "bundle" | "provision";
+
 const errorMessages: Record<string, string> = {
   invalid_passphrase: "パスフレーズが正しくありません",
   portal_not_enabled: "このテナントではポータルが有効化されていません",
   "tenant not found": "テナントが見つかりません",
   "failed to create bundle": "バンドルの作成に失敗しました",
+  "failed to generate provisioning key":
+    "プロビジョニングキーの生成に失敗しました",
 };
 
 function translateError(error: string): string {
@@ -30,6 +34,10 @@ export default function Portal() {
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [setupMethod, setSetupMethod] = useState<SetupMethod>("provision");
+  const [provisioningKey, setProvisioningKey] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,10 +102,50 @@ export default function Portal() {
     }
   };
 
+  const handleGenerateKey = async () => {
+    if (!domain) return;
+    setGeneratingKey(true);
+    setError(null);
+
+    try {
+      const url = `/api/v1/portal/${encodeURIComponent(domain)}/provision`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passphrase }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setProvisioningKey(data.provisioning_key);
+      } else {
+        throw new Error(
+          translateError(data.error) || "キーの生成に失敗しました",
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "キーの生成に失敗しました",
+      );
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const handleCopyCommand = async () => {
+    if (!provisioningKey) return;
+    const command = `backlog config setup ${provisioningKey}`;
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleReset = () => {
     setTenantInfo(null);
     setPassphrase("");
     setError(null);
+    setProvisioningKey(null);
+    setCopied(false);
   };
 
   return (
@@ -148,26 +196,114 @@ export default function Portal() {
                 <InfoBox label="ドメイン" value={tenantInfo.backlog_domain} />
                 <InfoBox label="リレーサーバー" value={tenantInfo.relay_url} />
               </div>
-              <div className="flex justify-center gap-3 pt-2">
-                <Button
-                  variant="secondary"
-                  onClick={handleReset}
-                  disabled={downloading}
+
+              {/* Method tabs */}
+              <div className="flex rounded-2xl border border-outline/60 bg-white/50 p-1">
+                <button
+                  type="button"
+                  className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                    setupMethod === "provision"
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-ink/60 hover:text-ink/80"
+                  }`}
+                  onClick={() => setSetupMethod("provision")}
                 >
-                  戻る
-                </Button>
-                <Button onClick={handleDownload} disabled={downloading}>
-                  {downloading ? "ダウンロード中..." : "バンドルをダウンロード"}
-                </Button>
+                  CLI セットアップ
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                    setupMethod === "bundle"
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-ink/60 hover:text-ink/80"
+                  }`}
+                  onClick={() => setSetupMethod("bundle")}
+                >
+                  バンドルダウンロード
+                </button>
               </div>
-              <p className="text-center text-xs text-ink/50">
-                ダウンロード後、以下のコマンドでインポートしてください
-              </p>
-              <p className="text-center">
-                <code className="rounded bg-ink/10 px-2 py-1 text-sm">
-                  backlog config import {domain}.backlog-cli.zip
-                </code>
-              </p>
+
+              {setupMethod === "provision" ? (
+                <div className="space-y-4">
+                  {!provisioningKey ? (
+                    <>
+                      <p className="text-center text-sm text-ink/70">
+                        プロビジョニングキーを発行して、CLIに貼り付けるだけでセットアップが完了します
+                      </p>
+                      <div className="flex justify-center gap-3 pt-1">
+                        <Button
+                          variant="secondary"
+                          onClick={handleReset}
+                          disabled={generatingKey}
+                        >
+                          戻る
+                        </Button>
+                        <Button
+                          onClick={handleGenerateKey}
+                          disabled={generatingKey}
+                        >
+                          {generatingKey
+                            ? "生成中..."
+                            : "プロビジョニングキーを発行"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-center text-sm text-ink/70">
+                        以下のコマンドをターミナルで実行してください
+                      </p>
+                      <div className="relative">
+                        <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4">
+                          <code className="block break-all text-sm leading-relaxed text-ink">
+                            backlog config setup {provisioningKey}
+                          </code>
+                        </div>
+                        <button
+                          type="button"
+                          className="absolute right-3 top-3 rounded-lg border border-outline/60 bg-white px-3 py-1.5 text-xs font-medium text-ink/70 shadow-sm transition-colors hover:bg-ink/5"
+                          onClick={handleCopyCommand}
+                        >
+                          {copied ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                      <p className="text-center text-xs text-ink/50">
+                        キーの有効期限は15分です
+                      </p>
+                      <div className="flex justify-center gap-3 pt-1">
+                        <Button variant="secondary" onClick={handleReset}>
+                          戻る
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-center gap-3 pt-1">
+                    <Button
+                      variant="secondary"
+                      onClick={handleReset}
+                      disabled={downloading}
+                    >
+                      戻る
+                    </Button>
+                    <Button onClick={handleDownload} disabled={downloading}>
+                      {downloading
+                        ? "ダウンロード中..."
+                        : "バンドルをダウンロード"}
+                    </Button>
+                  </div>
+                  <p className="text-center text-xs text-ink/50">
+                    ダウンロード後、以下のコマンドでインポートしてください
+                  </p>
+                  <p className="text-center">
+                    <code className="rounded bg-ink/10 px-2 py-1 text-sm">
+                      backlog config import {domain}.backlog-cli.zip
+                    </code>
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { TokenPayload } from "../crypto/jwe.js";
+import type { TokenPayload } from "../crypto/jwt.js";
 
 const DEFAULT_TIMEOUT = 30_000;
 

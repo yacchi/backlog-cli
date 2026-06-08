@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   createRelayApp,
   createBundle,
+  generateProvisioningToken,
   verifyPassphrase,
   parseConfig,
   type RelayConfig,
@@ -83,6 +84,7 @@ export async function startServer(): Promise<void> {
     auditLogger,
     verifyPassphrase,
     createBundle,
+    generateProvisionToken: generateProvisioningToken,
     portalAssets,
   });
 

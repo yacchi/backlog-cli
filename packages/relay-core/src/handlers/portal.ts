@@ -49,6 +49,11 @@ export function createPortalHandlers(
     domain: string,
     relayUrl: string
   ) => Promise<Uint8Array>,
+  generateProvisionToken: (
+    tenant: TenantConfig,
+    domain: string,
+    relayUrl: string
+  ) => Promise<string>,
   portalAssets?: PortalAssets
 ): Hono {
   const app = new Hono();
@@ -354,6 +359,135 @@ export function createPortalHandlers(
         {
           success: false,
           error: "failed to create bundle",
+        } as PortalVerifyResponse,
+        500
+      );
+    }
+  });
+
+  /**
+   * POST /api/v1/portal/:domain/provision - Generate a provisioning key for CLI setup.
+   */
+  app.post("/api/v1/portal/:domain/provision", async (c) => {
+    const reqCtx = extractRequestContext(c);
+    const allowedDomain = c.req.param("domain");
+
+    let req: PortalVerifyRequest;
+    try {
+      req = await c.req.json();
+    } catch {
+      return c.json(
+        { success: false, error: "invalid_request" } as PortalVerifyResponse,
+        400
+      );
+    }
+
+    if (!allowedDomain || !req.passphrase) {
+      return c.json(
+        {
+          success: false,
+          error: "domain and passphrase are required",
+        } as PortalVerifyResponse,
+        400
+      );
+    }
+
+    const tenant = findTenant(allowedDomain);
+    if (!tenant) {
+      auditLogger.log(
+        createAuditEvent({
+          action: AuditActions.PORTAL_PROVISION,
+          domain: allowedDomain,
+          clientIp: reqCtx.clientIp,
+          userAgent: reqCtx.userAgent,
+          result: "error",
+          error: "tenant not found",
+        })
+      );
+      return c.json(
+        { success: false, error: "tenant not found" } as PortalVerifyResponse,
+        404
+      );
+    }
+
+    if (!tenant.passphrase_hash) {
+      auditLogger.log(
+        createAuditEvent({
+          action: AuditActions.PORTAL_PROVISION,
+          domain: allowedDomain,
+          clientIp: reqCtx.clientIp,
+          userAgent: reqCtx.userAgent,
+          result: "error",
+          error: "portal not enabled",
+        })
+      );
+      return c.json(
+        { success: false, error: "portal_not_enabled" } as PortalVerifyResponse,
+        403
+      );
+    }
+
+    const valid = await verifyPassphrase(tenant.passphrase_hash, req.passphrase);
+    if (!valid) {
+      auditLogger.log(
+        createAuditEvent({
+          action: AuditActions.PORTAL_PROVISION,
+          domain: allowedDomain,
+          clientIp: reqCtx.clientIp,
+          userAgent: reqCtx.userAgent,
+          result: "error",
+          error: "invalid passphrase",
+        })
+      );
+      return c.json(
+        {
+          success: false,
+          error: "invalid_passphrase",
+        } as PortalVerifyResponse,
+        401
+      );
+    }
+
+    const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
+
+    try {
+      const provisioningKey = await generateProvisionToken(
+        tenant,
+        allowedDomain,
+        relayUrl
+      );
+
+      const { space, backlogDomain } = splitDomain(allowedDomain);
+      auditLogger.log(
+        createAuditEvent({
+          action: AuditActions.PORTAL_PROVISION,
+          space,
+          domain: backlogDomain,
+          clientIp: reqCtx.clientIp,
+          userAgent: reqCtx.userAgent,
+          result: "success",
+        })
+      );
+
+      return c.json({
+        success: true,
+        provisioning_key: provisioningKey,
+      });
+    } catch (err) {
+      auditLogger.log(
+        createAuditEvent({
+          action: AuditActions.PORTAL_PROVISION,
+          domain: allowedDomain,
+          clientIp: reqCtx.clientIp,
+          userAgent: reqCtx.userAgent,
+          result: "error",
+          error: (err as Error).message,
+        })
+      );
+      return c.json(
+        {
+          success: false,
+          error: "failed to generate provisioning key",
         } as PortalVerifyResponse,
         500
       );

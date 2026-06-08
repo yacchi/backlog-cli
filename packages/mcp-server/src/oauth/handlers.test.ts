@@ -1,29 +1,37 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createMcpApp } from "../index.js";
-import { generateKey, exportKey, decrypt } from "../crypto/jwe.js";
+import { verify, loadSigningKeys } from "../crypto/jwt.js";
+import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
 
-const testKey = generateKey();
+let testJwksJson: string;
+
+async function initTestKeys() {
+    if (testJwksJson) return;
+    const { privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
+    const privJwk = await exportJWK(privateKey);
+    const jwks = { keys: [{ ...privJwk, kid: "test-key-1", kty: "OKP", crv: "Ed25519" }] };
+    testJwksJson = JSON.stringify(jwks);
+}
 
 function makeConfig(overrides?: Partial<McpServerConfig>): McpServerConfig {
     return {
         base_url: "https://mcp.example.com",
         relay_url: "https://relay.example.com",
-        token_key: exportKey(testKey),
+        jwks: testJwksJson,
         backlog_app: { client_id: "test-client-id" },
-        tenants: {
-            "mycompany.backlog.jp": {
-                cli_access: { allow: ["*"], deny: [] },
-            },
-        },
+        spaces: [
+            { pattern: "mycompany\\.backlog\\.jp", writable: true },
+        ],
+        default_spaces: ["mycompany.backlog.jp"],
         ...overrides,
     };
 }
 
 describe("Well-known endpoints", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("GET /.well-known/oauth-protected-resource", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/.well-known/oauth-protected-resource");
         expect(res.status).toBe(200);
         const body = await res.json();
@@ -32,6 +40,8 @@ describe("Well-known endpoints", () => {
     });
 
     it("GET /.well-known/oauth-authorization-server", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request(
             "/.well-known/oauth-authorization-server",
         );
@@ -53,9 +63,9 @@ describe("Well-known endpoints", () => {
 });
 
 describe("POST /mcp/register (DCR)", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("registers a client with valid redirect_uris", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -73,14 +83,16 @@ describe("POST /mcp/register (DCR)", () => {
         expect(body.client_name).toBe("Claude Desktop");
         expect(body.token_endpoint_auth_method).toBe("none");
 
-        // client_id is a valid JWE that can be decrypted
-        const payload = await decrypt(body.client_id, testKey);
+        const keys = await loadSigningKeys(testJwksJson);
+        const payload = await verify(body.client_id, keys.verifyKeys);
         expect(payload.redirect_uris).toEqual([
             "https://claude.ai/oauth/callback",
         ]);
     });
 
     it("rejects missing redirect_uris", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -92,6 +104,8 @@ describe("POST /mcp/register (DCR)", () => {
     });
 
     it("rejects invalid redirect_uri", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -105,14 +119,16 @@ describe("POST /mcp/register (DCR)", () => {
 });
 
 describe("GET /mcp/authorize", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("rejects missing parameters", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/authorize?client_id=x");
         expect(res.status).toBe(400);
     });
 
     it("rejects unsupported response_type", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const params = new URLSearchParams({
             client_id: "x",
             redirect_uri: "https://example.com/cb",
@@ -127,7 +143,8 @@ describe("GET /mcp/authorize", () => {
     });
 
     it("rejects missing code_challenge", async () => {
-        // First register a client to get a valid client_id
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const regRes = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -148,7 +165,9 @@ describe("GET /mcp/authorize", () => {
         expect((await res.json()).error).toBe("invalid_request");
     });
 
-    it("redirects to Backlog with valid params and scope", async () => {
+    it("renders auth page with valid params and scope", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const regRes = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -168,18 +187,16 @@ describe("GET /mcp/authorize", () => {
             scope: "backlog:mycompany.backlog.jp",
         });
         const res = await app.request(`/mcp/authorize?${params}`);
-        expect(res.status).toBe(302);
+        expect(res.status).toBe(200);
 
-        const location = res.headers.get("location")!;
-        expect(location).toContain("mycompany.backlog.jp/OAuth2AccessRequest.action");
-        expect(location).toContain("client_id=test-client-id");
-        expect(location).toContain(
-            "redirect_uri=" +
-                encodeURIComponent("https://mcp.example.com/mcp/authorize/callback"),
-        );
+        const html = await res.text();
+        expect(html).toContain("mycompany.backlog.jp");
+        expect(html).toContain("Authenticate Backlog Spaces");
     });
 
     it("rejects mismatched redirect_uri", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const regRes = await app.request("/mcp/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -205,9 +222,9 @@ describe("GET /mcp/authorize", () => {
 });
 
 describe("POST /mcp/token", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("rejects unsupported grant_type", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -218,6 +235,8 @@ describe("POST /mcp/token", () => {
     });
 
     it("rejects missing code in authorization_code grant", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -228,12 +247,14 @@ describe("POST /mcp/token", () => {
     });
 
     it("rejects invalid code", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 grant_type: "authorization_code",
-                code: "invalid-jwe",
+                code: "invalid-jwt",
             }),
         });
         expect(res.status).toBe(400);
@@ -241,6 +262,8 @@ describe("POST /mcp/token", () => {
     });
 
     it("rejects missing refresh_token in refresh_token grant", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -251,6 +274,8 @@ describe("POST /mcp/token", () => {
     });
 
     it("accepts application/x-www-form-urlencoded", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: {
@@ -266,11 +291,39 @@ describe("POST /mcp/token", () => {
 });
 
 describe("GET /health", () => {
-    const app = createMcpApp({ config: makeConfig() });
-
     it("returns ok", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/health");
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ status: "ok" });
+    });
+});
+
+describe("parseScopes with space patterns", () => {
+    it("filters scopes by space patterns", async () => {
+        const { parseScopes } = await import("./handlers.js");
+        await initTestKeys();
+        const config = makeConfig();
+        const result = parseScopes("backlog:mycompany.backlog.jp backlog:rogue.backlog.com", config);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({ space: "mycompany", domain: "backlog.jp" });
+    });
+
+    it("falls back to default_spaces when no scope", async () => {
+        const { parseScopes } = await import("./handlers.js");
+        await initTestKeys();
+        const config = makeConfig();
+        const result = parseScopes(undefined, config);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({ space: "mycompany", domain: "backlog.jp" });
+    });
+
+    it("returns empty when scope is invalid and no default_spaces", async () => {
+        const { parseScopes } = await import("./handlers.js");
+        await initTestKeys();
+        const config = makeConfig({ default_spaces: [] });
+        const result = parseScopes("backlog:rogue.backlog.com", config);
+        expect(result).toHaveLength(0);
     });
 });

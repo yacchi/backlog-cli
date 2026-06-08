@@ -1,6 +1,9 @@
 import { Hono, type Context } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
-import { encrypt, decrypt, encryptToken, decryptToken, importKey } from "../crypto/jwe.js";
+import { matchSpacePattern } from "../config/schema.js";
+import { sign, verify, signToken } from "../crypto/jwt.js";
+import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
 import type {
     DcrRequest,
     DcrResponse,
@@ -9,6 +12,7 @@ import type {
     TokenErrorResponse,
     ClientIdPayload,
     AuthorizeState,
+    SpaceRef,
 } from "./types.js";
 
 export interface TokenExchange {
@@ -21,12 +25,54 @@ export interface OAuthHandlerOptions {
     callbackPath?: string;
 }
 
-export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHandlerOptions): Hono {
+const SCOPE_PATTERN = /^backlog:([^.]+)\.(.+)$/;
+const COOKIE_PREFIX = "bl_space_";
+const COOKIE_MAX_AGE = 300;
+
+function spaceKey(space: string, domain: string): string {
+    return `${space}.${domain}`;
+}
+
+function spaceCookieName(space: string, domain: string): string {
+    return COOKIE_PREFIX + btoa(spaceKey(space, domain)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function parseScopes(
+    scope: string | undefined,
+    config: McpServerConfig,
+): SpaceRef[] {
+    if (scope) {
+        const parts = scope.split(/[\s+]+/).filter(Boolean);
+        const spaces: SpaceRef[] = [];
+        for (const part of parts) {
+            const match = part.match(SCOPE_PATTERN);
+            if (match) {
+                const key = `${match[1]}.${match[2]}`;
+                if (matchSpacePattern(key, config.spaces)) {
+                    spaces.push({ space: match[1], domain: match[2] });
+                }
+            }
+        }
+        if (spaces.length > 0) return spaces;
+    }
+
+    if (config.default_spaces.length > 0) {
+        const spaces: SpaceRef[] = [];
+        for (const key of config.default_spaces) {
+            const parsed = key.match(/^([^.]+)\.(.+)$/);
+            if (parsed) {
+                spaces.push({ space: parsed[1], domain: parsed[2] });
+            }
+        }
+        if (spaces.length > 0) return spaces;
+    }
+
+    return [];
+}
+
+export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, options?: OAuthHandlerOptions): Hono {
     const app = new Hono();
-    const tokenKey = importKey(config.token_key);
-    const tokenKeyPrev = config.token_key_prev
-        ? importKey(config.token_key_prev)
-        : undefined;
+    const { signingKey, signingKid, verifyKeys } = keys;
 
     const tokenExchange = options?.tokenExchange;
 
@@ -50,6 +96,23 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             throw new Error("relay_url is required when tokenExchange is not provided");
         }
         return refreshViaRelay(config.relay_url, domain, space, refreshTokenValue);
+    }
+
+    async function verifyState(jwt: string): Promise<AuthorizeState> {
+        const payload = await verify(jwt, verifyKeys);
+        return payload as unknown as AuthorizeState;
+    }
+
+    async function readSpaceCookie(c: Context, ref: SpaceRef): Promise<SpaceToken | null> {
+        const name = spaceCookieName(ref.space, ref.domain);
+        const value = getCookie(c, name);
+        if (!value) return null;
+        try {
+            const payload = await verify(value, verifyKeys);
+            return payload as unknown as SpaceToken;
+        } catch {
+            return null;
+        }
     }
 
     function jsonError(
@@ -103,9 +166,10 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             iat: Math.floor(Date.now() / 1000),
         };
 
-        const clientId = await encrypt(
+        const clientId = await sign(
             clientPayload as unknown as Record<string, unknown>,
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         const resp: DcrResponse = {
@@ -121,7 +185,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         return c.json(resp, 201);
     });
 
-    // GET /mcp/authorize — Start OAuth flow (redirect to Backlog)
+    // GET /mcp/authorize — Render multi-space auth page or redirect for single space
     app.get("/mcp/authorize", async (c) => {
         const clientId = c.req.query("client_id");
         const redirectUri = c.req.query("redirect_uri");
@@ -167,10 +231,9 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        // Decrypt client_id to validate and extract redirect_uris
         let clientPayload: ClientIdPayload;
         try {
-            const raw = await decryptClientId(clientId, tokenKey, tokenKeyPrev);
+            const raw = await verifyClientId(clientId, verifyKeys);
             clientPayload = {
                 redirect_uris: raw.redirect_uris ?? [],
                 client_name: raw.client_name,
@@ -180,7 +243,6 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             return jsonError(c, 400, "invalid_client", "Invalid client_id");
         }
 
-        // Validate redirect_uri matches registered ones
         if (!clientPayload.redirect_uris.includes(redirectUri)) {
             return jsonError(
                 c,
@@ -190,9 +252,8 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        // Determine space and domain from scope or default
-        const { space, domain } = parseScope(scope, config);
-        if (!space || !domain) {
+        const requiredSpaces = parseScopes(scope, config);
+        if (requiredSpaces.length === 0) {
             return jsonError(
                 c,
                 400,
@@ -201,27 +262,69 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        // Encrypt authorize state into relay state param
         const authorizeState: AuthorizeState = {
             client_id: clientId,
             redirect_uri: redirectUri,
             code_challenge: codeChallenge,
             code_challenge_method: codeChallengeMethod || "S256",
             state,
-            space,
-            domain,
+            space: requiredSpaces[0].space,
+            domain: requiredSpaces[0].domain,
+            requiredSpaces,
         };
 
-        const encryptedState = await encrypt(
+        const session = await sign(
             {
                 ...authorizeState,
                 iat: Math.floor(Date.now() / 1000),
                 exp: Math.floor(Date.now() / 1000) + 600,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        // Redirect to Backlog OAuth
+        const spacePatterns = config.spaces.map((s) => s.pattern);
+        c.header("Cache-Control", "no-store");
+        return c.html(renderAuthPage(requiredSpaces, session, spacePatterns));
+    });
+
+    // GET /mcp/authorize/space — Per-space OAuth popup
+    app.get("/mcp/authorize/space", async (c) => {
+        const space = c.req.query("space");
+        const domain = c.req.query("domain");
+        const session = c.req.query("session");
+
+        if (!space || !domain || !session) {
+            return c.html(errorPage("Invalid Request", "Missing parameters"), 400);
+        }
+
+        const tenantKey = `${space}.${domain}`;
+        if (!matchSpacePattern(tenantKey, config.spaces)) {
+            return c.html(
+                errorPage("Space Not Allowed", `Space '${tenantKey}' is not allowed on this server.`),
+                403,
+            );
+        }
+
+        try {
+            await verifyState(session);
+        } catch {
+            return c.html(errorPage("Session Expired", "Please try again"), 400);
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const signedState = await sign(
+            {
+                space,
+                domain,
+                popup: true,
+                iat: now,
+                exp: now + 600,
+            },
+            signingKey,
+            signingKid,
+        );
+
         const callbackUrl = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
         const authUrl = new URL(
             `https://${space}.${domain}/OAuth2AccessRequest.action`,
@@ -229,7 +332,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         authUrl.searchParams.set("response_type", "code");
         authUrl.searchParams.set("client_id", config.backlog_app.client_id);
         authUrl.searchParams.set("redirect_uri", callbackUrl);
-        authUrl.searchParams.set("state", encryptedState);
+        authUrl.searchParams.set("state", signedState);
 
         c.header("Cache-Control", "no-store");
         return c.redirect(authUrl.toString(), 302);
@@ -238,7 +341,7 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
     // GET /mcp/authorize/callback — Backlog redirects here after user consent
     app.get("/mcp/authorize/callback", async (c) => {
         const code = c.req.query("code");
-        const encryptedState = c.req.query("state");
+        const signedState = c.req.query("state");
         const errorParam = c.req.query("error");
 
         if (errorParam) {
@@ -246,39 +349,21 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             return c.html(errorPage("Authorization Failed", desc), 400);
         }
 
-        if (!code || !encryptedState) {
+        if (!code || !signedState) {
             return c.html(
                 errorPage("Invalid Request", "Missing code or state"),
                 400,
             );
         }
 
-        // Decrypt state to recover authorize params
         let authorizeState: AuthorizeState;
         try {
-            authorizeState = (await decrypt(
-                encryptedState,
-                tokenKey,
-            )) as unknown as AuthorizeState;
+            authorizeState = await verifyState(signedState);
         } catch {
-            if (tokenKeyPrev) {
-                try {
-                    authorizeState = (await decrypt(
-                        encryptedState,
-                        tokenKeyPrev,
-                    )) as unknown as AuthorizeState;
-                } catch {
-                    return c.html(
-                        errorPage("Session Expired", "Please try again"),
-                        400,
-                    );
-                }
-            } else {
-                return c.html(
-                    errorPage("Session Expired", "Please try again"),
-                    400,
-                );
-            }
+            return c.html(
+                errorPage("Session Expired", "Please try again"),
+                400,
+            );
         }
 
         let backlogTokens: TokenResponse;
@@ -298,10 +383,37 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        // Build authorization code that wraps the JWE tokens
         const now = Math.floor(Date.now() / 1000);
-        // This code will be exchanged at /mcp/token by the MCP client
-        const mcpCode = await encryptToken(
+
+        if (authorizeState.popup) {
+            const spaceToken: SpaceToken = {
+                space: authorizeState.space,
+                domain: authorizeState.domain,
+                bl_access_token: backlogTokens.access_token,
+                bl_refresh_token: backlogTokens.refresh_token,
+                bl_expires_at: now + backlogTokens.expires_in,
+            };
+
+            const cookieValue = await sign(
+                spaceToken as unknown as Record<string, unknown>,
+                signingKey,
+                signingKid,
+            );
+
+            setCookie(c, spaceCookieName(authorizeState.space, authorizeState.domain), cookieValue, {
+                httpOnly: true,
+                secure: true,
+                sameSite: "Lax",
+                maxAge: COOKIE_MAX_AGE,
+                path: "/mcp/authorize",
+            });
+
+            c.header("Cache-Control", "no-store");
+            return c.html(popupSuccessPage(authorizeState.space, authorizeState.domain));
+        }
+
+        // Legacy single-space flow (no popup flag)
+        const mcpCode = await signToken(
             {
                 bl_access_token: backlogTokens.access_token,
                 bl_refresh_token: backlogTokens.refresh_token,
@@ -311,10 +423,123 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
                 iat: now,
                 exp: now + 300,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        // Redirect back to MCP client with authorization code
+        const redirectUrl = new URL(authorizeState.redirect_uri);
+        redirectUrl.searchParams.set("code", mcpCode);
+        redirectUrl.searchParams.set("state", authorizeState.state);
+
+        c.header("Cache-Control", "no-store");
+        return c.redirect(redirectUrl.toString(), 302);
+    });
+
+    // GET /mcp/authorize/status — Check per-space auth status via cookies
+    app.get("/mcp/authorize/status", async (c) => {
+        const session = c.req.query("session");
+        const spacesParam = c.req.query("spaces");
+        if (!session) {
+            return c.json({ error: "missing session" }, 400);
+        }
+
+        try {
+            await verifyState(session);
+        } catch {
+            return c.json({ error: "invalid session" }, 400);
+        }
+
+        const spaceKeys = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
+        const statuses: Array<{ space: string; domain: string; authenticated: boolean }> = [];
+        for (const key of spaceKeys) {
+            const parsed = key.match(/^([^.]+)\.(.+)$/);
+            if (!parsed) continue;
+            const ref = { space: parsed[1], domain: parsed[2] };
+            const token = await readSpaceCookie(c, ref);
+            statuses.push({
+                space: ref.space,
+                domain: ref.domain,
+                authenticated: token !== null,
+            });
+        }
+
+        return c.json({ spaces: statuses });
+    });
+
+    // POST /mcp/authorize/complete — Collect all cookies, issue multi-space code
+    app.post("/mcp/authorize/complete", async (c) => {
+        let session: string | undefined;
+        let spacesParam: string | undefined;
+
+        const contentType = c.req.header("content-type") || "";
+        if (contentType.includes("application/x-www-form-urlencoded")) {
+            const body = new URLSearchParams(await c.req.text());
+            session = body.get("session") || undefined;
+            spacesParam = body.get("spaces") || undefined;
+        } else {
+            session = c.req.query("session");
+            spacesParam = c.req.query("spaces");
+        }
+
+        if (!session) {
+            return c.html(errorPage("Invalid Request", "Missing session"), 400);
+        }
+
+        let authorizeState: AuthorizeState;
+        try {
+            authorizeState = await verifyState(session);
+        } catch {
+            return c.html(errorPage("Session Expired", "Please try again"), 400);
+        }
+
+        const spaceKeys = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
+        const spaceTokens: SpaceToken[] = [];
+        for (const key of spaceKeys) {
+            const parsed = key.match(/^([^.]+)\.(.+)$/);
+            if (!parsed) continue;
+            const ref = { space: parsed[1], domain: parsed[2] };
+            const token = await readSpaceCookie(c, ref);
+            if (token) {
+                spaceTokens.push(token);
+            }
+        }
+
+        if (spaceTokens.length === 0) {
+            return c.html(
+                errorPage("No Authentication", "At least one space must be authenticated"),
+                400,
+            );
+        }
+
+        const primary = spaceTokens[0];
+        const now = Math.floor(Date.now() / 1000);
+
+        const mcpCode = await sign(
+            {
+                spaces: spaceTokens,
+                space: primary.space,
+                domain: primary.domain,
+                bl_access_token: primary.bl_access_token,
+                bl_refresh_token: primary.bl_refresh_token,
+                bl_expires_at: primary.bl_expires_at,
+                iat: now,
+                exp: now + 300,
+            },
+            signingKey,
+            signingKid,
+        );
+
+        // Clear space cookies
+        for (const t of spaceTokens) {
+            setCookie(c, spaceCookieName(t.space, t.domain), "", {
+                httpOnly: true,
+                secure: true,
+                sameSite: "Lax",
+                maxAge: 0,
+                path: "/mcp/authorize",
+            });
+        }
+
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
         redirectUrl.searchParams.set("state", authorizeState.state);
@@ -370,60 +595,102 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             return jsonError(c, 400, "invalid_request", "code is required");
         }
 
-        // Decrypt the MCP authorization code
-        let codePayload;
+        let codePayload: Record<string, unknown>;
         try {
-            codePayload = await decryptToken(req.code, tokenKey);
+            codePayload = await verify(req.code, verifyKeys);
         } catch {
-            if (tokenKeyPrev) {
-                try {
-                    codePayload = await decryptToken(req.code, tokenKeyPrev);
-                } catch {
-                    return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
-                }
-            } else {
-                return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
-            }
+            return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
         }
 
-        if (!codePayload.bl_access_token || !codePayload.bl_refresh_token) {
+        const now = Math.floor(Date.now() / 1000);
+        const spaces = codePayload.spaces as SpaceToken[] | undefined;
+
+        if (spaces && spaces.length > 0) {
+            const primary = spaces[0];
+            const minExpires = Math.min(...spaces.map((s) => s.bl_expires_at));
+            const expiresIn = Math.max(minExpires - now, 60);
+
+            const accessTokenJwt = await signToken(
+                {
+                    spaces,
+                    space: primary.space,
+                    domain: primary.domain,
+                    bl_access_token: primary.bl_access_token,
+                    bl_expires_at: primary.bl_expires_at,
+                    iat: now,
+                    exp: now + expiresIn,
+                },
+                signingKey,
+                signingKid,
+            );
+
+            const refreshSpaces = spaces.map((s) => ({
+                space: s.space,
+                domain: s.domain,
+                bl_access_token: "",
+                bl_refresh_token: s.bl_refresh_token,
+                bl_expires_at: s.bl_expires_at,
+            }));
+
+            const refreshTokenJwt = await sign(
+                {
+                    spaces: refreshSpaces,
+                    space: primary.space,
+                    domain: primary.domain,
+                    bl_refresh_token: primary.bl_refresh_token,
+                    iat: now,
+                },
+                signingKey,
+                signingKid,
+            );
+
+            return c.json({
+                access_token: accessTokenJwt,
+                token_type: "Bearer",
+                expires_in: expiresIn,
+                refresh_token: refreshTokenJwt,
+            });
+        }
+
+        // Legacy single-space code
+        const bl_access_token = codePayload.bl_access_token as string;
+        const bl_refresh_token = codePayload.bl_refresh_token as string;
+        if (!bl_access_token || !bl_refresh_token) {
             return jsonError(c, 400, "invalid_grant", "Malformed code");
         }
 
-        // PKCE verification: code_verifier must match code_challenge from authorize
-        // Note: in our stateless flow, the code_challenge was verified at authorize time
-        // and the code itself is JWE-encrypted, so replay is prevented by exp
+        const bl_expires_at = (codePayload.bl_expires_at as number) ?? now + 3600;
+        const expiresIn = Math.max(bl_expires_at - now, 60);
 
-        const now = Math.floor(Date.now() / 1000);
-        const expiresIn = (codePayload.bl_expires_at ?? now + 3600) - now;
-
-        const accessTokenJwe = await encryptToken(
+        const accessTokenJwt = await signToken(
             {
-                bl_access_token: codePayload.bl_access_token,
-                bl_expires_at: codePayload.bl_expires_at,
-                space: codePayload.space,
-                domain: codePayload.domain,
+                bl_access_token,
+                bl_expires_at,
+                space: codePayload.space as string,
+                domain: codePayload.domain as string,
                 iat: now,
-                exp: now + Math.max(expiresIn, 60),
+                exp: now + expiresIn,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        const refreshTokenJwe = await encryptToken(
+        const refreshTokenJwt = await signToken(
             {
-                bl_refresh_token: codePayload.bl_refresh_token,
-                space: codePayload.space,
-                domain: codePayload.domain,
+                bl_refresh_token,
+                space: codePayload.space as string,
+                domain: codePayload.domain as string,
                 iat: now,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         return c.json({
-            access_token: accessTokenJwe,
+            access_token: accessTokenJwt,
             token_type: "Bearer",
-            expires_in: Math.max(expiresIn, 60),
-            refresh_token: refreshTokenJwe,
+            expires_in: expiresIn,
+            refresh_token: refreshTokenJwt,
         });
     }
 
@@ -440,40 +707,102 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
             );
         }
 
-        let refreshPayload;
+        let refreshPayload: Record<string, unknown>;
         try {
-            refreshPayload = await decryptToken(req.refresh_token, tokenKey);
+            refreshPayload = await verify(req.refresh_token, verifyKeys);
         } catch {
-            if (tokenKeyPrev) {
+            return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
+        }
+
+        const spaces = refreshPayload.spaces as SpaceToken[] | undefined;
+
+        if (spaces && spaces.length > 0) {
+            const refreshedSpaces: SpaceToken[] = [];
+            for (const s of spaces) {
+                if (!s.bl_refresh_token) continue;
                 try {
-                    refreshPayload = await decryptToken(
-                        req.refresh_token,
-                        tokenKeyPrev,
-                    );
+                    const tokens = await doRefreshToken(s.domain, s.space, s.bl_refresh_token);
+                    const now = Math.floor(Date.now() / 1000);
+                    refreshedSpaces.push({
+                        space: s.space,
+                        domain: s.domain,
+                        bl_access_token: tokens.access_token,
+                        bl_refresh_token: tokens.refresh_token,
+                        bl_expires_at: now + tokens.expires_in,
+                    });
                 } catch {
                     return jsonError(
                         c,
-                        400,
-                        "invalid_grant",
-                        "Invalid refresh token",
+                        403,
+                        "insufficient_scope",
+                        `Token refresh failed for ${spaceKey(s.space, s.domain)}. Re-authentication required.`,
                     );
                 }
-            } else {
-                return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
             }
+
+            if (refreshedSpaces.length === 0) {
+                return jsonError(c, 400, "invalid_grant", "No refreshable tokens");
+            }
+
+            const primary = refreshedSpaces[0];
+            const now = Math.floor(Date.now() / 1000);
+            const minExpires = Math.min(...refreshedSpaces.map((s) => s.bl_expires_at));
+            const expiresIn = Math.max(minExpires - now, 60);
+
+            const accessTokenJwt = await signToken(
+                {
+                    spaces: refreshedSpaces,
+                    space: primary.space,
+                    domain: primary.domain,
+                    bl_access_token: primary.bl_access_token,
+                    bl_expires_at: primary.bl_expires_at,
+                    iat: now,
+                    exp: now + expiresIn,
+                },
+                signingKey,
+                signingKid,
+            );
+
+            const refreshSpaces = refreshedSpaces.map((s) => ({
+                space: s.space,
+                domain: s.domain,
+                bl_access_token: "",
+                bl_refresh_token: s.bl_refresh_token,
+                bl_expires_at: s.bl_expires_at,
+            }));
+
+            const refreshTokenJwt = await sign(
+                {
+                    spaces: refreshSpaces,
+                    space: primary.space,
+                    domain: primary.domain,
+                    bl_refresh_token: primary.bl_refresh_token,
+                    iat: now,
+                },
+                signingKey,
+                signingKid,
+            );
+
+            return c.json({
+                access_token: accessTokenJwt,
+                token_type: "Bearer",
+                expires_in: expiresIn,
+                refresh_token: refreshTokenJwt,
+            });
         }
 
-        if (!refreshPayload.bl_refresh_token) {
+        // Legacy single-space refresh
+        const bl_refresh_token = refreshPayload.bl_refresh_token as string;
+        if (!bl_refresh_token) {
             return jsonError(c, 400, "invalid_grant", "Malformed refresh token");
         }
 
+        const space = refreshPayload.space as string;
+        const domain = refreshPayload.domain as string;
+
         let backlogTokens: TokenResponse;
         try {
-            backlogTokens = await doRefreshToken(
-                refreshPayload.domain,
-                refreshPayload.space,
-                refreshPayload.bl_refresh_token,
-            );
+            backlogTokens = await doRefreshToken(domain, space, bl_refresh_token);
         } catch (err) {
             return jsonError(
                 c,
@@ -484,33 +813,35 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const accessTokenJwe = await encryptToken(
+        const accessTokenJwt = await signToken(
             {
                 bl_access_token: backlogTokens.access_token,
                 bl_expires_at: now + backlogTokens.expires_in,
-                space: refreshPayload.space,
-                domain: refreshPayload.domain,
+                space,
+                domain,
                 iat: now,
                 exp: now + backlogTokens.expires_in,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
-        const refreshTokenJwe = await encryptToken(
+        const refreshTokenJwt = await signToken(
             {
                 bl_refresh_token: backlogTokens.refresh_token,
-                space: refreshPayload.space,
-                domain: refreshPayload.domain,
+                space,
+                domain,
                 iat: now,
             },
-            tokenKey,
+            signingKey,
+            signingKid,
         );
 
         return c.json({
-            access_token: accessTokenJwe,
+            access_token: accessTokenJwt,
             token_type: "Bearer",
             expires_in: backlogTokens.expires_in,
-            refresh_token: refreshTokenJwe,
+            refresh_token: refreshTokenJwt,
         });
     }
 
@@ -519,44 +850,12 @@ export function createOAuthHandlers(config: McpServerConfig, options?: OAuthHand
 
 // --- Helper functions ---
 
-async function decryptClientId(
+async function verifyClientId(
     clientId: string,
-    key: Uint8Array,
-    prevKey?: Uint8Array,
+    verifyKeys: Map<string, import("jose").CryptoKey>,
 ): Promise<ClientIdPayload> {
-    try {
-        return (await decrypt(clientId, key)) as unknown as ClientIdPayload;
-    } catch {
-        if (prevKey) {
-            return (await decrypt(clientId, prevKey)) as unknown as ClientIdPayload;
-        }
-        throw new Error("Invalid client_id");
-    }
-}
-
-function parseScope(
-    scope: string | undefined,
-    config: McpServerConfig,
-): { space: string | undefined; domain: string | undefined } {
-    // scope format: "backlog:mycompany.backlog.jp"
-    if (scope) {
-        const match = scope.match(/^backlog:([^.]+)\.(.+)$/);
-        if (match) {
-            return { space: match[1], domain: match[2] };
-        }
-    }
-
-    // Default: use first tenant key if only one exists
-    const tenantKeys = Object.keys(config.tenants);
-    if (tenantKeys.length === 1) {
-        const key = tenantKeys[0];
-        const match = key.match(/^([^.]+)\.(.+)$/);
-        if (match) {
-            return { space: match[1], domain: match[2] };
-        }
-    }
-
-    return { space: undefined, domain: undefined };
+    const payload = await verify(clientId, verifyKeys);
+    return payload as unknown as ClientIdPayload;
 }
 
 async function exchangeCodeViaRelay(
@@ -609,14 +908,283 @@ async function refreshViaRelay(
     return (await resp.json()) as TokenResponse;
 }
 
+const BASE_STYLE = `* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e8e8e8; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.container { max-width:520px; width:100%; text-align:center; }
+h1 { font-size:1.5rem; font-weight:600; margin-bottom:1rem; color:#fff; }
+p { font-size:.95rem; line-height:1.6; color:#b0b0b0; }
+code {
+  background:rgba(66,184,131,.15); color:#42b883; padding:.15rem .4rem;
+  border-radius:4px; font-family:"SF Mono",Monaco,"Cascadia Code",monospace; font-size:.85rem;
+}
+.card {
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:12px; padding:1.5rem; text-align:left;
+}
+.footer { margin-top:2rem; font-size:.8rem; color:#666; }`;
+
 function errorPage(title: string, message: string): string {
     return `<!DOCTYPE html>
-<html>
-<head><title>${title}</title></head>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>${BASE_STYLE}</style>
+</head><body>
+<div class="container">
+  <h1>${escapeHtml(title)}</h1>
+  <div class="card" style="text-align:center;">
+    <p>${escapeHtml(message)}</p>
+    <p style="margin-top:1rem;color:#666;">You can close this window.</p>
+  </div>
+  <p class="footer">Backlog CLI OAuth Relay Server</p>
+</div>
+</body></html>`;
+}
+
+function popupSuccessPage(space: string, domain: string): string {
+    const key = spaceKey(space, domain);
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Authenticated</title>
+<style>${BASE_STYLE}
+.check { font-size:3rem; margin-bottom:1rem; }</style>
+</head><body>
+<div class="container">
+  <div class="check">&#x2705;</div>
+  <h1>Authenticated</h1>
+  <div class="card" style="text-align:center;">
+    <p>Connected to <code>${escapeHtml(key)}</code></p>
+    <p style="margin-top:.75rem;color:#666;">This window will close automatically.</p>
+  </div>
+</div>
+<script>
+if(window.opener){window.opener.postMessage({type:"backlog-space-auth",space:${JSON.stringify(key)},ok:true},"*");}
+setTimeout(()=>window.close(),1500);
+</script>
+</body></html>`;
+}
+
+function renderAuthPage(spaces: SpaceRef[], session: string, spacePatterns: string[]): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backlog Space Authentication</title>
+<style>
+${BASE_STYLE}
+.container { text-align:left; }
+.subtitle { font-size:.85rem; color:#888; margin-bottom:1.5rem; text-align:center; }
+h1 { text-align:center; }
+#spaces { margin-bottom:1rem; }
+.space { display:flex; align-items:center; gap:.75rem; padding:.65rem 0; border-bottom:1px solid rgba(255,255,255,.08); }
+.space:last-child { border-bottom:none; }
+.name { flex:1; font-family:"SF Mono",Monaco,"Cascadia Code",monospace; font-size:.9rem; color:#e8e8e8; word-break:break-all; }
+.status { font-size:.9rem; min-width:24px; text-align:center; color:#42b883; }
+.auth-btn {
+  padding:.35rem .75rem; border:1px solid rgba(66,184,131,.4); background:rgba(66,184,131,.15);
+  color:#42b883; border-radius:6px; cursor:pointer; font-size:.8rem; white-space:nowrap; transition:all .2s;
+}
+.auth-btn:hover { background:rgba(66,184,131,.25); border-color:#42b883; }
+.auth-btn:disabled { background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.1); color:#666; cursor:default; }
+.remove-btn {
+  background:none; border:none; color:#555; cursor:pointer; font-size:1.1rem; padding:0 .3rem; transition:color .2s;
+}
+.remove-btn:hover { color:#e74c3c; }
+.add-row { display:flex; gap:.5rem; margin-top:.75rem; }
+.add-row input {
+  flex:1; padding:.45rem .6rem; border:1px solid rgba(255,255,255,.15); border-radius:6px;
+  font-size:.85rem; font-family:"SF Mono",Monaco,"Cascadia Code",monospace;
+  background:rgba(255,255,255,.05); color:#e8e8e8;
+}
+.add-row input::placeholder { color:#555; }
+.add-row input:focus { outline:none; border-color:#42b883; }
+.add-row button {
+  padding:.45rem .8rem; border:1px solid rgba(66,184,131,.4); background:rgba(66,184,131,.15);
+  color:#42b883; border-radius:6px; cursor:pointer; font-size:.85rem; white-space:nowrap; transition:all .2s;
+}
+.add-row button:hover { background:rgba(66,184,131,.25); border-color:#42b883; }
+.continue-btn {
+  display:block; width:100%; margin-top:1.5rem; padding:.75rem; border:none;
+  background:#42b883; color:#fff; font-size:1rem; border-radius:8px; cursor:pointer; transition:background .2s;
+}
+.continue-btn:disabled { background:rgba(255,255,255,.1); color:#555; cursor:default; }
+.continue-btn:hover:not(:disabled) { background:#38a373; }
+.error { color:#e74c3c; font-size:.8rem; margin-top:.3rem; display:none; }
+</style>
+</head>
 <body>
-<h1>${title}</h1>
-<p>${message}</p>
-<p>You can close this window.</p>
+<div class="container">
+  <h1>Authenticate Backlog Spaces</h1>
+  <p class="subtitle">Authenticate at least one space to continue. Add more as needed.</p>
+  <div class="card">
+    <div id="spaces"></div>
+    <div class="add-row">
+      <input type="text" id="newSpace" placeholder="space.backlog.jp" />
+      <button onclick="addSpaceFromInput()">+ Add</button>
+    </div>
+    <div class="error" id="addError"></div>
+    <form id="completeForm" method="POST" action="/mcp/authorize/complete">
+      <input type="hidden" name="session" value="${escapeHtml(session)}" />
+      <input type="hidden" name="spaces" id="spacesInput" value="" />
+      <button type="submit" class="continue-btn" id="continueBtn" disabled>Continue</button>
+    </form>
+  </div>
+  <p class="footer" style="text-align:center;">Backlog CLI OAuth Relay Server</p>
+</div>
+<script>
+const SESSION = ${JSON.stringify(session)};
+const INITIAL = ${JSON.stringify(spaces.map((s) => spaceKey(s.space, s.domain)))};
+const SPACE_PATTERNS = ${JSON.stringify(spacePatterns)}.map(p => new RegExp("^" + p + "$"));
+const LS_KEY = "backlog_mcp_spaces";
+const authenticated = new Set();
+const allSpaces = new Map();
+
+function isSpaceAllowed(key) {
+  return SPACE_PATTERNS.some(re => re.test(key));
+}
+
+function loadSavedSpaces() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
+}
+function saveSpaces() {
+  const keys = [...allSpaces.keys()];
+  try { localStorage.setItem(LS_KEY, JSON.stringify(keys)); } catch {}
+}
+
+function parseSpaceKey(key) {
+  const i = key.indexOf(".");
+  if (i < 1) return null;
+  return { space: key.substring(0, i), domain: key.substring(i + 1) };
+}
+
+function addSpace(key, save) {
+  if (allSpaces.has(key)) return;
+  const parsed = parseSpaceKey(key);
+  if (!parsed) return;
+  allSpaces.set(key, parsed);
+  renderSpaces();
+  if (save) saveSpaces();
+}
+
+function removeSpace(key) {
+  if (authenticated.has(key)) return;
+  allSpaces.delete(key);
+  renderSpaces();
+  saveSpaces();
+}
+
+function renderSpaces() {
+  const container = document.getElementById("spaces");
+  container.innerHTML = "";
+  for (const [key, {space, domain}] of allSpaces) {
+    const done = authenticated.has(key);
+    const div = document.createElement("div");
+    div.className = "space";
+    div.dataset.key = key;
+    div.innerHTML =
+      '<span class="name">' + esc(key) + '</span>' +
+      '<span class="status">' + (done ? '\\u2713' : '') + '</span>' +
+      (done
+        ? '<button class="auth-btn" disabled>Done</button>'
+        : '<button class="auth-btn" onclick="authSpace(\\''+esc(space)+'\\',\\''+esc(domain)+'\\',event)">Authenticate</button>') +
+      (done ? '' : '<button class="remove-btn" onclick="removeSpace(\\''+esc(key)+'\\')">\\u00d7</button>');
+    container.appendChild(div);
+  }
+  updateContinue();
+}
+
+function authSpace(space, domain, evt) {
+  const key = space + "." + domain;
+  const el = document.querySelector('[data-key="'+key+'"]');
+  if (el) {
+    el.querySelector(".auth-btn").disabled = true;
+    el.querySelector(".auth-btn").textContent = "Authenticating...";
+  }
+  const w = 600, h = 700;
+  let left = window.screenX + (window.outerWidth - w) / 2;
+  let top = window.screenY + (window.outerHeight - h) / 2;
+  if (evt && evt.target) {
+    const rect = evt.target.getBoundingClientRect();
+    left = window.screenX + rect.right + 8;
+    top = window.screenY + window.outerHeight - window.innerHeight + rect.top;
+    if (left + w > screen.availLeft + screen.availWidth) left = window.screenX + rect.left - w - 8;
+    if (top + h > screen.availTop + screen.availHeight) top = screen.availTop + screen.availHeight - h;
+    if (top < screen.availTop) top = screen.availTop;
+  }
+  const url = "/mcp/authorize/space?space=" + encodeURIComponent(space)
+    + "&domain=" + encodeURIComponent(domain)
+    + "&session=" + encodeURIComponent(SESSION);
+  window.open(url, "backlog_auth_" + key, "width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top)+",popup=yes");
+}
+
+function markDone(key) {
+  authenticated.add(key);
+  renderSpaces();
+}
+
+function updateContinue() {
+  document.getElementById("continueBtn").disabled = authenticated.size === 0;
+  document.getElementById("spacesInput").value = [...authenticated].join(",");
+}
+
+function addSpaceFromInput() {
+  const input = document.getElementById("newSpace");
+  const errEl = document.getElementById("addError");
+  const val = input.value.trim();
+  errEl.style.display = "none";
+  if (!val) return;
+  if (!parseSpaceKey(val)) {
+    errEl.textContent = "Format: space.backlog.jp or space.backlog.com";
+    errEl.style.display = "block";
+    return;
+  }
+  if (!isSpaceAllowed(val)) {
+    errEl.textContent = "This space is not allowed on this server.";
+    errEl.style.display = "block";
+    return;
+  }
+  addSpace(val, true);
+  input.value = "";
+}
+
+document.getElementById("newSpace").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addSpaceFromInput(); }
+});
+
+window.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "backlog-space-auth" && e.data.ok) {
+    markDone(e.data.space);
+  }
+});
+
+setInterval(async () => {
+  const keys = [...allSpaces.keys()].filter(k => !authenticated.has(k));
+  if (keys.length === 0) return;
+  try {
+    const resp = await fetch("/mcp/authorize/status?session=" + encodeURIComponent(SESSION) + "&spaces=" + encodeURIComponent(keys.join(",")));
+    const data = await resp.json();
+    for (const s of data.spaces || []) {
+      if (s.authenticated) markDone(s.space + "." + s.domain);
+    }
+  } catch {}
+}, 2000);
+
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+
+// Init: merge scope spaces + localStorage saved spaces, filtered by space patterns
+const saved = loadSavedSpaces();
+const merged = new Set([...INITIAL, ...saved]);
+for (const key of merged) { if (isSpaceAllowed(key)) addSpace(key, false); }
+saveSpaces();
+</script>
 </body>
 </html>`;
+}
+
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }

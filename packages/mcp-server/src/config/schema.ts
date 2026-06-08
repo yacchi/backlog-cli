@@ -1,37 +1,48 @@
 import { z } from "zod";
 
-export const CliAccessSchema = z.object({
-    allow: z.array(z.string()),
-    deny: z.array(z.string()).default([]),
+export const SpacePatternSchema = z.object({
+    pattern: z.string(),
+    writable: z.boolean(),
 });
 
 export const ScriptConfigSchema = z.object({
-    enabled: z.boolean().default(false),
     max_cli_calls: z.number().positive().default(20),
     timeout_ms: z.number().positive().default(30000),
-});
-
-export const McpTenantSchema = z.object({
-    cli_access: CliAccessSchema.optional(),
-    script: ScriptConfigSchema.optional(),
-    skill_projects: z.array(z.string()).optional(),
 });
 
 export const McpServerConfigSchema = z.object({
     base_url: z.string().url(),
     relay_url: z.string().url().optional(),
-    token_key: z.string().min(1),
-    token_key_prev: z.string().optional(),
     backlog_app: z.object({
         client_id: z.string().min(1),
     }),
-    tenants: z.record(z.string(), McpTenantSchema).default({}),
+    jwks: z.string().min(1),
+    spaces: z.array(SpacePatternSchema).min(1),
+    script: ScriptConfigSchema.optional(),
+    default_spaces: z.array(z.string()).default([]),
 });
 
 export type McpServerConfig = z.output<typeof McpServerConfigSchema>;
-export type McpTenant = z.output<typeof McpTenantSchema>;
-export type CliAccess = z.output<typeof CliAccessSchema>;
+export type SpacePattern = z.output<typeof SpacePatternSchema>;
+export type ScriptConfig = z.output<typeof ScriptConfigSchema>;
 
 export function parseConfig(json: string): McpServerConfig {
     return McpServerConfigSchema.parse(JSON.parse(json));
+}
+
+export interface SpaceAccess {
+    writable: boolean;
+}
+
+export function matchSpacePattern(spaceKey: string, patterns: SpacePattern[]): SpaceAccess | null {
+    for (const p of patterns) {
+        try {
+            if (new RegExp(`^${p.pattern}$`).test(spaceKey)) {
+                return { writable: p.writable };
+            }
+        } catch {
+            // invalid regex — skip
+        }
+    }
+    return null;
 }
