@@ -961,7 +961,7 @@ function popupSuccessPage(space: string, domain: string): string {
   </div>
 </div>
 <script>
-if(window.opener){window.opener.postMessage({type:"backlog-space-auth",space:${JSON.stringify(key)},ok:true},"*");}
+if(window.opener){window.opener.postMessage({type:"backlog-space-auth",space:${JSON.stringify(key)},ok:true},window.location.origin);}
 setTimeout(()=>window.close(),1500);
 </script>
 </body></html>`;
@@ -1156,6 +1156,7 @@ document.getElementById("newSpace").addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("message", (e) => {
+  if (e.origin !== window.location.origin) return;
   if (e.data && e.data.type === "backlog-space-auth" && e.data.ok) {
     markDone(e.data.space);
   }

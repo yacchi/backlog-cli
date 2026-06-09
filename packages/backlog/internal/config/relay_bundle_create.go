@@ -110,8 +110,9 @@ func VerifyBundleTokenWithTenant(token string, allowedDomain string, tenant *Res
 	return VerifyBundleToken(token, allowedDomain, &jwks)
 }
 
-// VerifyBundleToken はbundle_token JWTを検証する
-func VerifyBundleToken(token string, allowedDomain string, jwks *relayBundleJWKS) error {
+// VerifyBundleToken はbundle_token JWTを検証する。
+// optNow で検証時刻を指定できる（省略時は現在時刻）。
+func VerifyBundleToken(token string, allowedDomain string, jwks *relayBundleJWKS, optNow ...time.Time) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return errors.New("invalid JWT format")
@@ -176,6 +177,23 @@ func VerifyBundleToken(token string, allowedDomain string, jwks *relayBundleJWKS
 
 	if claims.Subject != allowedDomain {
 		return fmt.Errorf("JWT subject mismatch: expected %s, got %s", allowedDomain, claims.Subject)
+	}
+
+	// 時間ベースの検証
+	verifyTime := time.Now()
+	if len(optNow) > 0 && !optNow[0].IsZero() {
+		verifyTime = optNow[0]
+	}
+	now := verifyTime.Unix()
+	if claims.IssuedAt > 0 && claims.IssuedAt > now+300 {
+		return fmt.Errorf("bundle token issued in the future")
+	}
+	if claims.NotBefore > 0 && claims.NotBefore > now {
+		return fmt.Errorf("bundle token not yet valid")
+	}
+	const maxBundleTokenAge = 7 * 24 * 3600 // 7 days
+	if claims.IssuedAt > 0 && now-claims.IssuedAt > maxBundleTokenAge {
+		return fmt.Errorf("bundle token expired (issued %d seconds ago)", now-claims.IssuedAt)
 	}
 
 	return nil

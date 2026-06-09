@@ -36,19 +36,24 @@ func TestGenerateAndVerifyBundleToken(t *testing.T) {
 	}
 
 	jwks := relayBundleJWKS{Keys: []relayBundleJWK{jwk}}
-	if err := VerifyBundleToken(token, "example.backlog.jp", &jwks); err != nil {
+	if err := VerifyBundleToken(token, "example.backlog.jp", &jwks, now); err != nil {
 		t.Fatalf("VerifyBundleToken failed: %v", err)
 	}
 
-	if err := VerifyBundleToken(token, "other.backlog.jp", &jwks); err == nil {
+	if err := VerifyBundleToken(token, "other.backlog.jp", &jwks, now); err == nil {
 		t.Fatalf("VerifyBundleToken should fail for wrong subject")
 	}
 
 	parts := strings.Split(token, ".")
 	parts[2] = "invalid"
 	badToken := strings.Join(parts, ".")
-	if err := VerifyBundleToken(badToken, "example.backlog.jp", &jwks); err == nil {
+	if err := VerifyBundleToken(badToken, "example.backlog.jp", &jwks, now); err == nil {
 		t.Fatalf("VerifyBundleToken should fail for tampered signature")
+	}
+
+	// 期限切れトークンの検証（発行時刻から8日後 = 7日の有効期限超過）
+	if err := VerifyBundleToken(token, "example.backlog.jp", &jwks, now.Add(8*24*time.Hour)); err == nil {
+		t.Fatalf("VerifyBundleToken should fail for expired token")
 	}
 }
 
