@@ -263,7 +263,7 @@ export function createTransportHandlers(
                     `Bearer error="insufficient_scope", resource_metadata="${resourceMetadataUrl}"`,
                 );
                 return c.json(
-                    { error: "insufficient_scope", error_description: `Space '${requestedSpace}' is not authenticated. Add it on the authentication page.` },
+                    { error: "insufficient_scope", error_description: `スペース '${requestedSpace}' は認証されていません。認証ページで追加してください。` },
                     403,
                 );
             }
@@ -273,7 +273,7 @@ export function createTransportHandlers(
         const access = matchSpacePattern(spaceKey, config.spaces);
         if (!access) {
             return c.json(
-                jsonRpcError(req.id ?? null, -32001, `Space '${spaceKey}' is not allowed on this server`),
+                jsonRpcError(req.id ?? null, -32001, `スペース '${spaceKey}' はこのサーバーでは許可されていません`),
             );
         }
 
@@ -366,7 +366,7 @@ export function createTransportHandlers(
             return jsonRpcResult(req.id, {
                 content: [{
                     type: "text",
-                    text: `Space '${requestedSpace}' is not authenticated in this session.\nAuthenticated spaces: ${authenticated}\nThe user needs to re-connect this MCP server and add '${requestedSpace}' on the authentication page.`,
+                    text: `スペース '${requestedSpace}' はこのセッションで認証されていません。\n認証済みスペース: ${authenticated}\nこのMCPサーバーに再接続し、認証ページで '${requestedSpace}' を追加する必要があります。`,
                 }],
                 isError: true,
             });
@@ -384,7 +384,7 @@ export function createTransportHandlers(
             return jsonRpcResult(req.id, {
                 content: [{
                     type: "text",
-                    text: `Space '${spaceKey}' is not allowed on this server.`,
+                    text: `スペース '${spaceKey}' はこのサーバーでは許可されていません。`,
                 }],
                 isError: true,
             });
@@ -395,7 +395,7 @@ export function createTransportHandlers(
             return jsonRpcResult(req.id, {
                 content: [{
                     type: "text",
-                    text: `Write operations are not allowed for space '${spaceKey}'. This space is read-only.`,
+                    text: `スペース '${spaceKey}' への書き込み操作は許可されていません。このスペースは読み取り専用です。`,
                 }],
                 isError: true,
             });

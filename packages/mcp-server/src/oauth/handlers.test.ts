@@ -191,7 +191,7 @@ describe("GET /mcp/authorize", () => {
 
         const html = await res.text();
         expect(html).toContain("mycompany.backlog.jp");
-        expect(html).toContain("Authenticate Backlog Spaces");
+        expect(html).toContain("Backlog スペースの認証");
     });
 
     it("rejects mismatched redirect_uri", async () => {

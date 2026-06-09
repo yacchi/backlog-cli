@@ -295,13 +295,13 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const session = c.req.query("session");
 
         if (!space || !domain || !session) {
-            return c.html(errorPage("Invalid Request", "Missing parameters"), 400);
+            return c.html(errorPage("不正なリクエスト", "パラメーターが不足しています"), 400);
         }
 
         const tenantKey = `${space}.${domain}`;
         if (!matchSpacePattern(tenantKey, config.spaces)) {
             return c.html(
-                errorPage("Space Not Allowed", `Space '${tenantKey}' is not allowed on this server.`),
+                errorPage("スペースが許可されていません", `スペース '${tenantKey}' はこのサーバーでは許可されていません。`),
                 403,
             );
         }
@@ -309,7 +309,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         try {
             await verifyState(session);
         } catch {
-            return c.html(errorPage("Session Expired", "Please try again"), 400);
+            return c.html(errorPage("セッションの有効期限切れ", "もう一度お試しください"), 400);
         }
 
         const now = Math.floor(Date.now() / 1000);
@@ -345,13 +345,13 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const errorParam = c.req.query("error");
 
         if (errorParam) {
-            const desc = c.req.query("error_description") || "Authorization denied";
-            return c.html(errorPage("Authorization Failed", desc), 400);
+            const desc = c.req.query("error_description") || "認可が拒否されました";
+            return c.html(errorPage("認可に失敗しました", desc), 400);
         }
 
         if (!code || !signedState) {
             return c.html(
-                errorPage("Invalid Request", "Missing code or state"),
+                errorPage("不正なリクエスト", "認可コードまたはstateが不足しています"),
                 400,
             );
         }
@@ -361,7 +361,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             authorizeState = await verifyState(signedState);
         } catch {
             return c.html(
-                errorPage("Session Expired", "Please try again"),
+                errorPage("セッションの有効期限切れ", "もう一度お試しください"),
                 400,
             );
         }
@@ -376,7 +376,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         } catch (err) {
             return c.html(
                 errorPage(
-                    "Token Exchange Failed",
+                    "トークン交換に失敗しました",
                     (err as Error).message,
                 ),
                 502,
@@ -482,14 +482,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         }
 
         if (!session) {
-            return c.html(errorPage("Invalid Request", "Missing session"), 400);
+            return c.html(errorPage("不正なリクエスト", "セッション情報が不足しています"), 400);
         }
 
         let authorizeState: AuthorizeState;
         try {
             authorizeState = await verifyState(session);
         } catch {
-            return c.html(errorPage("Session Expired", "Please try again"), 400);
+            return c.html(errorPage("セッションの有効期限切れ", "もう一度お試しください"), 400);
         }
 
         const spaceKeys = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
@@ -506,7 +506,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         if (spaceTokens.length === 0) {
             return c.html(
-                errorPage("No Authentication", "At least one space must be authenticated"),
+                errorPage("認証なし", "少なくとも1つのスペースを認証する必要があります"),
                 400,
             );
         }
@@ -937,9 +937,9 @@ function errorPage(title: string, message: string): string {
   <h1>${escapeHtml(title)}</h1>
   <div class="card" style="text-align:center;">
     <p>${escapeHtml(message)}</p>
-    <p style="margin-top:1rem;color:#666;">You can close this window.</p>
+    <p style="margin-top:1rem;color:#666;">このウィンドウを閉じることができます。</p>
   </div>
-  <p class="footer">Backlog CLI OAuth Relay Server</p>
+  <p class="footer">Backlog CLI OAuth 中継サーバー</p>
 </div>
 </body></html>`;
 }
@@ -948,16 +948,16 @@ function popupSuccessPage(space: string, domain: string): string {
     const key = spaceKey(space, domain);
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Authenticated</title>
+<title>認証完了</title>
 <style>${BASE_STYLE}
 .check { font-size:3rem; margin-bottom:1rem; }</style>
 </head><body>
 <div class="container">
   <div class="check">&#x2705;</div>
-  <h1>Authenticated</h1>
+  <h1>認証完了</h1>
   <div class="card" style="text-align:center;">
-    <p>Connected to <code>${escapeHtml(key)}</code></p>
-    <p style="margin-top:.75rem;color:#666;">This window will close automatically.</p>
+    <p><code>${escapeHtml(key)}</code> に接続しました</p>
+    <p style="margin-top:.75rem;color:#666;">このウィンドウは自動的に閉じます。</p>
   </div>
 </div>
 <script>
@@ -969,11 +969,11 @@ setTimeout(()=>window.close(),1500);
 
 function renderAuthPage(spaces: SpaceRef[], session: string, spacePatterns: string[]): string {
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Backlog Space Authentication</title>
+<title>Backlog スペース認証</title>
 <style>
 ${BASE_STYLE}
 .container { text-align:left; }
@@ -1018,22 +1018,22 @@ h1 { text-align:center; }
 </head>
 <body>
 <div class="container">
-  <h1>Authenticate Backlog Spaces</h1>
-  <p class="subtitle">Authenticate at least one space to continue. Add more as needed.</p>
+  <h1>Backlog スペースの認証</h1>
+  <p class="subtitle">続行するには、少なくとも1つのスペースを認証してください。必要に応じて追加できます。</p>
   <div class="card">
     <div id="spaces"></div>
     <div class="add-row">
       <input type="text" id="newSpace" placeholder="space.backlog.jp" />
-      <button onclick="addSpaceFromInput()">+ Add</button>
+      <button onclick="addSpaceFromInput()">+ 追加</button>
     </div>
     <div class="error" id="addError"></div>
     <form id="completeForm" method="POST" action="/mcp/authorize/complete">
       <input type="hidden" name="session" value="${escapeHtml(session)}" />
       <input type="hidden" name="spaces" id="spacesInput" value="" />
-      <button type="submit" class="continue-btn" id="continueBtn" disabled>Continue</button>
+      <button type="submit" class="continue-btn" id="continueBtn" disabled>続行</button>
     </form>
   </div>
-  <p class="footer" style="text-align:center;">Backlog CLI OAuth Relay Server</p>
+  <p class="footer" style="text-align:center;">Backlog CLI OAuth 中継サーバー</p>
 </div>
 <script>
 const SESSION = ${JSON.stringify(session)};
@@ -1089,8 +1089,8 @@ function renderSpaces() {
       '<span class="name">' + esc(key) + '</span>' +
       '<span class="status">' + (done ? '\\u2713' : '') + '</span>' +
       (done
-        ? '<button class="auth-btn" disabled>Done</button>'
-        : '<button class="auth-btn" onclick="authSpace(\\''+esc(space)+'\\',\\''+esc(domain)+'\\',event)">Authenticate</button>') +
+        ? '<button class="auth-btn" disabled>完了</button>'
+        : '<button class="auth-btn" onclick="authSpace(\\''+esc(space)+'\\',\\''+esc(domain)+'\\',event)">認証</button>') +
       (done ? '' : '<button class="remove-btn" onclick="removeSpace(\\''+esc(key)+'\\')">\\u00d7</button>');
     container.appendChild(div);
   }
@@ -1102,7 +1102,7 @@ function authSpace(space, domain, evt) {
   const el = document.querySelector('[data-key="'+key+'"]');
   if (el) {
     el.querySelector(".auth-btn").disabled = true;
-    el.querySelector(".auth-btn").textContent = "Authenticating...";
+    el.querySelector(".auth-btn").textContent = "認証中...";
   }
   const w = 600, h = 700;
   let left = window.screenX + (window.outerWidth - w) / 2;
@@ -1138,12 +1138,12 @@ function addSpaceFromInput() {
   errEl.style.display = "none";
   if (!val) return;
   if (!parseSpaceKey(val)) {
-    errEl.textContent = "Format: space.backlog.jp or space.backlog.com";
+    errEl.textContent = "形式: space.backlog.jp または space.backlog.com";
     errEl.style.display = "block";
     return;
   }
   if (!isSpaceAllowed(val)) {
-    errEl.textContent = "This space is not allowed on this server.";
+    errEl.textContent = "このスペースはこのサーバーでは許可されていません。";
     errEl.style.display = "block";
     return;
   }
