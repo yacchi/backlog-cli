@@ -10,6 +10,7 @@
     "diff": "cdk diff",
     "synth": "cdk synth",
     "invalidate-cache": "./scripts/invalidate-cache.sh",
+    "update-passphrase": "tsx scripts/update-passphrase.ts",
     "lint": "eslint lib/",
     "lint:typecheck": "tsc",
     "lint:fix": "eslint lib/ --fix",
