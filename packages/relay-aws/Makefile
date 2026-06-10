@@ -33,11 +33,11 @@ endif
 
 # CDK synth (includes asset + deps build)
 synth: deps assets
-	pnpm cdk synth BacklogOAuthRelay
+	pnpm cdk synth BacklogRelay
 
 # CDK deploy (includes asset + deps build)
 deploy: deps assets
-	pnpm cdk deploy BacklogOAuthRelay
+	pnpm cdk deploy BacklogRelay
 
 # Clean
 clean:
