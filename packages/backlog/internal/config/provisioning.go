@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -49,6 +50,14 @@ func DecodeProvisioningToken(token string) (*ProvisioningTokenClaims, error) {
 
 	if strings.TrimSpace(claims.RelayURL) == "" {
 		return nil, errors.New("provisioning token missing relay_url")
+	}
+	if parsed, err := url.Parse(claims.RelayURL); err != nil {
+		return nil, fmt.Errorf("provisioning token has invalid relay_url: %w", err)
+	} else {
+		host := parsed.Hostname()
+		if parsed.Scheme != "https" && host != "localhost" && host != "127.0.0.1" && host != "::1" {
+			return nil, fmt.Errorf("provisioning token relay_url must use HTTPS (got %s)", parsed.Scheme)
+		}
 	}
 	if strings.TrimSpace(claims.Subject) == "" {
 		return nil, errors.New("provisioning token missing sub")

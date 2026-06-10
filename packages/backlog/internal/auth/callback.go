@@ -701,7 +701,7 @@ func (cs *CallbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 			newStatus = "error"
 		} else if returnedState != cs.state {
 			// state 検証
-			debug.Log("state mismatch", "expected", cs.state, "got", returnedState)
+			debug.Log("state mismatch", "expected", stateFingerprint(cs.state), "got", stateFingerprint(returnedState))
 			callbackError = fmt.Errorf("state mismatch: possible CSRF attack")
 			cs.result <- CallbackResult{Error: callbackError}
 			updateSessionStatus("error", callbackError.Error())

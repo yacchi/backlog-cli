@@ -313,7 +313,7 @@ describe("MCP transport — space access control", () => {
         }, token);
         expect(res.result.isError).toBe(true);
         expect(res.result.content[0].text).toContain("rogue.backlog.jp");
-        expect(res.result.content[0].text).toContain("not allowed");
+        expect(res.result.content[0].text).toContain("許可されていません");
     });
 
     it("rejects mutation on read-only space", async () => {
@@ -328,6 +328,6 @@ describe("MCP transport — space access control", () => {
             arguments: { args: "issue create -p PROJ -t test" },
         });
         expect(res.result.isError).toBe(true);
-        expect(res.result.content[0].text).toContain("read-only");
+        expect(res.result.content[0].text).toContain("読み取り専用");
     });
 });

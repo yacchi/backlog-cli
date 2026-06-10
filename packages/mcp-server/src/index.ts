@@ -7,6 +7,13 @@ import type { McpServerConfig, ScriptConfig } from "./config/schema.js";
 import type { TokenPayload } from "./crypto/jwt.js";
 import { loadSigningKeys } from "./crypto/jwt.js";
 
+const MCP_CORS_HEADERS = {
+    origin: "*",
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization", "Accept", "MCP-Protocol-Version"],
+    exposeHeaders: ["WWW-Authenticate"],
+};
+
 export { sign, verify, signToken, verifyToken, loadSigningKeys } from "./crypto/jwt.js";
 export type { TokenPayload, SigningKeys } from "./crypto/jwt.js";
 export { McpServerConfigSchema, parseConfig, matchSpacePattern } from "./config/schema.js";
@@ -35,12 +42,13 @@ export async function createMcpApp(options: CreateMcpAppOptions): Promise<Hono> 
 
     const keys = await loadSigningKeys(config.jwks);
 
-    app.use("*", cors({
-        origin: "*",
-        allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-        allowHeaders: ["Content-Type", "Authorization", "Accept", "MCP-Protocol-Version"],
-        exposeHeaders: ["WWW-Authenticate"],
-    }));
+    // MCP transport, token, register, well-known: cross-origin access required by MCP spec (Bearer auth, no cookies)
+    app.use("/mcp", cors(MCP_CORS_HEADERS));
+    app.use("/mcp/register", cors(MCP_CORS_HEADERS));
+    app.use("/mcp/token", cors(MCP_CORS_HEADERS));
+    app.use("/.well-known/*", cors(MCP_CORS_HEADERS));
+    // OAuth authorize routes (/mcp/authorize*) intentionally have NO CORS —
+    // they are same-origin (HTML served by this server) and use cookies.
 
     app.route("/", createWellKnownHandlers(config));
     app.route("/", createOAuthHandlers(config, keys, {

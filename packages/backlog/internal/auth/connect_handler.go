@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -77,6 +78,21 @@ func (cs *CallbackServer) Configure(
 	relayServer := req.Msg.RelayServer
 
 	debug.Log("Configure called", "space_host", spaceHost, "relay_server", relayServer)
+
+	// リレーサーバーURLのスキーム検証
+	if relayServer != "" {
+		parsed, err := url.Parse(relayServer)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+			resp.Msg.Success = false
+			resp.Msg.Error = stringPtr("無効なリレーサーバーURLです")
+			return resp, nil
+		}
+		if parsed.Scheme != "https" && parsed.Hostname() != "localhost" && parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "::1" {
+			resp.Msg.Success = false
+			resp.Msg.Error = stringPtr("リレーサーバーはHTTPS必須です（localhostを除く）")
+			return resp, nil
+		}
+	}
 
 	// スペースホストをパース
 	space, domain, err := parseSpaceHost(spaceHost)

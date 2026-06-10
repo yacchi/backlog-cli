@@ -181,12 +181,11 @@ client:
 
 ```
 GET /v1/relay/tenants/spaceid.backlogdomain/info
-Authorization: Bearer <bundle_token>
 ```
 
 ### 認証
 
-`bundle_token` による認証が必須。
+無認証。返す情報は署名付きの公開構成情報であり、信頼は `relay_keys` でピン留めした鍵による署名検証で担保する（「テナントエンドポイントの認証」を参照）。
 
 ### レスポンス形式
 
@@ -355,25 +354,28 @@ server:
 
 ## テナントエンドポイントの認証
 
-`/v1/relay/tenants/{domain}/` 配下のエンドポイント（`certs` を除く）は `bundle_token` による認証が必要。
+`/v1/relay/tenants/{domain}/` 配下の `certs` / `info` / `bundle` エンドポイントは**いずれも無認証**で公開する。
 
-### 認証方法
+### 設計判断: 無認証で問題ない理由
 
-```
-GET /v1/relay/tenants/spaceid.backlogdomain/info
-Authorization: Bearer <bundle_token>
-```
+これらのエンドポイントが返すのは「公開鍵」と「署名済みの中継サーバー構成情報」であり、シークレットを含まない。信頼の担保は認証ではなく**署名のピン留め**で行う。
 
-- `certs` エンドポイントは公開鍵配布用のため認証不要。
-- `info` と `bundle` エンドポイントは `bundle_token` が必須。
-- トークンは `Authorization: Bearer` ヘッダーで送信する。
+- `certs`: 公開鍵 JWKS（`d` を除去済み）を返すだけで、本質的に公開情報。
+- `info`: `relay_url` / `allowed_domain` / `issued_at` / `expires_at` を Ed25519 署名付きで返す。CLI は `relay_keys` の `thumbprint` でピン留めした鍵でのみ署名検証するため、無認証で取得できても改ざんや不正な構成の注入はできない。
+- `bundle`: バンドル ZIP（`manifest.yaml` + 署名）を返す。中身は署名済みで改ざん不可。`bundle_token` を含むが、このトークンの用途は本エンドポイント群へのアクセスのみであり、エンドポイントが無認証である以上、開示されても追加の権限を与えない。Backlog のアクセストークン取得には別途 OAuth 認証が必須。
 
-### 認証エラー
+`bundle_token` はバンドルに同梱されるが、現状の中継サーバー実装ではこれらエンドポイントの**認証には使用しない**（将来的に列挙防止のための認証を追加する余地は残す）。
+
+### 配布の制御
+
+初回バンドル配布はポータルのパスフレーズ保護エンドポイント（`/api/v1/portal/...`）で制御する。直接エンドポイント（`/v1/relay/tenants/{domain}/bundle`）は自動更新用であり、配布制限のゲートではない点に注意する。
+
+### エラー
 
 | ステータス | 原因 |
 |-----------|------|
-| 401 Unauthorized | トークン未指定、形式不正、署名検証失敗 |
 | 404 Not Found | テナントが存在しない |
+| 500 Internal Server Error | JWKS 未設定・署名失敗 |
 
 ## バンドル取得エンドポイント（自動更新用）
 
@@ -381,12 +383,12 @@ Authorization: Bearer <bundle_token>
 
 ```
 GET /v1/relay/tenants/spaceid.backlogdomain/bundle
-Authorization: Bearer <bundle_token>
 ```
 
 ### 認証
 
-`bundle_token` による認証が必須。初回ダウンロードはポータル経由で行う。
+無認証。バンドル ZIP は署名済みで改ざん不可であり、シークレットを含まない（「テナントエンドポイントの認証」を参照）。
+初回ダウンロードはポータルのパスフレーズ保護エンドポイント経由で行い、本エンドポイントは主に自動更新用とする。
 
 ### レスポンス
 

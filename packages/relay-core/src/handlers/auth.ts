@@ -94,20 +94,38 @@ export function createAuthHandlers(
   }
 
   /**
+   * Escape HTML special characters to prevent XSS.
+   */
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  /**
    * Render HTML error page.
+   *
+   * title/message may contain attacker-controlled values (e.g. the OAuth
+   * error_description query parameter), so they MUST be HTML-escaped to
+   * prevent reflected XSS.
    */
   function renderErrorPage(
     c: Context,
     title: string,
     message: string
   ): Response {
+    const safeTitle = escapeHtml(title);
+    const safeMessage = escapeHtml(message);
     return c.html(
       `<!DOCTYPE html>
 <html>
-<head><title>${title}</title></head>
+<head><title>${safeTitle}</title></head>
 <body>
-<h1>${title}</h1>
-<p>${message}</p>
+<h1>${safeTitle}</h1>
+<p>${safeMessage}</p>
 <p>You can close this window.</p>
 </body>
 </html>`,

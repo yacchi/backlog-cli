@@ -319,8 +319,13 @@ func buildRelayCertsURL(relayURL, allowedDomain string) (string, error) {
 	if relayURL == "" {
 		return "", errors.New("relay_url is empty")
 	}
-	if _, err := url.Parse(relayURL); err != nil {
+	parsed, err := url.Parse(relayURL)
+	if err != nil {
 		return "", fmt.Errorf("invalid relay_url: %w", err)
+	}
+	host := parsed.Hostname()
+	if parsed.Scheme != "https" && host != "localhost" && host != "127.0.0.1" && host != "::1" {
+		return "", fmt.Errorf("relay_url must use HTTPS (got %s)", parsed.Scheme)
 	}
 	return url.JoinPath(relayURL, "/v1/relay/tenants/"+allowedDomain+"/certs")
 }
@@ -393,7 +398,11 @@ func (c *certsCache) set(certsURL string, jwks *relayBundleJWKS) {
 	}
 
 	cacheFile := filepath.Join(c.dir, c.cacheKey(certsURL)+".json")
-	_ = os.WriteFile(cacheFile, data, 0600)
+	tmpFile := cacheFile + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+		return
+	}
+	_ = os.Rename(tmpFile, cacheFile)
 }
 
 func fetchRelayJWKS(ctx context.Context, certsURL string, client *http.Client, cache *certsCache) (*relayBundleJWKS, error) {
@@ -503,14 +512,16 @@ func verifyRelayBundleSignature(manifestBytes, sigBytes []byte, allowedKeys map[
 	signingInput := jws.Payload
 	valid := false
 
-	for _, sig := range jws.Signatures {
+	for i, sig := range jws.Signatures {
 		protectedBytes, err := base64.RawURLEncoding.DecodeString(sig.Protected)
 		if err != nil {
+			debug.Log("signature protected header decode failed", "index", i, "error", err)
 			continue
 		}
 
 		var header relayBundleJWSHeader
 		if err := json.Unmarshal(protectedBytes, &header); err != nil {
+			debug.Log("signature header unmarshal failed", "index", i, "error", err)
 			continue
 		}
 		if header.Alg != "EdDSA" || header.Kid == "" {
@@ -524,6 +535,7 @@ func verifyRelayBundleSignature(manifestBytes, sigBytes []byte, allowedKeys map[
 
 		signatureBytes, err := base64.RawURLEncoding.DecodeString(sig.Signature)
 		if err != nil {
+			debug.Log("signature decode failed", "index", i, "kid", header.Kid, "error", err)
 			continue
 		}
 
@@ -532,6 +544,7 @@ func verifyRelayBundleSignature(manifestBytes, sigBytes []byte, allowedKeys map[
 			valid = true
 			break
 		}
+		debug.Log("signature verification failed for matching key", "index", i, "kid", header.Kid)
 	}
 
 	if !valid {
