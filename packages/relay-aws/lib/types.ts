@@ -67,13 +67,32 @@ export interface CloudFrontCacheConfig {
 }
 
 /**
+ * Custom domain settings for CloudFront.
+ *
+ * domainName と certificateArn は常にセットで指定する必要がある
+ * （CloudFront のエイリアスにはドメイン名と ACM 証明書の両方が必須）。
+ * hostedZoneId を指定すると Route53 に A/AAAA レコードも作成する。
+ */
+export interface CloudFrontCustomDomain {
+  /** カスタムドメイン名（例: backlog-relay.example.com） */
+  domainName: string;
+  /** ACM 証明書 ARN（CloudFront 用なので us-east-1 のもの） */
+  certificateArn: string;
+  /** Route53 ホストゾーン ID（指定時のみ DNS レコードを自動作成） */
+  hostedZoneId?: string;
+}
+
+/**
  * CloudFront configuration.
+ *
+ * customDomain は「全て指定」か「未指定」のどちらかのみ許可する。
+ * domainName だけ・certificateArn だけといった部分指定は型レベルで防ぐ
+ * （部分指定だとカスタムドメインが黙って無効化されデプロイ事故につながるため）。
  */
 export interface CloudFrontConfig {
   enabled: boolean;
-  domainName?: string;
-  certificateArn?: string;
-  hostedZoneId?: string;
+  /** カスタムドメイン設定（ドメイン名・証明書・任意でホストゾーン） */
+  customDomain?: CloudFrontCustomDomain;
   cache?: CloudFrontCacheConfig;
 }
 

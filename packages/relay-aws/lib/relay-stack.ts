@@ -196,8 +196,8 @@ export class RelayStack extends cdk.Stack {
       patterns.push("*.cloudfront.net");
 
       // カスタムドメイン（設定されている場合）
-      if (this.config.cloudFront.domainName) {
-        patterns.push(this.config.cloudFront.domainName);
+      if (this.config.cloudFront.customDomain) {
+        patterns.push(this.config.cloudFront.customDomain.domainName);
       }
     }
 
@@ -368,8 +368,7 @@ export class RelayStack extends cdk.Stack {
     if (!cloudFrontConfig?.enabled) {
       return;
     }
-    const { domainName, certificateArn, hostedZoneId } = cloudFrontConfig;
-    const useCustomDomain = domainName != null && certificateArn != null;
+    const { customDomain } = cloudFrontConfig;
 
     // オリジン: Lambda Function URL (OAC 自動設定)
     const origin = this.createOrigin();
@@ -423,17 +422,17 @@ export class RelayStack extends cdk.Stack {
 
     // ディストリビューション
     const distribution = new cloudfront.Distribution(this, "Distribution", {
-      ...(useCustomDomain && {
-        domainNames: [domainName!],
+      ...(customDomain && {
+        domainNames: [customDomain.domainName],
         certificate: acm.Certificate.fromCertificateArn(
           this,
           "Certificate",
-          certificateArn!,
+          customDomain.certificateArn,
         ),
       }),
-      comment: useCustomDomain
-        ? `Backlog CLI OAuth Relay Server (${domainName})`
-        : "Backlog CLI OAuth Relay Server",
+      comment: customDomain
+        ? `Backlog CLI Relay Server (${customDomain.domainName})`
+        : "Backlog CLI Relay Server",
       // デフォルト: オリジンのCache-Controlヘッダーを尊重
       // アプリケーション側で適切なキャッシュ制御を返す
       defaultBehavior: {
@@ -457,15 +456,16 @@ export class RelayStack extends cdk.Stack {
     });
 
     // Route 53 DNS レコード
-    if (useCustomDomain && hostedZoneId) {
-      this.createDnsRecords(distribution, domainName!, hostedZoneId);
+    if (customDomain?.hostedZoneId) {
+      this.createDnsRecords(
+        distribution,
+        customDomain.domainName,
+        customDomain.hostedZoneId,
+      );
     }
 
     // CloudFront 用 Outputs
-    this.createCloudFrontOutputs(
-      distribution,
-      useCustomDomain ? domainName : undefined,
-    );
+    this.createCloudFrontOutputs(distribution, customDomain?.domainName);
 
     return distribution;
   }
