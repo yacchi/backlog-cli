@@ -1,6 +1,6 @@
-# Backlog CLI OAuth Relay Server - AWS CDK Deployment
+# Backlog CLI Relay Server - AWS CDK Deployment
 
-AWS CDK を使用して Backlog CLI OAuth リレーサーバーを AWS Lambda にデプロイします。
+AWS CDK を使用して Backlog CLI リレーサーバー（OAuth リレー + MCP サーバー）を AWS Lambda にデプロイします。
 
 ## 前提条件
 

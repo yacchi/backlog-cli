@@ -6,11 +6,11 @@ import { config } from "../config.js";
 
 const app = new cdk.App();
 
-new RelayStack(app, "BacklogOAuthRelay", {
+new RelayStack(app, "BacklogRelay", {
   config,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1",
   },
-  description: "Backlog CLI OAuth Relay Server",
+  description: "Backlog CLI Relay Server (OAuth relay + MCP server)",
 });
