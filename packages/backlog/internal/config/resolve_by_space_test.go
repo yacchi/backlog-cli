@@ -7,7 +7,7 @@ import (
 
 func TestResolveBySpace(t *testing.T) {
 	t.Run("single match", func(t *testing.T) {
-		t.Setenv("BACKLOG_PROFILE_default_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
 
 		store := loadTestStore(t)
@@ -22,7 +22,7 @@ func TestResolveBySpace(t *testing.T) {
 	})
 
 	t.Run("no match", func(t *testing.T) {
-		t.Setenv("BACKLOG_PROFILE_default_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
 
 		store := loadTestStore(t)
@@ -34,10 +34,10 @@ func TestResolveBySpace(t *testing.T) {
 	})
 
 	t.Run("multiple match with primary", func(t *testing.T) {
-		t.Setenv("BACKLOG_PROFILE_default_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
 		t.Setenv("BACKLOG_PROFILE_default_PRIMARY", "true")
-		t.Setenv("BACKLOG_PROFILE_readonly_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_readonly_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_readonly_DOMAIN", "backlog.jp")
 
 		store := loadTestStore(t)
@@ -52,10 +52,10 @@ func TestResolveBySpace(t *testing.T) {
 	})
 
 	t.Run("multiple match without primary", func(t *testing.T) {
-		t.Setenv("BACKLOG_PROFILE_default_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
 		t.Setenv("BACKLOG_PROFILE_default_PRIMARY", "false")
-		t.Setenv("BACKLOG_PROFILE_readonly_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_readonly_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_readonly_DOMAIN", "backlog.jp")
 		t.Setenv("BACKLOG_PROFILE_readonly_PRIMARY", "false")
 
@@ -77,7 +77,7 @@ func TestResolveBySpace(t *testing.T) {
 	})
 
 	t.Run("different domain not matched", func(t *testing.T) {
-		t.Setenv("BACKLOG_PROFILE_default_SPACE", "ai2")
+		t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
 		t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
 
 		store := loadTestStore(t)
