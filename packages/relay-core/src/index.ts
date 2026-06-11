@@ -16,6 +16,7 @@ import { createPortalHandlers, type PortalAssets } from "./handlers/portal.js";
 import { createCertsHandlers } from "./handlers/certs.js";
 import { createInfoHandlers } from "./handlers/info.js";
 import { createBundleHandlers } from "./handlers/bundle.js";
+import { createInstallHandlers } from "./handlers/install.js";
 
 // Re-export types
 export type {
@@ -74,6 +75,7 @@ export type { PortalAssets } from "./handlers/portal.js";
 export { createCertsHandlers } from "./handlers/certs.js";
 export { createInfoHandlers } from "./handlers/info.js";
 export { createBundleHandlers } from "./handlers/bundle.js";
+export { createInstallHandlers } from "./handlers/install.js";
 
 /**
  * Options for creating the relay app.
@@ -113,6 +115,7 @@ export interface CreateRelayAppOptions {
  * - GET /v1/relay/tenants/:domain/certs - Get public JWKS
  * - GET /v1/relay/tenants/:domain/info - Get signed relay info
  * - GET /v1/relay/tenants/:domain/bundle - Download config bundle (no auth)
+ * - GET /install.sh - Install script with relay URL injected
  * - POST /portal/verify - Verify portal passphrase (optional)
  * - POST /portal/bundle/:domain - Download config bundle with auth (optional)
  */
@@ -143,6 +146,9 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
       createBundleHandlers(config, auditLogger, options.createBundle)
     );
   }
+
+  // Mount install script handler
+  app.route("/", createInstallHandlers(config));
 
   // Mount portal handlers if both functions are provided
   if (options.verifyPassphrase && options.createBundle) {
