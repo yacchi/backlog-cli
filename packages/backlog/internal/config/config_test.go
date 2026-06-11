@@ -17,10 +17,6 @@ func TestDefaultConfig(t *testing.T) {
 	}
 
 	profile := cfg.CurrentProfile()
-	if profile.Domain != "backlog.jp" {
-		t.Errorf("Domain = %v, want %v", profile.Domain, "backlog.jp")
-	}
-
 	if profile.Output != "table" {
 		t.Errorf("Output = %v, want %v", profile.Output, "table")
 	}
@@ -32,7 +28,8 @@ func TestEnvOverrides(t *testing.T) {
 	defer ResetConfig()
 
 	// 動的マッピング形式: BACKLOG_PROFILE_{key}_SPACE
-	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space")
+	// spaceHost 形式（ドット付き）で指定し、normalizeSpaceFields の影響を受けないようにする
+	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space.backlog.jp")
 
 	cfg, err := Load(t.Context())
 	if err != nil {
@@ -40,8 +37,8 @@ func TestEnvOverrides(t *testing.T) {
 	}
 
 	profile := cfg.CurrentProfile()
-	if profile.Space != "test-space" {
-		t.Errorf("Space = %v, want %v", profile.Space, "test-space")
+	if profile.Space != "test-space.backlog.jp" {
+		t.Errorf("Space = %v, want %v", profile.Space, "test-space.backlog.jp")
 	}
 }
 

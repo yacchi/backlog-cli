@@ -50,7 +50,7 @@ func TestJubakoStoreLoad(t *testing.T) {
 
 func TestJubakoStoreEnvOverrides(t *testing.T) {
 	// 環境変数を設定（動的マッピング形式: BACKLOG_PROFILE_{key}_SPACE）
-	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space-from-env")
+	t.Setenv("BACKLOG_PROFILE_default_SPACE", "test-space-from-env.backlog.jp")
 	t.Setenv("BACKLOG_CLIENT_ID_JP", "test-client-id-jp")
 
 	ctx := t.Context()
@@ -71,8 +71,8 @@ func TestJubakoStoreEnvOverrides(t *testing.T) {
 		return
 	}
 
-	if profile.Space != "test-space-from-env" {
-		t.Errorf("Space = %q, want %q", profile.Space, "test-space-from-env")
+	if profile.Space != "test-space-from-env.backlog.jp" {
+		t.Errorf("Space = %q, want %q", profile.Space, "test-space-from-env.backlog.jp")
 	}
 
 	// Backlogアプリ設定の確認
@@ -126,7 +126,7 @@ func TestJubakoStoreActiveProfile(t *testing.T) {
 func TestEnvShortcuts(t *testing.T) {
 	// ショートカット環境変数のテスト
 	// BACKLOG_SPACE は BACKLOG_PROFILE_default_SPACE に展開される
-	t.Setenv("BACKLOG_SPACE", "shortcut-test-space")
+	t.Setenv("BACKLOG_SPACE", "shortcut-test-space.backlog.jp")
 
 	ctx := t.Context()
 
@@ -145,15 +145,15 @@ func TestEnvShortcuts(t *testing.T) {
 		return
 	}
 
-	if profile.Space != "shortcut-test-space" {
-		t.Errorf("Space = %q, want %q", profile.Space, "shortcut-test-space")
+	if profile.Space != "shortcut-test-space.backlog.jp" {
+		t.Errorf("Space = %q, want %q", profile.Space, "shortcut-test-space.backlog.jp")
 	}
 }
 
 func TestEnvShortcutsPriority(t *testing.T) {
 	// 完全形式が設定されている場合は、ショートカットより優先
-	t.Setenv("BACKLOG_SPACE", "shortcut-space")
-	t.Setenv("BACKLOG_PROFILE_default_SPACE", "full-form-space")
+	t.Setenv("BACKLOG_SPACE", "shortcut-space.backlog.jp")
+	t.Setenv("BACKLOG_PROFILE_default_SPACE", "full-form-space.backlog.jp")
 
 	ctx := t.Context()
 
@@ -173,8 +173,8 @@ func TestEnvShortcutsPriority(t *testing.T) {
 	}
 
 	// 完全形式が優先される
-	if profile.Space != "full-form-space" {
-		t.Errorf("Space = %q, want %q (full form should take priority)", profile.Space, "full-form-space")
+	if profile.Space != "full-form-space.backlog.jp" {
+		t.Errorf("Space = %q, want %q (full form should take priority)", profile.Space, "full-form-space.backlog.jp")
 	}
 }
 

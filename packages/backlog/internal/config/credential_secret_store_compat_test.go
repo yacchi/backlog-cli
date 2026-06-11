@@ -22,8 +22,7 @@ func TestCredentialSecretComment(t *testing.T) {
 		ProfileName: DefaultProfile,
 		UserName:    "Fujie",
 		UserEmail:   "fujie@example.com",
-		Space:       "team",
-		Domain:      "backlog.jp",
+		Space:       "team.backlog.jp",
 		AuthType:    AuthTypeOAuth,
 	})
 	if !strings.Contains(got, `profile "default"`) {
