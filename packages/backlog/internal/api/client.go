@@ -236,13 +236,17 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 		// OAuth認証（デフォルト）
 		profileName := resolved.ActiveProfile
 		httpTimeout := time.Duration(profile.HTTPTimeout) * time.Second
+		// relay_url は解決順位（env > bundle > inline relay_server）に従って決定する。
+		// バンドル参照プロファイルでは relay_server が空のため、ここで解決しないと
+		// トークンリフレッシュができず期限切れトークンで 401 になる。
+		relayURL, _ := cfg.ResolveRelayURL(profile)
 		client := NewClient(
 			space,
 			domain,
 			cred.AccessToken,
 			WithTokenRefresh(
 				cred.RefreshToken,
-				profile.RelayServer,
+				relayURL,
 				cred.ExpiresAt,
 				func(ctx context.Context, accessToken, refreshToken string, expiresAt time.Time) {
 					// 設定ファイルを更新（プロファイルに紐づける）

@@ -229,8 +229,9 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 		return "", errors.New("profile is not available")
 	}
 
-	if strings.TrimSpace(profile.RelayServer) == "" {
-		return "", errors.New("profile.default.relay_server is required")
+	relayURL, err := store.ResolveRelayURL(profile)
+	if err != nil || strings.TrimSpace(relayURL) == "" {
+		return "", errors.New("relay server is not configured (set profile.relay_server or profile.bundle)")
 	}
 
 	tenant, name, err := resolveTenantConfig(store, opts.Name)
@@ -276,7 +277,7 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 	manifest := RelayBundleManifest{
 		Version:     2,
 		Name:        name,
-		RelayURL:    profile.RelayServer,
+		RelayURL:    relayURL,
 		IssuedAt:    now.Format(time.RFC3339),
 		ExpiresAt:   now.Add(opts.ExpiresIn).Format(time.RFC3339),
 		BundleToken: bundleToken,
