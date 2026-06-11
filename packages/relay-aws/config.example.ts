@@ -33,6 +33,7 @@ export const config: RelayConfig = {
     //     // JWKS (Ed25519) と passphrase は省略可能 — デプロイ時に自動生成されます。
     //     // 自動生成された値は Secrets Manager に保存されます。
     //     // passphrase の平文は SM シークレットから取得できます。
+    //     // default_space: "your-space.backlog.jp",  // CLI setup 時の --space デフォルト値
     //     relay: {
     //       // jwks: { keys: [...] },       // 省略で自動生成 (kid: "auto-1")
     //       // active_keys: "auto-1",       // 省略で "auto-1" がデフォルト

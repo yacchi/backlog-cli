@@ -10,7 +10,7 @@ interface TenantInfo {
   relay_url: string;
 }
 
-type SetupMethod = "bundle" | "provision";
+type SetupMethod = "quickstart" | "provision" | "bundle";
 
 const errorMessages: Record<string, string> = {
   invalid_passphrase: "パスフレーズが正しくありません",
@@ -32,7 +32,7 @@ export default function Portal() {
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [setupMethod, setSetupMethod] = useState<SetupMethod>("provision");
+  const [setupMethod, setSetupMethod] = useState<SetupMethod>("quickstart");
   const [provisioningKey, setProvisioningKey] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -199,6 +199,17 @@ export default function Portal() {
                 <button
                   type="button"
                   className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                    setupMethod === "quickstart"
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-ink/60 hover:text-ink/80"
+                  }`}
+                  onClick={() => setSetupMethod("quickstart")}
+                >
+                  クイックスタート
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                     setupMethod === "provision"
                       ? "bg-white text-ink shadow-sm"
                       : "text-ink/60 hover:text-ink/80"
@@ -220,7 +231,38 @@ export default function Portal() {
                 </button>
               </div>
 
-              {setupMethod === "provision" ? (
+              {setupMethod === "quickstart" ? (
+                <div className="space-y-4">
+                  <p className="text-center text-sm text-ink/70">
+                    ターミナルで以下のコマンドを実行すると、CLIのインストールとセットアップが完了します
+                  </p>
+                  <div className="relative">
+                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4">
+                      <code className="block break-all text-sm leading-relaxed text-ink">
+                        curl -fsSL {tenantInfo.relay_url}/install.sh | sh -s -- --name {name} --passphrase '...'
+                      </code>
+                    </div>
+                  </div>
+                  <p className="text-center text-xs text-ink/50">
+                    パスフレーズには先ほど入力した値を指定してください
+                  </p>
+                  <p className="text-center text-xs text-ink/50">
+                    既にCLIがインストール済みの場合は直接セットアップできます:
+                  </p>
+                  <div className="relative">
+                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4">
+                      <code className="block break-all text-sm leading-relaxed text-ink">
+                        backlog config setup --relay-url {tenantInfo.relay_url} --name {name} --passphrase '...'
+                      </code>
+                    </div>
+                  </div>
+                  <div className="flex justify-center gap-3 pt-1">
+                    <Button variant="secondary" onClick={handleReset}>
+                      戻る
+                    </Button>
+                  </div>
+                </div>
+              ) : setupMethod === "provision" ? (
                 <div className="space-y-4">
                   {!provisioningKey ? (
                     <>

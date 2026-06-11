@@ -40,6 +40,8 @@ export interface JWKS {
  */
 export interface RelayTenantInput {
   info_ttl?: number;
+  /** Default space host for this tenant (e.g. "example.backlog.jp"). Used by CLI setup when --space is omitted. */
+  default_space?: string;
   /** Plaintext passphrase — auto-hashed with bcrypt at CDK synth time */
   passphrase?: string;
   /** Pre-computed bcrypt hash (mutually exclusive with passphrase) */
@@ -176,12 +178,14 @@ export function buildSsmParameterValue(
 ): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[] } {
   const relayTenants: Array<{
     name: string;
+    default_space?: string;
     info_ttl?: number;
   }> = [];
 
   for (const [name, tenant] of Object.entries(value.tenants ?? {})) {
     relayTenants.push({
       name,
+      default_space: tenant.default_space,
       info_ttl: tenant.info_ttl,
     });
   }
