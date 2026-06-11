@@ -1,11 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -70,6 +73,73 @@ func DecodeProvisioningToken(token string) (*ProvisioningTokenClaims, error) {
 type ProvisionOptions struct {
 	NoDefaults bool
 	Now        time.Time
+}
+
+// ProvisionResponse は /api/v1/portal/{name}/provision のレスポンス
+type ProvisionResponse struct {
+	Success         bool   `json:"success"`
+	ProvisioningKey string `json:"provisioning_key,omitempty"`
+	DefaultSpace    string `json:"default_space,omitempty"`
+	Error           string `json:"error,omitempty"`
+}
+
+// RequestProvisioningKey はリレーサーバーのポータル API にパスフレーズを送り、
+// プロビジョニングキーとデフォルトスペースを取得する。
+func RequestProvisioningKey(ctx context.Context, relayURL, name, passphrase string) (*ProvisionResponse, error) {
+	if strings.TrimSpace(relayURL) == "" {
+		return nil, errors.New("relay_url is required")
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("name is required")
+	}
+	if strings.TrimSpace(passphrase) == "" {
+		return nil, errors.New("passphrase is required")
+	}
+
+	endpoint, err := url.JoinPath(relayURL, "/api/v1/portal/", name, "/provision")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build provision URL: %w", err)
+	}
+	debug.Log("requesting provisioning key", "url", endpoint)
+
+	body, err := json.Marshal(map[string]string{"passphrase": passphrase})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("provision request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read provision response: %w", err)
+	}
+
+	var result ProvisionResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse provision response: %w", err)
+	}
+
+	if !result.Success {
+		errMsg := result.Error
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("provision failed: %s", errMsg)
+	}
+
+	debug.Log("provisioning key obtained", "has_default_space", result.DefaultSpace != "")
+	return &result, nil
 }
 
 // ProvisionFromToken はプロビジョニングトークンを使ってバンドルをダウンロード・インポートする

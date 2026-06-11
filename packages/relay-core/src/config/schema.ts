@@ -22,6 +22,7 @@ export const BacklogAppConfigSchema = z.object({
 export const TenantConfigSchema = z.object({
   name: z.string().min(1, "name is required"),
   passphrase_hash: z.string().optional(),
+  default_space: z.string().optional(),
   info_ttl: z.number().positive().optional(),
 });
 
