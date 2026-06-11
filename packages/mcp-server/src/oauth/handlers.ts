@@ -1101,7 +1101,7 @@ function addSpaceFromInput() {
   const val = input.value.trim();
   errEl.style.display = "none";
   if (!val) return;
-  if (!parseSpaceKey(val)) {
+  if (!/^[a-z0-9-]+\\.[a-z0-9.-]+$/i.test(val)) {
     errEl.textContent = "形式: space.backlog.jp または space.backlog.com";
     errEl.style.display = "block";
     return;
