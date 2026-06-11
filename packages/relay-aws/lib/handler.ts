@@ -233,7 +233,9 @@ function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
     }
 
     return {
-        async exchangeCode(domain, space, code, redirectUri) {
+        // space is the full Backlog host (e.g. "myspace.backlog.com") per the
+        // spaceHost migration; do not split it into space/domain.
+        async exchangeCode(space, code, redirectUri) {
             const params = new URLSearchParams();
             params.set("grant_type", "authorization_code");
             params.set("code", code);
@@ -242,16 +244,16 @@ function createDirectTokenExchange(relayConfig: RelayConfig): TokenExchange {
             if (redirectUri) {
                 params.set("redirect_uri", redirectUri);
             }
-            const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
+            const tokenUrl = `https://${space}/api/v2/oauth2/token`;
             return requestToken(tokenUrl, params);
         },
-        async refreshToken(domain, space, refreshTokenValue) {
+        async refreshToken(space, refreshTokenValue) {
             const params = new URLSearchParams();
             params.set("grant_type", "refresh_token");
             params.set("refresh_token", refreshTokenValue);
             params.set("client_id", app.client_id);
             params.set("client_secret", app.client_secret);
-            const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
+            const tokenUrl = `https://${space}/api/v2/oauth2/token`;
             return requestToken(tokenUrl, params);
         },
     };
