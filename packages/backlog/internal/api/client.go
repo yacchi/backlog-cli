@@ -313,7 +313,8 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("token refresh failed with status %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("token refresh failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var tokenResp struct {
