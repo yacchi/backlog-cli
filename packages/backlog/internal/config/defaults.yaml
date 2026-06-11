@@ -19,9 +19,9 @@ profile:
     # 環境変数: BACKLOG_SPACE
     space: ""
 
-    # Backlogドメイン (backlog.jp または backlog.com)
+    # Backlogドメイン (deprecated: space に spaceHost 形式で統合)
     # 環境変数: BACKLOG_DOMAIN
-    domain: "backlog.jp"
+    domain: ""
 
     # --space 指定時にこのプロファイルを優先する
     # 同一スペースに複数プロファイルがある場合に使用

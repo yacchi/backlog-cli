@@ -50,9 +50,9 @@ export interface AuditEvent {
   sessionId?: string;
   /** Action being performed */
   action: string;
-  /** Backlog space name */
+  /** Backlog space host (e.g., "myspace.backlog.jp") */
   space?: string;
-  /** Backlog domain */
+  /** Backlog domain (deprecated, kept for backward compat) */
   domain?: string;
   /** Project key */
   project?: string;

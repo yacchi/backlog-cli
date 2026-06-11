@@ -61,8 +61,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	for profileName, cred := range credentials {
 		// プロファイルからspace.domainを取得
 		var host string
-		if profile, ok := profiles[profileName]; ok && profile.Space != "" && profile.Domain != "" {
-			host = profile.Space + "." + profile.Domain
+		if profile, ok := profiles[profileName]; ok && profile.Space != "" {
+			host = profile.Space
 		} else {
 			host = "(not configured)"
 		}

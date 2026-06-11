@@ -19,8 +19,8 @@ interface TokenRequest {
   grant_type: string;
   code?: string;
   refresh_token?: string;
-  domain: string;
   space: string;
+  domain?: string;
   state?: string;
 }
 
@@ -40,6 +40,17 @@ interface TokenResponse {
 interface ErrorResponse {
   error: string;
   error_description?: string;
+}
+
+/**
+ * Normalize space to a full host (e.g., "myspace.backlog.jp").
+ * If space already contains a dot, it's the full host.
+ * Otherwise, combine with domain if provided.
+ */
+function normalizeSpace(space: string, domain?: string): string {
+  if (space.includes(".")) return space;
+  if (domain) return `${space}.${domain}`;
+  return space;
 }
 
 /**
@@ -83,11 +94,10 @@ export function createTokenHandlers(
    * Request token from Backlog OAuth server.
    */
   async function requestToken(
-    domain: string,
-    space: string,
+    spaceHost: string,
     params: URLSearchParams
   ): Promise<TokenResponse> {
-    const tokenUrl = `https://${space}.${domain}/api/v2/oauth2/token`;
+    const tokenUrl = `https://${spaceHost}/api/v2/oauth2/token`;
 
     const response = await fetch(tokenUrl, {
       method: "POST",
@@ -113,8 +123,7 @@ export function createTokenHandlers(
    */
   async function exchangeCode(
     c: Context,
-    domain: string,
-    space: string,
+    spaceHost: string,
     code: string
   ): Promise<TokenResponse> {
     const params = new URLSearchParams();
@@ -124,15 +133,14 @@ export function createTokenHandlers(
     params.set("client_id", backlogApp.client_id);
     params.set("client_secret", backlogApp.client_secret);
 
-    return requestToken(domain, space, params);
+    return requestToken(spaceHost, params);
   }
 
   /**
    * Refresh access token.
    */
   async function refreshToken(
-    domain: string,
-    space: string,
+    spaceHost: string,
     refreshTokenValue: string
   ): Promise<TokenResponse> {
     const params = new URLSearchParams();
@@ -141,19 +149,18 @@ export function createTokenHandlers(
     params.set("client_id", backlogApp.client_id);
     params.set("client_secret", backlogApp.client_secret);
 
-    return requestToken(domain, space, params);
+    return requestToken(spaceHost, params);
   }
 
   /**
    * Fetch current user information from Backlog API.
    */
   async function fetchCurrentUser(
-    domain: string,
-    space: string,
+    spaceHost: string,
     accessToken: string
   ): Promise<{ userId: string; name: string; mailAddress: string } | null> {
     try {
-      const url = `https://${space}.${domain}/api/v2/users/myself`;
+      const url = `https://${spaceHost}/api/v2/users/myself`;
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -192,15 +199,18 @@ export function createTokenHandlers(
       return writeError(c, 400, "invalid_request", "Invalid JSON body");
     }
 
-    // Validation
-    if (!req.domain || !req.space) {
+    // Validation - space is required
+    if (!req.space) {
       return writeError(
         c,
         400,
         "invalid_request",
-        "domain and space are required"
+        "space is required"
       );
     }
+
+    // Normalize space: if it doesn't contain a dot but domain is provided, combine them
+    const spaceHost = normalizeSpace(req.space, req.domain);
 
     let tokenResp: TokenResponse;
     let auditAction: string;
@@ -217,7 +227,7 @@ export function createTokenHandlers(
               "code is required for authorization_code grant"
             );
           }
-          tokenResp = await exchangeCode(c, req.domain, req.space, req.code);
+          tokenResp = await exchangeCode(c, spaceHost, req.code);
           break;
 
         case "refresh_token":
@@ -231,8 +241,7 @@ export function createTokenHandlers(
             );
           }
           tokenResp = await refreshToken(
-            req.domain,
-            req.space,
+            spaceHost,
             req.refresh_token
           );
           break;
@@ -251,8 +260,7 @@ export function createTokenHandlers(
         createAuditEvent({
           sessionId,
           action: auditAction!,
-          space: req.space,
-          domain: req.domain,
+          space: spaceHost,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -264,8 +272,7 @@ export function createTokenHandlers(
 
     // Fetch user information
     const user = await fetchCurrentUser(
-      req.domain,
-      req.space,
+      spaceHost,
       tokenResp.access_token
     );
 
@@ -278,8 +285,7 @@ export function createTokenHandlers(
         userId: user?.userId,
         userName: user?.name,
         userEmail: user?.mailAddress,
-        space: req.space,
-        domain: req.domain,
+        space: spaceHost,
         clientIp: reqCtx.clientIp,
         userAgent: reqCtx.userAgent,
         result: "success",

@@ -116,3 +116,98 @@ func TestSplitAllowedDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeSpace(t *testing.T) {
+	tests := []struct {
+		name   string
+		space  string
+		domain string
+		want   string
+	}{
+		{
+			name:   "new format (already contains dot)",
+			space:  "myspace.backlog.jp",
+			domain: "",
+			want:   "myspace.backlog.jp",
+		},
+		{
+			name:   "old format (separate space and domain)",
+			space:  "myspace",
+			domain: "backlog.jp",
+			want:   "myspace.backlog.jp",
+		},
+		{
+			name:   "new format ignores domain",
+			space:  "myspace.backlog.jp",
+			domain: "backlog.com",
+			want:   "myspace.backlog.jp",
+		},
+		{
+			name:   "space only without domain",
+			space:  "myspace",
+			domain: "",
+			want:   "myspace",
+		},
+		{
+			name:   "both empty",
+			space:  "",
+			domain: "",
+			want:   "",
+		},
+		{
+			name:   "empty space with domain",
+			space:  "",
+			domain: "backlog.jp",
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeSpace(tt.space, tt.domain)
+			if got != tt.want {
+				t.Errorf("NormalizeSpace(%q, %q) = %q, want %q", tt.space, tt.domain, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSpaceID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"myspace.backlog.jp", "myspace"},
+		{"myspace.backlog.com", "myspace"},
+		{"myspace", "myspace"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := SpaceID(tt.input); got != tt.want {
+				t.Errorf("SpaceID(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSpaceDomain(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"myspace.backlog.jp", "backlog.jp"},
+		{"myspace.backlog.com", "backlog.com"},
+		{"myspace", ""},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := SpaceDomain(tt.input); got != tt.want {
+				t.Errorf("SpaceDomain(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

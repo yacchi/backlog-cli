@@ -286,10 +286,10 @@ func runList(c *cobra.Command, args []string) error {
 	if listWeb {
 		var url string
 		if singleProjectKey != "" {
-			url = fmt.Sprintf("https://%s.%s/find/%s", profile.Space, profile.Domain, singleProjectKey)
+			url = fmt.Sprintf("https://%s/find/%s", profile.Space, singleProjectKey)
 		} else {
 			// 横断/複数指定はスペース全体の検索画面を開く
-			url = fmt.Sprintf("https://%s.%s/find", profile.Space, profile.Domain)
+			url = fmt.Sprintf("https://%s/find", profile.Space)
 		}
 		return browser.OpenURL(url)
 	}
@@ -677,7 +677,7 @@ func outputTable(ctx context.Context, client *api.Client, issues []backlog.Issue
 	formatter := ui.NewFieldFormatter(display.Timezone, display.DateTimeFormat, fieldConfig)
 
 	// ベースURL生成
-	baseURL := fmt.Sprintf("https://%s.%s", profile.Space, profile.Domain)
+	baseURL := fmt.Sprintf("https://%s", profile.Space)
 
 	// AI要約を一括取得
 	summaryMap := make(map[string]string)

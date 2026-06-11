@@ -12,7 +12,7 @@ import (
 func TestGetUserActivitiesEncodesQuery(t *testing.T) {
 	var capturedURL *url.URL
 
-	client := NewClient("example", "backlog.jp", "", WithAPIKey("test"))
+	client := NewClient("example.backlog.jp", "", WithAPIKey("test"))
 	client.httpClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		capturedURL = req.URL
 		return &http.Response{
@@ -76,7 +76,7 @@ func TestGetUserActivitiesEncodesQuery(t *testing.T) {
 }
 
 func TestGetRecentlyViewedIssuesDecodes(t *testing.T) {
-	client := NewClient("example", "backlog.jp", "", WithAPIKey("test"))
+	client := NewClient("example.backlog.jp", "", WithAPIKey("test"))
 	client.httpClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if !strings.HasSuffix(req.URL.Path, "/users/myself/recentlyViewedIssues") {
 			t.Fatalf("unexpected path: %s", req.URL.Path)

@@ -520,17 +520,16 @@ func (cs *CallbackServer) handleStreamConnect() {
 }
 
 // redirectToRelay は中継サーバーへリダイレクトする
-func (cs *CallbackServer) redirectToRelay(w http.ResponseWriter, r *http.Request, relayServer, space, domain string) {
+func (cs *CallbackServer) redirectToRelay(w http.ResponseWriter, r *http.Request, relayServer, spaceHost string) {
 	// プロジェクト名を取得（設定されている場合）
 	project := cs.configStore.CurrentProfile().Project
 
 	redirectURL := fmt.Sprintf(
-		"%s/auth/start?port=%d&state=%s&space=%s&domain=%s",
+		"%s/auth/start?port=%d&state=%s&space=%s",
 		strings.TrimRight(relayServer, "/"),
 		cs.port,
 		url.QueryEscape(cs.state),
-		url.QueryEscape(space),
-		url.QueryEscape(domain),
+		url.QueryEscape(spaceHost),
 	)
 	if project != "" {
 		redirectURL += "&project=" + url.QueryEscape(project)
@@ -622,17 +621,16 @@ func (cs *CallbackServer) handlePopup(w http.ResponseWriter, r *http.Request) {
 
 	profile := cs.configStore.CurrentProfile()
 	relayServer, _ := cs.configStore.ResolveRelayURL(profile)
-	space := profile.Space
-	domain := profile.Domain
+	spaceHost := profile.Space
 
-	if relayServer == "" || space == "" || domain == "" {
+	if relayServer == "" || spaceHost == "" {
 		debug.Log("popup: configuration incomplete")
 		renderPopupError(w, "設定が不完全です。ページを更新してください。")
 		return
 	}
 
 	// 中継サーバーへリダイレクト
-	cs.redirectToRelay(w, r, relayServer, space, domain)
+	cs.redirectToRelay(w, r, relayServer, spaceHost)
 }
 
 // parseSpaceHost はスペースホストをパースする

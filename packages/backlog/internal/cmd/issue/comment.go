@@ -161,7 +161,7 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 		return enc.Encode(comment)
 	default:
 		ui.Success("Added comment #%d to %s", comment.ID, issueKey)
-		url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
+		url := fmt.Sprintf("https://%s/view/%s#comment-%d", profile.Space, issueKey, comment.ID)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}
@@ -256,7 +256,7 @@ func runEditComment(c *cobra.Command, issueKey string) error {
 		return enc.Encode(comment)
 	default:
 		ui.Success("Updated comment #%d on %s", comment.ID, issueKey)
-		url := fmt.Sprintf("https://%s.%s/view/%s#comment-%d", profile.Space, profile.Domain, issueKey, comment.ID)
+		url := fmt.Sprintf("https://%s/view/%s#comment-%d", profile.Space, issueKey, comment.ID)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

@@ -268,7 +268,7 @@ func (c *Client) GetDocumentTree(ctx context.Context, projectIDOrKey string) (*D
 func (c *Client) GetDocument(ctx context.Context, documentID string) (*DocumentDetail, error) {
 	if c.cache != nil {
 		var doc DocumentDetail
-		key := fmt.Sprintf("document:%s.%s:%s", c.space, c.domain, documentID)
+		key := fmt.Sprintf("document:%s:%s", c.space, documentID)
 		if ok, _ := c.cache.Get(key, &doc); ok {
 			return &doc, nil
 		}
@@ -284,7 +284,7 @@ func (c *Client) GetDocument(ctx context.Context, documentID string) (*DocumentD
 	doc := convertDocumentDetail(res)
 
 	if c.cache != nil {
-		key := fmt.Sprintf("document:%s.%s:%s", c.space, c.domain, documentID)
+		key := fmt.Sprintf("document:%s:%s", c.space, documentID)
 		_ = c.cache.Set(key, doc, c.cacheTTL)
 	}
 

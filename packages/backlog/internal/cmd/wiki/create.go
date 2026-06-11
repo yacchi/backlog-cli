@@ -141,8 +141,8 @@ func runCreate(c *cobra.Command, args []string) error {
 	default:
 		fmt.Printf("%s Wiki page created: %s (ID: %d)\n",
 			ui.Green("✓"), wiki.Name, wiki.ID)
-		url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
-			profile.Space, profile.Domain, wiki.ID)
+		url := fmt.Sprintf("https://%s/alias/wiki/%d",
+			profile.Space, wiki.ID)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

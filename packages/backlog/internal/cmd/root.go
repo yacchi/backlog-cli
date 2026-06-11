@@ -81,14 +81,13 @@ Work with issues, pull requests, wikis, and more, all from the command line.`,
 
 			if created && !isAuthCommand(cmd) {
 				if cfg.Credential(profileName) == nil {
-					space, domain, _ := config.ParseSpaceHost(spaceFlag)
 					if ui.IsInteractiveInput() {
 						fmt.Printf("Authentication required for %s\n", spaceFlag)
 						if err := auth.RunLoginForProfile(ctx, cfg); err != nil {
 							return fmt.Errorf("authentication failed for %s: %w", spaceFlag, err)
 						}
 					} else {
-						return fmt.Errorf("authentication required for %s\nRun: backlog auth login --space %s --domain %s", spaceFlag, space, domain)
+						return fmt.Errorf("authentication required for %s\nRun: backlog auth login --space %s", spaceFlag, spaceFlag)
 					}
 				}
 			}

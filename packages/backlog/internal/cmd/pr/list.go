@@ -75,8 +75,8 @@ func runList(c *cobra.Command, args []string) error {
 
 	// ブラウザで開く
 	if listWeb {
-		url := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests",
-			profile.Space, profile.Domain, projectKey, listRepo)
+		url := fmt.Sprintf("https://%s/git/%s/%s/pullRequests",
+			profile.Space, projectKey, listRepo)
 		return browser.OpenURL(url)
 	}
 
@@ -181,8 +181,8 @@ func outputPRTable(prs []api.PullRequest, profile *config.ResolvedProfile, displ
 	formatter := ui.NewFieldFormatter(display.Timezone, display.DateTimeFormat, fieldConfig)
 
 	// ベースURL生成
-	baseURL := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests",
-		profile.Space, profile.Domain, projectKey, repo)
+	baseURL := fmt.Sprintf("https://%s/git/%s/%s/pullRequests",
+		profile.Space, projectKey, repo)
 
 	for _, pr := range prs {
 		row := make([]string, len(fields))

@@ -117,8 +117,8 @@ func runComment(c *cobra.Command, args []string) error {
 		return enc.Encode(comment)
 	default:
 		fmt.Printf("%s Comment added to PR #%d\n", ui.Green("✓"), prNumber)
-		url := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests/%d#comment-%d",
-			profile.Space, profile.Domain, projectKey, commentRepo, prNumber, comment.ID)
+		url := fmt.Sprintf("https://%s/git/%s/%s/pullRequests/%d#comment-%d",
+			profile.Space, projectKey, commentRepo, prNumber, comment.ID)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

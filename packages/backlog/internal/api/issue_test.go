@@ -18,7 +18,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestCreateIssueEncodesBracketedArrayFields(t *testing.T) {
 	var body string
 
-	client := NewClient("example", "backlog.jp", "", WithAPIKey("test"))
+	client := NewClient("example.backlog.jp", "", WithAPIKey("test"))
 	client.httpClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		data, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -75,7 +75,7 @@ func TestCreateIssueEncodesBracketedArrayFields(t *testing.T) {
 func TestUpdateIssueEncodesBracketedArrayFields(t *testing.T) {
 	var body string
 
-	client := NewClient("example", "backlog.jp", "", WithAPIKey("test"))
+	client := NewClient("example.backlog.jp", "", WithAPIKey("test"))
 	client.httpClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		data, err := io.ReadAll(req.Body)
 		if err != nil {

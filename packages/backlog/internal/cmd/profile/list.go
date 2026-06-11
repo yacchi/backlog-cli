@@ -67,8 +67,8 @@ func runList(cmd *cobra.Command, args []string) error {
 	_, _ = fmt.Fprintln(w, "NAME\tSPACE\tPRIMARY\tACTIVE")
 	for _, e := range entries {
 		host := ""
-		if e.Space != "" && e.Domain != "" {
-			host = e.Space + "." + e.Domain
+		if e.Space != "" {
+			host = e.Space
 		}
 		primary := ""
 		if e.Primary {

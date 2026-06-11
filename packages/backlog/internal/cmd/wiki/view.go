@@ -59,8 +59,8 @@ func runView(c *cobra.Command, args []string) error {
 
 	// ブラウザで開く
 	if viewWeb {
-		url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
-			profile.Space, profile.Domain, wikiID)
+		url := fmt.Sprintf("https://%s/alias/wiki/%d",
+			profile.Space, wikiID)
 		return browser.OpenURL(url)
 	}
 
@@ -117,8 +117,8 @@ func renderWikiDetail(wiki *api.Wiki, profile *config.ResolvedProfile, projectKe
 	}
 
 	// URL
-	url := fmt.Sprintf("https://%s.%s/alias/wiki/%d",
-		profile.Space, profile.Domain, wiki.ID)
+	url := fmt.Sprintf("https://%s/alias/wiki/%d",
+		profile.Space, wiki.ID)
 
 	// 内容
 	if wiki.Content != "" {

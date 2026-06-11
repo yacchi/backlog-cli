@@ -13,10 +13,10 @@ export interface EncodedStateClaims {
   port: number;
   /** CLI-generated state for CSRF protection */
   cliState: string;
-  /** Backlog space name */
+  /** Backlog space host (e.g., "myspace.backlog.jp") */
   space: string;
-  /** Backlog domain (e.g., "backlog.jp") */
-  domain: string;
+  /** Backlog domain (e.g., "backlog.jp") - deprecated, kept for backward compat with old encoded states */
+  domain?: string;
   /** Optional project key */
   project?: string;
 }
@@ -51,11 +51,12 @@ export function decodeState(encoded: string): EncodedStateClaims {
   if (
     typeof claims.port !== "number" ||
     typeof claims.cliState !== "string" ||
-    typeof claims.space !== "string" ||
-    typeof claims.domain !== "string"
+    typeof claims.space !== "string"
   ) {
     throw new Error("Invalid state claims");
   }
+
+  // domain is optional (for backward compat with old encoded states)
 
   return claims;
 }

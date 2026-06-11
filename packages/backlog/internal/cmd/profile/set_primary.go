@@ -2,6 +2,7 @@ package profile
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
@@ -39,19 +40,16 @@ func runSetPrimary(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q not found", profileName)
 	}
 
-	if target.Space == "" || target.Domain == "" {
+	if target.Space == "" || !strings.Contains(target.Space, ".") {
 		return fmt.Errorf("profile %q has no space/domain configured", profileName)
 	}
-
-	targetSpace := target.Space
-	targetDomain := target.Domain
 
 	// 同一スペース内の他プロファイルから primary を除去
 	for name, p := range profiles {
 		if name == profileName {
 			continue
 		}
-		if p.Space == targetSpace && p.Domain == targetDomain && p.Primary {
+		if p.Space == target.Space && p.Primary {
 			if err := cfg.SetProfileValue(config.LayerUser, name, "primary", false); err != nil {
 				return fmt.Errorf("failed to clear primary from profile %q: %w", name, err)
 			}
@@ -67,6 +65,6 @@ func runSetPrimary(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Set %q as primary profile for %s.%s\n", profileName, targetSpace, targetDomain)
+	fmt.Printf("Set %q as primary profile for %s\n", profileName, target.Space)
 	return nil
 }

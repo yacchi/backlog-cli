@@ -21,8 +21,7 @@ import (
 
 // Client は Backlog API クライアント
 type Client struct {
-	space       string
-	domain      string
+	space       string // spaceHost 形式 (例: "myspace.backlog.jp")
 	accessToken string
 	httpClient  *http.Client
 
@@ -94,10 +93,10 @@ func WithAPIKey(apiKey string) ClientOption {
 }
 
 // NewClient は新しいクライアントを作成する
-func NewClient(space, domain, accessToken string, opts ...ClientOption) *Client {
+// space は spaceHost 形式（例: "myspace.backlog.jp"）
+func NewClient(space, accessToken string, opts ...ClientOption) *Client {
 	c := &Client{
 		space:              space,
-		domain:             domain,
 		accessToken:        accessToken,
 		tokenRefreshMargin: 5 * time.Minute,
 	}
@@ -185,16 +184,10 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 		return nil, fmt.Errorf("not authenticated")
 	}
 
-	// space/domainはプロジェクト設定を優先
+	// space はプロジェクト設定を優先（正規化済みの spaceHost 形式）
 	space := profile.Space
-	domain := profile.Domain
-	if project != nil {
-		if project.Space != "" {
-			space = project.Space
-		}
-		if project.Domain != "" {
-			domain = project.Domain
-		}
+	if project != nil && project.Space != "" {
+		space = project.Space
 	}
 
 	// キャッシュ設定
@@ -223,7 +216,6 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 		httpTimeout := time.Duration(profile.HTTPTimeout) * time.Second
 		client := NewClient(
 			space,
-			domain,
 			"", // accessToken不要
 			WithAPIKey(cred.APIKey),
 			WithHTTPTimeout(httpTimeout),
@@ -242,7 +234,6 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 		relayURL, _ := cfg.ResolveRelayURL(profile)
 		client := NewClient(
 			space,
-			domain,
 			cred.AccessToken,
 			WithTokenRefresh(
 				cred.RefreshToken,
@@ -259,7 +250,6 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 						UserName:     cred.UserName,
 						UserEmail:    cred.UserEmail,
 						Space:        space,
-						Domain:       domain,
 					}); err != nil {
 						debug.Log("failed to set credential after token refresh", "error", err)
 					}
@@ -277,12 +267,12 @@ func NewClientFromConfig(cfg *config.Store) (*Client, error) {
 }
 
 func (c *Client) baseURL() string {
-	return fmt.Sprintf("https://%s.%s/api/v2", c.space, c.domain)
+	return fmt.Sprintf("https://%s/api/v2", c.space)
 }
 
 // RawBaseURL returns the base URL without the /api/v2 suffix
 func (c *Client) RawBaseURL() string {
-	return fmt.Sprintf("https://%s.%s", c.space, c.domain)
+	return fmt.Sprintf("https://%s", c.space)
 }
 
 // ensureValidToken はトークンが有効か確認し、必要なら更新する
@@ -304,7 +294,6 @@ func (c *Client) doRefreshToken(ctx context.Context) error {
 	reqBody := map[string]string{
 		"grant_type":    "refresh_token",
 		"refresh_token": c.refreshToken,
-		"domain":        c.domain,
 		"space":         c.space,
 	}
 
