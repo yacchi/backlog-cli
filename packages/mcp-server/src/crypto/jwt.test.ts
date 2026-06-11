@@ -26,8 +26,7 @@ describe("JWT sign/verify", () => {
         const payload: TokenPayload = {
             bl_access_token: "backlog-access-token-xyz",
             bl_expires_at: now + 3600,
-            space: "mycompany",
-            domain: "backlog.jp",
+            space: "mycompany.backlog.jp",
             iat: now,
             exp: now + 3600,
         };
@@ -36,8 +35,7 @@ describe("JWT sign/verify", () => {
         const verified = await verifyToken(jwt, keys.verifyKeys);
 
         expect(verified.bl_access_token).toBe("backlog-access-token-xyz");
-        expect(verified.space).toBe("mycompany");
-        expect(verified.domain).toBe("backlog.jp");
+        expect(verified.space).toBe("mycompany.backlog.jp");
     });
 
     it("sign → verify roundtrip for refresh token (no exp)", async () => {
@@ -47,8 +45,7 @@ describe("JWT sign/verify", () => {
 
         const payload: TokenPayload = {
             bl_refresh_token: "backlog-refresh-token-abc",
-            space: "mycompany",
-            domain: "backlog.jp",
+            space: "mycompany.backlog.jp",
             iat: now,
         };
 
@@ -67,7 +64,7 @@ describe("JWT sign/verify", () => {
         const now = Math.floor(Date.now() / 1000);
 
         const jwt = await signToken(
-            { bl_access_token: "test", space: "s", domain: "d", iat: now, exp: now + 3600 },
+            { bl_access_token: "test", space: "s.d", iat: now, exp: now + 3600 },
             keys1.signingKey,
             keys1.signingKid,
         );
@@ -81,7 +78,7 @@ describe("JWT sign/verify", () => {
         const now = Math.floor(Date.now() / 1000);
 
         const jwt = await signToken(
-            { bl_access_token: "test", space: "s", domain: "d", iat: now, exp: now + 3600 },
+            { bl_access_token: "test", space: "s.d", iat: now, exp: now + 3600 },
             keys.signingKey,
             keys.signingKid,
         );
@@ -99,7 +96,7 @@ describe("JWT sign/verify", () => {
         const now = Math.floor(Date.now() / 1000);
 
         const jwt = await signToken(
-            { bl_access_token: "test", space: "s", domain: "d", iat: now - 120, exp: now - 60 },
+            { bl_access_token: "test", space: "s.d", iat: now - 120, exp: now - 60 },
             keys.signingKey,
             keys.signingKid,
         );

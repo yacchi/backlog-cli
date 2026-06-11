@@ -269,7 +269,7 @@ export function createTransportHandlers(
             }
         }
 
-        const spaceKey = `${token.space}.${token.domain}`;
+        const spaceKey = token.space;
         const access = matchSpacePattern(spaceKey, config.spaces);
         if (!access) {
             return c.json(
@@ -361,8 +361,8 @@ export function createTransportHandlers(
         const resolved = resolveSpaceToken(token, requestedSpace);
         if (!resolved) {
             const authenticated = token.spaces
-                ? token.spaces.map((s) => `${s.space}.${s.domain}`).join(", ")
-                : `${token.space}.${token.domain}`;
+                ? token.spaces.map((s) => s.space).join(", ")
+                : token.space;
             return jsonRpcResult(req.id, {
                 content: [{
                     type: "text",
@@ -375,10 +375,9 @@ export function createTransportHandlers(
         const effectiveToken: TokenPayload = {
             ...token,
             space: resolved.space,
-            domain: resolved.domain,
             bl_access_token: resolved.bl_access_token,
         };
-        const spaceKey = `${resolved.space}.${resolved.domain}`;
+        const spaceKey = resolved.space;
         const effectiveAccess = matchSpacePattern(spaceKey, config.spaces);
         if (!effectiveAccess) {
             return jsonRpcResult(req.id, {
@@ -411,7 +410,7 @@ export function createTransportHandlers(
                         effectiveToken,
                         { readOnly: true, binPath: options?.binPath },
                     );
-                    const full = buildCliReferencePrompt(effectiveToken.space, effectiveToken.domain, cliRef.output);
+                    const full = buildCliReferencePrompt(effectiveToken.space, cliRef.output);
                     let text = full;
                     if (command) {
                         const sections = extractCommandSection(full, command);
@@ -423,7 +422,7 @@ export function createTransportHandlers(
                     });
                 } catch (err) {
                     log.finish({ error: (err as Error).message, category: "exception" });
-                    const fallback = buildCliReferencePrompt(effectiveToken.space, effectiveToken.domain);
+                    const fallback = buildCliReferencePrompt(effectiveToken.space);
                     return jsonRpcResult(req.id, {
                         content: [{ type: "text", text: fallback }],
                     });
@@ -596,7 +595,7 @@ export function createTransportHandlers(
             // fall through to static-only prompt
         }
 
-        const prompt = buildCliReferencePrompt(token.space, token.domain, cliRefOutput);
+        const prompt = buildCliReferencePrompt(token.space, cliRefOutput);
         return jsonRpcResult(req.id, {
             description: SKILL_PROMPT.description,
             messages: [
@@ -630,14 +629,13 @@ function jsonRpcError(
     return { jsonrpc: "2.0", id: id ?? null, error: { code, message, data } };
 }
 
-function buildCliReferencePrompt(space: string, domain: string, cliRefOutput?: string): string {
+function buildCliReferencePrompt(space: string, cliRefOutput?: string): string {
     const mcpContext = `# Backlog CLI Reference
 
 You have access to backlog tools which execute the Backlog CLI — a command-line interface similar to GitHub CLI (gh).
 
 ## Connection Info
 - Space: ${space}
-- Domain: ${domain}
 
 ## Tools
 

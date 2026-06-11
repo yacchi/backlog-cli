@@ -16,8 +16,8 @@ import type {
 } from "./types.js";
 
 export interface TokenExchange {
-    exchangeCode(domain: string, space: string, code: string, redirectUri?: string): Promise<TokenResponse>;
-    refreshToken(domain: string, space: string, refreshToken: string): Promise<TokenResponse>;
+    exchangeCode(space: string, code: string, redirectUri?: string): Promise<TokenResponse>;
+    refreshToken(space: string, refreshToken: string): Promise<TokenResponse>;
 }
 
 export interface OAuthHandlerOptions {
@@ -25,16 +25,12 @@ export interface OAuthHandlerOptions {
     callbackPath?: string;
 }
 
-const SCOPE_PATTERN = /^backlog:([^.]+)\.(.+)$/;
+const SCOPE_PATTERN = /^backlog:(.+)$/;
 const COOKIE_PREFIX = "bl_space_";
 const COOKIE_MAX_AGE = 300;
 
-function spaceKey(space: string, domain: string): string {
-    return `${space}.${domain}`;
-}
-
-function spaceCookieName(space: string, domain: string): string {
-    return COOKIE_PREFIX + btoa(spaceKey(space, domain)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+function spaceCookieName(space: string): string {
+    return COOKIE_PREFIX + btoa(space).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export function parseScopes(
@@ -47,9 +43,10 @@ export function parseScopes(
         for (const part of parts) {
             const match = part.match(SCOPE_PATTERN);
             if (match) {
-                const key = `${match[1]}.${match[2]}`;
-                if (matchSpacePattern(key, config.spaces)) {
-                    spaces.push({ space: match[1], domain: match[2] });
+                const spaceHost = match[1];
+                // Support both old format (space.domain) and new format (full host)
+                if (matchSpacePattern(spaceHost, config.spaces)) {
+                    spaces.push({ space: spaceHost });
                 }
             }
         }
@@ -59,10 +56,7 @@ export function parseScopes(
     if (config.default_spaces.length > 0) {
         const spaces: SpaceRef[] = [];
         for (const key of config.default_spaces) {
-            const parsed = key.match(/^([^.]+)\.(.+)$/);
-            if (parsed) {
-                spaces.push({ space: parsed[1], domain: parsed[2] });
-            }
+            spaces.push({ space: key });
         }
         if (spaces.length > 0) return spaces;
     }
@@ -78,24 +72,24 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
     const backlogRedirectUri = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
 
-    async function doExchangeCode(domain: string, space: string, code: string): Promise<TokenResponse> {
+    async function doExchangeCode(space: string, code: string): Promise<TokenResponse> {
         if (tokenExchange) {
-            return tokenExchange.exchangeCode(domain, space, code, backlogRedirectUri);
+            return tokenExchange.exchangeCode(space, code, backlogRedirectUri);
         }
         if (!config.relay_url) {
             throw new Error("relay_url is required when tokenExchange is not provided");
         }
-        return exchangeCodeViaRelay(config.relay_url, domain, space, code);
+        return exchangeCodeViaRelay(config.relay_url, space, code);
     }
 
-    async function doRefreshToken(domain: string, space: string, refreshTokenValue: string): Promise<TokenResponse> {
+    async function doRefreshToken(space: string, refreshTokenValue: string): Promise<TokenResponse> {
         if (tokenExchange) {
-            return tokenExchange.refreshToken(domain, space, refreshTokenValue);
+            return tokenExchange.refreshToken(space, refreshTokenValue);
         }
         if (!config.relay_url) {
             throw new Error("relay_url is required when tokenExchange is not provided");
         }
-        return refreshViaRelay(config.relay_url, domain, space, refreshTokenValue);
+        return refreshViaRelay(config.relay_url, space, refreshTokenValue);
     }
 
     async function verifyState(jwt: string): Promise<AuthorizeState> {
@@ -104,7 +98,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
     }
 
     async function readSpaceCookie(c: Context, ref: SpaceRef): Promise<SpaceToken | null> {
-        const name = spaceCookieName(ref.space, ref.domain);
+        const name = spaceCookieName(ref.space);
         const value = getCookie(c, name);
         if (!value) return null;
         try {
@@ -258,7 +252,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 c,
                 400,
                 "invalid_scope",
-                "Unable to determine Backlog space. Use scope=backlog:space.domain format",
+                "Unable to determine Backlog space. Use scope=backlog:space.backlog.jp format",
             );
         }
 
@@ -269,7 +263,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             code_challenge_method: codeChallengeMethod || "S256",
             state,
             space: requiredSpaces[0].space,
-            domain: requiredSpaces[0].domain,
             requiredSpaces,
         };
 
@@ -291,17 +284,15 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
     // GET /mcp/authorize/space — Per-space OAuth popup
     app.get("/mcp/authorize/space", async (c) => {
         const space = c.req.query("space");
-        const domain = c.req.query("domain");
         const session = c.req.query("session");
 
-        if (!space || !domain || !session) {
+        if (!space || !session) {
             return c.html(errorPage("不正なリクエスト", "パラメーターが不足しています"), 400);
         }
 
-        const tenantKey = `${space}.${domain}`;
-        if (!matchSpacePattern(tenantKey, config.spaces)) {
+        if (!matchSpacePattern(space, config.spaces)) {
             return c.html(
-                errorPage("スペースが許可されていません", `スペース '${tenantKey}' はこのサーバーでは許可されていません。`),
+                errorPage("スペースが許可されていません", `スペース '${space}' はこのサーバーでは許可されていません。`),
                 403,
             );
         }
@@ -316,7 +307,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const signedState = await sign(
             {
                 space,
-                domain,
                 popup: true,
                 iat: now,
                 exp: now + 600,
@@ -327,7 +317,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         const callbackUrl = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
         const authUrl = new URL(
-            `https://${space}.${domain}/OAuth2AccessRequest.action`,
+            `https://${space}/OAuth2AccessRequest.action`,
         );
         authUrl.searchParams.set("response_type", "code");
         authUrl.searchParams.set("client_id", config.backlog_app.client_id);
@@ -369,7 +359,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         let backlogTokens: TokenResponse;
         try {
             backlogTokens = await doExchangeCode(
-                authorizeState.domain,
                 authorizeState.space,
                 code,
             );
@@ -388,7 +377,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         if (authorizeState.popup) {
             const spaceToken: SpaceToken = {
                 space: authorizeState.space,
-                domain: authorizeState.domain,
                 bl_access_token: backlogTokens.access_token,
                 bl_refresh_token: backlogTokens.refresh_token,
                 bl_expires_at: now + backlogTokens.expires_in,
@@ -400,7 +388,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 signingKid,
             );
 
-            setCookie(c, spaceCookieName(authorizeState.space, authorizeState.domain), cookieValue, {
+            setCookie(c, spaceCookieName(authorizeState.space), cookieValue, {
                 httpOnly: true,
                 secure: true,
                 sameSite: "Lax",
@@ -409,7 +397,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             });
 
             c.header("Cache-Control", "no-store");
-            return c.html(popupSuccessPage(authorizeState.space, authorizeState.domain));
+            return c.html(popupSuccessPage(authorizeState.space));
         }
 
         // Legacy single-space flow (no popup flag)
@@ -419,7 +407,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 bl_refresh_token: backlogTokens.refresh_token,
                 bl_expires_at: now + backlogTokens.expires_in,
                 space: authorizeState.space,
-                domain: authorizeState.domain,
                 iat: now,
                 exp: now + 300,
             },
@@ -449,16 +436,13 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.json({ error: "invalid session" }, 400);
         }
 
-        const spaceKeys = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
-        const statuses: Array<{ space: string; domain: string; authenticated: boolean }> = [];
-        for (const key of spaceKeys) {
-            const parsed = key.match(/^([^.]+)\.(.+)$/);
-            if (!parsed) continue;
-            const ref = { space: parsed[1], domain: parsed[2] };
+        const spaceHosts = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
+        const statuses: Array<{ space: string; authenticated: boolean }> = [];
+        for (const space of spaceHosts) {
+            const ref = { space };
             const token = await readSpaceCookie(c, ref);
             statuses.push({
-                space: ref.space,
-                domain: ref.domain,
+                space,
                 authenticated: token !== null,
             });
         }
@@ -492,12 +476,10 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.html(errorPage("セッションの有効期限切れ", "もう一度お試しください"), 400);
         }
 
-        const spaceKeys = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
+        const spaceHosts = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
         const spaceTokens: SpaceToken[] = [];
-        for (const key of spaceKeys) {
-            const parsed = key.match(/^([^.]+)\.(.+)$/);
-            if (!parsed) continue;
-            const ref = { space: parsed[1], domain: parsed[2] };
+        for (const space of spaceHosts) {
+            const ref = { space };
             const token = await readSpaceCookie(c, ref);
             if (token) {
                 spaceTokens.push(token);
@@ -518,7 +500,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             {
                 spaces: spaceTokens,
                 space: primary.space,
-                domain: primary.domain,
                 bl_access_token: primary.bl_access_token,
                 bl_refresh_token: primary.bl_refresh_token,
                 bl_expires_at: primary.bl_expires_at,
@@ -531,7 +512,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         // Clear space cookies
         for (const t of spaceTokens) {
-            setCookie(c, spaceCookieName(t.space, t.domain), "", {
+            setCookie(c, spaceCookieName(t.space), "", {
                 httpOnly: true,
                 secure: true,
                 sameSite: "Lax",
@@ -614,7 +595,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 {
                     spaces,
                     space: primary.space,
-                    domain: primary.domain,
                     bl_access_token: primary.bl_access_token,
                     bl_expires_at: primary.bl_expires_at,
                     iat: now,
@@ -626,7 +606,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
             const refreshSpaces = spaces.map((s) => ({
                 space: s.space,
-                domain: s.domain,
                 bl_access_token: "",
                 bl_refresh_token: s.bl_refresh_token,
                 bl_expires_at: s.bl_expires_at,
@@ -636,7 +615,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 {
                     spaces: refreshSpaces,
                     space: primary.space,
-                    domain: primary.domain,
                     bl_refresh_token: primary.bl_refresh_token,
                     iat: now,
                 },
@@ -662,12 +640,17 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const bl_expires_at = (codePayload.bl_expires_at as number) ?? now + 3600;
         const expiresIn = Math.max(bl_expires_at - now, 60);
 
+        // Normalize space for backward compat
+        let space = codePayload.space as string;
+        if (space && !space.includes(".") && (codePayload as any).domain) {
+            space = `${space}.${(codePayload as any).domain}`;
+        }
+
         const accessTokenJwt = await signToken(
             {
                 bl_access_token,
                 bl_expires_at,
-                space: codePayload.space as string,
-                domain: codePayload.domain as string,
+                space,
                 iat: now,
                 exp: now + expiresIn,
             },
@@ -678,8 +661,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const refreshTokenJwt = await signToken(
             {
                 bl_refresh_token,
-                space: codePayload.space as string,
-                domain: codePayload.domain as string,
+                space,
                 iat: now,
             },
             signingKey,
@@ -721,11 +703,10 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             for (const s of spaces) {
                 if (!s.bl_refresh_token) continue;
                 try {
-                    const tokens = await doRefreshToken(s.domain, s.space, s.bl_refresh_token);
+                    const tokens = await doRefreshToken(s.space, s.bl_refresh_token);
                     const now = Math.floor(Date.now() / 1000);
                     refreshedSpaces.push({
                         space: s.space,
-                        domain: s.domain,
                         bl_access_token: tokens.access_token,
                         bl_refresh_token: tokens.refresh_token,
                         bl_expires_at: now + tokens.expires_in,
@@ -735,7 +716,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                         c,
                         403,
                         "insufficient_scope",
-                        `Token refresh failed for ${spaceKey(s.space, s.domain)}. Re-authentication required.`,
+                        `Token refresh failed for ${s.space}. Re-authentication required.`,
                     );
                 }
             }
@@ -753,7 +734,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 {
                     spaces: refreshedSpaces,
                     space: primary.space,
-                    domain: primary.domain,
                     bl_access_token: primary.bl_access_token,
                     bl_expires_at: primary.bl_expires_at,
                     iat: now,
@@ -765,7 +745,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
             const refreshSpaces = refreshedSpaces.map((s) => ({
                 space: s.space,
-                domain: s.domain,
                 bl_access_token: "",
                 bl_refresh_token: s.bl_refresh_token,
                 bl_expires_at: s.bl_expires_at,
@@ -775,7 +754,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 {
                     spaces: refreshSpaces,
                     space: primary.space,
-                    domain: primary.domain,
                     bl_refresh_token: primary.bl_refresh_token,
                     iat: now,
                 },
@@ -797,12 +775,15 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return jsonError(c, 400, "invalid_grant", "Malformed refresh token");
         }
 
-        const space = refreshPayload.space as string;
-        const domain = refreshPayload.domain as string;
+        // Normalize space for backward compat
+        let space = refreshPayload.space as string;
+        if (space && !space.includes(".") && (refreshPayload as any).domain) {
+            space = `${space}.${(refreshPayload as any).domain}`;
+        }
 
         let backlogTokens: TokenResponse;
         try {
-            backlogTokens = await doRefreshToken(domain, space, bl_refresh_token);
+            backlogTokens = await doRefreshToken(space, bl_refresh_token);
         } catch (err) {
             return jsonError(
                 c,
@@ -818,7 +799,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 bl_access_token: backlogTokens.access_token,
                 bl_expires_at: now + backlogTokens.expires_in,
                 space,
-                domain,
                 iat: now,
                 exp: now + backlogTokens.expires_in,
             },
@@ -830,7 +810,6 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             {
                 bl_refresh_token: backlogTokens.refresh_token,
                 space,
-                domain,
                 iat: now,
             },
             signingKey,
@@ -860,7 +839,6 @@ async function verifyClientId(
 
 async function exchangeCodeViaRelay(
     relayUrl: string,
-    domain: string,
     space: string,
     code: string,
 ): Promise<TokenResponse> {
@@ -870,7 +848,6 @@ async function exchangeCodeViaRelay(
         body: JSON.stringify({
             grant_type: "authorization_code",
             code,
-            domain,
             space,
         }),
     });
@@ -885,7 +862,6 @@ async function exchangeCodeViaRelay(
 
 async function refreshViaRelay(
     relayUrl: string,
-    domain: string,
     space: string,
     refreshToken: string,
 ): Promise<TokenResponse> {
@@ -895,7 +871,6 @@ async function refreshViaRelay(
         body: JSON.stringify({
             grant_type: "refresh_token",
             refresh_token: refreshToken,
-            domain,
             space,
         }),
     });
@@ -944,8 +919,7 @@ function errorPage(title: string, message: string): string {
 </body></html>`;
 }
 
-function popupSuccessPage(space: string, domain: string): string {
-    const key = spaceKey(space, domain);
+function popupSuccessPage(space: string): string {
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>認証完了</title>
@@ -956,12 +930,12 @@ function popupSuccessPage(space: string, domain: string): string {
   <div class="check">&#x2705;</div>
   <h1>認証完了</h1>
   <div class="card" style="text-align:center;">
-    <p><code>${escapeHtml(key)}</code> に接続しました</p>
+    <p><code>${escapeHtml(space)}</code> に接続しました</p>
     <p style="margin-top:.75rem;color:#666;">このウィンドウは自動的に閉じます。</p>
   </div>
 </div>
 <script>
-if(window.opener){window.opener.postMessage({type:"backlog-space-auth",space:${JSON.stringify(key)},ok:true},window.location.origin);}
+if(window.opener){window.opener.postMessage({type:"backlog-space-auth",space:${JSON.stringify(space)},ok:true},window.location.origin);}
 setTimeout(()=>window.close(),1500);
 </script>
 </body></html>`;
@@ -1037,7 +1011,7 @@ h1 { text-align:center; }
 </div>
 <script>
 const SESSION = ${JSON.stringify(session)};
-const INITIAL = ${JSON.stringify(spaces.map((s) => spaceKey(s.space, s.domain)))};
+const INITIAL = ${JSON.stringify(spaces.map((s) => s.space))};
 const SPACE_PATTERNS = ${JSON.stringify(spacePatterns)}.map(p => new RegExp("^" + p + "$"));
 const LS_KEY = "backlog_mcp_spaces";
 const authenticated = new Set();
@@ -1055,17 +1029,9 @@ function saveSpaces() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(keys)); } catch {}
 }
 
-function parseSpaceKey(key) {
-  const i = key.indexOf(".");
-  if (i < 1) return null;
-  return { space: key.substring(0, i), domain: key.substring(i + 1) };
-}
-
 function addSpace(key, save) {
   if (allSpaces.has(key)) return;
-  const parsed = parseSpaceKey(key);
-  if (!parsed) return;
-  allSpaces.set(key, parsed);
+  allSpaces.set(key, {});
   renderSpaces();
   if (save) saveSpaces();
 }
@@ -1080,7 +1046,7 @@ function removeSpace(key) {
 function renderSpaces() {
   const container = document.getElementById("spaces");
   container.innerHTML = "";
-  for (const [key, {space, domain}] of allSpaces) {
+  for (const key of allSpaces.keys()) {
     const done = authenticated.has(key);
     const div = document.createElement("div");
     div.className = "space";
@@ -1090,16 +1056,15 @@ function renderSpaces() {
       '<span class="status">' + (done ? '\\u2713' : '') + '</span>' +
       (done
         ? '<button class="auth-btn" disabled>完了</button>'
-        : '<button class="auth-btn" onclick="authSpace(\\''+esc(space)+'\\',\\''+esc(domain)+'\\',event)">認証</button>') +
+        : '<button class="auth-btn" onclick="authSpace(\\''+esc(key)+'\\',event)">認証</button>') +
       (done ? '' : '<button class="remove-btn" onclick="removeSpace(\\''+esc(key)+'\\')">\\u00d7</button>');
     container.appendChild(div);
   }
   updateContinue();
 }
 
-function authSpace(space, domain, evt) {
-  const key = space + "." + domain;
-  const el = document.querySelector('[data-key="'+key+'"]');
+function authSpace(space, evt) {
+  const el = document.querySelector('[data-key="'+space+'"]');
   if (el) {
     el.querySelector(".auth-btn").disabled = true;
     el.querySelector(".auth-btn").textContent = "認証中...";
@@ -1116,9 +1081,8 @@ function authSpace(space, domain, evt) {
     if (top < screen.availTop) top = screen.availTop;
   }
   const url = "/mcp/authorize/space?space=" + encodeURIComponent(space)
-    + "&domain=" + encodeURIComponent(domain)
     + "&session=" + encodeURIComponent(SESSION);
-  window.open(url, "backlog_auth_" + key, "width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top)+",popup=yes");
+  window.open(url, "backlog_auth_" + space, "width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top)+",popup=yes");
 }
 
 function markDone(key) {
@@ -1169,7 +1133,7 @@ setInterval(async () => {
     const resp = await fetch("/mcp/authorize/status?session=" + encodeURIComponent(SESSION) + "&spaces=" + encodeURIComponent(keys.join(",")));
     const data = await resp.json();
     for (const s of data.spaces || []) {
-      if (s.authenticated) markDone(s.space + "." + s.domain);
+      if (s.authenticated) markDone(s.space);
     }
   } catch {}
 }, 2000);

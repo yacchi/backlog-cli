@@ -16,32 +16,28 @@ export function getAuthContext(c: Context): AuthContext {
 export function resolveSpaceToken(
     token: TokenPayload,
     spaceKey?: string,
-): { space: string; domain: string; bl_access_token: string } | null {
+): { space: string; bl_access_token: string } | null {
     if (!spaceKey) {
         return {
             space: token.space,
-            domain: token.domain,
             bl_access_token: token.bl_access_token ?? token.spaces?.[0]?.bl_access_token ?? "",
         };
     }
 
     if (token.spaces) {
-        const found = token.spaces.find(
-            (s) => `${s.space}.${s.domain}` === spaceKey,
-        );
+        const found = token.spaces.find((s) => s.space === spaceKey);
         if (found) {
             return {
                 space: found.space,
-                domain: found.domain,
                 bl_access_token: found.bl_access_token,
             };
         }
     }
 
-    if (`${token.space}.${token.domain}` === spaceKey && token.bl_access_token) {
+    // Try direct match (new spaceHost format)
+    if (token.space === spaceKey && token.bl_access_token) {
         return {
             space: token.space,
-            domain: token.domain,
             bl_access_token: token.bl_access_token,
         };
     }

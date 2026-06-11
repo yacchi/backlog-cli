@@ -307,7 +307,7 @@ describe("parseScopes with space patterns", () => {
         const config = makeConfig();
         const result = parseScopes("backlog:mycompany.backlog.jp backlog:rogue.backlog.com", config);
         expect(result).toHaveLength(1);
-        expect(result[0]).toEqual({ space: "mycompany", domain: "backlog.jp" });
+        expect(result[0]).toEqual({ space: "mycompany.backlog.jp" });
     });
 
     it("falls back to default_spaces when no scope", async () => {
@@ -316,7 +316,7 @@ describe("parseScopes with space patterns", () => {
         const config = makeConfig();
         const result = parseScopes(undefined, config);
         expect(result).toHaveLength(1);
-        expect(result[0]).toEqual({ space: "mycompany", domain: "backlog.jp" });
+        expect(result[0]).toEqual({ space: "mycompany.backlog.jp" });
     });
 
     it("returns empty when scope is invalid and no default_spaces", async () => {

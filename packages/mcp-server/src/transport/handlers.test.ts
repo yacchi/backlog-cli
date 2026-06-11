@@ -37,8 +37,7 @@ async function makeAccessToken(): Promise<string> {
         {
             bl_access_token: "test-backlog-token",
             bl_expires_at: now + 3600,
-            space: "mycompany",
-            domain: "backlog.jp",
+            space: "mycompany.backlog.jp",
             iat: now,
             exp: now + 3600,
         },
@@ -138,8 +137,7 @@ describe("MCP transport — auth", () => {
         const expired = await signToken(
             {
                 bl_access_token: "expired",
-                space: "mycompany",
-                domain: "backlog.jp",
+                space: "mycompany.backlog.jp",
                 iat: now - 7200,
                 exp: now - 3600,
             },
@@ -269,8 +267,7 @@ describe("MCP transport — space access control", () => {
             {
                 bl_access_token: "token-for-unknown",
                 bl_expires_at: now + 3600,
-                space: "unknown",
-                domain: "backlog.jp",
+                space: "unknown.backlog.jp",
                 iat: now,
                 exp: now + 3600,
             },
@@ -295,11 +292,10 @@ describe("MCP transport — space access control", () => {
             {
                 bl_access_token: "primary-token",
                 bl_expires_at: now + 3600,
-                space: "mycompany",
-                domain: "backlog.jp",
+                space: "mycompany.backlog.jp",
                 spaces: [
-                    { space: "mycompany", domain: "backlog.jp", bl_access_token: "primary-token", bl_refresh_token: "r1", bl_expires_at: now + 3600 },
-                    { space: "rogue", domain: "backlog.jp", bl_access_token: "rogue-token", bl_refresh_token: "r2", bl_expires_at: now + 3600 },
+                    { space: "mycompany.backlog.jp", bl_access_token: "primary-token", bl_refresh_token: "r1", bl_expires_at: now + 3600 },
+                    { space: "rogue.backlog.jp", bl_access_token: "rogue-token", bl_refresh_token: "r2", bl_expires_at: now + 3600 },
                 ],
                 iat: now,
                 exp: now + 3600,

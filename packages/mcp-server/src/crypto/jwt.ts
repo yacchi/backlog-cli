@@ -2,7 +2,6 @@ import { SignJWT, jwtVerify, importJWK, type JWK, type CryptoKey } from "jose";
 
 export interface SpaceToken {
     space: string;
-    domain: string;
     bl_access_token: string;
     bl_refresh_token: string;
     bl_expires_at: number;
@@ -14,7 +13,6 @@ export interface TokenPayload {
     bl_refresh_token?: string;
     bl_expires_at?: number;
     space: string;
-    domain: string;
     iat: number;
     exp?: number;
 }
@@ -110,7 +108,30 @@ export async function verifyToken(
     verifyKeys: Map<string, CryptoKey>,
 ): Promise<TokenPayload> {
     const payload = await verify(jwt, verifyKeys);
-    return payload as unknown as TokenPayload;
+    const token = payload as unknown as TokenPayload;
+
+    // Backward compatibility: normalize old tokens with separate space/domain into single space
+    if (!token.space.includes(".") && (payload as any).domain) {
+        token.space = `${token.space}.${(payload as any).domain}`;
+    }
+
+    // Normalize spaces array if present
+    if (token.spaces) {
+        token.spaces = token.spaces.map((s) => ({
+            space: s.space.includes(".") ? s.space : `${s.space}.${(s as any).domain || ''}`,
+            bl_access_token: s.bl_access_token,
+            bl_refresh_token: s.bl_refresh_token,
+            bl_expires_at: s.bl_expires_at,
+        }));
+    }
+
+    return token;
+}
+
+export function normalizeSpace(space: string, domain?: string): string {
+    if (space.includes(".")) return space;
+    if (domain) return `${space}.${domain}`;
+    return space;
 }
 
 function decodeProtectedHeaderLazy(jwt: string): { alg: string; kid?: string } {
