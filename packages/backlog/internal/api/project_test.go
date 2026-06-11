@@ -12,7 +12,7 @@ import (
 func TestCreateCategoryAcceptsStatusOK(t *testing.T) {
 	var body string
 
-	client := NewClient("example", "backlog.jp", "", WithAPIKey("test"))
+	client := NewClient("example.backlog.jp", "", WithAPIKey("test"))
 	client.httpClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodPost {
 			t.Fatalf("method = %s, want %s", req.Method, http.MethodPost)

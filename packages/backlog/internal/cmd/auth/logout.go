@@ -60,8 +60,8 @@ func runLogout(cmd *cobra.Command, args []string) error {
 
 		// プロファイルからhost情報を取得
 		var host string
-		if profile, ok := profiles[profileName]; ok && profile.Space != "" && profile.Domain != "" {
-			host = profile.Space + "." + profile.Domain
+		if profile, ok := profiles[profileName]; ok && profile.Space != "" {
+			host = profile.Space
 		} else {
 			host = "(not configured)"
 		}

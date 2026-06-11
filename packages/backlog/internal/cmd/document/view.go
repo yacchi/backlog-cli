@@ -47,7 +47,7 @@ func runView(c *cobra.Command, args []string) error {
 	profile := cfg.CurrentProfile()
 
 	if viewWeb {
-		url := fmt.Sprintf("https://%s.%s/document/%s", profile.Space, profile.Domain, documentID)
+		url := fmt.Sprintf("https://%s/document/%s", profile.Space, documentID)
 		return browser.OpenURL(url)
 	}
 
@@ -66,11 +66,11 @@ func runView(c *cobra.Command, args []string) error {
 			fmt.Println(doc.Plain)
 			return nil
 		}
-		return renderDocumentDetail(doc, profile.Space, profile.Domain)
+		return renderDocumentDetail(doc, profile.Space)
 	}
 }
 
-func renderDocumentDetail(doc *api.DocumentDetail, space, domain string) error {
+func renderDocumentDetail(doc *api.DocumentDetail, space string) error {
 	title := doc.Title
 	if doc.Emoji != "" {
 		title = doc.Emoji + " " + title
@@ -94,7 +94,7 @@ func renderDocumentDetail(doc *api.DocumentDetail, space, domain string) error {
 		}
 	}
 
-	docURL := fmt.Sprintf("https://%s.%s/document/%s", space, domain, doc.ID)
+	docURL := fmt.Sprintf("https://%s/document/%s", space, doc.ID)
 
 	if doc.Plain != "" {
 		fmt.Println()

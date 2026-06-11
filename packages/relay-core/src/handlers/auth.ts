@@ -14,6 +14,17 @@ import { extractRequestContext } from "../utils/request.js";
 import { encodeState, decodeState, extractSessionId } from "../utils/state.js";
 
 /**
+ * Normalize space to a full host (e.g., "myspace.backlog.jp").
+ * If space already contains a dot, it's the full host.
+ * Otherwise, combine with domain if provided.
+ */
+function normalizeSpace(space: string, domain?: string): string {
+  if (space.includes(".")) return space;
+  if (domain) return `${space}.${domain}`;
+  return space;
+}
+
+/**
  * Error response type.
  */
 interface ErrorResponse {
@@ -137,21 +148,21 @@ export function createAuthHandlers(
    * GET /auth/start - Start OAuth authorization flow.
    */
   app.get("/auth/start", async (c) => {
-    const domain = c.req.query("domain");
-    const space = c.req.query("space");
+    const spaceParam = c.req.query("space");
+    const domainParam = c.req.query("domain");
     const portStr = c.req.query("port");
     const cliState = c.req.query("state");
     const project = c.req.query("project");
 
     const reqCtx = extractRequestContext(c);
 
-    // Validation
-    if (!domain || !space || !portStr || !cliState) {
+    // Validation - space is required
+    if (!spaceParam || !portStr || !cliState) {
       return writeError(
         c,
         400,
         "invalid_request",
-        "domain, space, port, and state are required"
+        "space, port, and state are required"
       );
     }
 
@@ -165,15 +176,17 @@ export function createAuthHandlers(
       );
     }
 
-    // Access control checks
+    // Normalize space: if it doesn't contain a dot but domain is provided, combine them
+    const spaceHost = normalizeSpace(spaceParam, domainParam);
+
+    // Access control checks - use normalized spaceHost for pattern matching
     try {
-      accessControl.checkSpace(space);
+      accessControl.checkSpace(spaceHost);
     } catch (err) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.ACCESS_DENIED,
-          space,
-          domain,
+          space: spaceHost,
           project,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
@@ -190,8 +203,7 @@ export function createAuthHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.ACCESS_DENIED,
-          space,
-          domain,
+          space: spaceHost,
           project,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
@@ -202,12 +214,11 @@ export function createAuthHandlers(
       return writeError(c, 403, "access_denied", (err as Error).message);
     }
 
-    // Encode state
+    // Encode state - only include normalized space, not separate domain
     const encodedState = encodeState({
       port,
       cliState,
-      space,
-      domain,
+      space: spaceHost,
       project,
     });
 
@@ -216,8 +227,7 @@ export function createAuthHandlers(
       createAuditEvent({
         sessionId: extractSessionId(cliState),
         action: AuditActions.AUTH_START,
-        space,
-        domain,
+        space: spaceHost,
         project,
         clientIp: reqCtx.clientIp,
         userAgent: reqCtx.userAgent,
@@ -228,7 +238,7 @@ export function createAuthHandlers(
     // Build Backlog authorization URL
     const redirectUri = buildCallbackUrl(c);
     const authUrl = new URL(
-      `https://${space}.${domain}/OAuth2AccessRequest.action`
+      `https://${spaceHost}/OAuth2AccessRequest.action`
     );
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("client_id", config.backlog_app.client_id);
@@ -313,7 +323,6 @@ export function createAuthHandlers(
         sessionId: extractSessionId(claims.cliState),
         action: AuditActions.AUTH_CALLBACK,
         space: claims.space,
-        domain: claims.domain,
         project: claims.project,
         clientIp: reqCtx.clientIp,
         userAgent: reqCtx.userAgent,

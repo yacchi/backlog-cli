@@ -34,19 +34,17 @@ func (cs *CallbackServer) GetConfig(
 	}
 
 	profile := cs.configStore.CurrentProfile()
-	spaceHost := ""
-	if profile.Space != "" && profile.Domain != "" {
-		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
-	}
 
 	// relay_url は解決順位（env > bundle > inline）に従って算出する
 	relayURL, _ := cs.configStore.ResolveRelayURL(profile)
 
-	resp.Msg.Space = profile.Space
-	resp.Msg.Domain = profile.Domain
+	// proto 後方互換: space/domain を分離して送信
+	spaceID, spaceDomain := SplitSpaceHost(profile.Space)
+	resp.Msg.Space = spaceID
+	resp.Msg.Domain = spaceDomain
 	resp.Msg.RelayServer = relayURL
-	resp.Msg.SpaceHost = spaceHost
-	resp.Msg.Configured = profile.Space != "" && profile.Domain != "" && relayURL != ""
+	resp.Msg.SpaceHost = profile.Space
+	resp.Msg.Configured = profile.Space != "" && strings.Contains(profile.Space, ".") && relayURL != ""
 
 	// 現在の認証タイプを取得
 	resolved := cs.configStore.Resolved()
@@ -97,8 +95,8 @@ func (cs *CallbackServer) Configure(
 		}
 	}
 
-	// スペースホストをパース
-	space, domain, err := parseSpaceHost(spaceHost)
+	// スペースホストをパース・検証
+	_, spaceDomain, err := parseSpaceHost(spaceHost)
 	if err != nil {
 		debug.Log("invalid space host", "error", err)
 		resp.Msg.Success = false
@@ -117,11 +115,11 @@ func (cs *CallbackServer) Configure(
 	}
 
 	// ドメインがサポートされているかチェック
-	if !slices.Contains(wellKnown.SupportedDomains, domain) {
-		debug.Log("domain not supported", "domain", domain, "supported", wellKnown.SupportedDomains)
+	if !slices.Contains(wellKnown.SupportedDomains, spaceDomain) {
+		debug.Log("domain not supported", "domain", spaceDomain, "supported", wellKnown.SupportedDomains)
 		resp.Msg.Success = false
 		resp.Msg.Error = stringPtr(fmt.Sprintf("このリレーサーバーは %s をサポートしていません（サポート: %s）",
-			domain, strings.Join(wellKnown.SupportedDomains, ", ")))
+			spaceDomain, strings.Join(wellKnown.SupportedDomains, ", ")))
 		return resp, nil
 	}
 
@@ -202,11 +200,8 @@ func (cs *CallbackServer) Configure(
 			return resp, nil
 		}
 	}
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", space); err != nil {
+	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", spaceHost); err != nil {
 		debug.Log("failed to save space", "error", err)
-	}
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "domain", domain); err != nil {
-		debug.Log("failed to save domain", "error", err)
 	}
 
 	if err := cs.configStore.Save(ctx); err != nil {
@@ -352,37 +347,34 @@ func (cs *CallbackServer) AuthenticateWithApiKey(
 	// 既存の設定を取得
 	profile := cs.configStore.CurrentProfile()
 	existingSpace := profile.Space
-	existingDomain := profile.Domain
 
-	var space, domain string
+	var resolvedSpace string
 	var spaceChanged bool
 
 	// spaceHostが指定されている場合はパースして使用
 	if spaceHost != "" {
-		var err error
-		space, domain, err = parseSpaceHost(spaceHost)
+		_, _, err := parseSpaceHost(spaceHost)
 		if err != nil {
 			debug.Log("invalid space host", "error", err)
 			resp.Msg.Success = false
 			resp.Msg.Error = stringPtr("無効なスペース形式です: " + err.Error())
 			return resp, nil
 		}
-		// 既存の値と異なる場合のみ変更フラグを立てる
-		spaceChanged = space != existingSpace || domain != existingDomain
+		resolvedSpace = spaceHost
+		spaceChanged = resolvedSpace != existingSpace
 	} else {
 		// spaceHostが空の場合は既存の設定を使用
-		if existingSpace == "" || existingDomain == "" {
+		if existingSpace == "" || !strings.Contains(existingSpace, ".") {
 			resp.Msg.Success = false
 			resp.Msg.Error = stringPtr("スペースを入力してください")
 			return resp, nil
 		}
-		space = existingSpace
-		domain = existingDomain
+		resolvedSpace = existingSpace
 	}
 
 	// API Keyの検証（ユーザー情報取得）
-	debug.Log("verifying API Key", "space", space, "domain", domain)
-	apiClient := api.NewClient(space, domain, "", api.WithAPIKey(apiKey))
+	debug.Log("verifying API Key", "space", resolvedSpace)
+	apiClient := api.NewClient(resolvedSpace, "", api.WithAPIKey(apiKey))
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		debug.Log("API Key verification failed", "error", err)
@@ -396,11 +388,8 @@ func (cs *CallbackServer) AuthenticateWithApiKey(
 	// 設定を保存（変更があった場合のみ）
 	profileName := cs.configStore.GetActiveProfile()
 	if spaceChanged {
-		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", space); err != nil {
+		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", resolvedSpace); err != nil {
 			debug.Log("failed to save space", "error", err)
-		}
-		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "domain", domain); err != nil {
-			debug.Log("failed to save domain", "error", err)
 		}
 	}
 
@@ -411,8 +400,7 @@ func (cs *CallbackServer) AuthenticateWithApiKey(
 		UserID:    user.UserId.Value,
 		UserName:  user.Name.Value,
 		UserEmail: user.MailAddress.Value,
-		Space:     space,
-		Domain:    domain,
+		Space:     resolvedSpace,
 	}
 	_ = cs.configStore.SetCredential(profileName, cred)
 

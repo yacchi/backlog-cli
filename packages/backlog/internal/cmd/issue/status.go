@@ -112,7 +112,7 @@ func runStatus(c *cobra.Command, args []string) error {
 	}
 
 	// Table output
-	baseURL := fmt.Sprintf("https://%s.%s", profile.Space, profile.Domain)
+	baseURL := fmt.Sprintf("https://%s", profile.Space)
 
 	// Assigned to you
 	fmt.Printf("\n%s\n", ui.Bold("Assigned to you"))

@@ -247,7 +247,7 @@ func runEdit(c *cobra.Command, args []string) error {
 		return enc.Encode(issue)
 	default:
 		ui.Success("Updated %s", issue.IssueKey.Value)
-		url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issue.IssueKey.Value)
+		url := fmt.Sprintf("https://%s/view/%s", profile.Space, issue.IssueKey.Value)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

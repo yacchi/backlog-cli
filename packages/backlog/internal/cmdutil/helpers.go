@@ -37,9 +37,9 @@ func GetAPIClient(cmd *cobra.Command) (*api.Client, *config.Store, error) {
 		return nil, nil, err
 	}
 
-	space, domain := GetSpaceDomain(cfg)
-	if space == "" || domain == "" {
-		return nil, nil, fmt.Errorf("space and domain are required\nRun 'backlog auth login' first")
+	space := GetSpace(cfg)
+	if space == "" {
+		return nil, nil, fmt.Errorf("space is required\nRun 'backlog auth login' first")
 	}
 
 	client, err := api.NewClientFromConfig(cfg)
@@ -50,26 +50,20 @@ func GetAPIClient(cmd *cobra.Command) (*api.Client, *config.Store, error) {
 	return client, cfg, nil
 }
 
-// GetSpaceDomain はspace/domainを取得する
+// GetSpace はspaceを取得する
 // プロジェクト設定（.backlog.yaml）を優先し、なければプロファイル設定を使用
-func GetSpaceDomain(cfg *config.Store) (space, domain string) {
+func GetSpace(cfg *config.Store) string {
 	project := cfg.Project()
 	profile := cfg.CurrentProfile()
 
 	// プロジェクト設定を優先
 	if project != nil && project.Space != "" {
-		space = project.Space
-	} else if profile != nil {
-		space = profile.Space
+		return project.Space
 	}
-
-	if project != nil && project.Domain != "" {
-		domain = project.Domain
-	} else if profile != nil {
-		domain = profile.Domain
+	if profile != nil {
+		return profile.Space
 	}
-
-	return space, domain
+	return ""
 }
 
 // RequireProject はプロジェクトが設定されていることを確認する

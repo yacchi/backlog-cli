@@ -125,7 +125,7 @@ func renderNotificationList(notifications []api.UserNotification, profile *confi
 		var target, targetURL string
 		if n.Issue != nil {
 			target = fmt.Sprintf("%s %s", n.Issue.IssueKey, truncate(n.Issue.Summary, 40))
-			targetURL = fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, n.Issue.IssueKey)
+			targetURL = fmt.Sprintf("https://%s/view/%s", profile.Space, n.Issue.IssueKey)
 		} else if n.PullRequest != nil {
 			target = fmt.Sprintf("PR #%d", n.PullRequest.Number)
 			targetURL = "" // PRのURLは project/repo が必要で複雑なためスキップ

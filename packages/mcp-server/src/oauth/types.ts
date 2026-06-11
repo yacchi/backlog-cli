@@ -44,7 +44,6 @@ export interface ClientIdPayload {
 
 export interface SpaceRef {
     space: string;
-    domain: string;
 }
 
 export interface AuthorizeState {
@@ -54,7 +53,6 @@ export interface AuthorizeState {
     code_challenge_method: string;
     state: string;
     space: string;
-    domain: string;
     requiredSpaces?: SpaceRef[];
     popup?: boolean;
 }

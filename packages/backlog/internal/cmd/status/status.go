@@ -147,8 +147,8 @@ func renderStatus(summary *StatusSummary, profile *config.ResolvedProfile, displ
 	} else {
 		for _, n := range summary.Notifications {
 			if n.Issue != nil {
-				url := fmt.Sprintf("https://%s.%s/view/%s",
-					profile.Space, profile.Domain, n.Issue.IssueKey)
+				url := fmt.Sprintf("https://%s/view/%s",
+					profile.Space, n.Issue.IssueKey)
 				fmt.Printf("  %s %s\n",
 					ui.Hyperlink(url, ui.Cyan(n.Issue.IssueKey)),
 					truncate(n.Issue.Summary, 50))
@@ -167,8 +167,8 @@ func renderStatus(summary *StatusSummary, profile *config.ResolvedProfile, displ
 			if !w.ResourceAlreadyRead {
 				marker = ui.Yellow("●")
 			}
-			url := fmt.Sprintf("https://%s.%s/view/%s",
-				profile.Space, profile.Domain, w.Issue.IssueKey)
+			url := fmt.Sprintf("https://%s/view/%s",
+				profile.Space, w.Issue.IssueKey)
 			fmt.Printf(" %s %s %s\n",
 				marker,
 				ui.Hyperlink(url, ui.Cyan(w.Issue.IssueKey)),
@@ -181,8 +181,8 @@ func renderStatus(summary *StatusSummary, profile *config.ResolvedProfile, displ
 	if len(summary.AssignedIssues) > 0 {
 		fmt.Printf("%s (%d issues)\n", ui.Bold("Assigned to me"), summary.AssignedIssuesCount)
 		for _, issue := range summary.AssignedIssues {
-			url := fmt.Sprintf("https://%s.%s/view/%s",
-				profile.Space, profile.Domain, issue.IssueKey)
+			url := fmt.Sprintf("https://%s/view/%s",
+				profile.Space, issue.IssueKey)
 			statusColor := formatStatus(issue.Status)
 			fmt.Printf("  %s %s %s\n",
 				ui.Hyperlink(url, ui.Cyan(issue.IssueKey)),

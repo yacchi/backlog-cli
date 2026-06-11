@@ -190,8 +190,8 @@ func runCreate(c *cobra.Command, args []string) error {
 	default:
 		fmt.Printf("%s Pull request created: #%d %s\n",
 			ui.Green("✓"), pr.Number, pr.Summary)
-		url := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests/%d",
-			profile.Space, profile.Domain, projectKey, createRepo, pr.Number)
+		url := fmt.Sprintf("https://%s/git/%s/%s/pullRequests/%d",
+			profile.Space, projectKey, createRepo, pr.Number)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

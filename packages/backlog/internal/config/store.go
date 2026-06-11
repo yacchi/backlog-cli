@@ -162,6 +162,9 @@ func (s *Store) LoadAll(ctx context.Context) error {
 		s.activeProfile = resolved.Project.Profile
 	}
 
+	// 旧形式（space + domain 分離）を新形式（space に spaceHost 格納）に正規化
+	resolved.normalizeSpaceFields()
+
 	return nil
 }
 
@@ -178,7 +181,14 @@ func (s *Store) Reload(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.store.Reload(ctx)
+	if err := s.store.Reload(ctx); err != nil {
+		return err
+	}
+
+	resolved := s.store.Get()
+	resolved.normalizeSpaceFields()
+
+	return nil
 }
 
 // ====================
@@ -255,19 +265,11 @@ func (s *Store) ResolveBySpace(spaceHost string) (string, error) {
 
 	resolved := s.store.Get()
 
-	// spaceHost を space + domain に分解
-	parts := strings.SplitN(spaceHost, ".", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", fmt.Errorf("invalid space host %q: expected format \"space.domain\" (e.g. \"myspace.backlog.jp\")", spaceHost)
-	}
-	targetSpace := parts[0]
-	targetDomain := parts[1]
-
 	var matches []string
 	var primaryName string
 
 	for name, profile := range resolved.Profiles {
-		if profile.Space == targetSpace && profile.Domain == targetDomain {
+		if profile.Space == spaceHost {
 			matches = append(matches, name)
 			if profile.Primary {
 				primaryName = name
@@ -307,18 +309,16 @@ func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profi
 		return resolved, false, nil
 	}
 
-	// パースエラーの場合はそのまま返す
-	space, domain, parseErr := ParseSpaceHost(spaceHost)
-	if parseErr != nil {
-		return "", false, parseErr
-	}
-
 	// プロファイル名の決定
-	candidateName := space
+	candidateName := spaceHost
 	profiles := s.Profiles()
 	if existing, ok := profiles[candidateName]; ok {
-		if existing.Space != space || existing.Domain != domain {
-			candidateName = spaceHost
+		if existing.Space != spaceHost {
+			// プロファイル名を短い形式に変更（スペース名のみ）
+			space, _, err := ParseSpaceHost(spaceHost)
+			if err == nil {
+				candidateName = space
+			}
 		}
 	}
 
@@ -347,11 +347,8 @@ func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profi
 		}
 	}
 
-	// プロファイル作成
-	if err := s.SetProfileValue(LayerUser, candidateName, "space", space); err != nil {
-		return "", false, fmt.Errorf("failed to create profile: %w", err)
-	}
-	if err := s.SetProfileValue(LayerUser, candidateName, "domain", domain); err != nil {
+	// プロファイル作成 - spaceHost全体を space フィールドに保存
+	if err := s.SetProfileValue(LayerUser, candidateName, "space", spaceHost); err != nil {
 		return "", false, fmt.Errorf("failed to create profile: %w", err)
 	}
 	if bundle != "" {

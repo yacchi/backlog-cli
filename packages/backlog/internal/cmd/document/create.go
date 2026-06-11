@@ -114,7 +114,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		return enc.Encode(doc)
 	default:
 		fmt.Printf("%s Document created: %s (ID: %s)\n", ui.Green("✓"), doc.Title, doc.ID)
-		url := fmt.Sprintf("https://%s.%s/document/%s", profile.Space, profile.Domain, doc.ID)
+		url := fmt.Sprintf("https://%s/document/%s", profile.Space, doc.ID)
 		fmt.Printf("URL: %s\n", ui.Cyan(url))
 		return nil
 	}

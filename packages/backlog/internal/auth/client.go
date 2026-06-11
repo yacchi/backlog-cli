@@ -60,8 +60,7 @@ type TokenRequest struct {
 	GrantType    string `json:"grant_type"`
 	Code         string `json:"code,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
-	Domain       string `json:"domain"`
-	Space        string `json:"space"`
+	Space        string `json:"space"`           // spaceHost 形式 (例: "myspace.backlog.jp")
 	State        string `json:"state,omitempty"` // セッション追跡用（StartAuthで取得した値）
 }
 
@@ -79,13 +78,23 @@ func (c *Client) ExchangeToken(req TokenRequest) (*TokenResponse, error) {
 }
 
 // RefreshToken はリフレッシュトークンでアクセストークンを更新する
-func (c *Client) RefreshToken(domain, space, refreshToken string) (*TokenResponse, error) {
+// spaceHost は "myspace.backlog.jp" 形式
+func (c *Client) RefreshToken(spaceHost, refreshToken string) (*TokenResponse, error) {
 	return c.requestToken(TokenRequest{
 		GrantType:    "refresh_token",
 		RefreshToken: refreshToken,
-		Domain:       domain,
-		Space:        space,
+		Space:        spaceHost,
 	})
+}
+
+// SplitSpaceHost は spaceHost を spaceID と domain に分割する。
+// proto後方互換性のために使用。
+func SplitSpaceHost(spaceHost string) (spaceID, spaceDomain string) {
+	parts := strings.SplitN(spaceHost, ".", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return spaceHost, ""
 }
 
 func (c *Client) requestToken(req TokenRequest) (*TokenResponse, error) {

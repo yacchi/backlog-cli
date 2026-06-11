@@ -241,7 +241,7 @@ func runMigrateInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("stat items file: %w", err)
 	}
 
-	baseURL := fmt.Sprintf("https://%s.%s", cfg.CurrentProfile().Space, cfg.CurrentProfile().Domain)
+	baseURL := fmt.Sprintf("https://%s", cfg.CurrentProfile().Space)
 	fmt.Printf("Snapshotting issues and wikis from %s...\n", baseURL)
 	items, err := snapshotAll(cmd.Context(), client, projectKey, project.ID, dir, baseURL)
 	if err != nil {
@@ -1127,7 +1127,7 @@ func runMigrateSnapshot(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	baseURL := fmt.Sprintf("https://%s.%s", cfg.CurrentProfile().Space, cfg.CurrentProfile().Domain)
+	baseURL := fmt.Sprintf("https://%s", cfg.CurrentProfile().Space)
 
 	newItems := make([]migrateItem, 0)
 	issues, err := fetchAllIssues(cmd.Context(), client, project.ID)

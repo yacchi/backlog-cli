@@ -70,8 +70,8 @@ func runView(c *cobra.Command, args []string) error {
 
 	// ブラウザで開く
 	if viewWeb {
-		url := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests/%d",
-			profile.Space, profile.Domain, projectKey, viewRepo, number)
+		url := fmt.Sprintf("https://%s/git/%s/%s/pullRequests/%d",
+			profile.Space, projectKey, viewRepo, number)
 		return browser.OpenURL(url)
 	}
 
@@ -126,8 +126,8 @@ func renderPRDetail(pr *api.PullRequest, comments []api.PRComment, profile *conf
 	formatter := ui.NewFieldFormatter(display.Timezone, display.DateTimeFormat, display.PRFieldConfig)
 
 	// URL生成
-	prURL := fmt.Sprintf("https://%s.%s/git/%s/%s/pullRequests/%d",
-		profile.Space, profile.Domain, projectKey, viewRepo, pr.Number)
+	prURL := fmt.Sprintf("https://%s/git/%s/%s/pullRequests/%d",
+		profile.Space, projectKey, viewRepo, pr.Number)
 
 	// ヘッダー（PR番号をハイパーリンク化）
 	fmt.Printf("%s %s\n", ui.Hyperlink(prURL, fmt.Sprintf("#%d", pr.Number)), ui.Bold(pr.Summary))
@@ -161,7 +161,7 @@ func renderPRDetail(pr *api.PullRequest, comments []api.PRComment, profile *conf
 
 	// 関連課題（ハイパーリンク化）
 	if pr.Issue != nil {
-		issueURL := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, pr.Issue.IssueKey)
+		issueURL := fmt.Sprintf("https://%s/view/%s", profile.Space, pr.Issue.IssueKey)
 		fmt.Printf("Issue:    %s %s\n", ui.Hyperlink(issueURL, pr.Issue.IssueKey), pr.Issue.Summary)
 	}
 

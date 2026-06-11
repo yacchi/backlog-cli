@@ -22,19 +22,17 @@ with your team.
 Examples:
   backlog project init
   backlog project init PROJ
-  backlog project init --space other-space --domain backlog.com`,
+  backlog project init --space myspace.backlog.jp`,
 	RunE: runInit,
 }
 
 var (
-	initSpace  string
-	initDomain string
-	initForce  bool
+	initSpace string
+	initForce bool
 )
 
 func init() {
-	initCmd.Flags().StringVar(&initSpace, "space", "", "Backlog space (optional)")
-	initCmd.Flags().StringVar(&initDomain, "domain", "", "Backlog domain (optional)")
+	initCmd.Flags().StringVar(&initSpace, "space", "", "Backlog space host (e.g., myspace.backlog.jp)")
 	initCmd.Flags().BoolVar(&initForce, "force", false, "Overwrite existing file")
 }
 
@@ -87,9 +85,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 			profile := cfg.CurrentProfile()
 			if initSpace == "" && profile != nil && profile.Space != "" {
 				initSpace = profile.Space
-			}
-			if initDomain == "" && profile != nil && profile.Domain != "" {
-				initDomain = profile.Domain
 			}
 		}
 	}

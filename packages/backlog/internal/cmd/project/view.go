@@ -60,7 +60,7 @@ func runView(c *cobra.Command, args []string) error {
 
 	// ブラウザで開く
 	if viewWeb {
-		url := fmt.Sprintf("https://%s.%s/projects/%s", profile.Space, profile.Domain, projectKey)
+		url := fmt.Sprintf("https://%s/projects/%s", profile.Space, projectKey)
 		return browser.OpenURL(url)
 	}
 
@@ -178,7 +178,7 @@ func renderProjectDetail(detail *ProjectDetail, profile *config.ResolvedProfile)
 
 	// URL
 	fmt.Println()
-	url := fmt.Sprintf("https://%s.%s/projects/%s", profile.Space, profile.Domain, detail.ProjectKey)
+	url := fmt.Sprintf("https://%s/projects/%s", profile.Space, detail.ProjectKey)
 	fmt.Printf("URL: %s\n", ui.Cyan(url))
 
 	return nil

@@ -445,6 +445,7 @@ export function createPortalHandlers(
       return c.json({
         success: true,
         provisioning_key: provisioningKey,
+        ...(tenant.default_space ? { default_space: tenant.default_space } : {}),
       });
     } catch (err) {
       auditLogger.log(

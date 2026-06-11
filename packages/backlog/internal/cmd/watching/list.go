@@ -116,8 +116,8 @@ func renderWatchingList(watchings []api.Watching, profile *config.ResolvedProfil
 		}
 
 		// URL生成
-		issueURL := fmt.Sprintf("https://%s.%s/view/%s",
-			profile.Space, profile.Domain, w.Issue.IssueKey)
+		issueURL := fmt.Sprintf("https://%s/view/%s",
+			profile.Space, w.Issue.IssueKey)
 
 		// 更新日時
 		updated := formatter.FormatDateTime(w.LastContentUpdated, "updated")

@@ -91,12 +91,8 @@ func credentialSecretComment(meta credentialSecretMetadata) string {
 }
 
 func credentialSecretSpaceURL(meta credentialSecretMetadata) string {
-	switch {
-	case meta.Space != "" && meta.Domain != "":
-		return meta.Space + "." + meta.Domain
-	case meta.Space != "":
+	if meta.Space != "" {
 		return meta.Space
-	default:
-		return ""
 	}
+	return ""
 }

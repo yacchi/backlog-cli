@@ -22,3 +22,34 @@ func SplitAllowedDomain(value string) (string, string, error) {
 	}
 	return parts[0], parts[1], nil
 }
+
+// NormalizeSpace は space と domain を統合した spaceHost を返す。
+// space が既にドットを含む場合はそのまま返す（新形式）。
+// space がドットを含まず domain が非空の場合は結合する（旧形式からの移行）。
+// どちらも空の場合は空文字列を返す。
+func NormalizeSpace(space, domain string) string {
+	if space == "" {
+		return ""
+	}
+	if strings.Contains(space, ".") {
+		return space
+	}
+	if domain != "" {
+		return space + "." + domain
+	}
+	return space
+}
+
+// SpaceID は spaceHost からスペースID部分を返す。
+// "mycompany.backlog.jp" → "mycompany"
+func SpaceID(spaceHost string) string {
+	id, _ := SplitDomain(spaceHost)
+	return id
+}
+
+// SpaceDomain は spaceHost からドメイン部分を返す。
+// "mycompany.backlog.jp" → "backlog.jp"
+func SpaceDomain(spaceHost string) string {
+	_, d := SplitDomain(spaceHost)
+	return d
+}

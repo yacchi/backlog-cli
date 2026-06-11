@@ -261,7 +261,7 @@ func (c *Client) GetIssuesCount(ctx context.Context, opts *IssueListOptions) (in
 func (c *Client) GetIssue(ctx context.Context, issueIDOrKey string) (*backlog.Issue, error) {
 	if c.cache != nil {
 		var issue backlog.Issue
-		key := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueIDOrKey)
+		key := fmt.Sprintf("issue:%s:%s", c.space, issueIDOrKey)
 		if ok, _ := c.cache.Get(key, &issue); ok {
 			return &issue, nil
 		}
@@ -275,7 +275,7 @@ func (c *Client) GetIssue(ctx context.Context, issueIDOrKey string) (*backlog.Is
 	}
 
 	if c.cache != nil {
-		key := fmt.Sprintf("issue:%s.%s:%s", c.space, c.domain, issueIDOrKey)
+		key := fmt.Sprintf("issue:%s:%s", c.space, issueIDOrKey)
 		_ = c.cache.Set(key, issue, c.cacheTTL)
 	}
 

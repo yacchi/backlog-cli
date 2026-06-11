@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/auth"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/config"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/domain"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/ui"
 )
 
@@ -141,8 +141,8 @@ func runLogin(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unknown authentication type in previous credentials")
 		}
 
-		if authMethod == authMethodOAuth && profile != nil && profile.Space != "" && profile.Domain != "" {
-			fmt.Printf("Reusing previous login settings: %s with %s.%s\n", authMethod, profile.Space, profile.Domain)
+		if authMethod == authMethodOAuth && profile != nil && profile.Space != "" {
+			fmt.Printf("Reusing previous login settings: %s with %s\n", authMethod, profile.Space)
 		}
 	} else {
 		// 通常の認証方式選択（OAuth は常に選択可能）
@@ -166,61 +166,53 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 	opts := mergeLoginOptions(cfg)
 
 	// フラグからのオーバーライド
-	flagOverride := false
-	if loginSpace != "" {
-		opts.space = loginSpace
-		flagOverride = true
-	}
-	if loginDomain != "" {
-		opts.domain = loginDomain
-		flagOverride = true
-	}
+	flagOverride := loginSpace != "" || loginDomain != ""
 
 	// --reuse オプションが指定されていない場合のみ確認ダイアログを表示
 	if !opts.reuse {
-		if !flagOverride && opts.space != "" && opts.domain != "" {
-			fmt.Printf("Current settings: %s.%s\n", opts.space, opts.domain)
-			changeSettings, err := ui.Confirm("Change space/domain settings?", false)
+		if !flagOverride && opts.space != "" && strings.Contains(opts.space, ".") {
+			fmt.Printf("Current settings: %s\n", opts.space)
+			changeSettings, err := ui.Confirm("Change space settings?", false)
 			if err != nil {
 				return err
 			}
 			if changeSettings {
 				opts.space = ""
-				opts.domain = ""
 			}
 		}
 	}
 
-	// ドメイン選択（未設定の場合）
-	supportedDomains := []string{"backlog.jp", "backlog.com"}
-	if opts.domain == "" {
-		var err error
-		opts.domain, err = ui.Select("Select Backlog domain:", supportedDomains)
-		if err != nil {
-			return err
-		}
-	} else if !slices.Contains(supportedDomains, opts.domain) {
-		return fmt.Errorf("domain '%s' is not supported\nSupported: %v", opts.domain, supportedDomains)
-	}
+	// スペースホスト入力（未設定またはドメインなしの場合）
+	if opts.space == "" || !strings.Contains(opts.space, ".") {
+		spaceID := domain.SpaceID(opts.space)
+		supportedDomains := []string{"backlog.jp", "backlog.com"}
 
-	// スペース入力（未設定の場合）
-	if opts.space == "" {
-		var err error
-		opts.space, err = ui.Input("Enter space name:", "")
+		// スペース名入力
+		if spaceID == "" {
+			var err error
+			spaceID, err = ui.Input("Enter space name:", "")
+			if err != nil {
+				return err
+			}
+			if spaceID == "" {
+				return fmt.Errorf("space name is required")
+			}
+		}
+
+		// ドメイン選択
+		selectedDomain, err := ui.Select("Select Backlog domain:", supportedDomains)
 		if err != nil {
 			return err
 		}
-		if opts.space == "" {
-			return fmt.Errorf("space name is required")
-		}
+		opts.space = spaceID + "." + selectedDomain
 	}
 
 	// API Key入力
 	fmt.Println()
-	fmt.Printf("Authenticating with %s.%s using API Key...\n", opts.space, opts.domain)
+	fmt.Printf("Authenticating with %s using API Key...\n", opts.space)
 	fmt.Println()
 	fmt.Println("You can obtain your API Key from:")
-	fmt.Printf("  https://%s.%s/EditApiSettings.action\n", opts.space, opts.domain)
+	fmt.Printf("  https://%s/EditApiSettings.action\n", opts.space)
 	fmt.Println()
 
 	apiKey, err := ui.Password("Enter API Key:")
@@ -234,7 +226,7 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 
 	// API Keyの検証（ユーザー情報取得）
 	fmt.Println("Verifying API Key...")
-	apiClient := api.NewClient(opts.space, opts.domain, "", api.WithAPIKey(apiKey))
+	apiClient := api.NewClient(opts.space, "", api.WithAPIKey(apiKey))
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("API Key verification failed: %w", err)
@@ -248,7 +240,7 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 
 	// 対象スペースが現プロファイルと異なる場合、新プロファイルを作成
 	profileName := cfg.GetActiveProfile()
-	profileName = ensureTargetProfile(ctx, cfg, profileName, opts.space, opts.domain)
+	profileName = ensureTargetProfile(ctx, cfg, profileName, opts.space)
 
 	cred := &config.Credential{
 		AuthType:  config.AuthTypeAPIKey,
@@ -257,12 +249,10 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 		UserName:  user.Name.Value,
 		UserEmail: user.MailAddress.Value,
 		Space:     opts.space,
-		Domain:    opts.domain,
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
 	_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", opts.space)
-	_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", opts.domain)
 
 	if err := cfg.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)
@@ -272,24 +262,16 @@ func runAPIKeyLogin(ctx context.Context, cfg *config.Store) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Logged in to %s.%s\n", opts.space, opts.domain)
+	fmt.Printf("Logged in to %s\n", opts.space)
 	return nil
 }
 
 // runWithTokenLogin は標準入力からAPIキーを読み取って認証を実行する
 func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) error {
-	// --space と --domain は必須
-	if loginSpace == "" {
-		return fmt.Errorf("--space is required when using --with-token")
-	}
-	if loginDomain == "" {
-		return fmt.Errorf("--domain is required when using --with-token")
-	}
-
-	// サポートされているドメインを確認
-	supportedDomains := []string{"backlog.jp", "backlog.com"}
-	if !slices.Contains(supportedDomains, loginDomain) {
-		return fmt.Errorf("domain '%s' is not supported\nSupported: %v", loginDomain, supportedDomains)
+	// --space は必須（spaceHost 形式）
+	spaceHost := domain.NormalizeSpace(loginSpace, loginDomain)
+	if spaceHost == "" || !strings.Contains(spaceHost, ".") {
+		return fmt.Errorf("--space is required when using --with-token (e.g. --space myspace.backlog.jp)")
 	}
 
 	// 標準入力からAPIキーを読み取る
@@ -304,7 +286,7 @@ func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) 
 	}
 
 	// API Keyの検証
-	apiClient := api.NewClient(loginSpace, loginDomain, "", api.WithAPIKey(apiKey))
+	apiClient := api.NewClient(spaceHost, "", api.WithAPIKey(apiKey))
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("API Key verification failed: %w", err)
@@ -318,14 +300,12 @@ func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) 
 		UserID:    user.UserId.Value,
 		UserName:  user.Name.Value,
 		UserEmail: user.MailAddress.Value,
-		Space:     loginSpace,
-		Domain:    loginDomain,
+		Space:     spaceHost,
 	}
 	_ = cfg.SetCredential(profileName, cred)
 
 	// 設定を保存
-	_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", loginSpace)
-	_ = cfg.SetProfileValue(config.LayerUser, profileName, "domain", loginDomain)
+	_ = cfg.SetProfileValue(config.LayerUser, profileName, "space", spaceHost)
 
 	if err := cfg.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)
@@ -334,7 +314,7 @@ func runWithTokenLogin(ctx context.Context, cfg *config.Store, stdin io.Reader) 
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Logged in to %s.%s as %s\n", loginSpace, loginDomain, user.Name.Value)
+	fmt.Printf("Logged in to %s as %s\n", spaceHost, user.Name.Value)
 	return nil
 }
 
@@ -348,7 +328,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("login options merged", "callback_port", opts.callbackPort, "timeout", opts.timeout, "reuse", opts.reuse)
 
 	profile := cfg.CurrentProfile()
-	if profile != nil && profile.Space != "" && profile.Domain != "" {
+	if profile != nil && profile.Space != "" {
 		if relayURL, rerr := cfg.ResolveRelayURL(profile); rerr == nil && relayURL != "" {
 			if err := verifyRelayInfoIfTrusted(ctx, cfg, relayURL, profile.Bundle, loginForceBundleUpdate); err != nil {
 				return err
@@ -420,13 +400,12 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 		return fmt.Errorf("failed to reload config: %w", err)
 	}
 
-	// 設定から space/domain/relayServer を取得
+	// 設定から space/relayServer を取得
 	profile = cfg.CurrentProfile()
-	if profile == nil || profile.Space == "" || profile.Domain == "" {
+	if profile == nil || profile.Space == "" || !strings.Contains(profile.Space, ".") {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
 	space := profile.Space
-	domain := profile.Domain
 	currentRelayServer, err := cfg.ResolveRelayURL(profile)
 	if err != nil {
 		return fmt.Errorf("configuration incomplete after authentication: %w", err)
@@ -439,9 +418,8 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
 		GrantType: "authorization_code",
 		Code:      result.Code,
-		Domain:    domain,
 		Space:     space,
-		State:     state, // CLI が生成した state を渡す
+		State:     state,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to exchange token: %w", err)
@@ -449,7 +427,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("token exchange successful", "expires_in", tokenResp.ExpiresIn)
 
 	// 7. ユーザー情報取得
-	apiClient := api.NewClient(space, domain, tokenResp.AccessToken)
+	apiClient := api.NewClient(space, tokenResp.AccessToken)
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
@@ -463,7 +441,7 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 
 	// 8. 認証情報保存（対象スペースが現プロファイルと異なる場合、新プロファイルを作成）
 	profileName := cfg.GetActiveProfile()
-	profileName = ensureTargetProfile(ctx, cfg, profileName, space, domain)
+	profileName = ensureTargetProfile(ctx, cfg, profileName, space)
 
 	cred := &config.Credential{
 		AuthType:     config.AuthTypeOAuth,
@@ -471,7 +449,6 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
 		Space:        space,
-		Domain:       domain,
 	}
 	if user != nil {
 		cred.UserID = user.UserId.Value
@@ -484,14 +461,13 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Logged in to %s.%s\n", space, domain)
+	fmt.Printf("Logged in to %s\n", space)
 
 	return nil
 }
 
 type loginOptions struct {
-	domain       string
-	space        string
+	space        string // spaceHost 形式 ("myspace.backlog.jp")
 	noBrowser    bool
 	callbackPort int
 	timeout      int
@@ -500,9 +476,11 @@ type loginOptions struct {
 }
 
 func mergeLoginOptions(cfg *config.Store) loginOptions {
+	// --space と --domain フラグを統合して spaceHost 形式にする
+	space := domain.NormalizeSpace(loginSpace, loginDomain)
+
 	opts := loginOptions{
-		domain:       loginDomain,
-		space:        loginSpace,
+		space:        space,
 		noBrowser:    loginNoBrowser,
 		callbackPort: loginCallbackPort,
 		timeout:      loginTimeout,
@@ -513,9 +491,6 @@ func mergeLoginOptions(cfg *config.Store) loginOptions {
 	// 設定ファイルからの補完
 	profile := cfg.CurrentProfile()
 	if profile != nil {
-		if opts.domain == "" {
-			opts.domain = profile.Domain
-		}
 		if opts.space == "" {
 			opts.space = profile.Space
 		}
@@ -548,7 +523,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("login options merged", "callback_port", opts.callbackPort)
 
 	profile := cfg.CurrentProfile()
-	if profile != nil && profile.Space != "" && profile.Domain != "" {
+	if profile != nil && profile.Space != "" {
 		if relayURL, rerr := cfg.ResolveRelayURL(profile); rerr == nil && relayURL != "" {
 			if err := verifyRelayInfoIfTrusted(ctx, cfg, relayURL, profile.Bundle, loginForceBundleUpdate); err != nil {
 				return err
@@ -623,19 +598,18 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	// API Key 認証の場合は既に完了している
 	if result.Code == "api_key_auth" {
 		profile := cfg.CurrentProfile()
-		if profile != nil && profile.Space != "" && profile.Domain != "" {
-			fmt.Printf("Logged in to %s.%s\n", profile.Space, profile.Domain)
+		if profile != nil && profile.Space != "" {
+			fmt.Printf("Logged in to %s\n", profile.Space)
 		}
 		return nil
 	}
 
 	// OAuth 認証の場合はトークン交換が必要
 	profile = cfg.CurrentProfile()
-	if profile == nil || profile.Space == "" || profile.Domain == "" {
+	if profile == nil || profile.Space == "" || !strings.Contains(profile.Space, ".") {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
 	space := profile.Space
-	domain := profile.Domain
 	currentRelayServer, err := cfg.ResolveRelayURL(profile)
 	if err != nil {
 		return fmt.Errorf("configuration incomplete after authentication: %w", err)
@@ -648,7 +622,6 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
 		GrantType: "authorization_code",
 		Code:      result.Code,
-		Domain:    domain,
 		Space:     space,
 		State:     state,
 	})
@@ -658,7 +631,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("token exchange successful", "expires_in", tokenResp.ExpiresIn)
 
 	// 7. ユーザー情報取得
-	apiClient := api.NewClient(space, domain, tokenResp.AccessToken)
+	apiClient := api.NewClient(space, tokenResp.AccessToken)
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch user info: %v\n", err)
@@ -672,7 +645,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 
 	// 8. 認証情報保存（対象スペースが現プロファイルと異なる場合、新プロファイルを作成）
 	profileName := cfg.GetActiveProfile()
-	profileName = ensureTargetProfile(ctx, cfg, profileName, space, domain)
+	profileName = ensureTargetProfile(ctx, cfg, profileName, space)
 
 	cred := &config.Credential{
 		AuthType:     config.AuthTypeOAuth,
@@ -680,7 +653,6 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresAt:    time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
 		Space:        space,
-		Domain:       domain,
 	}
 	if user != nil {
 		cred.UserID = user.UserId.Value
@@ -693,7 +665,7 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Logged in to %s.%s\n", space, domain)
+	fmt.Printf("Logged in to %s\n", space)
 
 	return nil
 }
@@ -763,19 +735,18 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 // ensureTargetProfile checks if the target space differs from the current
 // profile's space. If so, it creates a new profile via EnsureSpaceProfile
 // and switches the active profile to avoid overwriting existing credentials.
-func ensureTargetProfile(ctx context.Context, cfg *config.Store, currentProfile, space, domain string) string {
+func ensureTargetProfile(ctx context.Context, cfg *config.Store, currentProfile, spaceHost string) string {
 	profile := cfg.CurrentProfile()
 	if profile == nil {
 		return currentProfile
 	}
-	if profile.Space == space && profile.Domain == domain {
+	if profile.Space == spaceHost {
 		return currentProfile
 	}
-	if space == "" || domain == "" {
+	if spaceHost == "" || !strings.Contains(spaceHost, ".") {
 		return currentProfile
 	}
 
-	spaceHost := space + "." + domain
 	newProfile, created, err := cfg.EnsureSpaceProfile(ctx, spaceHost)
 	if err != nil {
 		debug.Log("failed to ensure target profile", "space_host", spaceHost, "error", err)

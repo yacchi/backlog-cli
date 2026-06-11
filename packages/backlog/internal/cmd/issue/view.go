@@ -85,7 +85,7 @@ func runView(c *cobra.Command, args []string) error {
 
 	// ブラウザで開く
 	if viewWeb {
-		url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, issueKey)
+		url := fmt.Sprintf("https://%s/view/%s", profile.Space, issueKey)
 		return browser.OpenURL(url)
 	}
 
@@ -178,7 +178,7 @@ func renderIssueBrief(issue *backlog.Issue, profile *config.ResolvedProfile) err
 		assignee = issue.Assignee.Value.Name.Value
 	}
 
-	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
+	url := fmt.Sprintf("https://%s/view/%s", profile.Space, key)
 
 	fmt.Printf("%s: %s\n", key, summary)
 	fmt.Printf("Status: %s | Assignee: %s\n", ui.StatusColor(status), assignee)
@@ -214,7 +214,7 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 		assignee = issue.Assignee.Value.Name.Value
 	}
 
-	url := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
+	url := fmt.Sprintf("https://%s/view/%s", profile.Space, key)
 
 	brief := map[string]string{
 		"key":      key,
@@ -262,7 +262,7 @@ func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComment
 	if issue.ID.IsSet() {
 		issueID = issue.ID.Value
 	}
-	issueURL := fmt.Sprintf("https://%s.%s/view/%s", profile.Space, profile.Domain, key)
+	issueURL := fmt.Sprintf("https://%s/view/%s", profile.Space, key)
 
 	// ヘッダー（キーをハイパーリンク化）
 	fmt.Printf("%s %s\n", ui.Bold(ui.Hyperlink(issueURL, key)), issue.Summary.Value)
