@@ -31,7 +31,7 @@ interface JWTHeader {
  * Bundle token claims.
  */
 interface BundleTokenClaims {
-  /** Subject (allowed_domain) */
+  /** Subject (bundle name) */
   sub: string;
   /** Issued at (Unix timestamp) */
   iat: number;
@@ -63,8 +63,8 @@ interface JWKS {
  * Options for creating bundle auth middleware.
  */
 export interface BundleAuthOptions {
-  /** Function to find tenant by domain */
-  findTenant: (domain: string) => BundleAuthTenantConfig | undefined;
+  /** Function to find tenant by name */
+  findTenant: (name: string) => BundleAuthTenantConfig | undefined;
   /** Server-level JWKS (used if tenant.jwks is not set) */
   jwks?: string;
   /** Audit logger */
@@ -128,7 +128,7 @@ async function verifyEd25519SignatureWithJWK(
  */
 async function verifyBundleToken(
   token: string,
-  allowedDomain: string,
+  name: string,
   jwksJson: string
 ): Promise<void> {
   const parts = token.split(".");
@@ -166,27 +166,27 @@ async function verifyBundleToken(
   const claimsJson = new TextDecoder().decode(base64UrlDecode(claimsB64));
   const claims: BundleTokenClaims = JSON.parse(claimsJson);
 
-  if (claims.sub !== allowedDomain) {
+  if (claims.sub !== name) {
     throw new Error(
-      `JWT subject mismatch: expected ${allowedDomain}, got ${claims.sub}`
+      `JWT subject mismatch: expected ${name}, got ${claims.sub}`
     );
   }
 }
 
 /**
- * Extract domain from path.
+ * Extract tenant name from path.
  * Supports patterns like:
- * - /relay/bundle/:domain
- * - /v1/relay/tenants/:domain/bundle
+ * - /relay/bundle/:name
+ * - /v1/relay/tenants/:name/bundle
  */
-function extractDomainFromPath(path: string): string | undefined {
-  // Pattern: /relay/bundle/:domain
+function extractNameFromPath(path: string): string | undefined {
+  // Pattern: /relay/bundle/:name
   const relayMatch = path.match(/^\/relay\/bundle\/([^/]+)/);
   if (relayMatch) {
     return relayMatch[1];
   }
 
-  // Pattern: /v1/relay/tenants/:domain/...
+  // Pattern: /v1/relay/tenants/:name/...
   const v1Match = path.match(/^\/v1\/relay\/tenants\/([^/]+)/);
   if (v1Match) {
     return v1Match[1];
@@ -228,9 +228,9 @@ export function createBundleAuthMiddleware(
       return;
     }
 
-    // Extract domain from path
-    const domain = extractDomainFromPath(path);
-    if (!domain) {
+    // Extract tenant name from path
+    const name = extractNameFromPath(path);
+    if (!name) {
       await next();
       return;
     }
@@ -244,12 +244,12 @@ export function createBundleAuthMiddleware(
     const reqCtx = extractRequestContext(c);
 
     // Find tenant
-    const tenant = findTenant(domain);
+    const tenant = findTenant(name);
     if (!tenant) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.BUNDLE_AUTH,
-          domain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -265,7 +265,7 @@ export function createBundleAuthMiddleware(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.BUNDLE_AUTH,
-          domain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -280,7 +280,7 @@ export function createBundleAuthMiddleware(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.BUNDLE_AUTH,
-          domain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -296,7 +296,7 @@ export function createBundleAuthMiddleware(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.BUNDLE_AUTH,
-          domain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -308,12 +308,12 @@ export function createBundleAuthMiddleware(
 
     // Verify token
     try {
-      await verifyBundleToken(token, domain, jwks);
+      await verifyBundleToken(token, name, jwks);
     } catch (err) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.BUNDLE_AUTH,
-          domain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",

@@ -81,7 +81,7 @@ which is useful for automation or when terminal input is not available.`,
 // Called by the root command's auto-auth flow when --space targets a new space.
 func RunLoginForProfile(ctx context.Context, cfg *config.Store) error {
 	profile := cfg.CurrentProfile()
-	if profile != nil && profile.RelayServer != "" {
+	if relayURL, _ := cfg.ResolveRelayURL(profile); relayURL != "" {
 		authMethod, err := ui.Select("Select authentication method:", []string{authMethodOAuth, authMethodAPIKey})
 		if err != nil {
 			return err
@@ -130,7 +130,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		switch cred.GetAuthType() {
 		case config.AuthTypeOAuth:
 			// OAuthの場合、relay_serverの設定がなくても--reuseならスキップできる
-			if profile != nil && profile.RelayServer != "" {
+			if relayURL, _ := cfg.ResolveRelayURL(profile); relayURL != "" {
 				authMethod = authMethodOAuth
 			} else {
 				return fmt.Errorf("OAuth authentication requires a relay server, but none is configured")
@@ -348,9 +348,11 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("login options merged", "callback_port", opts.callbackPort, "timeout", opts.timeout, "reuse", opts.reuse)
 
 	profile := cfg.CurrentProfile()
-	if profile != nil && profile.Space != "" && profile.Domain != "" && profile.RelayServer != "" {
-		if err := verifyRelayInfoIfTrusted(ctx, cfg, profile.RelayServer, profile.Space, profile.Domain, loginForceBundleUpdate); err != nil {
-			return err
+	if profile != nil && profile.Space != "" && profile.Domain != "" {
+		if relayURL, rerr := cfg.ResolveRelayURL(profile); rerr == nil && relayURL != "" {
+			if err := verifyRelayInfoIfTrusted(ctx, cfg, relayURL, profile.Bundle, loginForceBundleUpdate); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -420,12 +422,15 @@ func runOAuthLogin(ctx context.Context, cfg *config.Store) error {
 
 	// 設定から space/domain/relayServer を取得
 	profile = cfg.CurrentProfile()
-	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
+	if profile == nil || profile.Space == "" || profile.Domain == "" {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
 	space := profile.Space
 	domain := profile.Domain
-	currentRelayServer := profile.RelayServer
+	currentRelayServer, err := cfg.ResolveRelayURL(profile)
+	if err != nil {
+		return fmt.Errorf("configuration incomplete after authentication: %w", err)
+	}
 
 	// 6. トークン交換
 	debug.Log("exchanging authorization code", "code_length", len(result.Code))
@@ -543,9 +548,11 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	debug.Log("login options merged", "callback_port", opts.callbackPort)
 
 	profile := cfg.CurrentProfile()
-	if profile != nil && profile.Space != "" && profile.Domain != "" && profile.RelayServer != "" {
-		if err := verifyRelayInfoIfTrusted(ctx, cfg, profile.RelayServer, profile.Space, profile.Domain, loginForceBundleUpdate); err != nil {
-			return err
+	if profile != nil && profile.Space != "" && profile.Domain != "" {
+		if relayURL, rerr := cfg.ResolveRelayURL(profile); rerr == nil && relayURL != "" {
+			if err := verifyRelayInfoIfTrusted(ctx, cfg, relayURL, profile.Bundle, loginForceBundleUpdate); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -624,12 +631,15 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 
 	// OAuth 認証の場合はトークン交換が必要
 	profile = cfg.CurrentProfile()
-	if profile == nil || profile.Space == "" || profile.Domain == "" || profile.RelayServer == "" {
+	if profile == nil || profile.Space == "" || profile.Domain == "" {
 		return fmt.Errorf("configuration incomplete after authentication")
 	}
 	space := profile.Space
 	domain := profile.Domain
-	currentRelayServer := profile.RelayServer
+	currentRelayServer, err := cfg.ResolveRelayURL(profile)
+	if err != nil {
+		return fmt.Errorf("configuration incomplete after authentication: %w", err)
+	}
 
 	// 6. トークン交換
 	debug.Log("exchanging authorization code", "code_length", len(result.Code))
@@ -688,25 +698,29 @@ func runWebLogin(ctx context.Context, cfg *config.Store) error {
 	return nil
 }
 
-func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServer, space, domain string, forceUpdate bool) error {
-	allowedDomain := space + "." + domain
-	bundle := config.FindTrustedBundle(cfg, allowedDomain)
-	if bundle == nil {
-		debug.Log("trusted bundle not found; skipping relay info preflight", "allowed_domain", allowedDomain)
+func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServer, bundleName string, forceUpdate bool) error {
+	if bundleName == "" {
+		debug.Log("no bundle reference; skipping relay info preflight")
 		return nil
 	}
+	bundle := config.FindTrustedBundleByName(cfg, bundleName)
+	if bundle == nil {
+		debug.Log("trusted bundle not found; skipping relay info preflight", "name", bundleName)
+		return nil
+	}
+	name := bundle.ResolvedName()
 
 	cacheDir, err := cfg.GetCacheDir()
 	if err != nil {
 		debug.Log("failed to resolve cache dir", "error", err)
 	}
-	infoURL, err := config.BuildRelayInfoURL(relayServer, allowedDomain)
+	infoURL, err := config.BuildRelayInfoURL(relayServer, name)
 	if err != nil {
 		return fmt.Errorf("failed to build relay info url: %w", err)
 	}
-	debug.Log("verifying relay info", "url", infoURL, "allowed_domain", allowedDomain)
+	debug.Log("verifying relay info", "url", infoURL, "name", name)
 
-	info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
+	info, err := config.VerifyRelayInfo(ctx, relayServer, name, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
 		CacheDir:      cacheDir,
 		CertsCacheTTL: bundle.CertsCacheTTL,
 	})
@@ -717,12 +731,12 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 	if err := config.CheckBundleUpdate(info, bundle, time.Now().UTC(), forceUpdate); err != nil {
 		var updateErr *config.BundleUpdateRequiredError
 		if errors.As(err, &updateErr) {
-			bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, allowedDomain)
+			bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, name)
 			if urlErr != nil {
 				return fmt.Errorf("failed to build relay bundle url: %w", urlErr)
 			}
-			debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
-			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
+			debug.Log("fetching relay bundle", "url", bundleURL, "name", name)
+			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, name, bundle.BundleToken, config.BundleFetchOptions{
 				CacheDir:   cacheDir,
 				NoDefaults: true,
 			})
@@ -735,14 +749,14 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 			if err := cfg.Reload(ctx); err != nil {
 				return fmt.Errorf("failed to reload config after bundle update: %w", err)
 			}
-			fmt.Printf("Updated relay bundle for %s\n", updated.AllowedDomain)
+			fmt.Printf("Updated relay bundle %s\n", updated.Name)
 		} else {
 			return err
 		}
 	}
 
-	debug.Log("relay info verified", "allowed_domain", allowedDomain)
-	fmt.Printf("Verified trusted relay server for %s\n", allowedDomain)
+	debug.Log("relay info verified", "name", name)
+	fmt.Printf("Verified trusted relay server (bundle %s)\n", name)
 	return nil
 }
 

@@ -20,7 +20,7 @@ export const BacklogAppConfigSchema = z.object({
  * Tenant configuration schema.
  */
 export const TenantConfigSchema = z.object({
-  allowed_domain: z.string().min(1, "allowed_domain is required"),
+  name: z.string().min(1, "name is required"),
   passphrase_hash: z.string().optional(),
   info_ttl: z.number().positive().optional(),
 });

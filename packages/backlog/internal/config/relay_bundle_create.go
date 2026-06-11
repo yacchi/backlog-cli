@@ -24,14 +24,14 @@ import (
 
 // BundleTokenClaims はbundle_tokenのJWTクレーム
 type BundleTokenClaims struct {
-	Subject   string `json:"sub"`           // allowed_domain
+	Subject   string `json:"sub"`           // バンドル name
 	IssuedAt  int64  `json:"iat"`           // 発行時刻
 	NotBefore int64  `json:"nbf,omitempty"` // 有効開始時刻
 	JTI       string `json:"jti"`           // 一意識別子
 }
 
 // GenerateBundleToken はbundle_token JWTを生成する
-func GenerateBundleToken(allowedDomain string, jwkByKid map[string]relayBundleJWK, activeKeys []string, now time.Time) (string, error) {
+func GenerateBundleToken(name string, jwkByKid map[string]relayBundleJWK, activeKeys []string, now time.Time) (string, error) {
 	if len(activeKeys) == 0 {
 		return "", errors.New("no active keys for signing")
 	}
@@ -57,7 +57,7 @@ func GenerateBundleToken(allowedDomain string, jwkByKid map[string]relayBundleJW
 
 	// クレーム作成
 	claims := BundleTokenClaims{
-		Subject:   allowedDomain,
+		Subject:   name,
 		IssuedAt:  now.Unix(),
 		NotBefore: now.Unix(),
 		JTI:       jti,
@@ -201,6 +201,7 @@ func VerifyBundleToken(token string, allowedDomain string, jwks *relayBundleJWKS
 
 // BundleCreateOptions はバンドル作成のオプション
 type BundleCreateOptions struct {
+	Name       string
 	ExpiresIn  time.Duration
 	Files      []string
 	OutputPath string
@@ -231,19 +232,12 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 	if strings.TrimSpace(profile.RelayServer) == "" {
 		return "", errors.New("profile.default.relay_server is required")
 	}
-	if strings.TrimSpace(profile.Space) == "" {
-		return "", errors.New("profile.default.space is required")
-	}
-	if strings.TrimSpace(profile.Domain) == "" {
-		return "", errors.New("profile.default.domain is required")
-	}
 
-	allowedDomain := profile.Space + "." + profile.Domain
-
-	tenant, tenantKey, err := resolveTenantConfig(store, allowedDomain)
+	tenant, name, err := resolveTenantConfig(store, opts.Name)
 	if err != nil {
 		return "", err
 	}
+	tenantKey := name
 
 	var jwks relayBundleJWKS
 	if err := json.Unmarshal([]byte(tenant.JWKS), &jwks); err != nil {
@@ -274,20 +268,20 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 	}
 
 	// bundle_token生成
-	bundleToken, err := GenerateBundleToken(allowedDomain, jwkByKid, activeKeyIDs, now)
+	bundleToken, err := GenerateBundleToken(name, jwkByKid, activeKeyIDs, now)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate bundle token: %w", err)
 	}
 
 	manifest := RelayBundleManifest{
-		Version:       1,
-		RelayURL:      profile.RelayServer,
-		AllowedDomain: allowedDomain,
-		IssuedAt:      now.Format(time.RFC3339),
-		ExpiresAt:     now.Add(opts.ExpiresIn).Format(time.RFC3339),
-		BundleToken:   bundleToken,
-		RelayKeys:     manifestKeys,
-		Files:         fileRefs,
+		Version:     2,
+		Name:        name,
+		RelayURL:    profile.RelayServer,
+		IssuedAt:    now.Format(time.RFC3339),
+		ExpiresAt:   now.Add(opts.ExpiresIn).Format(time.RFC3339),
+		BundleToken: bundleToken,
+		RelayKeys:   manifestKeys,
+		Files:       fileRefs,
 	}
 
 	manifestBytes, err := yaml.Marshal(&manifest)
@@ -302,7 +296,7 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 
 	output := opts.OutputPath
 	if strings.TrimSpace(output) == "" {
-		output = allowedDomain + ".backlog-cli.zip"
+		output = name + ".backlog-cli.zip"
 	}
 
 	if err := writeRelayBundleZip(output, manifestBytes, jwsBytes, fileData); err != nil {
@@ -312,7 +306,9 @@ func CreateRelayBundleFromConfig(ctx context.Context, store *Store, opts BundleC
 	return output, nil
 }
 
-func resolveTenantConfig(store *Store, allowedDomain string) (*ResolvedTenant, string, error) {
+// resolveTenantConfig はテナントを name（= server.tenants のマップキー）で解決する。
+// name が空でテナントが1件だけの場合はそれを使う。
+func resolveTenantConfig(store *Store, name string) (*ResolvedTenant, string, error) {
 	if store == nil {
 		return nil, "", errors.New("config store is nil")
 	}
@@ -321,20 +317,27 @@ func resolveTenantConfig(store *Store, allowedDomain string) (*ResolvedTenant, s
 		return nil, "", errors.New("server.tenants is empty")
 	}
 
-	for key, tenant := range tenants {
-		if tenant.AllowedDomain != allowedDomain {
-			continue
+	key := strings.TrimSpace(name)
+	if key == "" {
+		if len(tenants) != 1 {
+			return nil, "", errors.New("multiple tenants configured; specify --name")
 		}
-		if strings.TrimSpace(tenant.JWKS) == "" {
-			return nil, key, fmt.Errorf("tenant %s missing jwks", key)
+		for k := range tenants {
+			key = k
 		}
-		if strings.TrimSpace(tenant.ActiveKeys) == "" {
-			return nil, key, fmt.Errorf("tenant %s missing active_keys", key)
-		}
-		return &tenant, key, nil
 	}
 
-	return nil, "", fmt.Errorf("tenant config not found for allowed_domain %s", allowedDomain)
+	tenant, ok := tenants[key]
+	if !ok {
+		return nil, "", fmt.Errorf("tenant config not found for name %s", key)
+	}
+	if strings.TrimSpace(tenant.JWKS) == "" {
+		return nil, key, fmt.Errorf("tenant %s missing jwks", key)
+	}
+	if strings.TrimSpace(tenant.ActiveKeys) == "" {
+		return nil, key, fmt.Errorf("tenant %s missing active_keys", key)
+	}
+	return &tenant, key, nil
 }
 
 func splitCommaList(value string) []string {

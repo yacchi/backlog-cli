@@ -32,10 +32,8 @@ interface JWKS {
  */
 interface RelayInfoPayload {
   version: number;
+  name: string;
   relay_url: string;
-  allowed_domain: string;
-  space: string;
-  domain: string;
   issued_at: string;
   expires_at: string;
   update_before?: string;
@@ -119,29 +117,17 @@ async function computeInfoETag(
   );
 }
 
-/**
- * Split domain into space and backlog domain.
- */
-function splitDomain(domain: string): { space: string; backlogDomain: string } {
-  const parts = domain.split(".");
-  if (parts.length < 3) {
-    return { space: "", backlogDomain: domain };
-  }
-  const space = parts[0];
-  const backlogDomain = parts.slice(1).join(".");
-  return { space, backlogDomain };
-}
 
 
 /**
- * Find tenant by allowed domain.
+ * Find tenant by name.
  */
 function findTenant(
   tenants: TenantConfig[] | undefined,
-  domain: string
+  name: string
 ): ExtendedTenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
+    (t) => t.name.toLowerCase() === name.toLowerCase()
   );
 }
 
@@ -254,13 +240,13 @@ export function createInfoHandlers(config: RelayConfig): Hono {
   /**
    * GET /v1/relay/tenants/:domain/info - Get signed relay info.
    */
-  app.get("/v1/relay/tenants/:domain/info", async (c) => {
-    const allowedDomain = c.req.param("domain")?.trim();
-    if (!allowedDomain) {
-      return c.text("domain is required", 400);
+  app.get("/v1/relay/tenants/:name/info", async (c) => {
+    const name = c.req.param("name")?.trim();
+    if (!name) {
+      return c.text("name is required", 400);
     }
 
-    const tenant = findTenant(config.tenants, allowedDomain);
+    const tenant = findTenant(config.tenants, name);
     if (!tenant) {
       return c.text("tenant not found", 404);
     }
@@ -284,13 +270,10 @@ export function createInfoHandlers(config: RelayConfig): Hono {
     const ttl = tenant.info_ttl || RELAY_INFO_DEFAULT_TTL;
     const expiresAt = new Date(issuedAt.getTime() + ttl * 1000);
 
-    const { space, backlogDomain } = splitDomain(tenant.allowed_domain);
     const payload: RelayInfoPayload = {
       version: RELAY_INFO_VERSION,
+      name: tenant.name,
       relay_url: buildRelayUrl(config.server.base_url, reqCtx.baseUrl),
-      allowed_domain: tenant.allowed_domain,
-      space,
-      domain: backlogDomain,
       issued_at: issuedAt.toISOString(),
       expires_at: expiresAt.toISOString(),
     };

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/domain"
 	jwkutil "github.com/yacchi/backlog-cli/packages/backlog/internal/jwk"
 	"gopkg.in/yaml.v3"
 )
@@ -42,7 +41,7 @@ type BundleImportOptions struct {
 
 // BundleApprovalInfo は承認用に提示するバンドル情報
 type BundleApprovalInfo struct {
-	AllowedDomain string
+	Name          string
 	RelayURL      string
 	IssuedAt      string
 	ExpiresAt     string
@@ -56,15 +55,26 @@ type BundleApprovalHandler func(ctx context.Context, info BundleApprovalInfo) (b
 
 // RelayBundleManifest はmanifest.yamlの構造
 type RelayBundleManifest struct {
-	Version       int                  `yaml:"version"`
+	Version int    `yaml:"version"`
+	Name    string `yaml:"name"`
+	// Deprecated: v1 互換。name が無い場合のフォールバックとしてのみ読む。
+	AllowedDomain string               `yaml:"allowed_domain,omitempty"`
 	RelayURL      string               `yaml:"relay_url"`
-	AllowedDomain string               `yaml:"allowed_domain"`
 	IssuedAt      string               `yaml:"issued_at"`
 	ExpiresAt     string               `yaml:"expires_at"`
 	CertsCacheTTL int                  `yaml:"certs_cache_ttl,omitempty"`
 	BundleToken   string               `yaml:"bundle_token,omitempty"`
 	RelayKeys     []RelayBundleKey     `yaml:"relay_keys"`
 	Files         []RelayBundleFileRef `yaml:"files"`
+}
+
+// BundleName はバンドルの識別子（name）を返す。v1 manifest では
+// allowed_domain をフォールバックとして用いる。
+func (m RelayBundleManifest) BundleName() string {
+	if m.Name != "" {
+		return m.Name
+	}
+	return m.AllowedDomain
 }
 
 // RelayBundleKey は信頼済み鍵の一覧
@@ -131,7 +141,7 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		return nil, fmt.Errorf("failed to parse manifest.yaml: %w", err)
 	}
 
-	debug.Log("manifest parsed", "version", manifest.Version, "relay_url", manifest.RelayURL, "allowed_domain", manifest.AllowedDomain)
+	debug.Log("manifest parsed", "version", manifest.Version, "relay_url", manifest.RelayURL, "name", manifest.BundleName())
 
 	if err := validateRelayBundleManifest(&manifest); err != nil {
 		return nil, err
@@ -158,7 +168,7 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 	}
 	debug.Log("timestamp validation passed", "issued_at", manifest.IssuedAt, "expires_at", manifest.ExpiresAt)
 
-	certsURL, err := buildRelayCertsURL(manifest.RelayURL, manifest.AllowedDomain)
+	certsURL, err := buildRelayCertsURL(manifest.RelayURL, manifest.BundleName())
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +209,7 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 
 	if opts.ApprovalHandler != nil {
 		approved, err := opts.ApprovalHandler(ctx, BundleApprovalInfo{
-			AllowedDomain: manifest.AllowedDomain,
+			Name:          manifest.BundleName(),
 			RelayURL:      manifest.RelayURL,
 			IssuedAt:      manifest.IssuedAt,
 			ExpiresAt:     manifest.ExpiresAt,
@@ -216,9 +226,8 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 	}
 
 	trusted := TrustedBundle{
-		ID:            manifest.AllowedDomain,
+		Name:          manifest.BundleName(),
 		RelayURL:      manifest.RelayURL,
-		AllowedDomain: manifest.AllowedDomain,
 		BundleToken:   manifest.BundleToken,
 		RelayKeys:     toTrustedRelayKeys(manifest.RelayKeys),
 		IssuedAt:      manifest.IssuedAt,
@@ -231,7 +240,7 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		ImportedAt: now.Format(time.RFC3339),
 	}
 
-	debug.Log("upserting trusted bundle", "id", trusted.ID)
+	debug.Log("upserting trusted bundle", "name", trusted.Name)
 	if err := upsertTrustedBundle(store, trusted); err != nil {
 		return nil, err
 	}
@@ -243,19 +252,19 @@ func ImportRelayBundle(ctx context.Context, store *Store, bundlePath string, opt
 		}
 	}
 
-	debug.Log("bundle import completed", "allowed_domain", trusted.AllowedDomain)
+	debug.Log("bundle import completed", "name", trusted.Name)
 	return &trusted, nil
 }
 
 func validateRelayBundleManifest(manifest *RelayBundleManifest) error {
-	if manifest.Version != 1 {
+	if manifest.Version != 1 && manifest.Version != 2 {
 		return fmt.Errorf("unsupported manifest version: %d", manifest.Version)
 	}
 	if strings.TrimSpace(manifest.RelayURL) == "" {
 		return errors.New("relay_url is required")
 	}
-	if strings.TrimSpace(manifest.AllowedDomain) == "" {
-		return errors.New("allowed_domain is required")
+	if strings.TrimSpace(manifest.BundleName()) == "" {
+		return errors.New("name is required")
 	}
 	if strings.TrimSpace(manifest.IssuedAt) == "" {
 		return errors.New("issued_at is required")
@@ -603,7 +612,7 @@ func upsertTrustedBundle(store *Store, bundle TrustedBundle) error {
 	replaced := false
 
 	for _, current := range existing {
-		if current.ID == bundle.ID {
+		if current.ResolvedName() == bundle.ResolvedName() {
 			updated = append(updated, bundle)
 			replaced = true
 			continue
@@ -617,19 +626,9 @@ func upsertTrustedBundle(store *Store, bundle TrustedBundle) error {
 	return store.Set("client.trust.bundles", updated)
 }
 
+// applyRelayBundleDefaults は既定プロファイルがこのバンドルを参照するよう設定する。
+// relay_url・space・domain はプロファイルに焼き付けない。relay_url はバンドルから
+// 解決し（drift 防止）、space/domain はログイン時にユーザーが選択する。
 func applyRelayBundleDefaults(store *Store, manifest RelayBundleManifest) error {
-	space, backlogDomain, err := domain.SplitAllowedDomain(manifest.AllowedDomain)
-	if err != nil {
-		return err
-	}
-	if err := store.Set("profile.default.relay_server", manifest.RelayURL); err != nil {
-		return err
-	}
-	if err := store.Set("profile.default.space", space); err != nil {
-		return err
-	}
-	if err := store.Set("profile.default.domain", backlogDomain); err != nil {
-		return err
-	}
-	return nil
+	return store.Set("profile.default.bundle", manifest.BundleName())
 }

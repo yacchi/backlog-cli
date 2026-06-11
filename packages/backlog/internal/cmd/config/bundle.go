@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	bundleName       string
 	bundleExpiresIn  time.Duration
 	bundleFiles      []string
 	bundleOutputPath string
@@ -29,9 +30,10 @@ var bundleCreateCmd = &cobra.Command{
 }
 
 func init() {
+	bundleCreateCmd.Flags().StringVar(&bundleName, "name", "", "Tenant name to create a bundle for (defaults to the sole tenant)")
 	bundleCreateCmd.Flags().DurationVar(&bundleExpiresIn, "expires-in", 30*24*time.Hour, "Bundle expiry duration (e.g. 720h)")
 	bundleCreateCmd.Flags().StringArrayVar(&bundleFiles, "file", nil, "Additional file to include (repeatable)")
-	bundleCreateCmd.Flags().StringVar(&bundleOutputPath, "output", "", "Output bundle path (default: <space>.<domain>.backlog-cli.zip)")
+	bundleCreateCmd.Flags().StringVar(&bundleOutputPath, "output", "", "Output bundle path (default: <name>.backlog-cli.zip)")
 	bundleCreateCmd.Flags().BoolVar(&bundleIncludeAll, "include-all-keys", false, "Include all keys from JWKS in relay_keys")
 
 	bundleCmd.AddCommand(bundleCreateCmd)
@@ -44,6 +46,7 @@ func runBundleCreate(cmd *cobra.Command, _ []string) error {
 	}
 
 	output, err := config.CreateRelayBundleFromConfig(cmd.Context(), cfg, config.BundleCreateOptions{
+		Name:       bundleName,
 		ExpiresIn:  bundleExpiresIn,
 		Files:      bundleFiles,
 		OutputPath: bundleOutputPath,

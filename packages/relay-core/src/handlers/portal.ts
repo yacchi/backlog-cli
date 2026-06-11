@@ -11,7 +11,7 @@ import { extractRequestContext } from "../utils/request.js";
  * Portal verify request.
  */
 interface PortalVerifyRequest {
-  domain: string;
+  name: string;
   passphrase: string;
 }
 
@@ -20,10 +20,8 @@ interface PortalVerifyRequest {
  */
 interface PortalVerifyResponse {
   success: boolean;
-  domain?: string;
+  name?: string;
   relay_url?: string;
-  space?: string;
-  backlog_domain?: string;
   error?: string;
 }
 
@@ -46,12 +44,12 @@ export function createPortalHandlers(
   verifyPassphrase: (hash: string, passphrase: string) => Promise<boolean>,
   createBundle: (
     tenant: TenantConfig,
-    domain: string,
+    name: string,
     relayUrl: string
   ) => Promise<Uint8Array>,
   generateProvisionToken: (
     tenant: TenantConfig,
-    domain: string,
+    name: string,
     relayUrl: string
   ) => Promise<string>,
   portalAssets?: PortalAssets
@@ -61,15 +59,15 @@ export function createPortalHandlers(
   // SPA handler for portal
   if (portalAssets) {
     /**
-     * GET /portal/:domain - Serve the portal SPA.
+     * GET /portal/:name - Serve the portal SPA.
      */
-    app.get("/portal/:domain", (c) => {
+    app.get("/portal/:name", (c) => {
       c.header("Content-Type", "text/html; charset=utf-8");
       c.header("Cache-Control", "no-cache");
       return c.body(portalAssets.indexHtml);
     });
 
-    app.get("/portal/:domain/", (c) => {
+    app.get("/portal/:name/", (c) => {
       c.header("Content-Type", "text/html; charset=utf-8");
       c.header("Cache-Control", "no-cache");
       return c.body(portalAssets.indexHtml);
@@ -94,10 +92,10 @@ export function createPortalHandlers(
   }
 
   /**
-   * Find tenant by allowed domain.
+   * Find tenant by name.
    */
-  function findTenant(domain: string): TenantConfig | undefined {
-    return config.tenants?.find((t) => t.allowed_domain === domain);
+  function findTenant(name: string): TenantConfig | undefined {
+    return config.tenants?.find((t) => t.name === name);
   }
 
   /**
@@ -108,23 +106,6 @@ export function createPortalHandlers(
     reqBaseUrl: string
   ): string {
     return baseUrl || reqBaseUrl;
-  }
-
-  /**
-   * Split domain into space and backlog domain.
-   * e.g., "myspace.backlog.jp" -> { space: "myspace", backlogDomain: "backlog.jp" }
-   */
-  function splitDomain(domain: string): {
-    space: string;
-    backlogDomain: string;
-  } {
-    const parts = domain.split(".");
-    if (parts.length < 3) {
-      return { space: "", backlogDomain: domain };
-    }
-    const space = parts[0];
-    const backlogDomain = parts.slice(1).join(".");
-    return { space, backlogDomain };
   }
 
   /**
@@ -143,7 +124,7 @@ export function createPortalHandlers(
       );
     }
 
-    if (!req.domain || !req.passphrase) {
+    if (!req.name || !req.passphrase) {
       return c.json(
         {
           success: false,
@@ -153,12 +134,12 @@ export function createPortalHandlers(
       );
     }
 
-    const tenant = findTenant(req.domain);
+    const tenant = findTenant(req.name);
     if (!tenant) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_VERIFY,
-          domain: req.domain,
+          domain: req.name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -175,7 +156,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_VERIFY,
-          domain: req.domain,
+          domain: req.name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -193,7 +174,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_VERIFY,
-          domain: req.domain,
+          domain: req.name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -209,14 +190,12 @@ export function createPortalHandlers(
       );
     }
 
-    const { space, backlogDomain } = splitDomain(req.domain);
     const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     auditLogger.log(
       createAuditEvent({
         action: AuditActions.PORTAL_VERIFY,
-        space,
-        domain: backlogDomain,
+        domain: req.name,
         clientIp: reqCtx.clientIp,
         userAgent: reqCtx.userAgent,
         result: "success",
@@ -225,19 +204,17 @@ export function createPortalHandlers(
 
     return c.json({
       success: true,
-      domain: req.domain,
+      name: req.name,
       relay_url: relayUrl,
-      space,
-      backlog_domain: backlogDomain,
     } as PortalVerifyResponse);
   });
 
   /**
-   * POST /api/v1/portal/:domain/bundle - Download configuration bundle.
+   * POST /api/v1/portal/:name/bundle - Download configuration bundle.
    */
-  app.post("/api/v1/portal/:domain/bundle", async (c) => {
+  app.post("/api/v1/portal/:name/bundle", async (c) => {
     const reqCtx = extractRequestContext(c);
-    const allowedDomain = c.req.param("domain");
+    const name = c.req.param("name");
 
     let req: PortalVerifyRequest;
     try {
@@ -249,7 +226,7 @@ export function createPortalHandlers(
       );
     }
 
-    if (!allowedDomain || !req.passphrase) {
+    if (!name || !req.passphrase) {
       return c.json(
         {
           success: false,
@@ -259,12 +236,12 @@ export function createPortalHandlers(
       );
     }
 
-    const tenant = findTenant(allowedDomain);
+    const tenant = findTenant(name);
     if (!tenant) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -281,7 +258,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -299,7 +276,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -318,21 +295,19 @@ export function createPortalHandlers(
     const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     try {
-      const bundleData = await createBundle(tenant, allowedDomain, relayUrl);
+      const bundleData = await createBundle(tenant, name, relayUrl);
 
-      const { space, backlogDomain } = splitDomain(allowedDomain);
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
-          space,
-          domain: backlogDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "success",
         })
       );
 
-      const filename = `${allowedDomain}.backlog-cli.zip`;
+      const filename = `${name}.backlog-cli.zip`;
       c.header("Content-Type", "application/zip");
       c.header("Content-Disposition", `attachment; filename="${filename}"`);
       c.header("Cache-Control", "no-store");
@@ -348,7 +323,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_DOWNLOAD,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -366,11 +341,11 @@ export function createPortalHandlers(
   });
 
   /**
-   * POST /api/v1/portal/:domain/provision - Generate a provisioning key for CLI setup.
+   * POST /api/v1/portal/:name/provision - Generate a provisioning key for CLI setup.
    */
-  app.post("/api/v1/portal/:domain/provision", async (c) => {
+  app.post("/api/v1/portal/:name/provision", async (c) => {
     const reqCtx = extractRequestContext(c);
-    const allowedDomain = c.req.param("domain");
+    const name = c.req.param("name");
 
     let req: PortalVerifyRequest;
     try {
@@ -382,7 +357,7 @@ export function createPortalHandlers(
       );
     }
 
-    if (!allowedDomain || !req.passphrase) {
+    if (!name || !req.passphrase) {
       return c.json(
         {
           success: false,
@@ -392,12 +367,12 @@ export function createPortalHandlers(
       );
     }
 
-    const tenant = findTenant(allowedDomain);
+    const tenant = findTenant(name);
     if (!tenant) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_PROVISION,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -414,7 +389,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_PROVISION,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -432,7 +407,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_PROVISION,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -453,16 +428,14 @@ export function createPortalHandlers(
     try {
       const provisioningKey = await generateProvisionToken(
         tenant,
-        allowedDomain,
+        name,
         relayUrl
       );
 
-      const { space, backlogDomain } = splitDomain(allowedDomain);
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_PROVISION,
-          space,
-          domain: backlogDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "success",
@@ -477,7 +450,7 @@ export function createPortalHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.PORTAL_PROVISION,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",

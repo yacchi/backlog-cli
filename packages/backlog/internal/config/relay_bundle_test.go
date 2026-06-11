@@ -26,9 +26,21 @@ func TestValidateRelayBundleManifest(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid manifest v2 (name)",
+			m: &RelayBundleManifest{
+				Version:   2,
+				Name:      "ai2-platform",
+				RelayURL:  "https://relay.example.com",
+				IssuedAt:  "2025-01-10T12:00:00Z",
+				ExpiresAt: "2025-02-10T12:00:00Z",
+				RelayKeys: []RelayBundleKey{{KeyID: "k1", Thumbprint: "abc"}},
+			},
+			wantErr: false,
+		},
+		{
 			name: "unsupported version",
 			m: &RelayBundleManifest{
-				Version:       2,
+				Version:       3,
 				RelayURL:      "https://relay.example.com",
 				AllowedDomain: "space.backlog.jp",
 				IssuedAt:      "2025-01-10T12:00:00Z",
@@ -51,16 +63,16 @@ func TestValidateRelayBundleManifest(t *testing.T) {
 			errMsg:  "relay_url is required",
 		},
 		{
-			name: "missing allowed_domain",
+			name: "missing name",
 			m: &RelayBundleManifest{
-				Version:   1,
+				Version:   2,
 				RelayURL:  "https://relay.example.com",
 				IssuedAt:  "2025-01-10T12:00:00Z",
 				ExpiresAt: "2025-02-10T12:00:00Z",
 				RelayKeys: []RelayBundleKey{{KeyID: "k1", Thumbprint: "abc"}},
 			},
 			wantErr: true,
-			errMsg:  "allowed_domain is required",
+			errMsg:  "name is required",
 		},
 		{
 			name: "missing issued_at",

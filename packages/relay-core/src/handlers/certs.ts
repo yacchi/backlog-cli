@@ -147,14 +147,14 @@ async function redactJWKSPrivateKeys(jwksJson: string): Promise<string> {
 }
 
 /**
- * Find tenant by allowed domain.
+ * Find tenant by name.
  */
 function findTenant(
   tenants: TenantConfig[] | undefined,
-  domain: string
+  name: string
 ): TenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
+    (t) => t.name.toLowerCase() === name.toLowerCase()
   );
 }
 
@@ -165,15 +165,15 @@ export function createCertsHandlers(config: RelayConfig): Hono {
   const app = new Hono();
 
   /**
-   * GET /v1/relay/tenants/:domain/certs - Get public JWKS for a tenant.
+   * GET /v1/relay/tenants/:name/certs - Get public JWKS for a tenant.
    */
-  app.get("/v1/relay/tenants/:domain/certs", async (c) => {
-    const domain = c.req.param("domain")?.trim();
-    if (!domain) {
-      return c.text("domain is required", 400);
+  app.get("/v1/relay/tenants/:name/certs", async (c) => {
+    const name = c.req.param("name")?.trim();
+    if (!name) {
+      return c.text("name is required", 400);
     }
 
-    const tenant = findTenant(config.tenants, domain);
+    const tenant = findTenant(config.tenants, name);
     if (!tenant) {
       return c.text("tenant not found", 404);
     }

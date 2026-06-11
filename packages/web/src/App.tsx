@@ -13,7 +13,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Portal route (no auth context needed) */}
-        <Route path="/portal/:domain" element={<Portal />} />
+        <Route path="/portal/:name" element={<Portal />} />
 
         {/* Auth routes */}
         <Route

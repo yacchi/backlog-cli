@@ -621,7 +621,7 @@ func (cs *CallbackServer) handlePopup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 
 	profile := cs.configStore.CurrentProfile()
-	relayServer := profile.RelayServer
+	relayServer, _ := cs.configStore.ResolveRelayURL(profile)
 	space := profile.Space
 	domain := profile.Domain
 

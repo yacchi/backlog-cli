@@ -39,11 +39,14 @@ func (cs *CallbackServer) GetConfig(
 		spaceHost = fmt.Sprintf("%s.%s", profile.Space, profile.Domain)
 	}
 
+	// relay_url は解決順位（env > bundle > inline）に従って算出する
+	relayURL, _ := cs.configStore.ResolveRelayURL(profile)
+
 	resp.Msg.Space = profile.Space
 	resp.Msg.Domain = profile.Domain
-	resp.Msg.RelayServer = profile.RelayServer
+	resp.Msg.RelayServer = relayURL
 	resp.Msg.SpaceHost = spaceHost
-	resp.Msg.Configured = profile.Space != "" && profile.Domain != "" && profile.RelayServer != ""
+	resp.Msg.Configured = profile.Space != "" && profile.Domain != "" && relayURL != ""
 
 	// 現在の認証タイプを取得
 	resolved := cs.configStore.Resolved()
@@ -122,13 +125,16 @@ func (cs *CallbackServer) Configure(
 		return resp, nil
 	}
 
-	allowedDomain := space + "." + domain
-	if bundle := config.FindTrustedBundle(cs.configStore, allowedDomain); bundle != nil {
+	// この relay_url に対応する信頼バンドルがあるか（relay_url で検索）。
+	// バンドルがあれば profile はそのバンドルを name で参照する（drift 回避）。
+	bundle := config.FindTrustedBundleByRelayURL(cs.configStore, relayServer)
+	if bundle != nil {
+		bundleName := bundle.ResolvedName()
 		cacheDir, cacheErr := cs.configStore.GetCacheDir()
 		if cacheErr != nil {
 			debug.Log("failed to resolve cache dir", "error", cacheErr)
 		}
-		info, err := config.VerifyRelayInfo(ctx, relayServer, allowedDomain, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
+		info, err := config.VerifyRelayInfo(ctx, relayServer, bundleName, bundle.BundleToken, bundle.RelayKeys, config.RelayInfoOptions{
 			CacheDir:      cacheDir,
 			CertsCacheTTL: bundle.CertsCacheTTL,
 		})
@@ -142,14 +148,14 @@ func (cs *CallbackServer) Configure(
 		if err := config.CheckBundleUpdate(info, bundle, time.Now().UTC(), cs.forceBundleUpdate); err != nil {
 			var updateErr *config.BundleUpdateRequiredError
 			if errors.As(err, &updateErr) {
-				bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, allowedDomain)
+				bundleURL, urlErr := config.BuildRelayBundleURL(relayServer, bundleName)
 				if urlErr != nil {
 					resp.Msg.Success = false
 					resp.Msg.Error = stringPtr(fmt.Sprintf("バンドルURLの生成に失敗しました: %v", urlErr))
 					return resp, nil
 				}
-				debug.Log("fetching relay bundle", "url", bundleURL, "allowed_domain", allowedDomain)
-				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, allowedDomain, bundle.BundleToken, config.BundleFetchOptions{
+				debug.Log("fetching relay bundle", "url", bundleURL, "name", bundleName)
+				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, bundleName, bundle.BundleToken, config.BundleFetchOptions{
 					CacheDir:   cacheDir,
 					NoDefaults: true,
 				})
@@ -159,7 +165,7 @@ func (cs *CallbackServer) Configure(
 					resp.Msg.Error = stringPtr(fmt.Sprintf("バンドル更新に失敗しました: %v", updateErr))
 					return resp, nil
 				}
-				debug.Log("bundle update completed", "allowed_domain", allowedDomain)
+				debug.Log("bundle update completed", "name", bundleName)
 			} else {
 				debug.Log("failed to check bundle update", "error", err)
 				resp.Msg.Success = false
@@ -168,18 +174,33 @@ func (cs *CallbackServer) Configure(
 			}
 		}
 
-		debug.Log("relay info verified", "allowed_domain", allowedDomain)
+		debug.Log("relay info verified", "name", bundleName)
 	} else {
-		debug.Log("trusted bundle not found; skipping relay info check", "allowed_domain", allowedDomain)
+		debug.Log("trusted bundle not found for relay; storing relay_server inline", "relay_server", relayServer)
 	}
 
 	// 設定保存
 	profileName := cs.configStore.GetActiveProfile()
-	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer); err != nil {
-		debug.Log("failed to save relay_server", "error", err)
-		resp.Msg.Success = false
-		resp.Msg.Error = stringPtr(fmt.Sprintf("設定の保存に失敗しました: %v", err))
-		return resp, nil
+	if bundle != nil {
+		// バンドル参照を設定し、インライン relay_server はクリアする
+		// （relay_url はバンドルから解決 → バンドル更新が全プロファイルに反映）
+		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "bundle", bundle.ResolvedName()); err != nil {
+			debug.Log("failed to save bundle", "error", err)
+			resp.Msg.Success = false
+			resp.Msg.Error = stringPtr(fmt.Sprintf("設定の保存に失敗しました: %v", err))
+			return resp, nil
+		}
+		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "relay_server", ""); err != nil {
+			debug.Log("failed to clear relay_server", "error", err)
+		}
+	} else {
+		// バンドル無し（直接指定）→ relay_server をインライン保存
+		if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "relay_server", relayServer); err != nil {
+			debug.Log("failed to save relay_server", "error", err)
+			resp.Msg.Success = false
+			resp.Msg.Error = stringPtr(fmt.Sprintf("設定の保存に失敗しました: %v", err))
+			return resp, nil
+		}
 	}
 	if err := cs.configStore.SetProfileValue(config.LayerUser, profileName, "space", space); err != nil {
 		debug.Log("failed to save space", "error", err)

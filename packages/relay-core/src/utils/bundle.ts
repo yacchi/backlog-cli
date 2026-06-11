@@ -40,8 +40,8 @@ interface RelayBundleKey {
  */
 interface RelayBundleManifest {
   version: number;
+  name: string;
   relay_url: string;
-  allowed_domain: string;
   issued_at: string;
   expires_at: string;
   bundle_token: string;
@@ -278,7 +278,7 @@ async function normalizeJWKS(jwks: JWKS): Promise<Map<string, JWK>> {
  * Generate bundle token JWT.
  */
 async function generateBundleToken(
-  allowedDomain: string,
+  name: string,
   jwkByKid: Map<string, JWK>,
   activeKeys: string[],
   now: Date
@@ -309,7 +309,7 @@ async function generateBundleToken(
 
   // Claims
   const claims = {
-    sub: allowedDomain,
+    sub: name,
     iat: Math.floor(now.getTime() / 1000),
     nbf: Math.floor(now.getTime() / 1000),
     jti,
@@ -401,13 +401,14 @@ const PROVISIONING_TOKEN_EXPIRY_SECONDS = 15 * 60;
 /**
  * Generate a provisioning token JWT for CLI setup.
  *
- * The token is self-contained: it carries relay_url, space, and domain
+ * The token is self-contained: it carries relay_url and the bundle name
  * so the CLI can decode it (unverified) to discover where to fetch the bundle,
  * then verify the signature via JWKS before proceeding.
+ * スペース非依存のため space/domain は持たない（スペースはログイン時に選択する）。
  */
 export async function generateProvisioningToken(
   tenant: TenantConfig,
-  allowedDomain: string,
+  name: string,
   relayUrl: string,
   jwksJson?: string,
 ): Promise<string> {
@@ -433,10 +434,6 @@ export async function generateProvisioningToken(
     throw new Error(`JWKS key ${kid} missing private key`);
   }
 
-  const parts = allowedDomain.split(".");
-  const space = parts.length >= 3 ? parts[0] : "";
-  const backlogDomain = parts.length >= 3 ? parts.slice(1).join(".") : allowedDomain;
-
   const now = Math.floor(Date.now() / 1000);
   const jtiBytes = randomBytes(16);
   const jti = base64UrlEncode(jtiBytes);
@@ -448,10 +445,9 @@ export async function generateProvisioningToken(
   };
 
   const claims = {
-    sub: allowedDomain,
+    sub: name,
     relay_url: relayUrl,
-    space,
-    domain: backlogDomain,
+    name,
     purpose: "provision",
     iat: now,
     nbf: now,
@@ -477,7 +473,7 @@ export async function generateProvisioningToken(
  */
 export async function createBundle(
   tenant: TenantConfig,
-  allowedDomain: string,
+  name: string,
   relayUrl: string,
   jwksJson?: string,
 ): Promise<Uint8Array> {
@@ -509,7 +505,7 @@ export async function createBundle(
 
   // Generate bundle token
   const bundleToken = await generateBundleToken(
-    allowedDomain,
+    name,
     jwkByKid,
     activeKeyIds,
     now
@@ -517,9 +513,9 @@ export async function createBundle(
 
   // Create manifest
   const manifest: RelayBundleManifest = {
-    version: 1,
+    version: 2,
+    name,
     relay_url: relayUrl,
-    allowed_domain: allowedDomain,
     issued_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
     bundle_token: bundleToken,

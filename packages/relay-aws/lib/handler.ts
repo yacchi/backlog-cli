@@ -151,7 +151,7 @@ async function getRelayConfig(): Promise<RelayConfig> {
         if (Array.isArray(raw.tenants) && secrets.tenants) {
             raw.tenants = (raw.tenants as Array<Record<string, unknown>>).map((t) => ({
                 ...t,
-                passphrase_hash: secrets.tenants[t.allowed_domain as string]?.passphrase_hash
+                passphrase_hash: secrets.tenants[t.name as string]?.passphrase_hash
                     ?? t.passphrase_hash,
             }));
         }

@@ -122,7 +122,7 @@ export class RelayStack extends cdk.Stack {
       string,
       { passphrase_hash?: string; passphrase_length?: number }
     > = {};
-    for (const [spaceDomain, tenant] of Object.entries(
+    for (const [name, tenant] of Object.entries(
       value.tenants ?? {},
     )) {
       const config: (typeof tenantConfigs)[string] = {};
@@ -134,7 +134,7 @@ export class RelayStack extends cdk.Stack {
       if (tenant.passphrase_length) {
         config.passphrase_length = tenant.passphrase_length;
       }
-      tenantConfigs[spaceDomain] = config;
+      tenantConfigs[name] = config;
     }
 
     const rotationLambda = this.createRotationFunction("RelaySecrets", {

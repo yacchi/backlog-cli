@@ -16,16 +16,24 @@ import (
 	"time"
 )
 
-// RelayInfoPayload is the decoded payload from /v1/relay/tenants/{domain}/info.
+// RelayInfoPayload is the decoded payload from /v1/relay/tenants/{name}/info.
 type RelayInfoPayload struct {
-	Version       int    `json:"version"`
-	RelayURL      string `json:"relay_url"`
-	AllowedDomain string `json:"allowed_domain"`
-	Space         string `json:"space"`
-	Domain        string `json:"domain"`
+	Version  int    `json:"version"`
+	Name     string `json:"name"`
+	RelayURL string `json:"relay_url"`
+	// Deprecated: v1 互換。name が無い場合のフォールバックとしてのみ読む。
+	AllowedDomain string `json:"allowed_domain,omitempty"`
 	IssuedAt      string `json:"issued_at"`
 	ExpiresAt     string `json:"expires_at"`
 	UpdateBefore  string `json:"update_before,omitempty"`
+}
+
+// PayloadName は info の識別子（name）を返す。v1 payload では allowed_domain を用いる。
+func (p RelayInfoPayload) PayloadName() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.AllowedDomain
 }
 
 type relayInfoResponse struct {
@@ -42,21 +50,21 @@ type RelayInfoOptions struct {
 }
 
 // VerifyRelayInfo fetches and verifies relay info using the trusted relay keys.
-func VerifyRelayInfo(ctx context.Context, relayURL, allowedDomain, bundleToken string, relayKeys []TrustedRelayKey, opts RelayInfoOptions) (*RelayInfoPayload, error) {
+func VerifyRelayInfo(ctx context.Context, relayURL, name, bundleToken string, relayKeys []TrustedRelayKey, opts RelayInfoOptions) (*RelayInfoPayload, error) {
 	if strings.TrimSpace(bundleToken) == "" {
 		return nil, errors.New("bundle_token is required")
 	}
 	if strings.TrimSpace(relayURL) == "" {
 		return nil, errors.New("relay_url is required")
 	}
-	if strings.TrimSpace(allowedDomain) == "" {
-		return nil, errors.New("allowed_domain is required")
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("name is required")
 	}
 	if len(relayKeys) == 0 {
 		return nil, errors.New("relay_keys is required")
 	}
 
-	infoURL, err := BuildRelayInfoURL(relayURL, allowedDomain)
+	infoURL, err := BuildRelayInfoURL(relayURL, name)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +107,8 @@ func VerifyRelayInfo(ctx context.Context, relayURL, allowedDomain, bundleToken s
 		return nil, fmt.Errorf("failed to parse info payload: %w", err)
 	}
 
-	if payload.AllowedDomain != allowedDomain {
-		return nil, fmt.Errorf("info allowed_domain mismatch: expected %s, got %s", allowedDomain, payload.AllowedDomain)
+	if payload.PayloadName() != name {
+		return nil, fmt.Errorf("info name mismatch: expected %s, got %s", name, payload.PayloadName())
 	}
 	if !relayURLMatches(relayURL, payload.RelayURL) {
 		return nil, fmt.Errorf("info relay_url mismatch: expected %s, got %s", relayURL, payload.RelayURL)
@@ -129,7 +137,7 @@ func VerifyRelayInfo(ctx context.Context, relayURL, allowedDomain, bundleToken s
 		}
 	}
 	cache := newCertsCache(cacheDir, opts.CertsCacheTTL)
-	certsURL, err := buildRelayCertsURL(relayURL, allowedDomain)
+	certsURL, err := buildRelayCertsURL(relayURL, name)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +171,7 @@ type BundleFetchOptions struct {
 }
 
 // FetchAndImportRelayBundle fetches a bundle from relay and imports it.
-func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, allowedDomain, bundleToken string, opts BundleFetchOptions) (*TrustedBundle, error) {
+func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name, bundleToken string, opts BundleFetchOptions) (*TrustedBundle, error) {
 	if store == nil {
 		return nil, errors.New("config store is nil")
 	}
@@ -171,7 +179,7 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, allo
 		return nil, errors.New("bundle_token is required")
 	}
 
-	bundleURL, err := BuildRelayBundleURL(relayURL, allowedDomain)
+	bundleURL, err := BuildRelayBundleURL(relayURL, name)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +221,7 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, allo
 		return nil, fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
-	filename := allowedDomain + ".backlog-cli.zip"
+	filename := name + ".backlog-cli.zip"
 	bundlePath := filepath.Join(cacheDir, filename)
 	if err := os.WriteFile(bundlePath, body, 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write bundle: %w", err)
@@ -227,7 +235,7 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, allo
 
 // BundleUpdateRequiredError indicates the bundle should be refreshed.
 type BundleUpdateRequiredError struct {
-	AllowedDomain  string
+	Name           string
 	UpdateBefore   string
 	BundleIssuedAt string
 	Forced         bool
@@ -235,17 +243,17 @@ type BundleUpdateRequiredError struct {
 
 func (e *BundleUpdateRequiredError) Error() string {
 	if e.Forced {
-		return fmt.Sprintf("bundle update forced for %s", e.AllowedDomain)
+		return fmt.Sprintf("bundle update forced for %s", e.Name)
 	}
-	return fmt.Sprintf("bundle update required for %s (issued_at=%s update_before=%s)", e.AllowedDomain, e.BundleIssuedAt, e.UpdateBefore)
+	return fmt.Sprintf("bundle update required for %s (issued_at=%s update_before=%s)", e.Name, e.BundleIssuedAt, e.UpdateBefore)
 }
 
 // CheckBundleUpdate returns BundleUpdateRequiredError when update_before is reached.
 func CheckBundleUpdate(info *RelayInfoPayload, bundle *TrustedBundle, now time.Time, force bool) error {
 	if force {
 		return &BundleUpdateRequiredError{
-			AllowedDomain: bundle.AllowedDomain,
-			Forced:        true,
+			Name:   bundle.ResolvedName(),
+			Forced: true,
 		}
 	}
 	if info == nil || bundle == nil {
@@ -265,7 +273,7 @@ func CheckBundleUpdate(info *RelayInfoPayload, bundle *TrustedBundle, now time.T
 	}
 	if bundleIssuedAt.Before(updateBefore) {
 		return &BundleUpdateRequiredError{
-			AllowedDomain:  bundle.AllowedDomain,
+			Name:           bundle.ResolvedName(),
 			UpdateBefore:   info.UpdateBefore,
 			BundleIssuedAt: bundle.IssuedAt,
 		}
@@ -273,24 +281,24 @@ func CheckBundleUpdate(info *RelayInfoPayload, bundle *TrustedBundle, now time.T
 	return nil
 }
 
-func BuildRelayInfoURL(relayURL, allowedDomain string) (string, error) {
+func BuildRelayInfoURL(relayURL, name string) (string, error) {
 	if relayURL == "" {
 		return "", errors.New("relay_url is empty")
 	}
 	if _, err := url.Parse(relayURL); err != nil {
 		return "", fmt.Errorf("invalid relay_url: %w", err)
 	}
-	return url.JoinPath(relayURL, "/v1/relay/tenants/"+allowedDomain+"/info")
+	return url.JoinPath(relayURL, "/v1/relay/tenants/"+name+"/info")
 }
 
-func BuildRelayBundleURL(relayURL, allowedDomain string) (string, error) {
+func BuildRelayBundleURL(relayURL, name string) (string, error) {
 	if relayURL == "" {
 		return "", errors.New("relay_url is empty")
 	}
 	if _, err := url.Parse(relayURL); err != nil {
 		return "", fmt.Errorf("invalid relay_url: %w", err)
 	}
-	return url.JoinPath(relayURL, "/v1/relay/tenants/"+allowedDomain+"/bundle")
+	return url.JoinPath(relayURL, "/v1/relay/tenants/"+name+"/bundle")
 }
 
 func verifyRelayInfoSignature(payload string, signatures []relayBundleJWSSign, allowedKeys map[string]allowedKey) error {

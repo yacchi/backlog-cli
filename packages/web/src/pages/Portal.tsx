@@ -6,10 +6,8 @@ import Input from "../components/Input";
 import InfoBox from "../components/InfoBox";
 
 interface TenantInfo {
-  domain: string;
+  name: string;
   relay_url: string;
-  space: string;
-  backlog_domain: string;
 }
 
 type SetupMethod = "bundle" | "provision";
@@ -28,7 +26,7 @@ function translateError(error: string): string {
 }
 
 export default function Portal() {
-  const { domain } = useParams<{ domain: string }>();
+  const { name } = useParams<{ name: string }>();
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
@@ -48,7 +46,7 @@ export default function Portal() {
       const response = await fetch("/api/v1/portal/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, passphrase }),
+        body: JSON.stringify({ name, passphrase }),
       });
       const data = await response.json();
 
@@ -65,12 +63,12 @@ export default function Portal() {
   };
 
   const handleDownload = async () => {
-    if (!domain) return;
+    if (!name) return;
     setDownloading(true);
     setError(null);
 
     try {
-      const url = `/api/v1/portal/${encodeURIComponent(domain)}/bundle`;
+      const url = `/api/v1/portal/${encodeURIComponent(name)}/bundle`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,7 +86,7 @@ export default function Portal() {
       const downloadUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = `${domain}.backlog-cli.zip`;
+      a.download = `${name}.backlog-cli.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -103,12 +101,12 @@ export default function Portal() {
   };
 
   const handleGenerateKey = async () => {
-    if (!domain) return;
+    if (!name) return;
     setGeneratingKey(true);
     setError(null);
 
     try {
-      const url = `/api/v1/portal/${encodeURIComponent(domain)}/provision`;
+      const url = `/api/v1/portal/${encodeURIComponent(name)}/provision`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,8 +156,8 @@ export default function Portal() {
             </p>
             <h1 className="text-3xl font-semibold text-ink">設定ポータル</h1>
             <p className="text-sm text-ink/70">
-              {domain
-                ? `${domain} の設定バンドルをダウンロード`
+              {name
+                ? `${name} の設定バンドルをダウンロード`
                 : "設定バンドルのダウンロード"}
             </p>
           </header>
@@ -192,8 +190,7 @@ export default function Portal() {
           ) : (
             <div className="space-y-5">
               <div className="grid gap-3">
-                <InfoBox label="スペース" value={tenantInfo.space} />
-                <InfoBox label="ドメイン" value={tenantInfo.backlog_domain} />
+                <InfoBox label="バンドル名" value={tenantInfo.name} />
                 <InfoBox label="リレーサーバー" value={tenantInfo.relay_url} />
               </div>
 
@@ -299,7 +296,7 @@ export default function Portal() {
                   </p>
                   <p className="text-center">
                     <code className="rounded bg-ink/10 px-2 py-1 text-sm">
-                      backlog config import {domain}.backlog-cli.zip
+                      backlog config import {name}.backlog-cli.zip
                     </code>
                   </p>
                 </div>

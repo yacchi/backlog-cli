@@ -73,7 +73,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	ui.Success("Setup complete for %s", imported.AllowedDomain)
+	ui.Success("Setup complete for bundle %s", imported.Name)
 	fmt.Printf("  Relay URL:   %s\n", imported.RelayURL)
 	fmt.Printf("  Keys:        %d key(s)\n", len(imported.RelayKeys))
 	fmt.Printf("  Expires at:  %s\n", imported.ExpiresAt)

@@ -229,7 +229,7 @@ func TestCheckBundleUpdate(t *testing.T) {
 			info: &RelayInfoPayload{
 				UpdateBefore: "2025-01-01T00:00:00Z",
 			},
-			bundle:  &TrustedBundle{IssuedAt: "2025-01-15T00:00:00Z", AllowedDomain: "test.backlog.jp"},
+			bundle:  &TrustedBundle{IssuedAt: "2025-01-15T00:00:00Z", Name: "test"},
 			wantErr: false,
 		},
 		{
@@ -237,7 +237,7 @@ func TestCheckBundleUpdate(t *testing.T) {
 			info: &RelayInfoPayload{
 				UpdateBefore: "2025-01-15T00:00:00Z",
 			},
-			bundle:      &TrustedBundle{IssuedAt: "2025-01-01T00:00:00Z", AllowedDomain: "test.backlog.jp"},
+			bundle:      &TrustedBundle{IssuedAt: "2025-01-01T00:00:00Z", Name: "test"},
 			wantErr:     true,
 			wantErrType: "BundleUpdateRequiredError",
 		},
@@ -246,7 +246,7 @@ func TestCheckBundleUpdate(t *testing.T) {
 			info: &RelayInfoPayload{
 				UpdateBefore: "",
 			},
-			bundle:      &TrustedBundle{IssuedAt: "2025-01-01T00:00:00Z", AllowedDomain: "test.backlog.jp"},
+			bundle:      &TrustedBundle{IssuedAt: "2025-01-01T00:00:00Z", Name: "test"},
 			force:       true,
 			wantErr:     true,
 			wantErrType: "BundleUpdateRequiredError",

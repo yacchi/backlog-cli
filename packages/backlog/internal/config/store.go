@@ -2,7 +2,9 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -320,17 +322,28 @@ func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profi
 		}
 	}
 
-	// primary プロファイルから relay_server をコピー
+	// primary（無ければ default）プロファイルから relay 参照を引き継ぐ。
+	// バンドル参照（bundle）を優先して引き継ぐことで、複数スペースが同一
+	// バンドルを共有し relay_url の二重管理（drift）を避ける。
+	// バンドル参照が無い場合のみ relay_server（インライン指定）を引き継ぐ。
+	bundle := ""
 	relayServer := ""
-	for _, p := range profiles {
-		if p.Primary && p.RelayServer != "" {
+	pickFrom := func(p *ResolvedProfile) {
+		if bundle == "" && p.Bundle != "" {
+			bundle = p.Bundle
+		}
+		if bundle == "" && relayServer == "" && p.RelayServer != "" {
 			relayServer = p.RelayServer
-			break
 		}
 	}
-	if relayServer == "" {
-		if dp, ok := profiles[DefaultProfile]; ok && dp.RelayServer != "" {
-			relayServer = dp.RelayServer
+	for _, p := range profiles {
+		if p.Primary {
+			pickFrom(p)
+		}
+	}
+	if bundle == "" && relayServer == "" {
+		if dp, ok := profiles[DefaultProfile]; ok {
+			pickFrom(dp)
 		}
 	}
 
@@ -341,7 +354,11 @@ func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profi
 	if err := s.SetProfileValue(LayerUser, candidateName, "domain", domain); err != nil {
 		return "", false, fmt.Errorf("failed to create profile: %w", err)
 	}
-	if relayServer != "" {
+	if bundle != "" {
+		if err := s.SetProfileValue(LayerUser, candidateName, "bundle", bundle); err != nil {
+			return "", false, fmt.Errorf("failed to create profile: %w", err)
+		}
+	} else if relayServer != "" {
 		if err := s.SetProfileValue(LayerUser, candidateName, "relay_server", relayServer); err != nil {
 			return "", false, fmt.Errorf("failed to create profile: %w", err)
 		}
@@ -355,6 +372,30 @@ func (s *Store) EnsureSpaceProfile(ctx context.Context, spaceHost string) (profi
 	}
 
 	return candidateName, true, nil
+}
+
+// ResolveRelayURL はプロファイルから relay_url を解決順位に従って決定する。
+//  1. 環境変数 BACKLOG_RELAY_SERVER（明示オーバーライド）
+//  2. profile.Bundle が指す信頼バンドルの relay_url（バンドルが source of truth）
+//  3. profile.RelayServer（インライン指定 / 後方互換）
+//
+// relay_url をプロファイルに焼き付けず、バンドル参照時は常にバンドルから
+// 解決するため、バンドル更新が全プロファイルに即時反映される。
+func (s *Store) ResolveRelayURL(profile *ResolvedProfile) (string, error) {
+	if v := strings.TrimSpace(os.Getenv("BACKLOG_RELAY_SERVER")); v != "" {
+		return v, nil
+	}
+	if profile != nil && profile.Bundle != "" {
+		b := FindTrustedBundleByName(s, profile.Bundle)
+		if b == nil || strings.TrimSpace(b.RelayURL) == "" {
+			return "", fmt.Errorf("profile references bundle %q but it is not imported; run: backlog config import", profile.Bundle)
+		}
+		return b.RelayURL, nil
+	}
+	if profile != nil && strings.TrimSpace(profile.RelayServer) != "" {
+		return profile.RelayServer, nil
+	}
+	return "", errors.New("relay server is not configured (set profile.bundle or profile.relay_server)")
 }
 
 // Credential は指定プロファイルのクレデンシャルを取得する

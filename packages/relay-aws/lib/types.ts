@@ -128,7 +128,7 @@ export interface ParameterStoreValue {
   /** Server-level signing keys (shared by relay + MCP) */
   jwks?: JWKS;
 
-  /** Tenant config keyed by "space.domain" */
+  /** Tenant (= バンドル配布単位) config keyed by name. スペースとは無関係。 */
   tenants?: Record<string, RelayTenantInput>;
 
   access_control?: {
@@ -175,13 +175,13 @@ export function buildSsmParameterValue(
   mcp?: McpConfig,
 ): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[] } {
   const relayTenants: Array<{
-    allowed_domain: string;
+    name: string;
     info_ttl?: number;
   }> = [];
 
-  for (const [spaceDomain, tenant] of Object.entries(value.tenants ?? {})) {
+  for (const [name, tenant] of Object.entries(value.tenants ?? {})) {
     relayTenants.push({
-      allowed_domain: spaceDomain,
+      name,
       info_ttl: tenant.info_ttl,
     });
   }

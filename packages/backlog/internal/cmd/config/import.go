@@ -51,7 +51,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	if !cmdutil.SkipConfirmation(cmd) && term.IsTerminal(int(syscall.Stdin)) {
 		approvalHandler = func(_ context.Context, info config.BundleApprovalInfo) (bool, error) {
 			fmt.Println("Bundle information:")
-			fmt.Printf("  Allowed domain: %s\n", info.AllowedDomain)
+			fmt.Printf("  Bundle name:    %s\n", info.Name)
 			fmt.Printf("  Relay URL:      %s\n", info.RelayURL)
 			fmt.Printf("  Keys:           %d key(s)\n", info.RelayKeyCount)
 			fmt.Printf("  Issued at:      %s\n", info.IssuedAt)
@@ -76,7 +76,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	ui.Success("Imported relay bundle for %s", imported.AllowedDomain)
+	ui.Success("Imported relay bundle %s", imported.Name)
 	fmt.Printf("  Relay URL:   %s\n", imported.RelayURL)
 	fmt.Printf("  Keys:        %d key(s)\n", len(imported.RelayKeys))
 	fmt.Printf("  Expires at:  %s\n", imported.ExpiresAt)

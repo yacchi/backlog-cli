@@ -8,27 +8,14 @@ import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
 
 /**
- * Split domain into space and backlog domain.
- */
-function splitDomain(domain: string): { space: string; backlogDomain: string } {
-  const parts = domain.split(".");
-  if (parts.length < 3) {
-    return { space: "", backlogDomain: domain };
-  }
-  const space = parts[0];
-  const backlogDomain = parts.slice(1).join(".");
-  return { space, backlogDomain };
-}
-
-/**
- * Find tenant by allowed domain.
+ * Find tenant by name.
  */
 function findTenant(
   tenants: TenantConfig[] | undefined,
-  domain: string
+  name: string
 ): TenantConfig | undefined {
   return tenants?.find(
-    (t) => t.allowed_domain.toLowerCase() === domain.toLowerCase()
+    (t) => t.name.toLowerCase() === name.toLowerCase()
   );
 }
 
@@ -50,30 +37,30 @@ export function createBundleHandlers(
   auditLogger: AuditLogger,
   createBundle: (
     tenant: TenantConfig,
-    domain: string,
+    name: string,
     relayUrl: string
   ) => Promise<Uint8Array>
 ): Hono {
   const app = new Hono();
 
   /**
-   * GET /v1/relay/tenants/:domain/bundle - Download configuration bundle.
+   * GET /v1/relay/tenants/:name/bundle - Download configuration bundle.
    * This endpoint does not require authentication.
    */
-  app.get("/v1/relay/tenants/:domain/bundle", async (c) => {
+  app.get("/v1/relay/tenants/:name/bundle", async (c) => {
     const reqCtx = extractRequestContext(c);
-    const allowedDomain = c.req.param("domain")?.trim();
+    const name = c.req.param("name")?.trim();
 
-    if (!allowedDomain) {
-      return c.text("domain is required", 400);
+    if (!name) {
+      return c.text("name is required", 400);
     }
 
-    const tenant = findTenant(config.tenants, allowedDomain);
+    const tenant = findTenant(config.tenants, name);
     if (!tenant) {
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.RELAY_BUNDLE,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",
@@ -86,21 +73,19 @@ export function createBundleHandlers(
     const relayUrl = buildRelayUrl(config.server.base_url, reqCtx.baseUrl);
 
     try {
-      const bundleData = await createBundle(tenant, allowedDomain, relayUrl);
+      const bundleData = await createBundle(tenant, name, relayUrl);
 
-      const { space, backlogDomain } = splitDomain(allowedDomain);
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.RELAY_BUNDLE,
-          space,
-          domain: backlogDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "success",
         })
       );
 
-      const filename = `${allowedDomain}.backlog-cli.zip`;
+      const filename = `${name}.backlog-cli.zip`;
       return new Response(bundleData, {
         headers: {
           "Content-Type": "application/zip",
@@ -112,7 +97,7 @@ export function createBundleHandlers(
       auditLogger.log(
         createAuditEvent({
           action: AuditActions.RELAY_BUNDLE,
-          domain: allowedDomain,
+          domain: name,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
           result: "error",

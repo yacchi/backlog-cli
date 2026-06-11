@@ -104,6 +104,12 @@ func PathProfileRelayServer(key string) string {
 	return "/profile/" + jsonptr.Escape(key) + "/relay_server"
 }
 
+// PathProfileBundle returns the JSONPointer path.
+// Path pattern: /profile/{key}/bundle
+func PathProfileBundle(key string) string {
+	return "/profile/" + jsonptr.Escape(key) + "/bundle"
+}
+
 // PathProfileSpace returns the JSONPointer path.
 // Path pattern: /profile/{key}/space
 func PathProfileSpace(key string) string {
@@ -266,22 +272,16 @@ func PathCredentialDomain(key string) string {
 	return "/credential/" + jsonptr.Escape(key) + "/domain"
 }
 
-// PathClientTrustBundlesId returns the JSONPointer path.
-// Path pattern: /client/trust/bundles/{index}/id
-func PathClientTrustBundlesId(index int) string {
-	return "/client/trust/bundles/" + strconv.Itoa(index) + "/id"
+// PathClientTrustBundlesName returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/name
+func PathClientTrustBundlesName(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/name"
 }
 
 // PathClientTrustBundlesRelayUrl returns the JSONPointer path.
 // Path pattern: /client/trust/bundles/{index}/relay_url
 func PathClientTrustBundlesRelayUrl(index int) string {
 	return "/client/trust/bundles/" + strconv.Itoa(index) + "/relay_url"
-}
-
-// PathClientTrustBundlesAllowedDomain returns the JSONPointer path.
-// Path pattern: /client/trust/bundles/{index}/allowed_domain
-func PathClientTrustBundlesAllowedDomain(index int) string {
-	return "/client/trust/bundles/" + strconv.Itoa(index) + "/allowed_domain"
 }
 
 // PathClientTrustBundlesBundleToken returns the JSONPointer path.
@@ -344,6 +344,18 @@ func PathClientTrustBundlesImportedAt(index int) string {
 	return "/client/trust/bundles/" + strconv.Itoa(index) + "/imported_at"
 }
 
+// PathClientTrustBundlesId returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/id
+func PathClientTrustBundlesId(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/id"
+}
+
+// PathClientTrustBundlesAllowedDomain returns the JSONPointer path.
+// Path pattern: /client/trust/bundles/{index}/allowed_domain
+func PathClientTrustBundlesAllowedDomain(index int) string {
+	return "/client/trust/bundles/" + strconv.Itoa(index) + "/allowed_domain"
+}
+
 // PathServerBacklogDomain returns the JSONPointer path.
 // Path pattern: /server/backlog/{key}/domain
 func PathServerBacklogDomain(key string) string {
@@ -372,12 +384,6 @@ func PathServerTenantsJwks(key string) string {
 // Path pattern: /server/tenants/{key}/active_keys
 func PathServerTenantsActiveKeys(key string) string {
 	return "/server/tenants/" + jsonptr.Escape(key) + "/active_keys"
-}
-
-// PathServerTenantsAllowedDomain returns the JSONPointer path.
-// Path pattern: /server/tenants/{key}/allowed_domain
-func PathServerTenantsAllowedDomain(key string) string {
-	return "/server/tenants/" + jsonptr.Escape(key) + "/allowed_domain"
 }
 
 // PathServerTenantsInfoTtl returns the JSONPointer path.

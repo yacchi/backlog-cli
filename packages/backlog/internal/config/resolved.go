@@ -105,6 +105,7 @@ func expandEnvShortcuts() []string {
 // 完全形式に展開されてからマッピングされる
 type ResolvedProfile struct {
 	RelayServer            string `json:"relay_server" jubako:",env:PROFILE_{key}_RELAY_SERVER"`
+	Bundle                 string `json:"bundle" jubako:",env:PROFILE_{key}_BUNDLE"`
 	Space                  string `json:"space" jubako:",env:PROFILE_{key}_SPACE"`
 	Domain                 string `json:"domain" jubako:",env:PROFILE_{key}_DOMAIN"`
 	Primary                bool   `json:"primary" jubako:",env:PROFILE_{key}_PRIMARY"`
