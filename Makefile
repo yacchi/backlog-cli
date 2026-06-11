@@ -1,4 +1,4 @@
-.PHONY: build test lint clean run serve install build-web dev-web build-dev buf-generate buf-lint
+.PHONY: build test lint clean run serve install build-web dev-web build-dev buf-generate buf-lint test-install
 
 # バージョン情報
 VERSION ?= $(shell cat version.txt 2>/dev/null | tr -d '[:space:]' || echo "dev")
@@ -143,6 +143,16 @@ build-all:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-amd64 ./cmd/backlog
 	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-linux-arm64 ./cmd/backlog
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-windows-amd64.exe ./cmd/backlog
+
+# install.sh ローカルテスト（curl|sh をシミュレート）
+# 事前に make serve で中継サーバーを起動しておくこと
+# 例:
+#   make test-install INSTALL_ARGS="--relay-url http://localhost:3000 --name dev"
+#   make test-install INSTALL_ARGS="--relay-url http://localhost:3000 --name dev --passphrase secret"
+INSTALL_ARGS ?=
+test-install: build-dev
+	@echo "==> Simulating: curl ... | sh -s -- $(INSTALL_ARGS)"
+	BACKLOG_BIN=$(CURDIR)/$(BUILD_DIR)/$(BINARY) cat scripts/install.sh | sh -s -- $(INSTALL_ARGS)
 
 # ==== 中継サーバー (TypeScript) ====
 

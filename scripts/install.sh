@@ -10,6 +10,7 @@
 #   BACKLOG_NAME         Tenant name
 #   BACKLOG_PASSPHRASE   Passphrase for portal authentication
 #   BACKLOG_SPACE        Space host (e.g. example.backlog.jp)
+#   BACKLOG_BIN          Path to backlog binary (skip download, for local testing)
 #
 # This script:
 #   1. Installs backlog CLI (brew preferred, GitHub Releases fallback)
@@ -150,7 +151,14 @@ install_from_releases() {
     fi
 }
 
-if ! command -v backlog > /dev/null 2>&1; then
+if [ -n "${BACKLOG_BIN:-}" ]; then
+    # Use specified binary (for local testing)
+    if [ ! -x "$BACKLOG_BIN" ]; then
+        error "BACKLOG_BIN is set but not executable: $BACKLOG_BIN"
+    fi
+    backlog() { "$BACKLOG_BIN" "$@"; }
+    info "Using local binary: $BACKLOG_BIN"
+elif ! command -v backlog > /dev/null 2>&1; then
     if ! install_with_brew; then
         install_from_releases
     fi
@@ -191,5 +199,11 @@ if [ -n "$SPACE" ]; then
 fi
 
 info "Running setup..."
-# shellcheck disable=SC2086
-backlog config setup --yes $setup_args
+
+if [ -e /dev/tty ]; then
+    # shellcheck disable=SC2086
+    backlog config setup $setup_args < /dev/tty
+else
+    # shellcheck disable=SC2086
+    backlog config setup --yes $setup_args
+fi
