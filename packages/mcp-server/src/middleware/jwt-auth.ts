@@ -1,7 +1,8 @@
 import type { Context, Next } from "hono";
 import type { CryptoKey } from "jose";
 import { verifyToken } from "../crypto/jwt.js";
-import type { TokenPayload } from "../crypto/jwt.js";
+import type { TokenPayload, SpaceAccessEntry } from "../crypto/jwt.js";
+import { getSpaceEntry, listSpaceEntries } from "../crypto/jwt.js";
 
 export interface AuthContext {
     token: TokenPayload;
@@ -15,31 +16,27 @@ export function getAuthContext(c: Context): AuthContext {
 
 export function resolveSpaceToken(
     token: TokenPayload,
-    spaceKey?: string,
+    requestedSpace?: string,
 ): { space: string; bl_access_token: string } | null {
-    if (!spaceKey) {
-        return {
-            space: token.space,
-            bl_access_token: token.bl_access_token ?? token.spaces?.[0]?.bl_access_token ?? "",
-        };
-    }
-
-    if (token.spaces) {
-        const found = token.spaces.find((s) => s.space === spaceKey);
-        if (found) {
-            return {
-                space: found.space,
-                bl_access_token: found.bl_access_token,
-            };
+    if (!requestedSpace) {
+        const entry = getSpaceEntry(token, token.space);
+        if (entry && "at" in entry) {
+            return { space: token.space, bl_access_token: entry.at };
         }
+        if (token.bl_access_token) {
+            return { space: token.space, bl_access_token: token.bl_access_token };
+        }
+        return null;
     }
 
-    // Try direct match (new spaceHost format)
-    if (token.space === spaceKey && token.bl_access_token) {
-        return {
-            space: token.space,
-            bl_access_token: token.bl_access_token,
-        };
+    const entry = getSpaceEntry(token, requestedSpace);
+    if (entry && "at" in entry) {
+        return { space: requestedSpace, bl_access_token: (entry as SpaceAccessEntry).at };
+    }
+
+    // Legacy single-space fallback
+    if (token.space === requestedSpace && token.bl_access_token) {
+        return { space: token.space, bl_access_token: token.bl_access_token };
     }
 
     return null;
@@ -71,7 +68,8 @@ export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?
             return unauthorized(c, "Token expired or invalid");
         }
 
-        const hasAccess = token.bl_access_token || (token.spaces && token.spaces.length > 0);
+        const hasSpaceAccess = listSpaceEntries(token).some(([, e]) => "at" in e);
+        const hasAccess = token.bl_access_token || hasSpaceAccess;
         if (!hasAccess) {
             return unauthorized(c, "Not an access token");
         }
