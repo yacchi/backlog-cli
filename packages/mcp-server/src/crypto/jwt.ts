@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify, importJWK, type JWK, type CryptoKey } from "jose";
 
+/** Per-space entry in the authorization code (has both access + refresh). */
 export interface SpaceToken {
     space: string;
     bl_access_token: string;
@@ -7,7 +8,21 @@ export interface SpaceToken {
     bl_expires_at: number;
 }
 
+export interface SpaceAccessEntry {
+    at: string;
+    exp: number;
+}
+
+export interface SpaceRefreshEntry {
+    rt: string;
+}
+
+export type SpaceEntry = SpaceAccessEntry | SpaceRefreshEntry;
+
+export const SPACE_KEY_PREFIX = "space:";
+
 export interface TokenPayload {
+    /** @deprecated Legacy array format — read-only for backward compat. */
     spaces?: SpaceToken[];
     bl_access_token?: string;
     bl_refresh_token?: string;
@@ -15,6 +30,29 @@ export interface TokenPayload {
     space: string;
     iat: number;
     exp?: number;
+    [key: string]: unknown;
+}
+
+export function spaceKey(spaceDomain: string): string {
+    return SPACE_KEY_PREFIX + spaceDomain;
+}
+
+export function getSpaceEntry(token: TokenPayload, spaceDomain: string): SpaceEntry | undefined {
+    return token[spaceKey(spaceDomain)] as SpaceEntry | undefined;
+}
+
+export function setSpaceAccess(payload: Record<string, unknown>, spaceDomain: string, at: string, exp: number): void {
+    payload[spaceKey(spaceDomain)] = { at, exp } as SpaceAccessEntry;
+}
+
+export function setSpaceRefresh(payload: Record<string, unknown>, spaceDomain: string, rt: string): void {
+    payload[spaceKey(spaceDomain)] = { rt } as SpaceRefreshEntry;
+}
+
+export function listSpaceEntries(token: TokenPayload): Array<[string, SpaceEntry]> {
+    return Object.entries(token)
+        .filter(([key]) => key.startsWith(SPACE_KEY_PREFIX))
+        .map(([key, value]) => [key.slice(SPACE_KEY_PREFIX.length), value as SpaceEntry]);
 }
 
 const ALG = "EdDSA";
@@ -115,14 +153,28 @@ export async function verifyToken(
         token.space = `${token.space}.${(payload as any).domain}`;
     }
 
-    // Normalize spaces array if present
-    if (token.spaces) {
-        token.spaces = token.spaces.map((s) => ({
-            space: s.space.includes(".") ? s.space : `${s.space}.${(s as any).domain || ''}`,
-            bl_access_token: s.bl_access_token,
-            bl_refresh_token: s.bl_refresh_token,
-            bl_expires_at: s.bl_expires_at,
-        }));
+    // Normalize "space:*" keys with missing domain
+    for (const key of Object.keys(token)) {
+        if (!key.startsWith(SPACE_KEY_PREFIX)) continue;
+        const domain = key.slice(SPACE_KEY_PREFIX.length);
+        if (!domain.includes(".") && (payload as any).domain) {
+            const normKey = spaceKey(`${domain}.${(payload as any).domain}`);
+            token[normKey] = token[key];
+            delete token[key];
+        }
+    }
+
+    // Migrate legacy spaces array → flat "space:*" entries
+    if (token.spaces && !listSpaceEntries(token).length) {
+        for (const s of token.spaces) {
+            const normSpace = s.space.includes(".") ? s.space : `${s.space}.${(s as any).domain || ""}`;
+            if (s.bl_access_token) {
+                token[spaceKey(normSpace)] = { at: s.bl_access_token, exp: s.bl_expires_at } satisfies SpaceAccessEntry;
+            } else if (s.bl_refresh_token) {
+                token[spaceKey(normSpace)] = { rt: s.bl_refresh_token } satisfies SpaceRefreshEntry;
+            }
+        }
+        delete token.spaces;
     }
 
     return token;

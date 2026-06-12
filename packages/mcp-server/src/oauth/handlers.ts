@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
 import { matchSpacePattern } from "../config/schema.js";
-import { sign, verify, signToken } from "../crypto/jwt.js";
+import { sign, verify, signToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
 import type {
     DcrRequest,
@@ -496,13 +496,19 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const primary = spaceTokens[0];
         const now = Math.floor(Date.now() / 1000);
 
+        const codePayloadEntries: Record<string, unknown> = {};
+        for (const t of spaceTokens) {
+            codePayloadEntries[spaceKey(t.space)] = {
+                at: t.bl_access_token,
+                rt: t.bl_refresh_token,
+                exp: t.bl_expires_at,
+            };
+        }
+
         const mcpCode = await sign(
             {
-                spaces: spaceTokens,
+                ...codePayloadEntries,
                 space: primary.space,
-                bl_access_token: primary.bl_access_token,
-                bl_refresh_token: primary.bl_refresh_token,
-                bl_expires_at: primary.bl_expires_at,
                 iat: now,
                 exp: now + 300,
             },
@@ -584,19 +590,46 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const spaces = codePayload.spaces as SpaceToken[] | undefined;
 
-        if (spaces && spaces.length > 0) {
-            const primary = spaces[0];
-            const minExpires = Math.min(...spaces.map((s) => s.bl_expires_at));
+        // Extract space entries from code payload (new "space:*" format or legacy "spaces" array)
+        // verifyToken already normalizes legacy formats, but codePayload is raw verify() output
+        type CodeSpaceEntry = { at: string; rt: string; exp: number };
+        const codeSpaces: Array<[string, CodeSpaceEntry]> = [];
+
+        // New format: "space:example.backlog.jp" keys
+        for (const [key, value] of Object.entries(codePayload)) {
+            if (key.startsWith("space:")) {
+                const domain = key.slice("space:".length);
+                codeSpaces.push([domain, value as CodeSpaceEntry]);
+            }
+        }
+
+        // Legacy format: "spaces" array
+        if (codeSpaces.length === 0) {
+            const legacySpaces = codePayload.spaces as SpaceToken[] | undefined;
+            if (legacySpaces) {
+                for (const s of legacySpaces) {
+                    codeSpaces.push([s.space, { at: s.bl_access_token, rt: s.bl_refresh_token, exp: s.bl_expires_at }]);
+                }
+            }
+        }
+
+        if (codeSpaces.length > 0) {
+            const primarySpace = codePayload.space as string || codeSpaces[0][0];
+            const minExpires = Math.min(...codeSpaces.map(([, e]) => e.exp));
             const expiresIn = Math.max(minExpires - now, 60);
 
-            const accessTokenJwt = await signToken(
+            const accessEntries: Record<string, unknown> = {};
+            const refreshEntries: Record<string, unknown> = {};
+            for (const [domain, e] of codeSpaces) {
+                setSpaceAccess(accessEntries, domain, e.at, e.exp);
+                setSpaceRefresh(refreshEntries, domain, e.rt);
+            }
+
+            const accessTokenJwt = await sign(
                 {
-                    spaces,
-                    space: primary.space,
-                    bl_access_token: primary.bl_access_token,
-                    bl_expires_at: primary.bl_expires_at,
+                    ...accessEntries,
+                    space: primarySpace,
                     iat: now,
                     exp: now + expiresIn,
                 },
@@ -604,18 +637,10 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 signingKid,
             );
 
-            const refreshSpaces = spaces.map((s) => ({
-                space: s.space,
-                bl_access_token: "",
-                bl_refresh_token: s.bl_refresh_token,
-                bl_expires_at: s.bl_expires_at,
-            }));
-
             const refreshTokenJwt = await sign(
                 {
-                    spaces: refreshSpaces,
-                    space: primary.space,
-                    bl_refresh_token: primary.bl_refresh_token,
+                    ...refreshEntries,
+                    space: primarySpace,
                     iat: now,
                 },
                 signingKey,
@@ -630,7 +655,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             });
         }
 
-        // Legacy single-space code
+        // Legacy single-space code (no spaces array, no space:* keys)
         const bl_access_token = codePayload.bl_access_token as string;
         const bl_refresh_token = codePayload.bl_refresh_token as string;
         if (!bl_access_token || !bl_refresh_token) {
@@ -640,33 +665,18 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const bl_expires_at = (codePayload.bl_expires_at as number) ?? now + 3600;
         const expiresIn = Math.max(bl_expires_at - now, 60);
 
-        // Normalize space for backward compat
         let space = codePayload.space as string;
         if (space && !space.includes(".") && (codePayload as any).domain) {
             space = `${space}.${(codePayload as any).domain}`;
         }
 
-        const accessTokenJwt = await signToken(
-            {
-                bl_access_token,
-                bl_expires_at,
-                space,
-                iat: now,
-                exp: now + expiresIn,
-            },
-            signingKey,
-            signingKid,
-        );
+        const accessPayload: Record<string, unknown> = { space, iat: now, exp: now + expiresIn };
+        setSpaceAccess(accessPayload, space, bl_access_token, bl_expires_at);
+        const accessTokenJwt = await sign(accessPayload, signingKey, signingKid);
 
-        const refreshTokenJwt = await signToken(
-            {
-                bl_refresh_token,
-                space,
-                iat: now,
-            },
-            signingKey,
-            signingKid,
-        );
+        const refreshPayload: Record<string, unknown> = { space, iat: now };
+        setSpaceRefresh(refreshPayload, space, bl_refresh_token);
+        const refreshTokenJwt = await sign(refreshPayload, signingKey, signingKid);
 
         return c.json({
             access_token: accessTokenJwt,
@@ -696,46 +706,69 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
         }
 
-        const spaces = refreshPayload.spaces as SpaceToken[] | undefined;
+        // Extract refresh entries from payload (new "space:*" format or legacy "spaces" array)
+        type RefreshEntry = { domain: string; rt: string };
+        const refreshEntries: RefreshEntry[] = [];
 
-        if (spaces && spaces.length > 0) {
-            const refreshedSpaces: SpaceToken[] = [];
-            for (const s of spaces) {
-                if (!s.bl_refresh_token) continue;
+        for (const [key, value] of Object.entries(refreshPayload)) {
+            if (key.startsWith("space:")) {
+                const domain = key.slice("space:".length);
+                const entry = value as { rt?: string };
+                if (entry.rt) {
+                    refreshEntries.push({ domain, rt: entry.rt });
+                }
+            }
+        }
+
+        // Legacy format
+        if (refreshEntries.length === 0) {
+            const legacySpaces = refreshPayload.spaces as SpaceToken[] | undefined;
+            if (legacySpaces) {
+                for (const s of legacySpaces) {
+                    if (s.bl_refresh_token) {
+                        refreshEntries.push({ domain: s.space, rt: s.bl_refresh_token });
+                    }
+                }
+            }
+        }
+
+        if (refreshEntries.length > 0) {
+            const accessEntries: Record<string, unknown> = {};
+            const newRefreshEntries: Record<string, unknown> = {};
+            const expirations: number[] = [];
+
+            for (const entry of refreshEntries) {
+                let tokens: TokenResponse;
                 try {
-                    const tokens = await doRefreshToken(s.space, s.bl_refresh_token);
-                    const now = Math.floor(Date.now() / 1000);
-                    refreshedSpaces.push({
-                        space: s.space,
-                        bl_access_token: tokens.access_token,
-                        bl_refresh_token: tokens.refresh_token,
-                        bl_expires_at: now + tokens.expires_in,
-                    });
+                    tokens = await doRefreshToken(entry.domain, entry.rt);
                 } catch {
                     return jsonError(
                         c,
                         403,
                         "insufficient_scope",
-                        `Token refresh failed for ${s.space}. Re-authentication required.`,
+                        `Token refresh failed for ${entry.domain}. Re-authentication required.`,
                     );
                 }
+                const now = Math.floor(Date.now() / 1000);
+                const expiresAt = now + tokens.expires_in;
+                setSpaceAccess(accessEntries, entry.domain, tokens.access_token, expiresAt);
+                setSpaceRefresh(newRefreshEntries, entry.domain, tokens.refresh_token);
+                expirations.push(expiresAt);
             }
 
-            if (refreshedSpaces.length === 0) {
+            if (Object.keys(accessEntries).length === 0) {
                 return jsonError(c, 400, "invalid_grant", "No refreshable tokens");
             }
 
-            const primary = refreshedSpaces[0];
+            const primarySpace = refreshPayload.space as string || refreshEntries[0].domain;
             const now = Math.floor(Date.now() / 1000);
-            const minExpires = Math.min(...refreshedSpaces.map((s) => s.bl_expires_at));
+            const minExpires = Math.min(...expirations);
             const expiresIn = Math.max(minExpires - now, 60);
 
-            const accessTokenJwt = await signToken(
+            const accessTokenJwt = await sign(
                 {
-                    spaces: refreshedSpaces,
-                    space: primary.space,
-                    bl_access_token: primary.bl_access_token,
-                    bl_expires_at: primary.bl_expires_at,
+                    ...accessEntries,
+                    space: primarySpace,
                     iat: now,
                     exp: now + expiresIn,
                 },
@@ -743,18 +776,10 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 signingKid,
             );
 
-            const refreshSpaces = refreshedSpaces.map((s) => ({
-                space: s.space,
-                bl_access_token: "",
-                bl_refresh_token: s.bl_refresh_token,
-                bl_expires_at: s.bl_expires_at,
-            }));
-
             const refreshTokenJwt = await sign(
                 {
-                    spaces: refreshSpaces,
-                    space: primary.space,
-                    bl_refresh_token: primary.bl_refresh_token,
+                    ...newRefreshEntries,
+                    space: primarySpace,
                     iat: now,
                 },
                 signingKey,
@@ -769,13 +794,12 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             });
         }
 
-        // Legacy single-space refresh
+        // Legacy single-space refresh (no space:* keys, no spaces array)
         const bl_refresh_token = refreshPayload.bl_refresh_token as string;
         if (!bl_refresh_token) {
             return jsonError(c, 400, "invalid_grant", "Malformed refresh token");
         }
 
-        // Normalize space for backward compat
         let space = refreshPayload.space as string;
         if (space && !space.includes(".") && (refreshPayload as any).domain) {
             space = `${space}.${(refreshPayload as any).domain}`;
@@ -794,27 +818,15 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const accessTokenJwt = await signToken(
-            {
-                bl_access_token: backlogTokens.access_token,
-                bl_expires_at: now + backlogTokens.expires_in,
-                space,
-                iat: now,
-                exp: now + backlogTokens.expires_in,
-            },
-            signingKey,
-            signingKid,
-        );
+        const expiresAt = now + backlogTokens.expires_in;
 
-        const refreshTokenJwt = await signToken(
-            {
-                bl_refresh_token: backlogTokens.refresh_token,
-                space,
-                iat: now,
-            },
-            signingKey,
-            signingKid,
-        );
+        const newAccessPayload: Record<string, unknown> = { space, iat: now, exp: expiresAt };
+        setSpaceAccess(newAccessPayload, space, backlogTokens.access_token, expiresAt);
+        const accessTokenJwt = await sign(newAccessPayload, signingKey, signingKid);
+
+        const newRefreshPayload: Record<string, unknown> = { space, iat: now };
+        setSpaceRefresh(newRefreshPayload, space, backlogTokens.refresh_token);
+        const refreshTokenJwt = await sign(newRefreshPayload, signingKey, signingKid);
 
         return c.json({
             access_token: accessTokenJwt,

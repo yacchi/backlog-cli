@@ -7,6 +7,7 @@ import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logToolCall } from "../logging/logger.js";
 import type { TokenPayload } from "../crypto/jwt.js";
+import { listSpaceEntries } from "../crypto/jwt.js";
 
 export interface ScriptFile {
     content: string;
@@ -360,8 +361,9 @@ export function createTransportHandlers(
         const requestedSpace = toolArgs.space as string | undefined;
         const resolved = resolveSpaceToken(token, requestedSpace);
         if (!resolved) {
-            const authenticated = token.spaces
-                ? token.spaces.map((s) => s.space).join(", ")
+            const spaceEntries = listSpaceEntries(token);
+            const authenticated = spaceEntries.length > 0
+                ? spaceEntries.map(([domain]) => domain).join(", ")
                 : token.space;
             return jsonRpcResult(req.id, {
                 content: [{
