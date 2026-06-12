@@ -36,6 +36,9 @@ export default function Portal() {
   const [provisioningKey, setProvisioningKey] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedQuickstart, setCopiedQuickstart] = useState<
+    "curl" | "cli" | null
+  >(null);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +141,17 @@ export default function Portal() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyQuickstart = async (type: "curl" | "cli") => {
+    if (!tenantInfo || !name) return;
+    const command =
+      type === "curl"
+        ? `curl -fsSL ${tenantInfo.relay_url}/install.sh | sh -s -- --name ${name}`
+        : `backlog config setup --relay-url ${tenantInfo.relay_url} --name ${name}`;
+    await navigator.clipboard.writeText(command);
+    setCopiedQuickstart(type);
+    setTimeout(() => setCopiedQuickstart(null), 2000);
+  };
+
   const handleReset = () => {
     setTenantInfo(null);
     setPassphrase("");
@@ -234,28 +248,48 @@ export default function Portal() {
               {setupMethod === "quickstart" ? (
                 <div className="space-y-4">
                   <p className="text-center text-sm text-ink/70">
-                    ターミナルで以下のコマンドを実行すると、CLIのインストールとセットアップが完了します
+                    ターミナルで以下のコマンドを実行すると、CLIのインストールとセットアップが完了します。
+                    実行後にパスフレーズの入力を求められます。
                   </p>
                   <div className="relative">
-                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4">
+                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4 pr-20">
                       <code className="block break-all text-sm leading-relaxed text-ink">
-                        curl -fsSL {tenantInfo.relay_url}/install.sh | sh -s -- --name {name} --passphrase '...'
+                        curl -fsSL {tenantInfo.relay_url}/install.sh | sh
+                        -s -- --name {name}
                       </code>
                     </div>
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 rounded-lg border border-outline/60 bg-white px-3 py-1.5 text-xs font-medium text-ink/70 shadow-sm transition-colors hover:bg-ink/5"
+                      onClick={() => handleCopyQuickstart("curl")}
+                    >
+                      {copiedQuickstart === "curl" ? "Copied!" : "Copy"}
+                    </button>
                   </div>
-                  <p className="text-center text-xs text-ink/50">
-                    パスフレーズには先ほど入力した値を指定してください
-                  </p>
                   <p className="text-center text-xs text-ink/50">
                     既にCLIがインストール済みの場合は直接セットアップできます:
                   </p>
                   <div className="relative">
-                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4">
+                    <div className="rounded-2xl border border-outline/60 bg-ink/5 p-4 pr-20">
                       <code className="block break-all text-sm leading-relaxed text-ink">
-                        backlog config setup --relay-url {tenantInfo.relay_url} --name {name} --passphrase '...'
+                        backlog config setup --relay-url{" "}
+                        {tenantInfo.relay_url} --name {name}
                       </code>
                     </div>
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 rounded-lg border border-outline/60 bg-white px-3 py-1.5 text-xs font-medium text-ink/70 shadow-sm transition-colors hover:bg-ink/5"
+                      onClick={() => handleCopyQuickstart("cli")}
+                    >
+                      {copiedQuickstart === "cli" ? "Copied!" : "Copy"}
+                    </button>
                   </div>
+                  <p className="text-center text-xs text-ink/50">
+                    <code className="rounded bg-ink/10 px-1.5 py-0.5 text-xs">
+                      --passphrase
+                    </code>{" "}
+                    オプションで引数から直接指定することもできます
+                  </p>
                   <div className="flex justify-center gap-3 pt-1">
                     <Button variant="secondary" onClick={handleReset}>
                       戻る
