@@ -203,8 +203,14 @@ if [ -n "$SPACE" ]; then
 fi
 
 info "Running setup..."
-# shellcheck disable=SC2086
-backlog config setup --yes $setup_args
+
+if [ -e /dev/tty ]; then
+    # shellcheck disable=SC2086
+    backlog config setup $setup_args < /dev/tty
+else
+    # shellcheck disable=SC2086
+    backlog config setup --yes $setup_args
+fi
 `;
 
 /**
