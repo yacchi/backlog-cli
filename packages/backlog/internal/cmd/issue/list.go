@@ -259,10 +259,6 @@ func runList(c *cobra.Command, args []string) error {
 			fmt.Println(len(issues))
 			return nil
 		}
-		if len(issues) == 0 {
-			fmt.Println("No issues found")
-			return nil
-		}
 		return renderIssueList(c, ctx, client, cfg, profile, issues, "")
 	}
 
@@ -570,11 +566,6 @@ func runList(c *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if len(issues) == 0 {
-		fmt.Println("No issues found")
-		return nil
-	}
-
 	return renderIssueList(c, ctx, client, cfg, profile, issues, singleProjectKey)
 }
 
@@ -623,6 +614,10 @@ func renderIssueList(c *cobra.Command, ctx context.Context, client *api.Client, 
 	case "json":
 		return cmdutil.OutputJSONFromProfile(issues, profile.JSONFields, profile.JQ, profile.Template)
 	default:
+		if len(issues) == 0 {
+			fmt.Println("No issues found")
+			return nil
+		}
 		cacheDir, cacheErr := cfg.GetCacheDir()
 		markdownOpts := cmdutil.ResolveMarkdownViewOptions(c, display, cacheDir)
 		if markdownOpts.Cache && cacheErr != nil {

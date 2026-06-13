@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"text/template"
 
@@ -23,6 +24,10 @@ type JSONOutputOptions struct {
 
 // OutputJSON outputs data as JSON with optional field selection and jq filtering.
 func OutputJSON(w io.Writer, data any, opts JSONOutputOptions) error {
+	if v := reflect.ValueOf(data); v.Kind() == reflect.Slice && v.IsNil() {
+		data = reflect.MakeSlice(v.Type(), 0, 0).Interface()
+	}
+
 	// Convert to JSON bytes first
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {

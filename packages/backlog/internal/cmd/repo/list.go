@@ -42,11 +42,6 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get Git repositories: %w", err)
 	}
 
-	if len(repos) == 0 {
-		fmt.Println("No Git repositories found")
-		return nil
-	}
-
 	// 出力
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
@@ -55,6 +50,10 @@ func runList(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(repos)
 	default:
+		if len(repos) == 0 {
+			fmt.Println("No Git repositories found")
+			return nil
+		}
 		outputRepoTable(repos)
 		return nil
 	}

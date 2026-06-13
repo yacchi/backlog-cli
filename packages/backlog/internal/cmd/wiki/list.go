@@ -71,11 +71,6 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get wiki pages: %w", err)
 	}
 
-	if len(wikis) == 0 {
-		fmt.Println("No wiki pages found")
-		return nil
-	}
-
 	// 出力
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
@@ -84,6 +79,10 @@ func runList(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(wikis)
 	default:
+		if len(wikis) == 0 {
+			fmt.Println("No wiki pages found")
+			return nil
+		}
 		outputWikiTable(wikis)
 		return nil
 	}

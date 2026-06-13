@@ -60,11 +60,6 @@ func runList(c *cobra.Command, args []string) error {
 		versions = filtered
 	}
 
-	if len(versions) == 0 {
-		fmt.Println("No milestones found")
-		return nil
-	}
-
 	// 出力
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
@@ -73,6 +68,10 @@ func runList(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(versions)
 	default:
+		if len(versions) == 0 {
+			fmt.Println("No milestones found")
+			return nil
+		}
 		outputMilestoneTable(versions)
 		return nil
 	}

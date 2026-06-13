@@ -44,11 +44,6 @@ func runCommentList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get document comments: %w", err)
 	}
 
-	if len(comments) == 0 {
-		fmt.Fprintln(os.Stderr, "No comments found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -56,6 +51,10 @@ func runCommentList(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(comments)
 	default:
+		if len(comments) == 0 {
+			fmt.Fprintln(os.Stderr, "No comments found")
+			return nil
+		}
 		outputCommentTable(comments)
 		return nil
 	}

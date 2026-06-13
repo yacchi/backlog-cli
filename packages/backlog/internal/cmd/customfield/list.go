@@ -51,11 +51,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get custom fields: %w", err)
 	}
 
-	if len(customFields) == 0 {
-		fmt.Println("No custom fields found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -63,6 +58,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(customFields)
 	default:
+		if len(customFields) == 0 {
+			fmt.Println("No custom fields found")
+			return nil
+		}
 		outputCustomFieldTable(customFields)
 		return nil
 	}

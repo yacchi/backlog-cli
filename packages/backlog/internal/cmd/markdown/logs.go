@@ -61,16 +61,16 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(entries) == 0 {
-		ui.Info("No markdown logs found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	if profile.Output == "json" {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(entries)
+	}
+
+	if len(entries) == 0 {
+		ui.Info("No markdown logs found")
+		return nil
 	}
 
 	printEntries(entries)

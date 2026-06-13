@@ -41,11 +41,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get categories: %w", err)
 	}
 
-	if len(categories) == 0 {
-		fmt.Println("No categories found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -53,6 +48,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(categories)
 	default:
+		if len(categories) == 0 {
+			fmt.Println("No categories found")
+			return nil
+		}
 		outputCategoryTable(categories)
 		return nil
 	}

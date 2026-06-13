@@ -56,11 +56,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		users = filtered
 	}
 
-	if len(users) == 0 {
-		fmt.Println("No users found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -68,6 +63,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(users)
 	default:
+		if len(users) == 0 {
+			fmt.Println("No users found")
+			return nil
+		}
 		outputUserTable(users)
 		return nil
 	}

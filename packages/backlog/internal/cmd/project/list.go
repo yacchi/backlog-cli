@@ -51,17 +51,16 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get projects: %w", err)
 	}
 
-	if len(projects) == 0 {
-		fmt.Println("No projects found")
-		return nil
-	}
-
 	// 出力
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
 		return cmdutil.OutputJSONFromProfile(projects, profile.JSONFields, profile.JQ, profile.Template)
 	default:
+		if len(projects) == 0 {
+			fmt.Println("No projects found")
+			return nil
+		}
 		outputProjectTable(projects, profile.Project)
 		return nil
 	}

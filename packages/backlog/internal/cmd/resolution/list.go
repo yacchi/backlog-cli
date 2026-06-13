@@ -36,11 +36,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get resolutions: %w", err)
 	}
 
-	if len(resolutions) == 0 {
-		fmt.Println("No resolutions found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -48,6 +43,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(resolutions)
 	default:
+		if len(resolutions) == 0 {
+			fmt.Println("No resolutions found")
+			return nil
+		}
 		outputResolutionTable(resolutions)
 		return nil
 	}

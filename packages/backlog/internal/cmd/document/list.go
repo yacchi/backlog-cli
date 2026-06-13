@@ -90,11 +90,6 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get documents: %w", err)
 	}
 
-	if len(docs) == 0 {
-		fmt.Fprintln(os.Stderr, "No documents found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -102,6 +97,10 @@ func runList(c *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(docs)
 	default:
+		if len(docs) == 0 {
+			fmt.Fprintln(os.Stderr, "No documents found")
+			return nil
+		}
 		outputDocumentTable(docs)
 		return nil
 	}

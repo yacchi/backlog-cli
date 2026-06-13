@@ -34,11 +34,6 @@ func runList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get priorities: %w", err)
 	}
 
-	if len(priorities) == 0 {
-		fmt.Println("No priorities found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
@@ -46,6 +41,10 @@ func runList(cmd *cobra.Command, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(priorities)
 	default:
+		if len(priorities) == 0 {
+			fmt.Println("No priorities found")
+			return nil
+		}
 		outputPriorityTable(priorities)
 		return nil
 	}

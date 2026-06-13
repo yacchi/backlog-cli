@@ -111,16 +111,15 @@ func runList(c *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(activities) == 0 {
-		fmt.Println("No activities found")
-		return nil
-	}
-
 	profile := cfg.CurrentProfile()
 	switch profile.Output {
 	case "json":
 		return cmdutil.OutputJSONFromProfile(activities, profile.JSONFields, profile.JQ, profile.Template)
 	default:
+		if len(activities) == 0 {
+			fmt.Println("No activities found")
+			return nil
+		}
 		outputTable(activities, display.Timezone, display.DateTimeFormat)
 		return nil
 	}

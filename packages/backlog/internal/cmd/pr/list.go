@@ -142,17 +142,16 @@ func runList(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get pull requests: %w", err)
 	}
 
-	if len(prs) == 0 {
-		fmt.Println("No pull requests found")
-		return nil
-	}
-
 	// 出力
 	display := cfg.Display()
 	switch profile.Output {
 	case "json":
 		return cmdutil.OutputJSONFromProfile(prs, profile.JSONFields, profile.JQ, profile.Template)
 	default:
+		if len(prs) == 0 {
+			fmt.Println("No pull requests found")
+			return nil
+		}
 		outputPRTable(prs, profile, display, projectKey, listRepo)
 		return nil
 	}
