@@ -128,7 +128,7 @@ serve: build-web build-relay-core
 		exit 1; \
 	fi
 	$(eval RELAY_CONFIG := $(shell mise exec -- node -e "import('./config.dev.ts').then(m => console.log(JSON.stringify(m.config)))"))
-	RELAY_CONFIG='$(RELAY_CONFIG)' WEB_DIST_PATH=$(PWD)/packages/web/dist pnpm --filter @backlog-cli/relay-docker dev
+	RELAY_CONFIG='$(RELAY_CONFIG)' WEB_DIST_PATH=$(PWD)/packages/web/dist pnpm --filter @yacchi/backlog-relay-runtime dev
 
 # インストール
 install: build
@@ -159,7 +159,7 @@ test-install: build-dev
 # 中継サーバー共通ライブラリのビルド
 .PHONY: build-relay-core
 build-relay-core:
-	pnpm --filter @backlog-cli/relay-core build
+	pnpm --filter @yacchi/backlog-relay-core build
 
 # 中継サーバー（Docker）
 # 注意: ビルドは packages/relay-docker の責務

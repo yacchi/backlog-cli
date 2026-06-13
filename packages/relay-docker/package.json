@@ -1,5 +1,5 @@
 {
-  "name": "@backlog-cli/relay-docker",
+  "name": "@yacchi/backlog-relay-runtime",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,8 +18,8 @@
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.0.0",
     "@aws-sdk/client-ssm": "^3.0.0",
-    "@backlog-cli/mcp-server": "workspace:*",
-    "@backlog-cli/relay-core": "workspace:*",
+    "@yacchi/backlog-mcp-server": "workspace:*",
+    "@yacchi/backlog-relay-core": "workspace:*",
     "@hono/node-server": "^1.14.2",
     "hono": "^4.7.11"
   },

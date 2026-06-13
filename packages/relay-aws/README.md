@@ -1,310 +1,124 @@
-# Backlog CLI Relay Server - AWS CDK Deployment
+# @yacchi/backlog-relay-aws-cdk
 
-AWS CDK を使用して Backlog CLI リレーサーバー（OAuth リレー + MCP サーバー）を AWS Lambda にデプロイします。
+Backlog の **OAuth リレー + MCP サーバー + 配布ポータル**を、CloudFront 配下の
+Lambda コンテナとして AWS にデプロイする CDK construct ライブラリです。
 
-## 前提条件
+ランタイムは公開済みのコンテナイメージ（`ghcr.io/yacchi/backlog-relay`）として
+配布され、本 construct が AWS 側リソース（Lambda `DockerImageFunction`、Function
+URL、CloudFront、SSM Parameter Store、ローテーション付き Secrets Manager）を構築し、
+`cdk-ecr-deployment` でイメージをアカウントの ECR へコピーします。
 
-- [AWS CLI](https://aws.amazon.com/cli/) - 認証情報が設定済み
-- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) - `npm install -g aws-cdk`
-- Node.js 18+
-- Go 1.24+
+## デプロイされるもの
 
-## クイックスタート
+1 つのコンテナイメージに以下が同梱され、1 プロセスで提供されます。
 
-### 1. Backlog で OAuth アプリケーションを登録
+### OAuth リレー
 
-1. Backlog スペース設定画面を開く
-   - backlog.jp: `https://YOUR_SPACE.backlog.jp/EditOAuth2Settings.action`
-   - backlog.com: `https://YOUR_SPACE.backlog.com/EditOAuth2Settings.action`
+CLI に Client Secret を持たせずに Backlog の OAuth トークンを取得・更新するための
+中継サーバーです。`/auth/start`・`/auth/callback`・`/auth/token` を提供し、Client
+ID/Secret は中継サーバー側（Secrets Manager）で管理します。
+詳細: [`docs/design/oauth-relay-server.md`](../../docs/design/oauth-relay-server.md)
 
-2. OAuth 2.0 アプリケーションを作成
-   - **リダイレクト URI**: デプロイ後に設定（後述）
+### MCP サーバー
 
-3. `Client ID` と `Client Secret` をメモ
+Claude などの MCP クライアントが Backlog にアクセスするための
+**Streamable HTTP エンドポイント（`/mcp`）**と OAuth 認可サーバー（DCR + PKCE、
+`/.well-known/oauth-authorization-server`・`/mcp/register`・`/mcp/authorize`・
+`/mcp/token`）を提供します。クライアントには `backlog` CLI 実行ツールと、Python
+サンドボックス（`run_script`）が公開されます。アクセス可能なスペースは
+`mcp.spaces`（正規表現 + writable）で制御します。
+詳細: [`docs/design/remote-mcp-server.md`](../../docs/design/remote-mcp-server.md)
 
-### 2. 設定ファイルを作成
+### 配布ポータル
+
+組織メンバー向けの Web UI（`/portal/:name`）です。テナントのパスフレーズで認証し
+（`POST /api/v1/portal/verify`）、後述の**設定バンドル**をダウンロードできます
+（`POST /api/v1/portal/:name/bundle`）。ポータルの静的アセットはイメージに同梱されます。
+
+## ポータルを使った配布（Relay Config Bundle）
+
+CLI が**不正な中継サーバーへ接続しない**ことを保証するため、組織は「信頼の起点」と
+なる**署名付き設定バンドル（ZIP）**をポータル経由で配布します。
+
+1. 組織メンバーがポータルを開き、テナントのパスフレーズを入力。
+2. 署名付きバンドル（`manifest.yaml` + `manifest.yaml.sig`、relay の公開鍵情報を含む）を
+   ダウンロード（またはプロビジョニングキーを取得）。
+3. `backlog` CLI に取り込むと、relay の公開鍵が**信頼の起点として固定**され、以降は
+   その relay のみを信頼します。
+
+詳細: [`docs/design/relay-config-bundle.md`](../../docs/design/relay-config-bundle.md)
+
+## インストール
+
+本パッケージは **GitHub Packages** で配布され、public でもインストール時に GitHub
+トークン認証が必要です。プロジェクトに `.npmrc` を追加してください。
+
+```ini
+@yacchi:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+CDK の peer dependencies と合わせてインストールします。
 
 ```bash
-cd deploy/aws-cdk
-pnpm install
-
-# 設定テンプレートをコピー
-cp config.example.ts config.ts
-
-# 設定を編集
-vim config.ts
+npm install @yacchi/backlog-relay-aws-cdk aws-cdk-lib constructs
 ```
 
-### 3. デプロイ
+> デプロイには Go / Docker は不要です（イメージは公開済みで、デプロイ時に ECR へ
+> コピーされるだけ）。CDK bootstrap 済みのアカウント/リージョンが必要です。
 
-```bash
-# 初回のみ: CDK Bootstrap
-cdk bootstrap
+## 使い方
 
-# デプロイ（リソース作成）
-pnpm deploy:resources
-```
+```ts
+import * as cdk from "aws-cdk-lib";
+import { RelayStack, resolveLatestImageTag, DEFAULT_IMAGE_SOURCE } from "@yacchi/backlog-relay-aws-cdk";
 
-### 4. Backlog の設定を更新
+const app = new cdk.App();
 
-デプロイ出力の `CallbackUrl` を Backlog OAuth アプリのリダイレクト URI に設定：
+// イメージタグはレジストリから解決（既定は最新の安定版）。
+const imageSource = DEFAULT_IMAGE_SOURCE;
+const imageTag = await resolveLatestImageTag(imageSource);
 
-```
-https://xxx.lambda-url.ap-northeast-1.on.aws/auth/callback
-```
-
-### 5. Backlog CLI を設定
-
-```bash
-backlog config set relay_server https://xxx.lambda-url.ap-northeast-1.on.aws
-```
-
-## 設定方法
-
-### Parameter Store 参照（設定の一元管理）
-
-Parameter Store の内容は CDK デプロイ時に反映されます。
-
-```typescript
-export const config: RelayConfig = {
-  parameterName: "/backlog-relay/config",
-  parameterValue: {
-    server: {
-      backlog: {
-        jp: {
-          client_id: "your-client-id",
-          client_secret: "your-client-secret",
-        },
+new RelayStack(app, "BacklogRelay", {
+  config: {
+    parameterName: "/backlog-relay/config",
+    parameterValue: {
+      server: { port: 8080 },
+      backlog_app: {
+        client_id: process.env.BACKLOG_CLIENT_ID!,
+        client_secret: process.env.BACKLOG_CLIENT_SECRET!,
       },
-      tenants: {
-        spaceid: {
-          allowed_domain: "spaceid.backlog.jp",
-          jwks: '{"keys":[{"kty":"OKP","crv":"Ed25519","kid":"2025-01","x":"...","d":"..."}]}',
-          active_keys: "2025-01",
-          info_ttl: 600,
-          passphrase_hash: "$2a$12$...",
-        },
-      },
+      tenants: { "myspace.backlog.jp": { passphrase: "...", default_space: "myspace.backlog.jp" } },
     },
+    mcp: { spaces: [{ pattern: "myspace\\.backlog\\.jp", writable: true }] },
+    cloudFront: { enabled: true, customDomain: { /* domainName, certificateArn, hostedZoneId */ } },
+    image: { source: imageSource, tag: imageTag },
   },
-};
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: "ap-northeast-1" },
+});
 ```
 
-## コマンド
+### イメージタグの解決
 
-```bash
-# 依存関係のインストール
-pnpm install
+`resolveLatestImageTag(source, { prerelease })` はレジストリのタグ一覧から最新の
+semver タグを返します。
 
-# デプロイ（リソース作成）
-pnpm deploy:resources
+- `prerelease: false`（既定）→ 最新の**安定版**（開発版の誤デプロイを防止）。
+- `prerelease: true` → 最新の**プレリリース**（開発版を対象にする場合）。
 
-# 変更のプレビュー
-pnpm diff
+再現性のため `image.tag` で固定バージョンを指定してください。`latest` は使いません。
 
-# CloudFormation テンプレートの生成
-pnpm synth
+## デプロイ雛形
 
-# CloudFront キャッシュの無効化
-pnpm invalidate-cache
+すぐコピーして使えるデプロイアプリが本リポジトリの
+**`packages/relay-aws-deploy`** にあります。そのディレクトリをコピーし、`workspace:*`
+を公開バージョンに置き換え、上記 `.npmrc` を設定し、`config.ts` を編集して
+（`cp config.example.ts config.ts`）`cdk deploy` してください。
 
-# スタックの削除
-pnpm destroy
-```
+## 公開 API
 
-## 設定リファレンス
-
-### 必須設定
-
-| フィールド                        | 説明                                        |
-| --------------------------------- | ------------------------------------------- |
-| `server.backlog.jp` または `server.backlog.com` | 少なくとも1つの OAuth アプリ設定            |
-
-### オプション設定
-
-| フィールド                             | デフォルト       | 説明                             |
-| -------------------------------------- | ---------------- | -------------------------------- |
-| `server.access_control.allowed_spaces` | `[]`（全て許可） | 許可するスペース名のリスト       |
-| `server.access_control.allowed_projects` | `[]`（全て許可） | 許可するプロジェクトキーのリスト |
-| `server.audit.enabled`                | `true`           | 監査ログの有効化                 |
-| `server.tenants`                      | なし             | テナント設定（バンドル署名に必須） |
-
-## CloudFront 設定（オプション）
-
-CloudFront を使用すると、静的アセット（CSS/JS）がエッジでキャッシュされ高速に配信されます。
-
-### 構成パターン
-
-| パターン | 設定 | URL |
-|---------|------|-----|
-| CloudFront のみ | `enabled: true` | `https://d123xxx.cloudfront.net` |
-| カスタムドメイン | `enabled: true` + `domainName` + `certificateArn` | `https://relay.example.com` |
-
-### パターン1: CloudFront のみ（推奨）
-
-ACM 証明書やドメイン設定が不要で、すぐに使えます。
-
-```typescript
-export const config: RelayConfig = {
-  parameterName: "/backlog-relay/config",
-  parameterValue: { /* ... */ },
-
-  cloudFront: {
-    enabled: true,
-  },
-};
-```
-
-デプロイ後の出力：
-
-```
-Outputs:
-DistributionId = E1234567890ABC
-DistributionUrl = https://d1234567890abc.cloudfront.net
-DistributionCallbackUrl = https://d1234567890abc.cloudfront.net/auth/callback
-```
-
-`DistributionCallbackUrl` を Backlog OAuth アプリのリダイレクト URI に設定してください。
-
-### パターン2: カスタムドメイン
-
-#### 事前準備
-
-1. **ACM 証明書の発行（us-east-1 リージョン）**
-
-   ```bash
-   aws acm request-certificate \
-     --domain-name relay.example.com \
-     --validation-method DNS \
-     --region us-east-1
-   ```
-
-2. **Route 53 ホストゾーン ID の確認（オプション）**
-
-   ```bash
-   aws route53 list-hosted-zones --query "HostedZones[?Name=='example.com.'].Id"
-   ```
-
-#### 設定
-
-```typescript
-export const config: RelayConfig = {
-  parameterName: "/backlog-relay/config",
-  parameterValue: { /* ... */ },
-
-  cloudFront: {
-    enabled: true,
-    domainName: "relay.example.com",
-    certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/xxx",
-    hostedZoneId: "Z1234567890ABC",  // オプション: Route 53 使用時
-  },
-};
-```
-
-#### DNS 設定（Route 53 を使わない場合）
-
-`hostedZoneId` を指定しない場合は、手動で CNAME レコードを作成：
-
-```
-relay.example.com  CNAME  d1234567890abc.cloudfront.net
-```
-
-### キャッシュ設定
-
-| パス | キャッシュ TTL | 説明 |
-|------|---------------|------|
-| `/assets/*` | 1年 | 静的アセット（ファイル名にハッシュ含む） |
-| `/v1/relay/tenants/*/certs` | 1時間〜24時間 | 公開鍵（長めにキャッシュ可能） |
-| `/v1/relay/tenants/*/info` | 5分〜1時間 | 署名付き情報 |
-| その他 | 0秒 | 動的コンテンツ（OAuth フロー等） |
-
-キャッシュ TTL は `cloudFront.cache` で設定可能です：
-
-```typescript
-cloudFront: {
-  enabled: true,
-  cache: {
-    assetsMaxAge: 365 * 24 * 60 * 60,  // 静的アセット (デフォルト: 1年)
-    apiDefaultTtl: 60 * 60,            // certs/info デフォルト (デフォルト: 1時間)
-    apiMaxTtl: 24 * 60 * 60,           // certs/info 最大 (デフォルト: 24時間)
-    apiMinTtl: 5 * 60,                 // certs/info 最小 (デフォルト: 5分)
-  },
-},
-```
-
-### キャッシュの強制無効化
-
-鍵ローテーションや設定変更時にキャッシュを即座に無効化するには、以下のコマンドを使用します：
-
-```bash
-# 全キャッシュを無効化
-pnpm invalidate-cache
-
-# スタック名を指定する場合
-pnpm invalidate-cache MyCustomStackName
-```
-
-スクリプトは CloudFormation スタックから Distribution ID を自動取得し、キャッシュを無効化します。
-
-## アーキテクチャ
-
-### 基本構成（Function URL のみ）
-
-```
-┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
-│  Backlog    │────▶│  Lambda         │────▶│   Backlog   │
-│    CLI      │     │  (Function URL) │     │     API     │
-└─────────────┘     └─────────────────┘     └─────────────┘
-                            │
-                            ▼
-                    ┌─────────────────┐
-                    │ SSM Parameter   │
-                    │     Store       │
-                    └─────────────────┘
-```
-
-### カスタムドメイン構成（CloudFront）
-
-```
-┌─────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌───────────┐
-│  Backlog    │────▶│   CloudFront    │────▶│     Lambda      │────▶│  Backlog  │
-│    CLI      │     │ (カスタムドメイン) │     │  (Function URL) │     │    API    │
-└─────────────┘     └─────────────────┘     └─────────────────┘     └───────────┘
-                            │
-                            │ /assets/* はエッジキャッシュ
-                            ▼
-                    ┌─────────────────┐
-                    │   Route 53      │
-                    │  (オプション)    │
-                    └─────────────────┘
-```
-
-## コスト
-
-- **AWS Lambda**: リクエストごとの課金（月100万リクエストまで無料）
-- **CloudWatch Logs**: 取り込みデータ量による課金
-- **SSM Parameter Store**: Standard パラメーターは無料
-- **CloudFront**（カスタムドメイン使用時）: 月1000万リクエストまで無料、以降 $0.90/100万リクエスト
-
-一般的な CLI 使用では AWS 無料利用枠内に収まります。
-
-## トラブルシューティング
-
-### "Domain not supported" エラー
-
-認証しようとしているドメイン（jp または com）の設定がありません。
-
-### 認証コールバックが失敗する
-
-Backlog のリダイレクト URI が正確に一致していることを確認：
-
-```
-https://xxx.lambda-url.REGION.on.aws/auth/callback
-```
-
-## セキュリティ
-
-- `config.ts` は `.gitignore` に含まれています
-- シークレットを含むため、リポジトリにコミットしないでください
-- Parameter Store を使用する場合、SecureString ではなく String を使用していますが、
-  OAuth Client Secret は API Key ではないため、単体では Backlog API にアクセスできません
+- `RelayStack`, `RelayStackProps` — デプロイ可能なスタック/construct。
+- `resolveLatestImageTag`, `fetchImageTags`, `parseImageRef` — レジストリのタグ解決。
+- `DEFAULT_IMAGE_SOURCE`, `DEFAULT_CACHE_CONFIG` — 既定値。
+- 設定型: `RelayConfig`, `ContainerImageConfig`, `McpConfig`, `CloudFrontConfig`,
+  `ParameterStoreValue`, `RelayTenantInput` など。

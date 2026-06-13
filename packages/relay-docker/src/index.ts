@@ -1,25 +1,25 @@
 /**
- * Unified container runtime for the Backlog OAuth Relay + MCP server.
+ * Backlog OAuth リレー + MCP サーバーの統合コンテナランタイム。
  *
- * Serves both the OAuth relay (relay-core) and, when MCP spaces are configured,
- * the MCP server (mcp-server) from a single HTTP process. The same image runs:
+ * OAuth リレー（relay-core）と、MCP スペースが設定されている場合は MCP サーバー
+ * （mcp-server）を 1 つの HTTP プロセスで提供する。同一イメージが以下で動作する。
  *
- * - locally / Docker: config from `RELAY_CONFIG` (JSON, secrets inline)
- * - AWS Lambda container: config from SSM + Secrets Manager
- *   (`CONFIG_PARAMETER_NAME` / `RELAY_SECRETS_NAME`), via the Lambda Web Adapter
+ * - ローカル / Docker: `RELAY_CONFIG`（JSON、secrets インライン）から設定取得
+ * - AWS Lambda コンテナ: SSM + Secrets Manager から設定取得
+ *   （`CONFIG_PARAMETER_NAME` / `RELAY_SECRETS_NAME`）、Lambda Web Adapter 経由
  *
- * The config source is selected automatically — see {@link ./config-source}.
+ * 設定ソースは自動選択される — {@link ./config-source} を参照。
  */
 
 import { serve } from "@hono/node-server";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AuditLogger, AuditEvent } from "@backlog-cli/relay-core";
+import type { AuditLogger, AuditEvent } from "@yacchi/backlog-relay-core";
 import {
   createSandboxClient,
   type McpServerConfig,
   type CreateMcpAppOptions,
-} from "@backlog-cli/mcp-server";
+} from "@yacchi/backlog-mcp-server";
 import { loadPortalAssets } from "./portal-assets.js";
 import { selectConfigSource } from "./config-source.js";
 import { createUnifiedApp, restoreMcpAuthorization } from "./app.js";
@@ -27,7 +27,7 @@ import { createUnifiedApp, restoreMcpAuthorization } from "./app.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Environment variable names (config-source vars live in {@link ./config-source}).
+ * 環境変数名（config-source の変数は {@link ./config-source} 側にある）。
  */
 export const ENV_VARS = {
   HOST: "HOST",
@@ -38,7 +38,7 @@ export const ENV_VARS = {
 } as const;
 
 /**
- * Create an AuditLogger that logs to stdout in JSON format.
+ * stdout に JSON 形式でログ出力する AuditLogger を生成する。
  */
 export function createDockerAuditLogger(): AuditLogger {
   return {
@@ -49,28 +49,27 @@ export function createDockerAuditLogger(): AuditLogger {
 }
 
 /**
- * Get web dist path from environment or default.
+ * web dist のパスを環境変数または既定値から取得する。
  */
 function getWebDistPath(): string {
   const envPath = process.env[ENV_VARS.WEB_DIST_PATH];
   if (envPath) {
     return resolve(envPath);
   }
-  // Default: look for web/dist relative to project root.
+  // 既定: プロジェクトルート相対の web/dist を探す。
   return resolve(__dirname, "../../../web/dist");
 }
 
-// The sandbox (Deno + Pyodide) is expensive to start, so reuse a single client
-// across requests and shut it down on process termination.
+// サンドボックス（Deno + Pyodide）は起動コストが高いため、1 つのクライアントを
+// リクエスト間で再利用し、プロセス終了時にシャットダウンする。
 let cachedSandbox: Awaited<ReturnType<typeof createSandboxClient>> | null = null;
 
 /**
- * Lazily create the MCP `runScript` implementation backed by the Deno sandbox.
+ * Deno サンドボックスを使う MCP の `runScript` 実装を遅延生成する。
  *
- * Returns undefined (run_script tool disabled) when no spaces are configured,
- * or when the sandbox cannot be started (e.g. Deno not available locally). The
- * latter degrades gracefully so the relay + MCP `backlog` tool stay usable for
- * local testing without the Python sandbox toolchain; a warning is logged.
+ * スペース未設定時、またはサンドボックスを起動できない場合（例: ローカルに Deno が無い）は
+ * undefined を返す（run_script ツール無効）。後者はグレースフルに縮退し、Python サンドボックス
+ * のツールチェーン無しでもローカルで relay + MCP `backlog` ツールが使えるようにする（警告ログを出す）。
  */
 async function createRunScript(
   mcpConfig: McpServerConfig,
@@ -107,7 +106,7 @@ async function createRunScript(
 }
 
 /**
- * Start the unified HTTP server.
+ * 統合 HTTP サーバーを起動する。
  */
 export async function startServer(): Promise<void> {
   const configSource = selectConfigSource();
@@ -125,7 +124,7 @@ export async function startServer(): Promise<void> {
     createRunScript,
   });
 
-  // Port precedence: PORT env (Lambda Web Adapter sets this) > config > 8080.
+  // ポートの優先順位: PORT 環境変数（Lambda Web Adapter が設定）> config > 8080。
   const serverConfig = (rawConfig.server ?? {}) as { port?: number };
   const port =
     Number(process.env[ENV_VARS.PORT]) || serverConfig.port || 8080;
@@ -145,21 +144,21 @@ export async function startServer(): Promise<void> {
   }
 
   serve({
-    // restoreMcpAuthorization is a no-op outside CloudFront; baked in so the
-    // same image works as a Lambda container behind OAC.
+    // restoreMcpAuthorization は CloudFront 外では no-op。同一イメージが OAC 配下の
+    // Lambda コンテナでも動くよう組み込んでいる。
     fetch: (request: Request) => app.fetch(restoreMcpAuthorization(request)),
     port,
     hostname: host,
   });
 }
 
-// Auto-start when run directly (i.e. as the container entrypoint).
+// 直接実行時（= コンテナのエントリポイント）に自動起動する。
 startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
 
-// Export utilities for customization / testing.
+// カスタマイズ / テスト用にユーティリティをエクスポート。
 export { loadPortalAssets } from "./portal-assets.js";
 export { createUnifiedApp } from "./app.js";
 export {

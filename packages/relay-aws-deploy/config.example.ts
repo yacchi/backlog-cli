@@ -7,7 +7,7 @@
  * config.ts は .gitignore に含まれているため、
  * シークレットを含んでもリポジトリにコミットされません。
  */
-import type { RelayConfig } from "./lib/types.js";
+import type { RelayConfig } from "@yacchi/backlog-relay-aws-cdk";
 
 // ============================================================
 // Parameter Store 参照（設定の一元管理）

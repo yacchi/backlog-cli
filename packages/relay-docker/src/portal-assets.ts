@@ -4,7 +4,7 @@
 
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
-import type { PortalAssets } from "@backlog-cli/relay-core";
+import type { PortalAssets } from "@yacchi/backlog-relay-core";
 
 /**
  * MIME type mapping for common file extensions.

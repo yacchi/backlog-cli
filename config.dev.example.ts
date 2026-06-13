@@ -10,7 +10,7 @@
  * Node.js 24+ では erasableSyntaxOnly が有効なため、
  * 直接 import して使用できます。
  */
-import type { RelayConfig } from "@backlog-cli/relay-core";
+import type { RelayConfig } from "@yacchi/backlog-relay-core";
 
 export const config: RelayConfig = {
   server: {

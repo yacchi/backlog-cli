@@ -1,5 +1,5 @@
 {
-  "name": "@backlog-cli/relay-core",
+  "name": "@yacchi/backlog-relay-core",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -1,0 +1,33 @@
+{
+  "name": "@yacchi/backlog-relay-aws-deploy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deployment app (template) for @yacchi/backlog-relay-aws-cdk. Copy this directory, edit config.ts, and run cdk deploy.",
+  "scripts": {
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth",
+    "invalidate-cache": "./scripts/invalidate-cache.sh",
+    "update-passphrase": "tsx scripts/update-passphrase.ts",
+    "lint:typecheck": "tsc"
+  },
+  "dependencies": {
+    "@yacchi/backlog-relay-aws-cdk": "workspace:*",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^22.15.29",
+    "aws-cdk": "^2.170.0",
+    "bcryptjs": "^3.0.3",
+    "esbuild": "^0.27.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}

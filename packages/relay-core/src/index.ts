@@ -1,5 +1,5 @@
 /**
- * @backlog-cli/relay-core
+ * @yacchi/backlog-relay-core
  *
  * Core library for the Backlog CLI OAuth relay server.
  * This package provides platform-agnostic handlers and utilities

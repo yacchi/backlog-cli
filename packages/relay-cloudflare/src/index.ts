@@ -10,7 +10,7 @@ import {
   type RelayConfig,
   type AuditLogger,
   type AuditEvent,
-} from "@backlog-cli/relay-core";
+} from "@yacchi/backlog-relay-core";
 
 /**
  * Cloudflare Workers environment bindings.

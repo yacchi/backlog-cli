@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { RelayStack, DEFAULT_IMAGE_SOURCE } from "../lib/relay-stack.js";
-import { resolveLatestImageTag } from "../lib/resolve-image-tag.js";
+import {
+  RelayStack,
+  DEFAULT_IMAGE_SOURCE,
+  resolveLatestImageTag,
+} from "@yacchi/backlog-relay-aws-cdk";
 import { config } from "../config.js";
 
 const app = new cdk.App();

@@ -5,13 +5,14 @@
   "scripts": {
     "build": "pnpm -r build",
     "build:web": "pnpm --filter web build",
-    "build:relay": "pnpm --filter '@backlog-cli/relay-*' build",
+    "build:relay": "pnpm --filter '@yacchi/backlog-relay-*' build",
     "dev:web": "pnpm --filter web dev",
-    "dev:relay": "pnpm --filter @backlog-cli/relay-docker dev",
+    "dev:relay": "pnpm --filter @yacchi/backlog-relay-runtime dev",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {
-    "@backlog-cli/relay-core": "workspace:*"
+    "@yacchi/backlog-relay-core": "workspace:*",
+    "esbuild": "^0.27.2"
   }
 }

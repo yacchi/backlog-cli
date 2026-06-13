@@ -1,23 +1,21 @@
 /**
- * Configuration source abstraction (environment-adaptive loader).
+ * 設定ソースの抽象化（環境適応ローダ）。
  *
- * The unified runtime loads its raw configuration from one of two sources,
- * selected automatically at startup:
+ * 統合ランタイムは起動時に、以下の 2 つのソースから自動選択して raw 設定を読み込む。
  *
- * - {@link EnvConfigSource}: reads `RELAY_CONFIG` (JSON, secrets inline).
- *   Used for Docker / local execution.
- * - {@link AwsConfigSource}: reads SSM Parameter Store + Secrets Manager and
- *   merges the secrets into the raw config. Used when the same image runs as a
- *   Lambda container (`CONFIG_PARAMETER_NAME` / `RELAY_SECRETS_NAME` set).
+ * - {@link EnvConfigSource}: `RELAY_CONFIG`（JSON、secrets インライン）を読む。
+ *   Docker / ローカル実行で使用。
+ * - {@link AwsConfigSource}: SSM Parameter Store + Secrets Manager を読み、
+ *   secrets を raw 設定にマージする。同一イメージを Lambda コンテナとして動かす際に使用
+ *   （`CONFIG_PARAMETER_NAME` / `RELAY_SECRETS_NAME` 設定時）。
  *
- * Both return a plain object (the *raw* config) which downstream code validates
- * with relay-core's `parseConfig`. The raw object also carries MCP-specific keys
- * (`mcp_spaces`, `mcp_script`, `mcp_default_spaces`) that Zod strips from
- * `RelayConfig` but {@link ./app.buildMcpConfig} reads directly.
+ * いずれも素のオブジェクト（*raw* 設定）を返し、後段が relay-core の `parseConfig` で
+ * 検証する。raw オブジェクトは MCP 固有のキー（`mcp_spaces` / `mcp_script` /
+ * `mcp_default_spaces`）も保持する。これらは Zod が `RelayConfig` から除去するが、
+ * {@link ./app.buildMcpConfig} が直接読む。
  *
- * AWS SDK clients are imported statically: the container image always bundles
- * them, so dynamic import would only save tens of milliseconds on env-mode
- * startup at the cost of more complex code.
+ * AWS SDK クライアントは static import する。コンテナイメージは常に依存を同梱するため、
+ * dynamic import の利得は env モード起動時の数十ms 程度に留まり、コードの複雑さに見合わない。
  */
 
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
@@ -27,28 +25,28 @@ import {
 } from "@aws-sdk/client-secrets-manager";
 
 /**
- * Environment variable names recognized by the config loader.
+ * 設定ローダが認識する環境変数名。
  */
 export const CONFIG_ENV_VARS = {
-  /** Inline JSON config (Docker / local). Secrets expected inline. */
+  /** インライン JSON 設定（Docker / ローカル）。secrets はインライン前提。 */
   RELAY_CONFIG: "RELAY_CONFIG",
-  /** SSM Parameter Store name holding the non-secret config (AWS). */
+  /** 非機密設定を保持する SSM Parameter Store 名（AWS）。 */
   CONFIG_PARAMETER_NAME: "CONFIG_PARAMETER_NAME",
-  /** Secrets Manager secret name holding client_secret / jwks / passphrase_hash (AWS). */
+  /** client_secret / jwks / passphrase_hash を保持する Secrets Manager 名（AWS）。 */
   RELAY_SECRETS_NAME: "RELAY_SECRETS_NAME",
 } as const;
 
 /**
- * A source of raw relay configuration with secrets already merged in.
+ * secrets をマージ済みの raw relay 設定のソース。
  */
 export interface ConfigSource {
-  /** Load the raw configuration object (secrets merged). */
+  /** raw 設定オブジェクトを読み込む（secrets マージ済み）。 */
   loadRawConfig(): Promise<Record<string, unknown>>;
 }
 
 /**
- * Secrets payload stored in AWS Secrets Manager.
- * Mirrors the shape produced by the CDK construct.
+ * AWS Secrets Manager に保存される secrets のペイロード。
+ * CDK construct が生成する形と一致させる。
  */
 export interface RelaySecrets {
   app?: { client_secret: string };
@@ -57,10 +55,10 @@ export interface RelaySecrets {
 }
 
 /**
- * Merge AWS Secrets Manager values into a raw SSM config object (in place).
+ * AWS Secrets Manager の値を raw SSM 設定オブジェクトにマージする（破壊的）。
  *
- * Extracted as a pure function so the merge behavior can be unit-tested without
- * AWS. Kept in sync with the historical relay-aws handler logic.
+ * AWS なしで単体テストできるよう純粋関数として切り出す。relay-aws の旧 handler
+ * ロジックと同期を保つ。
  */
 export function mergeSecrets(
   raw: Record<string, unknown>,
@@ -73,8 +71,8 @@ export function mergeSecrets(
     };
   }
 
-  // Server-level JWKS: prefer server.jwks, fall back to the first tenant's jwks
-  // (covers configs created before the server-level JWKS migration).
+  // サーバーレベル JWKS: server.jwks を優先し、無ければ最初のテナントの jwks にフォールバック
+  // （サーバーレベル JWKS 移行前に作られた設定をカバー）。
   const serverJwks =
     secrets.server?.jwks ??
     Object.values(secrets.tenants ?? {}).find((t) => t.jwks)?.jwks;
@@ -82,7 +80,7 @@ export function mergeSecrets(
     raw.jwks = serverJwks;
   }
 
-  // Merge per-tenant passphrase_hash from secrets.
+  // テナントごとの passphrase_hash を secrets からマージ。
   if (Array.isArray(raw.tenants) && secrets.tenants) {
     raw.tenants = (raw.tenants as Array<Record<string, unknown>>).map((t) => ({
       ...t,
@@ -96,7 +94,7 @@ export function mergeSecrets(
 }
 
 /**
- * Reads inline JSON config from `RELAY_CONFIG`.
+ * `RELAY_CONFIG` のインライン JSON 設定を読む。
  */
 export class EnvConfigSource implements ConfigSource {
   private readonly json: string;
@@ -111,8 +109,8 @@ export class EnvConfigSource implements ConfigSource {
 }
 
 /**
- * Reads non-secret config from SSM and merges secrets from Secrets Manager.
- * Result is cached for the lifetime of the instance.
+ * 非機密設定を SSM から読み、Secrets Manager の secrets をマージする。
+ * 結果はインスタンスの生存期間中キャッシュする。
  */
 export class AwsConfigSource implements ConfigSource {
   private cached: Record<string, unknown> | null = null;
@@ -168,10 +166,10 @@ export class AwsConfigSource implements ConfigSource {
 }
 
 /**
- * Select the appropriate config source from environment variables.
+ * 環境変数から適切な設定ソースを選択する。
  *
- * `RELAY_CONFIG` takes precedence (env mode); otherwise `CONFIG_PARAMETER_NAME`
- * selects AWS mode. Throws if neither is present.
+ * `RELAY_CONFIG` があれば優先（env モード）、無ければ `CONFIG_PARAMETER_NAME` で
+ * AWS モードを選ぶ。どちらも無ければエラー。
  */
 export function selectConfigSource(
   env: NodeJS.ProcessEnv = process.env,

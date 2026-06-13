@@ -1,0 +1,5 @@
+node_modules/
+cdk.out/
+
+# User config (contains secrets)
+config.ts

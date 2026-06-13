@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { generateKeyPair, exportJWK } from "jose";
-import { NoopAuditLogger } from "@backlog-cli/relay-core";
+import { NoopAuditLogger } from "@yacchi/backlog-relay-core";
 import {
   createUnifiedApp,
   buildMcpConfig,
   createDirectTokenExchange,
   restoreMcpAuthorization,
 } from "./app.js";
-import type { RelayConfig } from "@backlog-cli/relay-core";
+import type { RelayConfig } from "@yacchi/backlog-relay-core";
 
 let jwksJson: string;
 

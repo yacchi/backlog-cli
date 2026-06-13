@@ -1,13 +1,12 @@
 /**
- * Platform-agnostic unified application builder.
+ * プラットフォーム非依存の統合アプリビルダー。
  *
- * Mounts the relay app (relay-core) and, when MCP spaces are configured,
- * the MCP server app (mcp-server) into a single Hono app — including the
- * shared `/auth/callback` dispatcher required because Backlog OAuth allows
- * only one redirect_uri per app.
+ * relay アプリ（relay-core）と、MCP スペースが設定されている場合は MCP サーバーアプリ
+ * （mcp-server）を 1 つの Hono アプリに mount する。Backlog OAuth は 1 アプリにつき
+ * redirect_uri を 1 つしか登録できないため、共有 `/auth/callback` ディスパッチャも含む。
  *
- * This logic was originally embedded in the AWS Lambda handler; it is extracted
- * here so the same runtime serves Docker, local, and Lambda-container targets.
+ * このロジックは元々 AWS Lambda ハンドラに埋め込まれていたものを抽出し、同一ランタイムで
+ * Docker / ローカル / Lambda コンテナの各ターゲットを提供できるようにしたもの。
  */
 
 import { Hono } from "hono";
@@ -21,7 +20,7 @@ import {
   type RelayConfig,
   type AuditLogger,
   type PortalAssets,
-} from "@backlog-cli/relay-core";
+} from "@yacchi/backlog-relay-core";
 import {
   createMcpApp,
   verify,
@@ -30,16 +29,15 @@ import {
   type McpServerConfig,
   type CreateMcpAppOptions,
   type TokenExchange,
-} from "@backlog-cli/mcp-server";
+} from "@yacchi/backlog-mcp-server";
 
 /**
- * Restore the `Authorization` header from `x-mcp-authorization`.
+ * `x-mcp-authorization` から `Authorization` ヘッダーを復元する。
  *
- * Behind CloudFront with Origin Access Control, the OAC overwrites the viewer's
- * `Authorization` header with its SigV4 signature; a CloudFront Function copies
- * the original Bearer token to `x-mcp-authorization`. This restores it so MCP
- * Bearer auth works. No-op when `x-mcp-authorization` is absent (i.e. harmless
- * for plain Docker / non-CloudFront deployments).
+ * CloudFront の Origin Access Control 配下では、OAC が viewer の `Authorization`
+ * ヘッダーを SigV4 署名で上書きする。CloudFront Function が元の Bearer トークンを
+ * `x-mcp-authorization` にコピーしておくので、ここで復元して MCP の Bearer 認証を成立
+ * させる。`x-mcp-authorization` が無ければ no-op（= 素の Docker / 非 CloudFront 構成では無害）。
  */
 export function restoreMcpAuthorization(req: Request): Request {
   const mcpAuth = req.headers.get("x-mcp-authorization");
@@ -56,37 +54,36 @@ export function restoreMcpAuthorization(req: Request): Request {
 }
 
 /**
- * Options for {@link createUnifiedApp}.
+ * {@link createUnifiedApp} のオプション。
  */
 export interface CreateUnifiedAppOptions {
-  /** Raw config object (secrets already merged by the ConfigSource). */
+  /** raw 設定オブジェクト（ConfigSource が secrets をマージ済み）。 */
   rawConfig: Record<string, unknown>;
-  /** Audit logger. */
+  /** 監査ロガー。 */
   auditLogger: AuditLogger;
-  /** Portal SPA assets (optional). */
+  /** Portal SPA アセット（任意）。 */
   portalAssets?: PortalAssets;
-  /** Backlog CLI binary path for the MCP `backlog` tool. */
+  /** MCP の `backlog` ツール用の Backlog CLI バイナリパス。 */
   binPath?: string;
   /**
-   * Factory that produces a `runScript` implementation for the MCP sandbox.
-   * Called only when MCP is enabled. If omitted, `run_script` is disabled.
+   * MCP サンドボックスの `runScript` 実装を生成するファクトリ。
+   * MCP 有効時のみ呼ばれる。省略時は `run_script` を無効化する。
    */
   createRunScript?: (
     mcpConfig: McpServerConfig,
   ) => Promise<CreateMcpAppOptions["runScript"]>;
   /**
-   * Base URL to use when the relay config has no `server.base_url`
-   * (e.g. derived from the incoming request in a serverless adapter).
+   * relay 設定に `server.base_url` が無い場合に使う base URL
+   * （例: サーバーレスアダプタでリクエストから導出した値）。
    */
   baseUrlFallback?: string;
 }
 
 /**
- * Build the MCP server config from the raw config's `mcp_*` keys.
+ * raw 設定の `mcp_*` キーから MCP サーバー設定を構築する。
  *
- * MCP reuses the relay's server-level JWKS and Backlog client_id; it uses the
- * same signing keys as the relay (no separate token key). Returns null when MCP
- * is not configured or prerequisites are missing.
+ * MCP は relay のサーバーレベル JWKS と Backlog client_id を再利用し、relay と同じ署名鍵を
+ * 使う（別のトークン鍵は持たない）。MCP 未設定、または前提が欠けている場合は null を返す。
  */
 export function buildMcpConfig(
   rawConfig: Record<string, unknown>,
@@ -106,10 +103,9 @@ export function buildMcpConfig(
     return null;
   }
 
-  // base_url is optional: the OAuth issuer is derived per-request from the host
-  // (resolveBaseUrl) unless explicitly configured. Only the Function URL /
-  // CloudFront domain are not known at deploy without a circular dependency, so
-  // we must not require base_url here.
+  // base_url は任意: OAuth issuer は明示設定が無ければリクエストの host から
+  // リクエストごとに導出する（resolveBaseUrl）。Function URL / CloudFront ドメインは
+  // 循環依存なしでは deploy 時に確定できないため、ここで base_url を必須にしてはいけない。
   const baseUrl = relayConfig.server.base_url || baseUrlFallback;
 
   const mcpConfigObj: Record<string, unknown> = {
@@ -129,8 +125,8 @@ export function buildMcpConfig(
 }
 
 /**
- * Create an in-process {@link TokenExchange} using the relay's BacklogAppConfig
- * (which includes client_secret). No HTTP round-trip to the relay needed.
+ * relay の BacklogAppConfig（client_secret を含む）を使うインプロセスの
+ * {@link TokenExchange} を生成する。relay への HTTP 往復は不要。
  */
 export function createDirectTokenExchange(
   relayConfig: RelayConfig,
@@ -159,8 +155,8 @@ export function createDirectTokenExchange(
   }
 
   return {
-    // `space` is the full Backlog host (e.g. "myspace.backlog.com") per the
-    // spaceHost migration; do not split it into space/domain.
+    // `space` は spaceHost 移行に伴い Backlog ホスト全体（例 "myspace.backlog.com"）。
+    // space/domain に分割しないこと。
     async exchangeCode(space, code, redirectUri) {
       const params = new URLSearchParams();
       params.set("grant_type", "authorization_code");
@@ -184,7 +180,7 @@ export function createDirectTokenExchange(
 }
 
 /**
- * Create the unified Hono application (relay + optional MCP).
+ * 統合 Hono アプリ（relay + 任意で MCP）を生成する。
  */
 export async function createUnifiedApp(
   options: CreateUnifiedAppOptions,
@@ -207,8 +203,8 @@ export async function createUnifiedApp(
 
   const app = new Hono();
 
-  // CORS for MCP browser clients (e.g. MCP Inspector). Harmless for relay
-  // endpoints, which are cookie-based and same-origin.
+  // MCP ブラウザクライアント（MCP Inspector 等）向けの CORS。relay エンドポイントは
+  // Cookie ベースかつ same-origin なので無害。
   app.use(
     "*",
     cors({
@@ -244,8 +240,8 @@ export async function createUnifiedApp(
       callbackPath: "/auth/callback",
     });
 
-    // Shared /auth/callback: Backlog OAuth allows only one redirect_uri per app.
-    // Dispatch by trying MCP JWT verification; fall through to relay on failure.
+    // 共有 /auth/callback: Backlog OAuth は 1 アプリにつき redirect_uri が 1 つのみ。
+    // state を MCP JWT として検証してみて、成功すれば MCP、失敗すれば relay にフォールバック。
     const mcpKeys = await loadSigningKeys(mcpConfig.jwks);
 
     app.get("/auth/callback", async (c) => {
@@ -257,7 +253,7 @@ export async function createUnifiedApp(
           url.pathname = "/mcp/authorize/callback";
           return await mcpApp.fetch(new Request(url.toString(), c.req.raw));
         } catch {
-          // Not an MCP state — fall through to relay.
+          // MCP state ではない — relay にフォールバック。
         }
       }
       return relayApp.fetch(c.req.raw);

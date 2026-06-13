@@ -17,9 +17,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 # relay-core / mcp-server must be built first; tsup bundles them (and the AWS SDK)
 # into a single self-contained relay-docker/dist/index.js. `web` builds the portal SPA.
-RUN pnpm --filter @backlog-cli/relay-core build \
- && pnpm --filter @backlog-cli/mcp-server build \
- && pnpm --filter @backlog-cli/relay-docker build \
+RUN pnpm --filter @yacchi/backlog-relay-core build \
+ && pnpm --filter @yacchi/backlog-mcp-server build \
+ && pnpm --filter @yacchi/backlog-relay-runtime build \
  && pnpm --filter web build
 
 # ---- Go: build the backlog CLI binary ----

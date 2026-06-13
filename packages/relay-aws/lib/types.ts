@@ -1,13 +1,13 @@
 /**
  * AWS CDK deployment configuration types.
  *
- * Runtime configuration types are imported from @backlog-cli/relay-core.
+ * Runtime configuration types are imported from @yacchi/backlog-relay-core.
  */
 
-import type { RelayConfigInput as CoreRelayConfigInput } from "@backlog-cli/relay-core";
+import type { RelayConfigInput as CoreRelayConfigInput } from "@yacchi/backlog-relay-core";
 
 // Re-export core types for convenience
-export type { BacklogAppConfig, TenantConfig } from "@backlog-cli/relay-core";
+export type { BacklogAppConfig, TenantConfig } from "@yacchi/backlog-relay-core";
 
 /**
  * JWK (JSON Web Key) for CDK configuration.

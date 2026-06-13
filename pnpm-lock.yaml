@@ -8,9 +8,12 @@ importers:
 
   .:
     devDependencies:
-      '@backlog-cli/relay-core':
+      '@yacchi/backlog-relay-core':
         specifier: workspace:*
         version: link:packages/relay-core
+      esbuild:
+        specifier: ^0.27.2
+        version: 0.27.2
 
   packages/mcp-server:
     dependencies:
@@ -42,40 +45,25 @@ importers:
 
   packages/relay-aws:
     dependencies:
-      '@backlog-cli/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
-      '@backlog-cli/relay-core':
-        specifier: workspace:*
-        version: link:../relay-core
-      aws-cdk-lib:
-        specifier: ^2.170.0
-        version: 2.233.0(constructs@10.4.4)
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
       cdk-ecr-deployment:
         specifier: ^4.2.16
         version: 4.2.16(aws-cdk-lib@2.233.0(constructs@10.4.4))(constructs@10.4.4)
-      constructs:
-        specifier: ^10.4.0
-        version: 10.4.4
-      hono:
-        specifier: ^4.7.11
-        version: 4.11.3
+      esbuild:
+        specifier: ^0.27.2
+        version: 0.27.2
       semver:
         specifier: ^7.6.0
         version: 7.7.3
-      source-map-support:
-        specifier: ^0.5.21
-        version: 0.5.21
+      zod:
+        specifier: ^4.3.4
+        version: 4.3.4
     devDependencies:
       '@aws-sdk/client-secrets-manager':
         specifier: ^3.0.0
         version: 3.1061.0
-      '@aws-sdk/client-ssm':
-        specifier: ^3.0.0
-        version: 3.958.0
       '@types/aws-lambda':
         specifier: ^8.10.159
         version: 8.10.159
@@ -88,12 +76,21 @@ importers:
       '@types/semver':
         specifier: ^7.5.0
         version: 7.7.1
+      '@yacchi/backlog-relay-core':
+        specifier: workspace:*
+        version: link:../relay-core
       aws-cdk:
         specifier: ^2.170.0
         version: 2.1100.1
-      esbuild:
-        specifier: ^0.27.2
-        version: 0.27.2
+      aws-cdk-lib:
+        specifier: ^2.170.0
+        version: 2.233.0(constructs@10.4.4)
+      constructs:
+        specifier: ^10.4.0
+        version: 10.4.4
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -104,9 +101,49 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/relay-aws-deploy:
+    dependencies:
+      '@yacchi/backlog-relay-aws-cdk':
+        specifier: workspace:*
+        version: link:../relay-aws
+      aws-cdk-lib:
+        specifier: ^2.170.0
+        version: 2.233.0(constructs@10.4.4)
+      constructs:
+        specifier: ^10.4.0
+        version: 10.4.4
+      source-map-support:
+        specifier: ^0.5.21
+        version: 0.5.21
+    devDependencies:
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.0.0
+        version: 3.1061.0
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/node':
+        specifier: ^22.15.29
+        version: 22.19.3
+      aws-cdk:
+        specifier: ^2.170.0
+        version: 2.1100.1
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
+      esbuild:
+        specifier: ^0.27.2
+        version: 0.27.2
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
   packages/relay-cloudflare:
     dependencies:
-      '@backlog-cli/relay-core':
+      '@yacchi/backlog-relay-core':
         specifier: workspace:*
         version: link:../relay-core
       hono:
@@ -168,15 +205,15 @@ importers:
       '@aws-sdk/client-ssm':
         specifier: ^3.0.0
         version: 3.958.0
-      '@backlog-cli/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
-      '@backlog-cli/relay-core':
-        specifier: workspace:*
-        version: link:../relay-core
       '@hono/node-server':
         specifier: ^1.14.2
         version: 1.19.7(hono@4.11.3)
+      '@yacchi/backlog-mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+      '@yacchi/backlog-relay-core':
+        specifier: workspace:*
+        version: link:../relay-core
       hono:
         specifier: ^4.7.11
         version: 4.11.3

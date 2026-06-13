@@ -1,16 +1,35 @@
 {
-  "name": "@backlog-cli/relay-aws",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@yacchi/backlog-relay-aws-cdk",
+  "version": "0.19.3",
+  "private": false,
   "type": "module",
+  "description": "AWS CDK construct to deploy the Backlog OAuth Relay + MCP server as a Lambda container behind CloudFront",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "lambda-edge",
+    "cloudfront-functions",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yacchi/backlog-cli.git",
+    "directory": "packages/relay-aws"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
-    "cdk": "cdk",
-    "deploy": "cdk deploy",
-    "destroy": "cdk destroy",
-    "diff": "cdk diff",
-    "synth": "cdk synth",
-    "invalidate-cache": "./scripts/invalidate-cache.sh",
-    "update-passphrase": "tsx scripts/update-passphrase.ts",
+    "build": "tsup",
+    "prepublishOnly": "pnpm build",
     "lint": "eslint lib/",
     "lint:typecheck": "tsc",
     "lint:fix": "eslint lib/ --fix",
@@ -18,37 +37,27 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@backlog-cli/relay-core": "workspace:*",
-    "@backlog-cli/mcp-server": "workspace:*",
-    "aws-cdk-lib": "^2.170.0",
     "bcryptjs": "^3.0.3",
     "cdk-ecr-deployment": "^4.2.16",
-    "constructs": "^10.4.0",
-    "hono": "^4.7.11",
+    "esbuild": "^0.27.2",
     "semver": "^7.6.0",
-    "source-map-support": "^0.5.21"
+    "zod": "^4.3.4"
   },
   "peerDependencies": {
-    "@aws-sdk/client-ssm": "^3.0.0",
-    "@aws-sdk/client-secrets-manager": "^3.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@aws-sdk/client-ssm": {
-      "optional": true
-    },
-    "@aws-sdk/client-secrets-manager": {
-      "optional": true
-    }
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0"
   },
   "devDependencies": {
     "@aws-sdk/client-secrets-manager": "^3.0.0",
-    "@aws-sdk/client-ssm": "^3.0.0",
     "@types/aws-lambda": "^8.10.159",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.15.29",
     "@types/semver": "^7.5.0",
+    "@yacchi/backlog-relay-core": "workspace:*",
     "aws-cdk": "^2.170.0",
-    "esbuild": "^0.27.2",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vitest": "^3.2.4"

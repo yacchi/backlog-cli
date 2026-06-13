@@ -12,7 +12,7 @@
  *   pnpm deploy:dev    # 開発環境
  *   pnpm dev           # ローカル開発サーバー（.dev.vars を自動生成）
  */
-import type { RelayConfigInput } from "@backlog-cli/relay-core";
+import type { RelayConfigInput } from "@yacchi/backlog-relay-core";
 
 /**
  * Cloudflare Workers 固有の設定

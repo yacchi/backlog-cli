@@ -20,7 +20,7 @@ import {
   RelayConfig,
   buildSsmParameterValue,
 } from "./types.js";
-import type { RelayConfig as CoreRelayConfig } from "@backlog-cli/relay-core";
+import type { RelayConfig as CoreRelayConfig } from "@yacchi/backlog-relay-core";
 import { hashSync } from "bcryptjs";
 
 // ============================================================
