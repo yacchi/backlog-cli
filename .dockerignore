@@ -1,0 +1,23 @@
+# Build artifacts and dependencies are rebuilt inside the image.
+**/node_modules
+**/dist
+**/.deno-cache
+packages/mcp-server/vendor
+.gocache
+.git
+.github
+
+# Local / editor / logs
+**/*.log
+**/.DS_Store
+.vscode
+.idea
+
+# Docs and plans are not needed for the runtime image build.
+docs
+plans
+*.md
+
+# CDK / deploy state (not part of the container build)
+**/cdk.out
+deploy
