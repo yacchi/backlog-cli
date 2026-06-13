@@ -420,3 +420,41 @@ func TestGetDefault(t *testing.T) {
 		}
 	})
 }
+
+// TestSpaceNormalizationSurvivesFlagLayer は、フラグレイヤー設定（jubako の
+// 再マテリアライズ）後も space + domain の正規化が維持されることを検証する。
+//
+// 回帰防止: 以前は normalizeSpaceFields を Load 時に一度だけ適用していたため、
+// `backlog issue list -p all` のように --project などのフラグを与えると
+// 再マテリアライズで正規化が失われ、baseURL が https://example（ドメイン欠落）
+// となり名前解決に失敗していた。
+func TestSpaceNormalizationSurvivesFlagLayer(t *testing.T) {
+	t.Setenv("BACKLOG_PROFILE_default_SPACE", "example")
+	t.Setenv("BACKLOG_PROFILE_default_DOMAIN", "backlog.jp")
+
+	store := loadTestStore(t)
+
+	const want = "example.backlog.jp"
+
+	// ロード直後は正規化済み
+	if got := store.CurrentProfile().Space; got != want {
+		t.Fatalf("after load: Space = %q, want %q", got, want)
+	}
+
+	// フラグレイヤーを設定すると jubako が全レイヤーを再マテリアライズする
+	if err := store.SetFlagsLayer([]jubako.SetOption{
+		jubako.String(PathProjectName, "all"),
+	}); err != nil {
+		t.Fatalf("SetFlagsLayer: %v", err)
+	}
+
+	// 再マテリアライズ後も正規化が維持されていること
+	if got := store.CurrentProfile().Space; got != want {
+		t.Errorf("after SetFlagsLayer (CurrentProfile): Space = %q, want %q", got, want)
+	}
+	if p := store.Resolved().GetActiveProfile(); p == nil {
+		t.Fatal("after SetFlagsLayer: GetActiveProfile() = nil")
+	} else if p.Space != want {
+		t.Errorf("after SetFlagsLayer (Resolved): Space = %q, want %q", p.Space, want)
+	}
+}

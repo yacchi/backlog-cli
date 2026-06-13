@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/domain"
 	"github.com/yacchi/jubako"
 	"github.com/yacchi/jubako/document"
 	"github.com/yacchi/jubako/format/yaml"
@@ -162,9 +163,6 @@ func (s *Store) LoadAll(ctx context.Context) error {
 		s.activeProfile = resolved.Project.Profile
 	}
 
-	// 旧形式（space + domain 分離）を新形式（space に spaceHost 格納）に正規化
-	resolved.normalizeSpaceFields()
-
 	return nil
 }
 
@@ -185,9 +183,6 @@ func (s *Store) Reload(ctx context.Context) error {
 		return err
 	}
 
-	resolved := s.store.Get()
-	resolved.normalizeSpaceFields()
-
 	return nil
 }
 
@@ -195,12 +190,55 @@ func (s *Store) Reload(ctx context.Context) error {
 // アクセサ（読み取り）
 // ====================
 
+// materialized は store のスナップショットを取得し、space 正規化を適用して返す。
+//
+// jubako の Set/SetTo/Reload は呼ばれるたびに全レイヤーを再マテリアライズし、
+// profile/credential を新しいインスタンスとして作り直す。そのため Load 時に
+// 一度だけ正規化する方式では、--project などフラグレイヤーを設定した時点で
+// space + domain が分離した旧形式に戻ってしまう（例: space="ai2" のまま
+// baseURL が https://ai2 になる）。これを防ぐため、読み取りのたびに冪等な
+// 正規化を適用する。
+//
+// 共有ポインタを破壊して読み取り中に -race を踏まないよう、profile/credential
+// マップはコピーを作ってから正規化する。呼び出し側は s.mu の読み取りロックを
+// 保持していること。
+func (s *Store) materialized() ResolvedConfig {
+	resolved := s.store.Get()
+
+	if len(resolved.Profiles) > 0 {
+		profiles := make(map[string]*ResolvedProfile, len(resolved.Profiles))
+		for name, p := range resolved.Profiles {
+			cp := *p
+			cp.Space = domain.NormalizeSpace(cp.Space, cp.Domain)
+			cp.Domain = ""
+			profiles[name] = &cp
+		}
+		resolved.Profiles = profiles
+	}
+
+	resolved.Project.Space = domain.NormalizeSpace(resolved.Project.Space, resolved.Project.Domain)
+	resolved.Project.Domain = ""
+
+	if len(resolved.Credentials) > 0 {
+		creds := make(map[string]*Credential, len(resolved.Credentials))
+		for name, c := range resolved.Credentials {
+			cp := *c
+			cp.Space = domain.NormalizeSpace(cp.Space, cp.Domain)
+			cp.Domain = ""
+			creds[name] = &cp
+		}
+		resolved.Credentials = creds
+	}
+
+	return resolved
+}
+
 // Resolved は解決済み設定を返す
 func (s *Store) Resolved() *ResolvedConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	resolved.ActiveProfile = s.activeProfile
 	return &resolved
 }
@@ -223,7 +261,7 @@ func (s *Store) SetActiveProfile(name string) {
 func (s *Store) Profile(name string) *ResolvedProfile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	if name == "" {
 		name = DefaultProfile
 	}
@@ -237,7 +275,7 @@ func (s *Store) Profile(name string) *ResolvedProfile {
 func (s *Store) CurrentProfile() *ResolvedProfile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	if s.activeProfile == "" {
 		return resolved.Profiles[DefaultProfile]
 	}
@@ -251,7 +289,7 @@ func (s *Store) CurrentProfile() *ResolvedProfile {
 func (s *Store) Profiles() map[string]*ResolvedProfile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.store.Get().Profiles
+	return s.materialized().Profiles
 }
 
 // ResolveBySpace はスペースホスト名（例: "example.backlog.jp"）からプロファイル名を解決する。
@@ -263,7 +301,7 @@ func (s *Store) ResolveBySpace(spaceHost string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	resolved := s.store.Get()
+	resolved := s.materialized()
 
 	var matches []string
 	var primaryName string
@@ -402,7 +440,7 @@ func (s *Store) Credential(profileName string) *Credential {
 	if profileName == "" {
 		profileName = DefaultProfile
 	}
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	if resolved.Credentials == nil {
 		return nil
 	}
@@ -413,7 +451,7 @@ func (s *Store) Credential(profileName string) *Credential {
 func (s *Store) CurrentCredential() *Credential {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	if resolved.Credentials == nil {
 		return nil
 	}
@@ -456,7 +494,7 @@ func (s *Store) Auth() *ResolvedAuth {
 func (s *Store) Project() *ResolvedProject {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	resolved := s.store.Get()
+	resolved := s.materialized()
 	return &resolved.Project
 }
 

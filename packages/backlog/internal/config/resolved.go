@@ -3,8 +3,6 @@ package config
 import (
 	"os"
 	"time"
-
-	"github.com/yacchi/backlog-cli/packages/backlog/internal/domain"
 )
 
 // ResolvedConfig は全レイヤーをマージし、デフォルト適用後の設定
@@ -304,21 +302,6 @@ func (k *ResolvedAuthKeepalive) ConnectTimeoutDuration() time.Duration {
 // GracePeriodDuration は切断猶予期間をtime.Durationで返す
 func (k *ResolvedAuthKeepalive) GracePeriodDuration() time.Duration {
 	return time.Duration(k.GracePeriod) * time.Second
-}
-
-// normalizeSpaceFields は旧形式（space + domain 分離）を新形式（space に spaceHost 格納）に正規化する。
-// jubako のマテリアライゼーション後に呼び出す。
-func (r *ResolvedConfig) normalizeSpaceFields() {
-	for _, p := range r.Profiles {
-		p.Space = domain.NormalizeSpace(p.Space, p.Domain)
-		p.Domain = ""
-	}
-	r.Project.Space = domain.NormalizeSpace(r.Project.Space, r.Project.Domain)
-	r.Project.Domain = ""
-	for _, c := range r.Credentials {
-		c.Space = domain.NormalizeSpace(c.Space, c.Domain)
-		c.Domain = ""
-	}
 }
 
 // NewResolvedConfig は空のResolvedConfigを作成する
