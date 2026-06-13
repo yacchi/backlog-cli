@@ -42,7 +42,43 @@ export function resolveSpaceToken(
     return null;
 }
 
+/**
+ * Test/dev-only auth bypass. When the `MCP_AUTH_BYPASS_TOKEN` env var is set to a
+ * JSON-encoded TokenPayload, JWT verification is skipped entirely and that payload
+ * is injected as the authenticated token.
+ *
+ * SECURITY: This MUST never be set in production. It exists solely so the sandbox /
+ * transport layers can be exercised end-to-end without minting signed JWTs. The
+ * server logs a loud warning at startup when it is active.
+ */
+export function loadBypassToken(): TokenPayload | null {
+    const raw = process.env.MCP_AUTH_BYPASS_TOKEN;
+    if (!raw) return null;
+    let parsed: TokenPayload;
+    try {
+        parsed = JSON.parse(raw) as TokenPayload;
+    } catch (err) {
+        throw new Error(`MCP_AUTH_BYPASS_TOKEN is not valid JSON: ${(err as Error).message}`);
+    }
+    if (!parsed.space) {
+        throw new Error("MCP_AUTH_BYPASS_TOKEN must include a 'space' field");
+    }
+    if (typeof parsed.iat !== "number") {
+        parsed.iat = Math.floor(Date.now() / 1000);
+    }
+    return parsed;
+}
+
 export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?: string) {
+    const bypassToken = loadBypassToken();
+    if (bypassToken) {
+        // eslint-disable-next-line no-console
+        console.warn(
+            `⚠️  MCP_AUTH_BYPASS_TOKEN is set — JWT verification is DISABLED. ` +
+            `space=${bypassToken.space}. This must only be used for local testing.`,
+        );
+    }
+
     function unauthorized(c: Context, description: string) {
         const wwwAuth = resourceMetadataUrl
             ? `Bearer resource_metadata="${resourceMetadataUrl}"`
@@ -55,6 +91,11 @@ export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?
     }
 
     return async (c: Context, next: Next) => {
+        if (bypassToken) {
+            c.set(AUTH_CONTEXT_KEY, { token: bypassToken } satisfies AuthContext);
+            return next();
+        }
+
         const auth = c.req.header("authorization");
         if (!auth?.startsWith("Bearer ")) {
             return unauthorized(c, "Missing Bearer token");
