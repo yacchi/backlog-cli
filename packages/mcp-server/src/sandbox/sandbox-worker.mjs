@@ -1,43 +1,43 @@
 // Deno persistent sandbox worker — runs Pyodide (Python on WASM) in a restricted environment.
 // Communicates with Node.js parent via HTTP on 127.0.0.1:<random-port>.
-// Pyodide WASM environment is kept warm across requests.
-// All other state (callbackUrl, Python user variables) is per-request only.
+//
+// Multi-tenant isolation model: each request runs on its OWN fresh Pyodide instance
+// that is discarded afterward. A shared warm interpreter cannot be cleaned reliably
+// between requests — Python state (sys.modules, monkeypatched builtins/stdlib) and
+// MEMFS files written to arbitrary paths leak across requests, letting one tenant
+// poison or exfiltrate another's data.
+//
+// A naive fresh loadPyodide() costs ~700ms (WASM instantiate + stdlib init), which
+// would be far too slow per request. Instead we build a memory snapshot ONCE at boot
+// (after applying the pure-Python sandbox setup) and restore each per-request instance
+// from it in ~55ms. The snapshot cannot capture JS references, so the backlog() bridge
+// (which holds a JS function) is wired up AFTER restore, not baked into the snapshot.
+//
+// Concurrency: instances share no mutable state, so requests run concurrently, bounded
+// by a semaphore (each in-flight instance costs memory). The single JS thread means no
+// CPU parallelism, but concurrent requests overlap their backlog() I/O waits. The
+// callback URL is captured per-instance (a closure), never a shared global, so
+// concurrent requests cannot cross-talk.
 
 import { loadPyodide } from "npm:pyodide";
 
-const pyodide = await loadPyodide();
+// Max concurrent in-flight instances. Defaults to the CPU count (capped for memory);
+// overridable via the first CLI arg. Reading argv/navigator needs no Deno permission.
+const CONCURRENCY = Math.max(
+    1,
+    Math.min(Number(Deno.args[0]) || navigator.hardwareConcurrency || 4, 8),
+);
 
-// Mutex: serialize all script executions so no request-scoped state leaks between them.
-// Pyodide/WASM is single-threaded anyway — concurrent execution would just interleave awaits.
-let execLock = Promise.resolve();
-
-// Per-request callback URL — only valid during a serialized execution window
-let requestCallbackUrl = "";
-
-pyodide.registerJsModule("_backlog_bridge", {
-    call: (args) => {
-        const url = requestCallbackUrl;
-        if (!url) {
-            return Promise.reject(new Error("No callback URL — backlog() called outside request scope"));
-        }
-        return fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ args }),
-        }).then((r) => r.text());
-    },
-});
-
-// Setup sandbox restrictions + helpers (runs once at boot)
-await pyodide.runPythonAsync(`
+// Snapshot-safe setup: PURE PYTHON ONLY (no JS references). Applied once before the
+// snapshot is taken, so every restored instance starts with the sandbox in place.
+const SETUP_CORE = `
 import sys
 
 # Blocked modules — only things genuinely dangerous inside Pyodide/WASM.
 # Most I/O and network modules (os, socket, http, urllib.request, etc.) are
-# already non-functional in WASM — the real sandbox boundary is Pyodide + the
-# open()/input() builtin overrides above.  We keep a minimal deny-list for
-# defense-in-depth: process spawning, FFI, arbitrary code execution via
-# deserialization, and package-management escape hatches.
+# already non-functional in WASM. We keep a minimal deny-list for defense-in-depth:
+# process spawning, FFI, arbitrary code execution via deserialization, and
+# package-management escape hatches.
 _BLOCKED_TOP = frozenset({
     'subprocess', 'ctypes', 'pickle',
     'code', 'codeop', 'compileall', 'py_compile',
@@ -70,26 +70,43 @@ class _BlockLoader:
 
 sys.meta_path.insert(0, _SandboxFinder())
 
-# Override dangerous builtins
+# Override dangerous builtins.
+# NOTE: open()/io.open are intentionally NOT blocked. Python file I/O in Pyodide
+# targets the in-memory MEMFS, which is isolated from the host filesystem (the host
+# FS is protected by the worker running with net-only Deno permissions). This lets
+# scripts use temp files for write/read/analyze workflows. Files written to MEMFS
+# do not leak across requests because each request runs on a fresh Pyodide instance.
 import builtins
-def _blocked_open(*a, **kw):
-    raise PermissionError("open() is blocked in sandbox")
 def _blocked_input(*a, **kw):
     raise PermissionError("input() is blocked in sandbox")
 def _blocked_breakpoint(*a, **kw):
     raise PermissionError("breakpoint() is blocked in sandbox")
 
-builtins.open = _blocked_open
 builtins.input = _blocked_input
 builtins.breakpoint = _blocked_breakpoint
 
-# Also block io.open
 import io
-io.open = _blocked_open
-
-# Setup backlog() helper
-from _backlog_bridge import call as _bl_call
 import json as _json
+
+def _format_result(val):
+    if val is None:
+        return "None"
+    try:
+        return _json.dumps(val, ensure_ascii=False, default=str, indent=2)
+    except (TypeError, ValueError):
+        return str(val)
+
+# stdout capture buffer
+class _CaptureIO(io.StringIO):
+    pass
+
+_capture_buf = _CaptureIO()
+`;
+
+// Bridge init: imports the JS-backed _backlog_bridge module. Run AFTER snapshot
+// restore (it holds a JS function reference, which a snapshot cannot serialize).
+const BRIDGE_INIT = `
+from _backlog_bridge import call as _bl_call
 
 async def backlog(args):
     """Execute a backlog CLI command and return the result as native Python types."""
@@ -104,24 +121,53 @@ async def backlog(args):
     if isinstance(data, dict) and 'error' in data and len(data) == 1:
         raise RuntimeError(data['error'])
     return data
+`;
 
-def _format_result(val):
-    if val is None:
-        return "None"
-    try:
-        return _json.dumps(val, ensure_ascii=False, default=str, indent=2)
-    except (TypeError, ValueError):
-        return str(val)
+// Build the snapshot once at boot. _makeSnapshot must be passed to loadPyodide for
+// makeMemorySnapshot() to be allowed.
+const snapshot = await (async () => {
+    const boot = await loadPyodide({ _makeSnapshot: true });
+    await boot.runPythonAsync(SETUP_CORE);
+    return boot.makeMemorySnapshot();
+})();
 
-# stdout capture buffer (structure only — truncated per request)
-class _CaptureIO(io.StringIO):
-    pass
+// Restore a fresh, isolated instance from the snapshot and wire its backlog() bridge
+// to THIS request's callback URL (captured in the closure — never a shared global).
+async function createInstance(callbackUrl) {
+    const py = await loadPyodide({ _loadSnapshot: snapshot });
+    py.registerJsModule("_backlog_bridge", {
+        call: (args) =>
+            fetch(callbackUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ args }),
+            }).then((r) => r.text()),
+    });
+    await py.runPythonAsync(BRIDGE_INIT);
+    return py;
+}
 
-_capture_buf = _CaptureIO()
+// Simple async semaphore to bound concurrent in-flight instances (memory).
+class Semaphore {
+    constructor(max) {
+        this.max = max;
+        this.cur = 0;
+        this.waiters = [];
+    }
+    async acquire() {
+        if (this.cur >= this.max) {
+            await new Promise((resolve) => this.waiters.push(resolve));
+        }
+        this.cur++;
+    }
+    release() {
+        this.cur--;
+        const next = this.waiters.shift();
+        if (next) next();
+    }
+}
 
-# Set of user-defined variable names to clean up between requests
-_SANDBOX_BUILTINS = frozenset(dir())
-`);
+const sem = new Semaphore(CONCURRENCY);
 
 function autoAwaitBacklog(script) {
     return script.split("\n").map((line) => {
@@ -151,34 +197,27 @@ const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, async (req) => {
         );
     }
 
-    // Serialize execution: wait for any prior request to finish
-    const response = await new Promise((resolve) => {
-        execLock = execLock.then(async () => {
-            requestCallbackUrl = callbackUrl;
-            try {
-                const result = await executeScript(script);
-                resolve(result);
-            } finally {
-                requestCallbackUrl = "";
-            }
-        });
-    });
-
-    return response;
+    await sem.acquire();
+    try {
+        const py = await createInstance(callbackUrl);
+        return await executeScript(py, script);
+        // Instance goes out of scope here; GC reclaims its WASM memory. It must
+        // never serve another request.
+    } catch (err) {
+        return new Response(
+            JSON.stringify({ ok: false, error: `Sandbox error: ${err.message}`, category: "runtime_error" }),
+            { status: 500, headers: { "content-type": "application/json" } },
+        );
+    } finally {
+        sem.release();
+    }
 });
 
-async function executeScript(script) {
+async function executeScript(pyodide, script) {
     try {
-        // Clean user variables from previous execution
-        await pyodide.runPythonAsync(`
-import sys as _sys
-for _n in list(globals().keys()):
-    if not _n.startswith('_') and _n not in _SANDBOX_BUILTINS:
-        del globals()[_n]
-_capture_buf.truncate(0)
-_capture_buf.seek(0)
-_sys.stdout = _capture_buf
-`);
+        // Fresh instance per request — no cross-request cleanup needed. Just point
+        // stdout at the capture buffer for this run.
+        await pyodide.runPythonAsync(`import sys as _sys\n_sys.stdout = _capture_buf`);
         const result = await pyodide.runPythonAsync(script);
         const captured = await pyodide.runPythonAsync(`
 _sys.stdout = _sys.__stdout__
@@ -205,7 +244,6 @@ _capture_buf.getvalue()
             { headers: { "content-type": "application/json" } },
         );
     } catch (e) {
-        try { await pyodide.runPythonAsync("import sys; sys.stdout = sys.__stdout__"); } catch { /* ignore */ }
         const fullError = String(e);
         const errorLines = fullError.split("\n").filter((l) => l.trim());
         const lastLine = errorLines.pop() || fullError;
