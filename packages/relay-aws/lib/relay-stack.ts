@@ -4,6 +4,8 @@ import { LoggingFormat } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as ecr from "aws-cdk-lib/aws-ecr";
+import { ECRDeployment, DockerImageName } from "cdk-ecr-deployment";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
@@ -43,6 +45,15 @@ export const DEFAULT_CACHE_CONFIG: Required<CloudFrontCacheConfig> = {
   apiMaxTtl: 24 * 60 * 60, // 24時間
   apiMinTtl: 0, // オリジンのヘッダーを尊重
 };
+
+/**
+ * 統合ランタイムコンテナイメージのデフォルト参照（リポジトリ）。
+ * Lambda は同一リージョンの private ECR からしか pull できないため、
+ * この公開イメージを CDK が ECR にコピーして DockerImageFunction で使用する。
+ * タグは固定バージョンを使う（`latest` は使わない）。未指定時は
+ * resolveLatestImageTag でレジストリから最新の semver タグを解決する。
+ */
+export const DEFAULT_IMAGE_SOURCE = "ghcr.io/yacchi/backlog-relay";
 
 export interface RelayStackProps extends cdk.StackProps {
   config: RelayConfig;
@@ -209,6 +220,12 @@ export class RelayStack extends cdk.Stack {
     // Build SSM value: strips secrets, converts tenants to relay-core array
     const { config: ssmConfig, mcpSpaces, mcpScript, mcpDefaultSpaces } = buildSsmParameterValue(baseValue, this.config.mcp);
 
+    // NOTE: MCP's base_url (OAuth issuer) is derived at runtime from the request
+    // host (x-original-host / Host). It is intentionally NOT injected here: the
+    // Function URL / CloudFront domain are not known at synth without a circular
+    // dependency, and runtime derivation covers all cases uniformly. Set
+    // server.base_url explicitly only to force a fixed issuer.
+
     // Add allowed host patterns
     const valueWithPatterns = addAllowedHostPatterns(
       ssmConfig as CoreRelayConfig,
@@ -234,40 +251,65 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
-   * Lambda 関数を作成
-   * NodejsFunctionで自動的にesbuildバンドルを行う
+   * Lambda 関数を作成（統合コンテナイメージ）。
    *
-   * afterBundling で make copy-assets を呼び出し、
-   * Makefile 側でアセットのビルドと配置を一括管理。
-   * MCP 有効時は Go CLI + Deno + sandbox-worker もバンドル。
+   * Relay + MCP のロジックは統合ランタイムイメージ（relay-docker）に集約され、
+   * Lambda Web Adapter 経由で HTTP サーバーとして動作する。Go CLI / Deno worker /
+   * portal / Node バンドルはすべてイメージ内に同梱済みのため、ここでのビルドは不要。
+   *
+   * Lambda は同一リージョンの private ECR からしか pull できない（GHCR や
+   * pull-through cache は不可）。cdk-ecr-deployment(cdklabs 製) が Skopeo Lambda で
+   * 公開イメージ（GHCR 等）を専用 ECR へ registry→registry コピーする。デプロイ時に
+   * Docker は不要。専用 repo は DESTROY + emptyOnDelete + maxImageCount で
+   * クリーンに管理でき（イメージは GHCR から再現可能）、stack 削除で消える。
    */
   private createLambdaFunction(): lambda.Function {
-    // Package directory (for make command)
-    const packageDir = path.resolve(import.meta.dirname, "..");
-    const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
-    const mcpServerDir = path.resolve(import.meta.dirname, "..", "..", "mcp-server");
-    // Asset directory name - single source of truth
-    const assetsDirName = "web-dist";
-
     const mcpEnabled = this.mcpEnabled;
-
-    // MCP 有効時は追加の環境変数
-    const mcpEnv: Record<string, string> = mcpEnabled
-      ? {
-          BACKLOG_BIN_PATH: "/var/task/bin/backlog",
-          SANDBOX_WORKER_PATH: "/var/task/bin/sandbox-worker",
-        }
-      : {};
 
     // Relay secrets の環境変数
     const relaySecretsEnv: Record<string, string> = this.relaySecretsSecret
       ? { RELAY_SECRETS_NAME: this.relaySecretsSecret.secretName }
       : {};
 
-    const fn = new NodejsFunction(this, "RelayFunction", {
-      entry: path.join(import.meta.dirname, "handler.ts"),
-      handler: "handler",
-      runtime: lambda.Runtime.NODEJS_24_X,
+    const imageSource = this.config.image?.source ?? DEFAULT_IMAGE_SOURCE;
+    const imageTag = this.config.image?.tag;
+    if (!imageTag) {
+      // The tag must be resolved before constructing the stack (CDK constructs
+      // cannot be async). bin/app.ts resolves it via resolveLatestImageTag.
+      throw new Error(
+        "image tag is not set. Resolve it with resolveLatestImageTag() before " +
+          "constructing RelayStack, or set config.image.tag explicitly. " +
+          "(`latest` is intentionally not supported.)",
+      );
+    }
+
+    // 統合ランタイムイメージ用の専用 private ECR リポジトリ。
+    // イメージは GHCR から再現可能なため DESTROY + emptyOnDelete で問題なく、
+    // maxImageCount で古いタグを自動的にキャップする。タグは IMMUTABLE で固定
+    // （同一タグの上書きを禁止し、デプロイ済みバージョンの同一性を保証）。
+    const repository = new ecr.Repository(this, "RelayImageRepo", {
+      imageScanOnPush: true,
+      imageTagMutability: ecr.TagMutability.IMMUTABLE,
+      emptyOnDelete: true,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      lifecycleRules: [{ maxImageCount: 5 }],
+    });
+
+    // 公開イメージ（GHCR 等）をデプロイ時に専用 ECR へ registry→registry コピー
+    // （Skopeo を使う prebuilt Lambda の custom resource。Docker 不要）。
+    // imageArch はコピー対象アーキテクチャ。コピー Lambda は既定 amd64 だが、
+    // 統合イメージは arm64 専用ビルドなので arm64 を明示する（既定 ['amd64'] のままだと
+    // arm64-only の image index から amd64 を選べず "no image found for amd64" で失敗する）。
+    const imageCopy = new ECRDeployment(this, "RelayImageCopy", {
+      src: new DockerImageName(`${imageSource}:${imageTag}`),
+      dest: new DockerImageName(`${repository.repositoryUri}:${imageTag}`),
+      imageArch: ["arm64"],
+    });
+
+    const fn = new lambda.DockerImageFunction(this, "RelayFunction", {
+      code: lambda.DockerImageCode.fromEcr(repository, {
+        tagOrDigest: imageTag,
+      }),
       architecture: lambda.Architecture.ARM_64,
       memorySize: mcpEnabled ? 1024 : 512,
       loggingFormat: LoggingFormat.JSON,
@@ -275,59 +317,20 @@ export class RelayStack extends cdk.Stack {
         ? cdk.Duration.seconds(120)
         : cdk.Duration.seconds(10),
       environment: {
-        HOME: "/tmp",
+        // AwsConfigSource がこれらから SSM / Secrets Manager を読む
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
-        WEB_ASSETS_DIR: assetsDirName,
-        DEPLOY_VERSION: "2026-06-08-multi-space-auth",
+        // Lambda Web Adapter: /health が 200 を返したらトラフィックを流す
+        AWS_LWA_READINESS_CHECK_PATH: "/health",
+        DEPLOY_VERSION: "2026-06-13-container",
         ...relaySecretsEnv,
-        ...mcpEnv,
       },
       description: mcpEnabled
-        ? "Backlog CLI Relay + MCP Server"
-        : "Backlog CLI OAuth Relay Server (TypeScript)",
-      bundling: {
-        format: OutputFormat.ESM,
-        target: "node24",
-        commandHooks: {
-          beforeBundling(): string[] {
-            return [];
-          },
-          beforeInstall(): string[] {
-            return [];
-          },
-          afterBundling(_inputDir: string, outputDir: string): string[] {
-            const commands = [
-              // Copy pre-built web assets to the Lambda bundle via Makefile
-              `make -C "${packageDir}" copy-assets OUTPUT_DIR="${outputDir}/${assetsDirName}"`,
-            ];
-
-            if (mcpEnabled) {
-              const workerSrc = `${mcpServerDir}/src/sandbox/sandbox-worker.mjs`;
-              const compiledWorker = `${mcpServerDir}/vendor/sandbox-worker`;
-              commands.push(
-                // Go CLI binary (linux/arm64)
-                `mkdir -p "${outputDir}/bin"`,
-                `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -C "${repoRoot}" -o "${outputDir}/bin/backlog" ./cmd/backlog`,
-                `chmod +x "${outputDir}/bin/backlog"`,
-                // Sandbox worker — compile to standalone binary with deno compile
-                // Uses isolated temp dir to avoid node_modules interference from mcp-server
-                // SECURITY: bake ONLY --allow-net=127.0.0.1 into the compiled binary.
-                // deno compile embeds the Pyodide wasm/stdlib assets into the binary's
-                // virtual filesystem, so no --allow-read is needed at runtime. Granting
-                // --allow-read (especially unrestricted) or --allow-write would let a
-                // submitted Python script escape the Pyodide sandbox via `import js`
-                // (which exposes the full Deno API) and read arbitrary files such as
-                // /proc/self/environ. Net is scoped to loopback for the IPC callback.
-                `if [ -f "${compiledWorker}" ]; then cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; else tmpdir=$(mktemp -d) && cp "${workerSrc}" "$tmpdir/" && DENO_TLS_CA_STORE=system deno compile --target aarch64-unknown-linux-gnu --allow-net=127.0.0.1 --output "${compiledWorker}" "$tmpdir/sandbox-worker.mjs" && rm -rf "$tmpdir" && cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; fi`,
-                `chmod +x "${outputDir}/bin/sandbox-worker"`,
-              );
-            }
-
-            return commands;
-          },
-        },
-      },
+        ? "Backlog CLI Relay + MCP Server (container)"
+        : "Backlog CLI OAuth Relay Server (container)",
     });
+
+    // イメージが ECR に push されてから関数を作成/更新する
+    fn.node.addDependency(imageCopy);
 
     new logs.LogGroup(this, "RelayFunctionLogGroup", {
       logGroupName: `/aws/lambda/${fn.functionName}`,

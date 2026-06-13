@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
 import { matchSpacePattern } from "../config/schema.js";
+import { resolveBaseUrl } from "../base-url.js";
 import { sign, verify, signToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
 import type {
@@ -93,11 +94,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
     const tokenExchange = options?.tokenExchange;
 
-    const backlogRedirectUri = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
+    // Path appended to the resolved base URL to form the Backlog redirect_uri.
+    // base_url is derived per-request (resolveBaseUrl); authorize and callback
+    // arrive via the same public host, so the redirect_uri matches across both.
+    const callbackPath = options?.callbackPath ?? "/mcp/authorize/callback";
 
-    async function doExchangeCode(space: string, code: string): Promise<TokenResponse> {
+    async function doExchangeCode(space: string, code: string, redirectUri: string): Promise<TokenResponse> {
         if (tokenExchange) {
-            return tokenExchange.exchangeCode(space, code, backlogRedirectUri);
+            return tokenExchange.exchangeCode(space, code, redirectUri);
         }
         if (!config.relay_url) {
             throw new Error("relay_url is required when tokenExchange is not provided");
@@ -342,7 +346,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             signingKid,
         );
 
-        const callbackUrl = `${config.base_url}${options?.callbackPath ?? "/mcp/authorize/callback"}`;
+        const callbackUrl = `${resolveBaseUrl(c, config.base_url)}${callbackPath}`;
         const authUrl = new URL(
             `https://${space}/OAuth2AccessRequest.action`,
         );
@@ -388,6 +392,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             backlogTokens = await doExchangeCode(
                 authorizeState.space,
                 code,
+                `${resolveBaseUrl(c, config.base_url)}${callbackPath}`,
             );
         } catch (err) {
             return c.html(

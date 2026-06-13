@@ -5,6 +5,7 @@ import {
   createUnifiedApp,
   buildMcpConfig,
   createDirectTokenExchange,
+  restoreMcpAuthorization,
 } from "./app.js";
 import type { RelayConfig } from "@backlog-cli/relay-core";
 
@@ -80,6 +81,21 @@ describe("buildMcpConfig", () => {
     expect(mcp!.base_url).toBe("https://from-request.example.com");
   });
 
+  it("builds MCP config without base_url (issuer derived at runtime)", () => {
+    const relayConfig = {
+      server: { port: 8080 },
+      backlog_app: { client_id: "cid", client_secret: "s" },
+      jwks: jwksJson,
+    } as unknown as RelayConfig;
+    const mcp = buildMcpConfig(
+      { mcp_spaces: [{ pattern: ".*", writable: false }] },
+      relayConfig,
+    );
+    expect(mcp).not.toBeNull();
+    expect(mcp!.base_url).toBeUndefined();
+    expect(mcp!.spaces).toHaveLength(1);
+  });
+
   it("returns null when no jwks is available", () => {
     const relayConfig = {
       server: { base_url: "https://relay.example.com", port: 8080 },
@@ -91,6 +107,47 @@ describe("buildMcpConfig", () => {
         relayConfig,
       ),
     ).toBeNull();
+  });
+});
+
+describe("restoreMcpAuthorization", () => {
+  it("copies x-mcp-authorization into authorization when absent", () => {
+    const req = new Request("https://x/mcp", {
+      headers: { "x-mcp-authorization": "Bearer tok" },
+    });
+    const out = restoreMcpAuthorization(req);
+    expect(out.headers.get("authorization")).toBe("Bearer tok");
+  });
+
+  it("overrides a non-Bearer authorization (SigV4 from OAC)", () => {
+    const req = new Request("https://x/mcp", {
+      headers: {
+        authorization: "AWS4-HMAC-SHA256 Credential=...",
+        "x-mcp-authorization": "Bearer tok",
+      },
+    });
+    const out = restoreMcpAuthorization(req);
+    expect(out.headers.get("authorization")).toBe("Bearer tok");
+  });
+
+  it("keeps an existing Bearer authorization", () => {
+    const req = new Request("https://x/mcp", {
+      headers: {
+        authorization: "Bearer real",
+        "x-mcp-authorization": "Bearer other",
+      },
+    });
+    const out = restoreMcpAuthorization(req);
+    expect(out.headers.get("authorization")).toBe("Bearer real");
+  });
+
+  it("is a no-op without x-mcp-authorization", () => {
+    const req = new Request("https://x/mcp", {
+      headers: { authorization: "Bearer real" },
+    });
+    const out = restoreMcpAuthorization(req);
+    expect(out).toBe(req);
+    expect(out.headers.get("authorization")).toBe("Bearer real");
   });
 });
 

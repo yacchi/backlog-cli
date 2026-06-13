@@ -33,6 +33,29 @@ import {
 } from "@backlog-cli/mcp-server";
 
 /**
+ * Restore the `Authorization` header from `x-mcp-authorization`.
+ *
+ * Behind CloudFront with Origin Access Control, the OAC overwrites the viewer's
+ * `Authorization` header with its SigV4 signature; a CloudFront Function copies
+ * the original Bearer token to `x-mcp-authorization`. This restores it so MCP
+ * Bearer auth works. No-op when `x-mcp-authorization` is absent (i.e. harmless
+ * for plain Docker / non-CloudFront deployments).
+ */
+export function restoreMcpAuthorization(req: Request): Request {
+  const mcpAuth = req.headers.get("x-mcp-authorization");
+  if (!mcpAuth) {
+    return req;
+  }
+  const existing = req.headers.get("authorization");
+  if (existing && existing.startsWith("Bearer ")) {
+    return req;
+  }
+  const headers = new Headers(req.headers);
+  headers.set("authorization", mcpAuth);
+  return new Request(req, { headers });
+}
+
+/**
  * Options for {@link createUnifiedApp}.
  */
 export interface CreateUnifiedAppOptions {
@@ -77,22 +100,19 @@ export function buildMcpConfig(
     return null;
   }
 
-  const baseUrl = relayConfig.server.base_url || baseUrlFallback;
-  if (!baseUrl) {
-    console.warn(
-      "MCP integration requires server.base_url in relay config (or a base URL fallback)",
-    );
-    return null;
-  }
-
   const jwksJson = relayConfig.jwks;
   if (!jwksJson) {
     console.warn("MCP integration requires a server-level jwks in relay config");
     return null;
   }
 
+  // base_url is optional: the OAuth issuer is derived per-request from the host
+  // (resolveBaseUrl) unless explicitly configured. Only the Function URL /
+  // CloudFront domain are not known at deploy without a circular dependency, so
+  // we must not require base_url here.
+  const baseUrl = relayConfig.server.base_url || baseUrlFallback;
+
   const mcpConfigObj: Record<string, unknown> = {
-    base_url: baseUrl,
     jwks: jwksJson,
     backlog_app: {
       client_id: relayConfig.backlog_app.client_id,
@@ -101,6 +121,9 @@ export function buildMcpConfig(
     script: rawConfig.mcp_script,
     default_spaces: rawConfig.mcp_default_spaces ?? [],
   };
+  if (baseUrl) {
+    mcpConfigObj.base_url = baseUrl;
+  }
 
   return parseMcpConfig(JSON.stringify(mcpConfigObj));
 }

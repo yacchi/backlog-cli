@@ -160,11 +160,38 @@ export interface McpConfig {
 }
 
 /**
+ * Container image configuration.
+ *
+ * The unified runtime ships as a single published image (e.g. GHCR). Lambda can
+ * only pull from a same-region private ECR, so the CDK construct copies the
+ * published image into a dedicated ECR repo (via cdk-ecr-deployment, registry to
+ * registry, no Docker at deploy) and points the DockerImageFunction at it.
+ */
+export interface ContainerImageConfig {
+  /** Source image repository (e.g. the published GHCR repo). */
+  source?: string;
+  /**
+   * Explicit image tag to deploy. When omitted, the latest semver tag is
+   * resolved from the registry (see resolveLatestImageTag).
+   */
+  tag?: string;
+  /**
+   * Tag-resolution mode when `tag` is omitted:
+   * - false (default): pick the highest *stable* release (no prerelease suffix).
+   *   This prevents an in-development build from being deployed by accident.
+   * - true: pick the highest *prerelease* tag (to intentionally target a dev build).
+   */
+  prerelease?: boolean;
+}
+
+/**
  * Relay server CDK configuration.
  */
 export interface RelayConfig extends ParameterStoreConfig {
   cloudFront?: CloudFrontConfig;
   mcp?: McpConfig;
+  /** Container image source/tag (defaults to the published GHCR image). */
+  image?: ContainerImageConfig;
 }
 
 /**

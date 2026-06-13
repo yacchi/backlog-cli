@@ -226,21 +226,39 @@ Lambda の `DockerImageFunction` には次の制約がある（2026年6月時点
 
 → 結論: イメージは **組織の同一リージョン private ECR に直接 push 済み**である必要がある。
 
-#### 採用方式: construct による自動コピー
+#### 採用方式: cdk-ecr-deployment（専用 ECR への registry→registry コピー）
 
-CDK construct（`@backlog-cli/relay-aws-cdk`）が以下を内部で行う:
+CDK 標準の Docker image asset（`fromImageAsset`）と比較検討した結果、**`cdk-ecr-deployment`（cdklabs 製）**を採用する。決め手は「クリーンアップ」と「デプロイ時 Docker 不要」。
 
-1. private ECR リポジトリをデプロイ先リージョンに作成。
-2. **custom resource（`cdk-ecr-deployment` 相当）で、公式 GHCR イメージを作成した private ECR へ直接コピー（push）**。
-3. `DockerImageFunction` をその private ECR イメージに向ける。
+仕組み:
 
-これにより組織は `cdk deploy` だけで完結し、ミラー運用やレジストリ知識が不要になる（no-clone ゴールに最適）。
+1. 専用の private ECR リポジトリを作成（`removalPolicy: DESTROY` + `emptyOnDelete: true` + `lifecycleRules: [{ maxImageCount: 5 }]`）。
+2. `ECRDeployment` が **Skopeo を使う prebuilt Lambda（custom resource）** で公開イメージ（GHCR 等）を専用 ECR へ registry→registry コピー。**デプロイ時に Docker は不要**。
+3. `lambda.DockerImageCode.fromEcr(repository, { tagOrDigest })` で参照。`fn.node.addDependency(imageCopy)` で push 完了後に関数を更新。
+
+`fromImageAsset` 比較:
+
+| 観点 | cdk-ecr-deployment（採用） | fromImageAsset |
+|------|---------------------------|----------------|
+| デプロイ時 Docker | 不要（クラウドで registry→registry） | 必要（wrapper をローカル build） |
+| ECR リポジトリ | 専用 repo（自前） | 共有 bootstrap ECR |
+| 古いイメージの掃除 | lifecycleRules で自動キャップ＋stack 削除で消える | 共有 repo に蓄積、自動削除なし（`cdk gc` 手動・account 全体） |
+| stack 削除時 | repo+images ごと消える | asset は orphan として残存 |
+| 依存 | cdklabs 製 construct（準公式）+ Skopeo Lambda | なし（CDK 標準） |
 
 検討事項:
 
-- `cdk-ecr-deployment` はサードパーティ construct + コピー用 Lambda(custom resource) を伴う。依存とデプロイ複雑度の増分を許容する。
-- コピー元 GHCR は public のため認証不要で pull できる想定。custom resource からの GHCR pull が不安定な場合は、**ECR Public(`public.ecr.aws`) を代替コピー元**として併用（GitHub→ECR Public の push には AWS 認証が要る点に注意）。
-- イメージタグの固定（digest 参照）でデプロイ再現性を担保。construct はライブラリ版に対応する既定タグを持ち、`image` 引数で上書き可能にする。
+- 専用 ECR は GHCR から再現可能なため DESTROY/emptyOnDelete で安全。`maxImageCount` で世代をキャップ。
+- `cdk synth` はコピーを実行しない（custom resource はデプロイ時に動作）。公開イメージ未publish でも synth は通る。
+- arm64 専用イメージのため、`ECRDeployment` に `imageArch: ["arm64"]` を指定（既定 amd64 だと index から amd64 を選べず失敗）。
+
+#### イメージタグの解決（`latest` 不使用 / immutable / prerelease）
+
+- `latest` は使わない。ECR は `imageTagMutability: IMMUTABLE`（同一タグ上書き禁止＝デプロイ済みバージョンの同一性を保証）。
+- `image.tag` 明示時はそれを使用。**未指定時は synth 時にレジストリ（GHCR）の `tags/list` を取得し semver で最新を解決**（`resolveLatestImageTag`、`bin/app.ts` で async 解決してから Stack 構築）。
+  - `prerelease: false`（既定）= 安定版のみから最新（開発版の誤適用を防ぐ）。
+  - `prerelease: true` = プレリリースのみから最新（開発版を明示的に対象）。
+- タグごとに ImageUri が変わるため、`latest` 運用で起きる「ImageUri 不変 → Lambda 未更新」問題が構造的に解消する。
 
 ## 移行フェーズ
 
@@ -257,7 +275,7 @@ CDK construct（`@backlog-cli/relay-aws-cdk`）が以下を内部で行う:
 
 - **イメージサイズ / コールドスタート**: Go + Deno + Pyodide cache + Node を 1 イメージに同梱するため肥大化する。Lambda コールドスタートへの影響を計測。MCP を使わない構成では sandbox 同梱を省くオプションも検討。
 - **lambda-web-adapter のタイムアウト/ストリーミング**: 既存 MCP の Streamable HTTP（GET/POST/DELETE `/mcp`）が adapter 経由で正しく動くか E2E 検証。
-- **DockerImageFunction とイメージ参照**: §9 のとおり construct 自動コピー（GHCR→private ECR）で確定。`cdk-ecr-deployment` の custom resource 信頼性、GHCR からの認証なし pull、ECR Public フォールバックの要否を検証する。
+- **DockerImageFunction とイメージ参照**: §9 のとおり cdk-ecr-deployment（専用 ECR への registry→registry コピー）で確定。デプロイ時 Docker 不要、専用 ECR の lifecycle でクリーンアップ、固定バージョンタグ運用が前提。
 - **後方互換**: 既存デプロイ（NodejsFunction + config.ts）からの移行手順。SSM/Secrets のスキーマは不変なので、Lambda 差し替えとイメージ参照追加で移行できる想定。
 - **relay-cloudflare**: 同じ統合エントリ思想を Cloudflare Workers に広げるかは本計画スコープ外（別途）。
 

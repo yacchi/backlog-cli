@@ -54,12 +54,18 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      cdk-ecr-deployment:
+        specifier: ^4.2.16
+        version: 4.2.16(aws-cdk-lib@2.233.0(constructs@10.4.4))(constructs@10.4.4)
       constructs:
         specifier: ^10.4.0
         version: 10.4.4
       hono:
         specifier: ^4.7.11
         version: 4.11.3
+      semver:
+        specifier: ^7.6.0
+        version: 7.7.3
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -79,6 +85,9 @@ importers:
       '@types/node':
         specifier: ^22.15.29
         version: 22.19.3
+      '@types/semver':
+        specifier: ^7.5.0
+        version: 7.7.1
       aws-cdk:
         specifier: ^2.170.0
         version: 2.1100.1
@@ -1562,6 +1571,9 @@ packages:
   '@types/react@19.2.7':
     resolution: {integrity: sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg==}
 
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
+
   '@typescript-eslint/eslint-plugin@8.51.0':
     resolution: {integrity: sha512-XtssGWJvypyM2ytBnSnKtHYOGT+4ZwTnBVl36TA4nRO2f4PRNGz5/1OszHzcZCvcBMh+qb7I06uoCmLTRdR9og==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -1762,6 +1774,12 @@ packages:
 
   caniuse-lite@1.0.30001762:
     resolution: {integrity: sha512-PxZwGNvH7Ak8WX5iXzoK1KPZttBXNPuaOvI2ZYU7NrlM+d9Ov+TUvlLOBNGzVXAntMSMMlJPd+jY6ovrVjSmUw==}
+
+  cdk-ecr-deployment@4.2.16:
+    resolution: {integrity: sha512-+5mB0ZS02N84cV9SXQUjhY2dc0l7eDope7GQTC4jmb63ZDDnNNL9PW1MDWInCnfeN7rNi4V4SUrpvmcBjrwXJA==}
+    peerDependencies:
+      aws-cdk-lib: ^2.80.0
+      constructs: ^10.5.1
 
   chai@5.3.3:
     resolution: {integrity: sha512-4zNhdJD/iOjSH0A05ea+Ke6MU5mmpQcbQsSOkgdaUMJ9zTlDTD/GYlwohmIE2u0gaxHYiVHEn1Fw9mZ/ktJWgw==}
@@ -4209,6 +4227,8 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
+  '@types/semver@7.7.1': {}
+
   '@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
@@ -4439,6 +4459,11 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001762: {}
+
+  cdk-ecr-deployment@4.2.16(aws-cdk-lib@2.233.0(constructs@10.4.4))(constructs@10.4.4):
+    dependencies:
+      aws-cdk-lib: 2.233.0(constructs@10.4.4)
+      constructs: 10.4.4
 
   chai@5.3.3:
     dependencies:

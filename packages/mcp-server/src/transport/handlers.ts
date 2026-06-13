@@ -3,6 +3,7 @@ import type { CryptoKey } from "jose";
 import type { McpServerConfig, SpaceAccess, ScriptConfig } from "../config/schema.js";
 import { matchSpacePattern } from "../config/schema.js";
 import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
+import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logToolCall } from "../logging/logger.js";
@@ -237,8 +238,10 @@ export function createTransportHandlers(
     options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
-    const resourceMetadataUrl = `${config.base_url}/.well-known/oauth-protected-resource`;
-    const auth = jwtAuth(verifyKeys, resourceMetadataUrl);
+    const auth = jwtAuth(
+        verifyKeys,
+        (c) => `${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource`,
+    );
     const hasScript = !!options?.runScript;
 
     app.post("/mcp", auth, async (c) => {
@@ -261,7 +264,7 @@ export function createTransportHandlers(
             if (requestedSpace && !resolveSpaceToken(token, requestedSpace)) {
                 c.header(
                     "WWW-Authenticate",
-                    `Bearer error="insufficient_scope", resource_metadata="${resourceMetadataUrl}"`,
+                    `Bearer error="insufficient_scope", resource_metadata="${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource"`,
                 );
                 return c.json(
                     { error: "insufficient_scope", error_description: `スペース '${requestedSpace}' は認証されていません。認証ページで追加してください。` },

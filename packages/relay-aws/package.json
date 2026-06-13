@@ -22,8 +22,10 @@
     "@backlog-cli/mcp-server": "workspace:*",
     "aws-cdk-lib": "^2.170.0",
     "bcryptjs": "^3.0.3",
+    "cdk-ecr-deployment": "^4.2.16",
     "constructs": "^10.4.0",
     "hono": "^4.7.11",
+    "semver": "^7.6.0",
     "source-map-support": "^0.5.21"
   },
   "peerDependencies": {
@@ -44,6 +46,7 @@
     "@types/aws-lambda": "^8.10.159",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.15.29",
+    "@types/semver": "^7.5.0",
     "aws-cdk": "^2.170.0",
     "esbuild": "^0.27.2",
     "tsx": "^4.21.0",

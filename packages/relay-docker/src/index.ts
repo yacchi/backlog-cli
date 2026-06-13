@@ -22,7 +22,7 @@ import {
 } from "@backlog-cli/mcp-server";
 import { loadPortalAssets } from "./portal-assets.js";
 import { selectConfigSource } from "./config-source.js";
-import { createUnifiedApp } from "./app.js";
+import { createUnifiedApp, restoreMcpAuthorization } from "./app.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -145,7 +145,9 @@ export async function startServer(): Promise<void> {
   }
 
   serve({
-    fetch: app.fetch,
+    // restoreMcpAuthorization is a no-op outside CloudFront; baked in so the
+    // same image works as a Lambda container behind OAC.
+    fetch: (request: Request) => app.fetch(restoreMcpAuthorization(request)),
     port,
     hostname: host,
   });

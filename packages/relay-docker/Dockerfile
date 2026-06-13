@@ -55,9 +55,19 @@ RUN deno compile \
       sandbox-worker.mjs
 
 # ---- Final runtime image ----
-FROM node:24-slim
+# Distroless (debian12-based): no shell, no apt, no package manager — smaller and
+# a reduced attack surface. debian12 provides glibc, so the glibc-dynamic
+# deno-compiled sandbox worker and the static Go binary both run. The image's
+# ENTRYPOINT is node, so CMD carries only the script path.
+FROM gcr.io/distroless/nodejs24-debian12
 # Lambda Web Adapter: makes the same HTTP server runnable as a Lambda container.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.0.1 /lambda-adapter /opt/extensions/lambda-adapter
+
+# Link the GHCR package to the backlog-cli repository (appears under the repo's
+# Packages and inherits its permissions). GHCR reads this label on push.
+LABEL org.opencontainers.image.source="https://github.com/yacchi/backlog-cli" \
+      org.opencontainers.image.title="backlog-relay" \
+      org.opencontainers.image.description="Backlog OAuth Relay + MCP server (unified runtime)"
 
 WORKDIR /app
 
@@ -76,4 +86,5 @@ ENV BACKLOG_BIN_PATH=/app/bin/backlog
 ENV SANDBOX_WORKER_PATH=/app/bin/sandbox-worker
 
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+# ENTRYPOINT is node (provided by the distroless image).
+CMD ["dist/index.js"]

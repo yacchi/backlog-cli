@@ -11,7 +11,9 @@ export const ScriptConfigSchema = z.object({
 });
 
 export const McpServerConfigSchema = z.object({
-    base_url: z.string().url(),
+    // Optional explicit OAuth issuer. When omitted, the base URL is derived from
+    // the request host at runtime (see resolveBaseUrl).
+    base_url: z.string().url().optional(),
     relay_url: z.string().url().optional(),
     backlog_app: z.object({
         client_id: z.string().min(1),

@@ -69,7 +69,10 @@ export function loadBypassToken(): TokenPayload | null {
     return parsed;
 }
 
-export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?: string) {
+export function jwtAuth(
+    verifyKeys: Map<string, CryptoKey>,
+    resourceMetadataUrl?: (c: Context) => string,
+) {
     const bypassToken = loadBypassToken();
     if (bypassToken) {
         // eslint-disable-next-line no-console
@@ -80,8 +83,9 @@ export function jwtAuth(verifyKeys: Map<string, CryptoKey>, resourceMetadataUrl?
     }
 
     function unauthorized(c: Context, description: string) {
-        const wwwAuth = resourceMetadataUrl
-            ? `Bearer resource_metadata="${resourceMetadataUrl}"`
+        const url = resourceMetadataUrl?.(c);
+        const wwwAuth = url
+            ? `Bearer resource_metadata="${url}"`
             : "Bearer";
         c.header("WWW-Authenticate", wwwAuth);
         return c.json(
