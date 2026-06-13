@@ -29,8 +29,31 @@ const SCOPE_PATTERN = /^backlog:(.+)$/;
 const COOKIE_PREFIX = "bl_space_";
 const COOKIE_MAX_AGE = 300;
 
-function spaceCookieName(space: string): string {
-    return COOKIE_PREFIX + btoa(space).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+function base64url(input: string): string {
+    return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Derive a stable fingerprint of the authorize session JWT. The session string
+ * is embedded once per /mcp/authorize page render, so all popups and the
+ * status/complete calls of one page produce the same fingerprint, while
+ * distinct authorize sessions (different client/state) produce different ones.
+ */
+export async function sessionFingerprint(session: string): Promise<string> {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(session));
+    const bytes = new Uint8Array(digest);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return base64url(bin);
+}
+
+/**
+ * Cookie name binds the space token to the authorize session (sid). A different
+ * session computes a different name and therefore cannot observe or consume
+ * another session's space cookie, even within the same browser/origin.
+ */
+export function spaceCookieName(space: string, sid: string): string {
+    return COOKIE_PREFIX + base64url(`${space}:${sid}`);
 }
 
 export function parseScopes(
@@ -97,12 +120,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         return payload as unknown as AuthorizeState;
     }
 
-    async function readSpaceCookie(c: Context, ref: SpaceRef): Promise<SpaceToken | null> {
-        const name = spaceCookieName(ref.space);
+    async function readSpaceCookie(c: Context, ref: SpaceRef, sid: string): Promise<SpaceToken | null> {
+        const name = spaceCookieName(ref.space, sid);
         const value = getCookie(c, name);
         if (!value) return null;
         try {
             const payload = await verify(value, verifyKeys);
+            // Defense in depth: the cookie payload must be bound to this session.
+            if ((payload as { sid?: string }).sid !== sid) return null;
             return payload as unknown as SpaceToken;
         } catch {
             return null;
@@ -303,11 +328,13 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.html(errorPage("セッションの有効期限切れ", "もう一度お試しください"), 400);
         }
 
+        const sid = await sessionFingerprint(session);
         const now = Math.floor(Date.now() / 1000);
         const signedState = await sign(
             {
                 space,
                 popup: true,
+                sid,
                 iat: now,
                 exp: now + 600,
             },
@@ -375,6 +402,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const now = Math.floor(Date.now() / 1000);
 
         if (authorizeState.popup) {
+            const sid = authorizeState.sid;
+            if (!sid) {
+                return c.html(
+                    errorPage("セッションの有効期限切れ", "もう一度お試しください"),
+                    400,
+                );
+            }
+
             const spaceToken: SpaceToken = {
                 space: authorizeState.space,
                 bl_access_token: backlogTokens.access_token,
@@ -383,12 +418,12 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             };
 
             const cookieValue = await sign(
-                spaceToken as unknown as Record<string, unknown>,
+                { ...spaceToken, sid } as unknown as Record<string, unknown>,
                 signingKey,
                 signingKid,
             );
 
-            setCookie(c, spaceCookieName(authorizeState.space), cookieValue, {
+            setCookie(c, spaceCookieName(authorizeState.space, sid), cookieValue, {
                 httpOnly: true,
                 secure: true,
                 sameSite: "Lax",
@@ -436,11 +471,12 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.json({ error: "invalid session" }, 400);
         }
 
+        const sid = await sessionFingerprint(session);
         const spaceHosts = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
         const statuses: Array<{ space: string; authenticated: boolean }> = [];
         for (const space of spaceHosts) {
             const ref = { space };
-            const token = await readSpaceCookie(c, ref);
+            const token = await readSpaceCookie(c, ref, sid);
             statuses.push({
                 space,
                 authenticated: token !== null,
@@ -476,11 +512,12 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.html(errorPage("セッションの有効期限切れ", "もう一度お試しください"), 400);
         }
 
+        const sid = await sessionFingerprint(session);
         const spaceHosts = spacesParam ? spacesParam.split(",").filter(Boolean) : [];
         const spaceTokens: SpaceToken[] = [];
         for (const space of spaceHosts) {
             const ref = { space };
-            const token = await readSpaceCookie(c, ref);
+            const token = await readSpaceCookie(c, ref, sid);
             if (token) {
                 spaceTokens.push(token);
             }
@@ -518,7 +555,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         // Clear space cookies
         for (const t of spaceTokens) {
-            setCookie(c, spaceCookieName(t.space), "", {
+            setCookie(c, spaceCookieName(t.space, sid), "", {
                 httpOnly: true,
                 secure: true,
                 sameSite: "Lax",

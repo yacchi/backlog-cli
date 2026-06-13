@@ -300,6 +300,121 @@ describe("GET /health", () => {
     });
 });
 
+describe("space cookie session binding", () => {
+    async function getAuthorizeSession(app: Awaited<ReturnType<typeof createMcpApp>>, state: string): Promise<string> {
+        const regRes = await app.request("/mcp/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ redirect_uris: ["https://example.com/cb"] }),
+        });
+        const { client_id } = (await regRes.json()) as { client_id: string };
+        const params = new URLSearchParams({
+            client_id,
+            redirect_uri: "https://example.com/cb",
+            response_type: "code",
+            state,
+            code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            code_challenge_method: "S256",
+            scope: "backlog:mycompany.backlog.jp",
+        });
+        const res = await app.request(`/mcp/authorize?${params}`);
+        const html = await res.text();
+        const m = html.match(/const SESSION = "([^"]+)"/);
+        if (!m) throw new Error("session not found in auth page");
+        return m[1];
+    }
+
+    async function craftSpaceCookie(space: string, sid: string): Promise<{ name: string; value: string }> {
+        const { spaceCookieName } = await import("./handlers.js");
+        const { sign, loadSigningKeys } = await import("../crypto/jwt.js");
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+        const value = await sign(
+            {
+                space,
+                bl_access_token: "bl-at",
+                bl_refresh_token: "bl-rt",
+                bl_expires_at: now + 3600,
+                sid,
+            },
+            keys.signingKey,
+            keys.signingKid,
+        );
+        return { name: spaceCookieName(space, sid), value };
+    }
+
+    it("status: session B cannot see a space cookie authenticated under session A", async () => {
+        await initTestKeys();
+        const { sessionFingerprint } = await import("./handlers.js");
+        const app = await createMcpApp({ config: makeConfig() });
+
+        const sessionA = await getAuthorizeSession(app, "state-A");
+        const sessionB = await getAuthorizeSession(app, "state-B");
+        expect(sessionA).not.toBe(sessionB);
+
+        const sidA = await sessionFingerprint(sessionA);
+        const space = "mycompany.backlog.jp";
+        const cookie = await craftSpaceCookie(space, sidA);
+
+        // Session A sees its own authenticated space.
+        const resA = await app.request(
+            `/mcp/authorize/status?session=${encodeURIComponent(sessionA)}&spaces=${encodeURIComponent(space)}`,
+            { headers: { Cookie: `${cookie.name}=${cookie.value}` } },
+        );
+        const bodyA = (await resA.json()) as { spaces: Array<{ space: string; authenticated: boolean }> };
+        expect(bodyA.spaces[0].authenticated).toBe(true);
+
+        // Session B (same browser, same cookie jar) must NOT observe it.
+        const resB = await app.request(
+            `/mcp/authorize/status?session=${encodeURIComponent(sessionB)}&spaces=${encodeURIComponent(space)}`,
+            { headers: { Cookie: `${cookie.name}=${cookie.value}` } },
+        );
+        const bodyB = (await resB.json()) as { spaces: Array<{ space: string; authenticated: boolean }> };
+        expect(bodyB.spaces[0].authenticated).toBe(false);
+    });
+
+    it("complete: session B cannot mint a code from session A's space cookie", async () => {
+        await initTestKeys();
+        const { sessionFingerprint } = await import("./handlers.js");
+        const app = await createMcpApp({ config: makeConfig() });
+
+        const sessionA = await getAuthorizeSession(app, "state-A");
+        const sessionB = await getAuthorizeSession(app, "state-B");
+
+        const sidA = await sessionFingerprint(sessionA);
+        const space = "mycompany.backlog.jp";
+        const cookie = await craftSpaceCookie(space, sidA);
+
+        // Session B tries to complete using A's cookie → no usable token → error.
+        const resB = await app.request("/mcp/authorize/complete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: `${cookie.name}=${cookie.value}`,
+            },
+            body: new URLSearchParams({ session: sessionB, spaces: space }).toString(),
+        });
+        // Returns the "no authenticated space" error page (400), never a redirect with a code.
+        expect(resB.status).toBe(400);
+        expect(resB.headers.get("location")).toBeNull();
+
+        // Session A completes successfully with its own cookie.
+        const resA = await app.request("/mcp/authorize/complete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: `${cookie.name}=${cookie.value}`,
+            },
+            body: new URLSearchParams({ session: sessionA, spaces: space }).toString(),
+        });
+        expect(resA.status).toBe(302);
+        const loc = resA.headers.get("location");
+        expect(loc).toBeTruthy();
+        expect(loc).toContain("code=");
+        expect(loc).toContain("state=state-A");
+    });
+});
+
 describe("parseScopes with space patterns", () => {
     it("filters scopes by space patterns", async () => {
         const { parseScopes } = await import("./handlers.js");
