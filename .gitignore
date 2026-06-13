@@ -44,5 +44,8 @@ verification_targets.txt
 **/dist/
 **/.vite/
 
+# Deno / Pyodide ビルドキャッシュ（mcp-server サンドボックス）
+**/.deno-cache/
+
 # Markdown migration workspace
 backlog-markdown-migrate/
