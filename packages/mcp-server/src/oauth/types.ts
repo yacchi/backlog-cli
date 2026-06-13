@@ -55,4 +55,6 @@ export interface AuthorizeState {
     space: string;
     requiredSpaces?: SpaceRef[];
     popup?: boolean;
+    /** Fingerprint of the authorize session that initiated a popup auth. */
+    sid?: string;
 }
