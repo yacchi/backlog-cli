@@ -311,7 +311,14 @@ export class RelayStack extends cdk.Stack {
                 `chmod +x "${outputDir}/bin/backlog"`,
                 // Sandbox worker — compile to standalone binary with deno compile
                 // Uses isolated temp dir to avoid node_modules interference from mcp-server
-                `if [ -f "${compiledWorker}" ]; then cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; else tmpdir=$(mktemp -d) && cp "${workerSrc}" "$tmpdir/" && DENO_TLS_CA_STORE=system deno compile --target aarch64-unknown-linux-gnu --allow-read --allow-write=/tmp --allow-net=127.0.0.1 --output "${compiledWorker}" "$tmpdir/sandbox-worker.mjs" && rm -rf "$tmpdir" && cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; fi`,
+                // SECURITY: bake ONLY --allow-net=127.0.0.1 into the compiled binary.
+                // deno compile embeds the Pyodide wasm/stdlib assets into the binary's
+                // virtual filesystem, so no --allow-read is needed at runtime. Granting
+                // --allow-read (especially unrestricted) or --allow-write would let a
+                // submitted Python script escape the Pyodide sandbox via `import js`
+                // (which exposes the full Deno API) and read arbitrary files such as
+                // /proc/self/environ. Net is scoped to loopback for the IPC callback.
+                `if [ -f "${compiledWorker}" ]; then cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; else tmpdir=$(mktemp -d) && cp "${workerSrc}" "$tmpdir/" && DENO_TLS_CA_STORE=system deno compile --target aarch64-unknown-linux-gnu --allow-net=127.0.0.1 --output "${compiledWorker}" "$tmpdir/sandbox-worker.mjs" && rm -rf "$tmpdir" && cp "${compiledWorker}" "${outputDir}/bin/sandbox-worker"; fi`,
                 `chmod +x "${outputDir}/bin/sandbox-worker"`,
               );
             }
