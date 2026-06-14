@@ -38,24 +38,30 @@ import {
 } from "@yacchi/backlog-mcp-server";
 
 /**
- * AsyncLocalStorage for propagating request-scoped fields (requestId) into
- * audit logs without passing them through every handler call site.
+ * AsyncLocalStorage for propagating request-scoped Logger into audit logs.
+ * The stored Logger already carries requestId / clientIp / userAgent bindings,
+ * so audit events inherit them automatically.
  */
-const requestContextStore = new AsyncLocalStorage<{ requestId: string }>();
+const loggerContextStore = new AsyncLocalStorage<{ logger: Logger }>();
 
 /**
- * Wrap an AuditLogger so that every event automatically receives the requestId
- * stored in the current AsyncLocalStorage context. Handler code stays unchanged.
+ * Create an AuditLogger that delegates to the request-scoped Logger stored in
+ * AsyncLocalStorage. Falls back to `baseLogger` outside a request context.
+ * This unifies audit event output with the structured Logger format so that
+ * all log lines share the same schema (level, ts, requestId, etc.).
  */
-function withRequestContext(base: AuditLogger): AuditLogger {
+function createLoggerAuditLogger(baseLogger: Logger): AuditLogger {
   return {
     log(event: AuditEvent) {
-      const ctx = requestContextStore.getStore();
-      if (ctx && !event.requestId) {
-        base.log({ ...event, requestId: ctx.requestId });
-      } else {
-        base.log(event);
-      }
+      const ctx = loggerContextStore.getStore();
+      const logger = ctx?.logger ?? baseLogger;
+      const { timestamp, result, ...fields } = event;
+      const level = result === "error" ? "error" : "info";
+      logger[level]({
+        component: "audit",
+        ...fields,
+        result,
+      });
     },
   };
 }
@@ -88,8 +94,6 @@ export function restoreMcpAuthorization(req: Request): Request {
 export interface CreateUnifiedAppOptions {
   /** raw 設定オブジェクト（ConfigSource が secrets をマージ済み）。 */
   rawConfig: Record<string, unknown>;
-  /** 監査ロガー。 */
-  auditLogger: AuditLogger;
   /** Portal SPA アセット（任意）。 */
   portalAssets?: PortalAssets;
   /** MCP の `backlog` ツール用の Backlog CLI バイナリパス。 */
@@ -216,11 +220,18 @@ export function createDirectTokenExchange(
 export async function createUnifiedApp(
   options: CreateUnifiedAppOptions,
 ): Promise<Hono> {
-  const { rawConfig, auditLogger: baseAuditLogger } = options;
-  const auditLogger = withRequestContext(baseAuditLogger);
+  const { rawConfig } = options;
 
   const relayConfig = parseConfig(JSON.stringify(rawConfig));
   const serverJwks = relayConfig.jwks;
+
+  const app = new Hono();
+  const serverConfig = rawConfig.server as { log_level?: string } | undefined;
+  const logLevel = (serverConfig?.log_level ?? "info") as "debug" | "info" | "warn" | "error";
+  const baseLogger = new Logger({}, logLevel);
+  baseLogger.info({ component: "config", log_level: logLevel, log_level_raw: serverConfig?.log_level });
+
+  const auditLogger = createLoggerAuditLogger(baseLogger);
 
   const relayApp = createRelayApp({
     config: relayConfig,
@@ -233,12 +244,6 @@ export async function createUnifiedApp(
     portalAssets: options.portalAssets,
   });
 
-  const app = new Hono();
-  const serverConfig = rawConfig.server as { log_level?: string } | undefined;
-  const logLevel = (serverConfig?.log_level ?? "info") as "debug" | "info" | "warn" | "error";
-  const baseLogger = new Logger({}, logLevel);
-  baseLogger.info({ component: "config", log_level: logLevel, log_level_raw: serverConfig?.log_level });
-
   // Request ID middleware — reuse Lambda Web Adapter's x-amzn-request-id when
   // available, otherwise fall back to a generated UUID. Hono's requestId()
   // checks X-Request-Id first (default headerName), then calls the generator.
@@ -247,7 +252,8 @@ export async function createUnifiedApp(
   }));
 
   // Access log middleware — all requests get IP/UA/method/path/status/duration.
-  // Also populates AsyncLocalStorage so the wrapped audit logger can inject requestId.
+  // Stores the request-scoped Logger in both Hono context and AsyncLocalStorage
+  // so that downstream handlers AND the audit logger share the same bindings.
   app.use("*", async (c: Context, next: Next) => {
     const start = Date.now();
     const rid = c.get("requestId") as string;
@@ -258,7 +264,7 @@ export async function createUnifiedApp(
       userAgent: reqCtx.userAgent,
     });
     c.set(LOGGER_CONTEXT_KEY, requestLogger);
-    await requestContextStore.run({ requestId: rid }, async () => {
+    await loggerContextStore.run({ logger: requestLogger }, async () => {
       await next();
     });
     requestLogger.info({

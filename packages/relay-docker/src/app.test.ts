@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { generateKeyPair, exportJWK } from "jose";
-import { NoopAuditLogger, type AuditEvent, type AuditLogger } from "@yacchi/backlog-relay-core";
 import {
   createUnifiedApp,
   buildMcpConfig,
@@ -194,7 +193,6 @@ describe("createUnifiedApp (relay only)", () => {
   it("serves relay endpoints and does NOT mount MCP", async () => {
     const app = await createUnifiedApp({
       rawConfig: relayOnlyRawConfig(),
-      auditLogger: new NoopAuditLogger(),
     });
 
     const health = await app.request("/health");
@@ -211,24 +209,41 @@ describe("createUnifiedApp (relay only)", () => {
 });
 
 describe("requestId propagation into audit logs", () => {
-  it("injects requestId from requestId middleware into audit events via AsyncLocalStorage", async () => {
-    const events: AuditEvent[] = [];
-    const capturingLogger: AuditLogger = { log: (e) => events.push(e) };
-
-    const app = await createUnifiedApp({
-      rawConfig: relayOnlyRawConfig(),
-      auditLogger: capturingLogger,
+  it("injects requestId from Logger bindings into audit events", async () => {
+    const lines: string[] = [];
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      lines.push(String(chunk));
+      return true;
     });
 
-    // /auth/callback without code/state triggers an audit error event
-    const res = await app.request("/auth/callback");
-    expect(res.status).toBe(400);
-    expect(events.length).toBeGreaterThan(0);
+    try {
+      const app = await createUnifiedApp({
+        rawConfig: relayOnlyRawConfig(),
+      });
 
-    const event = events[0];
-    expect(event.requestId).toBeDefined();
-    expect(typeof event.requestId).toBe("string");
-    expect(event.requestId!.length).toBeGreaterThan(0);
+      // /auth/callback without code/state triggers an audit error event
+      const res = await app.request("/auth/callback");
+      expect(res.status).toBe(400);
+
+      const auditLines = lines
+        .map((l) => { try { return JSON.parse(l.trim()); } catch { return null; } })
+        .filter((e) => e?.component === "audit");
+
+      expect(auditLines.length).toBeGreaterThan(0);
+
+      const event = auditLines[0];
+      expect(event.requestId).toBeDefined();
+      expect(typeof event.requestId).toBe("string");
+      expect(event.requestId.length).toBeGreaterThan(0);
+      expect(event.level).toBeDefined();
+      expect(event.ts).toBeDefined();
+    } finally {
+      writeSpy.mockRestore();
+    }
   });
 });
 
@@ -236,7 +251,6 @@ describe("createUnifiedApp (relay + MCP)", () => {
   it("mounts both relay and MCP endpoints", async () => {
     const app = await createUnifiedApp({
       rawConfig: mcpEnabledRawConfig(),
-      auditLogger: new NoopAuditLogger(),
     });
 
     const relayWk = await app.request("/.well-known/backlog-oauth-relay");
@@ -249,7 +263,6 @@ describe("createUnifiedApp (relay + MCP)", () => {
   it("dispatches /auth/callback to relay when state is not an MCP JWT", async () => {
     const app = await createUnifiedApp({
       rawConfig: mcpEnabledRawConfig(),
-      auditLogger: new NoopAuditLogger(),
     });
 
     // A non-MCP state must fall through to the relay callback handler
