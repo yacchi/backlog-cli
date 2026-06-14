@@ -226,7 +226,7 @@ export interface RelayConfig extends ParameterStoreConfig {
 export function buildSsmParameterValue(
   value: ParameterStoreValue,
   mcp?: McpConfig,
-): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[] } {
+): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[]; mcpAudit?: McpConfig["audit"]; mcpLogging?: McpConfig["logging"] } {
   const relayTenants: Array<{
     name: string;
     default_space?: string;
