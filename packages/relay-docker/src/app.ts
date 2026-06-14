@@ -207,8 +207,8 @@ export async function createUnifiedApp(
   });
 
   const app = new Hono();
-  const mcpLogging = rawConfig.mcp_logging as { debug?: boolean } | undefined;
-  const logLevel = mcpLogging?.debug ? "debug" as const : "info" as const;
+  const serverConfig = rawConfig.server as { log_level?: string } | undefined;
+  const logLevel = (serverConfig?.log_level ?? "info") as "debug" | "info" | "warn" | "error";
   const baseLogger = new Logger({}, logLevel);
 
   // Access log middleware — all requests get IP/UA/method/path/status/duration.

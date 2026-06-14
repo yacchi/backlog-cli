@@ -17,6 +17,11 @@ import type { RelayConfig } from "@yacchi/backlog-relay-aws-cdk";
 
 export const config: RelayConfig = {
   parameterValue: {
+    // サーバー設定（オプション）
+    // server: {
+    //   log_level: "info",  // "debug" で DCR 詳細等の診断情報を出力
+    // },
+
     // 必須: Backlog アプリの OAuth クレデンシャル
     backlog_app: {
       client_id: "your-client-id",
@@ -67,6 +72,6 @@ export const config: RelayConfig = {
   //   // script: { max_cli_calls: 20, timeout_ms: 30000 },
   //   // default_spaces: ["your-space.backlog.jp"],
   //   // audit: { collect_user_info: true },
-  //   // logging: { debug: false, input: false, output: false },
+  //   // logging: { input: false, output: false },
   // },
 };

@@ -15,7 +15,6 @@ export const AuditConfigSchema = z.object({
 });
 
 export const LoggingConfigSchema = z.object({
-    debug: z.boolean().default(false),
     input: z.boolean().default(false),
     output: z.boolean().default(false),
 });

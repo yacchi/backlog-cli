@@ -138,6 +138,8 @@ export interface ParameterStoreValue {
     port?: number;
     base_url?: string;
     allowed_host_patterns?: string;
+    /** ログレベル。"debug" で DCR 詳細等の診断情報を出力（デフォルト: "info"）。 */
+    log_level?: "debug" | "info" | "warn" | "error";
   };
   backlog_app: BacklogAppInput;
 
@@ -175,7 +177,6 @@ export interface McpConfig {
     collect_user_info?: boolean;
   };
   logging?: {
-    debug?: boolean;
     input?: boolean;
     output?: boolean;
   };
