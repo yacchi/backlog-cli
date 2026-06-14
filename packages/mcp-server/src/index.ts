@@ -55,7 +55,7 @@ export async function createMcpApp(options: CreateMcpAppOptions): Promise<Hono> 
         tokenExchange: options.tokenExchange,
         callbackPath: options.callbackPath,
     }));
-    app.route("/", createTransportHandlers(config, keys.verifyKeys, {
+    app.route("/", createTransportHandlers(config, keys, {
         binPath: options.binPath,
         runScript: options.runScript,
     }));

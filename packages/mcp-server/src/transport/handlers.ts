@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import type { CryptoKey } from "jose";
 import type { McpServerConfig, SpaceAccess, ScriptConfig } from "../config/schema.js";
 import { matchSpacePattern } from "../config/schema.js";
 import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
@@ -7,7 +6,7 @@ import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
 import { logToolCall } from "../logging/logger.js";
-import type { TokenPayload } from "../crypto/jwt.js";
+import type { TokenPayload, SigningKeys } from "../crypto/jwt.js";
 import { listSpaceEntries } from "../crypto/jwt.js";
 
 export interface ScriptFile {
@@ -234,10 +233,11 @@ const SKILL_PROMPT = {
 
 export function createTransportHandlers(
     config: McpServerConfig,
-    verifyKeys: Map<string, CryptoKey>,
+    keys: SigningKeys,
     options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
+    const { verifyKeys, encKeys } = keys;
     const auth = jwtAuth(
         verifyKeys,
         (c) => `${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource`,
@@ -261,7 +261,7 @@ export function createTransportHandlers(
         if (req.method === "tools/call") {
             const toolParams = req.params as { arguments?: Record<string, unknown> } | undefined;
             const requestedSpace = toolParams?.arguments?.space as string | undefined;
-            if (requestedSpace && !resolveSpaceToken(token, requestedSpace)) {
+            if (requestedSpace && !(await resolveSpaceToken(token, encKeys, requestedSpace))) {
                 c.header(
                     "WWW-Authenticate",
                     `Bearer error="insufficient_scope", resource_metadata="${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource"`,
@@ -362,7 +362,7 @@ export function createTransportHandlers(
         const toolName = params?.name;
         const toolArgs = params?.arguments ?? {};
         const requestedSpace = toolArgs.space as string | undefined;
-        const resolved = resolveSpaceToken(token, requestedSpace);
+        const resolved = await resolveSpaceToken(token, encKeys, requestedSpace);
         if (!resolved) {
             const spaceEntries = listSpaceEntries(token);
             const authenticated = spaceEntries.length > 0

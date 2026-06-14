@@ -3,6 +3,7 @@ import type { CryptoKey } from "jose";
 import { verifyToken } from "../crypto/jwt.js";
 import type { TokenPayload, SpaceAccessEntry } from "../crypto/jwt.js";
 import { getSpaceEntry, listSpaceEntries } from "../crypto/jwt.js";
+import { open } from "../crypto/secret.js";
 
 export interface AuthContext {
     token: TokenPayload;
@@ -14,32 +15,37 @@ export function getAuthContext(c: Context): AuthContext {
     return c.get(AUTH_CONTEXT_KEY) as AuthContext;
 }
 
-export function resolveSpaceToken(
+/**
+ * Resolve the (decrypted) Backlog access token for the requested space.
+ *
+ * The `at` carried in the token is a sealed JWE; it is opened here with the
+ * server-held encryption key. A token whose `at` cannot be opened (legacy
+ * plaintext, wrong/unknown key, tampering) resolves to `null`, which callers
+ * surface as "space not authenticated" → re-authentication.
+ */
+export async function resolveSpaceToken(
     token: TokenPayload,
+    encKeys: Map<string, Uint8Array>,
     requestedSpace?: string,
-): { space: string; bl_access_token: string } | null {
-    if (!requestedSpace) {
-        const entry = getSpaceEntry(token, token.space);
-        if (entry && "at" in entry) {
-            return { space: token.space, bl_access_token: entry.at };
-        }
-        if (token.bl_access_token) {
-            return { space: token.space, bl_access_token: token.bl_access_token };
-        }
+): Promise<{ space: string; bl_access_token: string } | null> {
+    const domain = requestedSpace ?? token.space;
+
+    let sealed: string | undefined;
+    const entry = getSpaceEntry(token, domain);
+    if (entry && "at" in entry) {
+        sealed = (entry as SpaceAccessEntry).at;
+    } else if (token.space === domain && token.bl_access_token) {
+        // Legacy single-space fallback (top-level bl_access_token).
+        sealed = token.bl_access_token;
+    }
+    if (!sealed) return null;
+
+    try {
+        const at = await open(sealed, (kid) => encKeys.get(kid), { sp: domain, use: "at" });
+        return { space: domain, bl_access_token: at };
+    } catch {
         return null;
     }
-
-    const entry = getSpaceEntry(token, requestedSpace);
-    if (entry && "at" in entry) {
-        return { space: requestedSpace, bl_access_token: (entry as SpaceAccessEntry).at };
-    }
-
-    // Legacy single-space fallback
-    if (token.space === requestedSpace && token.bl_access_token) {
-        return { space: token.space, bl_access_token: token.bl_access_token };
-    }
-
-    return null;
 }
 
 /**

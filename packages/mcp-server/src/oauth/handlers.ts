@@ -5,6 +5,7 @@ import { matchSpacePattern } from "../config/schema.js";
 import { resolveBaseUrl } from "../base-url.js";
 import { sign, verify, signToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
+import { seal, open } from "../crypto/secret.js";
 import type {
     DcrRequest,
     DcrResponse,
@@ -90,7 +91,20 @@ export function parseScopes(
 
 export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, options?: OAuthHandlerOptions): Hono {
     const app = new Hono();
-    const { signingKey, signingKid, verifyKeys } = keys;
+    const { signingKey, signingKid, verifyKeys, encKeys } = keys;
+
+    // Active encryption key, derived from the current signing key. Used to seal
+    // raw Backlog tokens before they leave the server inside any JWT/cookie.
+    const sealKey = encKeys.get(signingKid);
+    if (!sealKey) {
+        throw new Error(`No encryption key derived for active signing kid ${signingKid}`);
+    }
+    /** Seal a raw Backlog token value (sp/use bind it to its slot). */
+    const sealValue = (domain: string, use: "at" | "rt", value: string) =>
+        seal(value, sealKey, signingKid, domain, use);
+    /** Open a sealed value; throws DecryptError on legacy plaintext / bad key. */
+    const openValue = (domain: string, use: "at" | "rt", value: string) =>
+        open(value, (kid) => encKeys.get(kid), { sp: domain, use });
 
     const tokenExchange = options?.tokenExchange;
 
@@ -417,8 +431,8 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
             const spaceToken: SpaceToken = {
                 space: authorizeState.space,
-                bl_access_token: backlogTokens.access_token,
-                bl_refresh_token: backlogTokens.refresh_token,
+                bl_access_token: await sealValue(authorizeState.space, "at", backlogTokens.access_token),
+                bl_refresh_token: await sealValue(authorizeState.space, "rt", backlogTokens.refresh_token),
                 bl_expires_at: now + backlogTokens.expires_in,
             };
 
@@ -443,8 +457,8 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         // Legacy single-space flow (no popup flag)
         const mcpCode = await signToken(
             {
-                bl_access_token: backlogTokens.access_token,
-                bl_refresh_token: backlogTokens.refresh_token,
+                bl_access_token: await sealValue(authorizeState.space, "at", backlogTokens.access_token),
+                bl_refresh_token: await sealValue(authorizeState.space, "rt", backlogTokens.refresh_token),
                 bl_expires_at: now + backlogTokens.expires_in,
                 space: authorizeState.space,
                 iat: now,
@@ -780,9 +794,20 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             const expirations: number[] = [];
 
             for (const entry of refreshEntries) {
+                let rt: string;
+                try {
+                    rt = await openValue(entry.domain, "rt", entry.rt);
+                } catch {
+                    return jsonError(
+                        c,
+                        400,
+                        "invalid_grant",
+                        `Stale refresh token for ${entry.domain}. Re-authentication required.`,
+                    );
+                }
                 let tokens: TokenResponse;
                 try {
-                    tokens = await doRefreshToken(entry.domain, entry.rt);
+                    tokens = await doRefreshToken(entry.domain, rt);
                 } catch {
                     return jsonError(
                         c,
@@ -793,8 +818,8 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 }
                 const now = Math.floor(Date.now() / 1000);
                 const expiresAt = now + tokens.expires_in;
-                setSpaceAccess(accessEntries, entry.domain, tokens.access_token, expiresAt);
-                setSpaceRefresh(newRefreshEntries, entry.domain, tokens.refresh_token);
+                setSpaceAccess(accessEntries, entry.domain, await sealValue(entry.domain, "at", tokens.access_token), expiresAt);
+                setSpaceRefresh(newRefreshEntries, entry.domain, await sealValue(entry.domain, "rt", tokens.refresh_token));
                 expirations.push(expiresAt);
             }
 
@@ -847,9 +872,16 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             space = `${space}.${(refreshPayload as any).domain}`;
         }
 
+        let rt: string;
+        try {
+            rt = await openValue(space, "rt", bl_refresh_token);
+        } catch {
+            return jsonError(c, 400, "invalid_grant", "Stale refresh token. Re-authentication required.");
+        }
+
         let backlogTokens: TokenResponse;
         try {
-            backlogTokens = await doRefreshToken(space, bl_refresh_token);
+            backlogTokens = await doRefreshToken(space, rt);
         } catch (err) {
             return jsonError(
                 c,
@@ -863,11 +895,11 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const expiresAt = now + backlogTokens.expires_in;
 
         const newAccessPayload: Record<string, unknown> = { space, iat: now, exp: expiresAt };
-        setSpaceAccess(newAccessPayload, space, backlogTokens.access_token, expiresAt);
+        setSpaceAccess(newAccessPayload, space, await sealValue(space, "at", backlogTokens.access_token), expiresAt);
         const accessTokenJwt = await sign(newAccessPayload, signingKey, signingKid);
 
         const newRefreshPayload: Record<string, unknown> = { space, iat: now };
-        setSpaceRefresh(newRefreshPayload, space, backlogTokens.refresh_token);
+        setSpaceRefresh(newRefreshPayload, space, await sealValue(space, "rt", backlogTokens.refresh_token));
         const refreshTokenJwt = await sign(newRefreshPayload, signingKey, signingKid);
 
         return c.json({

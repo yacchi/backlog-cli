@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createMcpApp } from "../index.js";
 import { loadSigningKeys, signToken } from "../crypto/jwt.js";
+import { seal } from "../crypto/secret.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
 import type { TokenPayload } from "../crypto/jwt.js";
@@ -30,12 +31,19 @@ function makeConfig(): McpServerConfig {
     };
 }
 
+/** Seal a raw Backlog access token the way the server does before issuing it. */
+async function sealAt(domain: string, value: string): Promise<string> {
+    const keys = await loadSigningKeys(testJwksJson);
+    const sealKey = keys.encKeys.get(keys.signingKid)!;
+    return seal(value, sealKey, keys.signingKid, domain, "at");
+}
+
 async function makeAccessToken(): Promise<string> {
     const keys = await loadSigningKeys(testJwksJson);
     const now = Math.floor(Date.now() / 1000);
     return signToken(
         {
-            bl_access_token: "test-backlog-token",
+            bl_access_token: await sealAt("mycompany.backlog.jp", "test-backlog-token"),
             bl_expires_at: now + 3600,
             space: "mycompany.backlog.jp",
             iat: now,
@@ -290,12 +298,12 @@ describe("MCP transport — space access control", () => {
         const now = Math.floor(Date.now() / 1000);
         const token = await signToken(
             {
-                bl_access_token: "primary-token",
+                bl_access_token: await sealAt("mycompany.backlog.jp", "primary-token"),
                 bl_expires_at: now + 3600,
                 space: "mycompany.backlog.jp",
                 spaces: [
-                    { space: "mycompany.backlog.jp", bl_access_token: "primary-token", bl_refresh_token: "r1", bl_expires_at: now + 3600 },
-                    { space: "rogue.backlog.jp", bl_access_token: "rogue-token", bl_refresh_token: "r2", bl_expires_at: now + 3600 },
+                    { space: "mycompany.backlog.jp", bl_access_token: await sealAt("mycompany.backlog.jp", "primary-token"), bl_refresh_token: "r1", bl_expires_at: now + 3600 },
+                    { space: "rogue.backlog.jp", bl_access_token: await sealAt("rogue.backlog.jp", "rogue-token"), bl_refresh_token: "r2", bl_expires_at: now + 3600 },
                 ],
                 iat: now,
                 exp: now + 3600,
