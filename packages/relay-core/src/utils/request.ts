@@ -27,7 +27,9 @@ export function extractRequestContext(c: Context): RequestContext {
   const req = c.req;
 
   // Get client IP from various headers (in priority order)
+  // x-viewer-ip: set by our CloudFront Function from event.viewer.ip (true viewer IP)
   const clientIp =
+    req.header("x-viewer-ip") ||
     req.header("cf-connecting-ip") ||
     req.header("x-real-ip") ||
     req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
