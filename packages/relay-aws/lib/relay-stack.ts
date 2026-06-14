@@ -585,6 +585,7 @@ export class RelayStack extends cdk.Stack {
         "Origin",
         "Referer",
         "X-Original-Host",
+        "X-Original-User-Agent",
         "X-MCP-Authorization",
       ),
       queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),

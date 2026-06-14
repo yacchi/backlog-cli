@@ -33,8 +33,8 @@ export function extractRequestContext(c: Context): RequestContext {
     req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
 
-  // Get user agent
-  const userAgent = req.header("user-agent") || "unknown";
+  // Get user agent (x-original-user-agent preserves viewer UA behind CloudFront)
+  const userAgent = req.header("x-original-user-agent") || req.header("user-agent") || "unknown";
 
   // Get host from headers
   // x-original-host is used by CloudFront (x-forwarded-host is reserved)
