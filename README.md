@@ -549,8 +549,7 @@ backlog completion fish >~/.config/fish/completions/backlog.fish
 
 | スキル             | 説明                   |
 |-----------------|----------------------|
-| `backlog`       | プロジェクト・Wiki・PR・認証の操作 |
-| `backlog-issue` | 課題キーパターン検出と課題操作      |
+| `backlog` | 課題・プロジェクト・Wiki・PR・ドキュメント・認証などの操作（課題キー `PROJECT-123` 検出で自動起動） |
 
 ### 機能
 
