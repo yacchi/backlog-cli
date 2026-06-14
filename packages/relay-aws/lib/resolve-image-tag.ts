@@ -2,9 +2,10 @@
  * Resolve the image tag to deploy from the container registry.
  *
  * When the deployer does not pin an explicit tag, the latest semver tag is
- * selected from the registry's tag list at synth time. Stable releases and
- * prereleases are kept in separate buckets so a `0.19.1` release is never
- * shadowed by — nor accidentally replaced with — its `0.19.1-rc.1` prerelease.
+ * selected from the registry's tag list at synth time. Stable selection
+ * excludes prereleases so a `0.19.1` release is never shadowed by its
+ * `0.19.1-rc.1` prerelease. Prerelease selection includes stable tags too,
+ * so it always tracks the highest version overall (a newer stable still wins).
  *
  * Registry API: the standard OCI distribution `/v2/<repo>/tags/list` with an
  * anonymous bearer token. Verified against GHCR; other registries that follow
@@ -15,8 +16,9 @@ import * as semver from "semver";
 
 export interface ResolveImageTagOptions {
   /**
-   * When true, select the highest *prerelease* tag (to target a dev build).
-   * When false/omitted, select the highest *stable* release.
+   * When true, select the highest tag including prereleases (to track dev
+   * builds while still picking up a newer stable release if one exists).
+   * When false/omitted, select the highest *stable* release only.
    */
   prerelease?: boolean;
 }
@@ -95,8 +97,15 @@ export async function resolveLatestImageTag(
     if (!semver.valid(t)) {
       return false;
     }
-    const isPrerelease = (semver.prerelease(t)?.length ?? 0) > 0;
-    return wantPrerelease ? isPrerelease : !isPrerelease;
+    // Stable selection excludes prereleases so a `0.19.1` release is never
+    // shadowed by its `0.19.1-rc.1` prerelease. Prerelease selection is a
+    // superset: it includes stable tags too, so a newer stable (e.g. `0.20.0`)
+    // still wins over an older `0.19.1-rc.1` — the highest version overall is
+    // chosen by semver.rcompare below.
+    if (wantPrerelease) {
+      return true;
+    }
+    return (semver.prerelease(t)?.length ?? 0) === 0;
   });
 
   if (candidates.length === 0) {

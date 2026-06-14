@@ -13,7 +13,8 @@ const app = new cdk.App();
 // Resolve the container image tag before constructing the stack (CDK constructs
 // cannot be async). An explicit config.image.tag wins; otherwise the latest
 // semver tag is resolved from the registry — stable by default, or the latest
-// prerelease when image.prerelease is true.
+// tag including prereleases when image.prerelease is true (a newer stable
+// still wins).
 const imageSource = config.image?.source ?? DEFAULT_IMAGE_SOURCE;
 const imageTag =
   config.image?.tag ??
@@ -24,7 +25,7 @@ const imageTag =
 // eslint-disable-next-line no-console
 console.log(
   `Using container image ${imageSource}:${imageTag}` +
-    (config.image?.tag ? " (pinned)" : config.image?.prerelease ? " (latest prerelease)" : " (latest stable)"),
+    (config.image?.tag ? " (pinned)" : config.image?.prerelease ? " (latest incl. prerelease)" : " (latest stable)"),
 );
 
 new RelayStack(app, "BacklogRelay", {

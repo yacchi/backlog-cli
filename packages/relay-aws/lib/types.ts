@@ -193,7 +193,9 @@ export interface ContainerImageConfig {
    * Tag-resolution mode when `tag` is omitted:
    * - false (default): pick the highest *stable* release (no prerelease suffix).
    *   This prevents an in-development build from being deployed by accident.
-   * - true: pick the highest *prerelease* tag (to intentionally target a dev build).
+   * - true: pick the highest tag *including* prereleases (to track dev builds);
+   *   a newer stable release still wins, since the highest version overall is
+   *   chosen.
    */
   prerelease?: boolean;
 }
