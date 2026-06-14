@@ -1,0 +1,171 @@
+name: Release Relay Artifacts
+
+# version.txt の変更を起点に、relay/MCP 統合コンテナイメージ（GHCR）と
+# CDK construct パッケージ（@yacchi/backlog-relay-aws-cdk, GitHub Packages）を
+# バージョン連動で公開する。
+#
+# CLI 本体のリリース（タグ + GoReleaser + Homebrew）は release.yml が担当し、
+# こちらは触らない。両ワークフローは同じ version.txt 変更で並行起動する。
+#
+# プレリリース（例 0.20.0-rc.1）でも動作する: npm は `next` dist-tag で公開し、
+# イメージタグはそのまま push する。RC を CLI リリース無しで出したい場合は、
+# version.txt を変えずローカルから手動 push する従来手順も引き続き利用できる。
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'version.txt'
+  # 手動トリガ。version 入力を与えると version.txt の代わりにそのバージョンで公開する
+  # （RC の動作確認用。version.txt を変えないので release.yml は発火しない）。
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.19.2-rc.2). Empty = use version.txt.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/yacchi/backlog-relay
+  GHCR_REPO: yacchi/backlog-relay
+  CDK_PACKAGE: backlog-relay-aws-cdk
+
+jobs:
+  # バージョン解決と冪等ガード（既存タグ / 既存 npm バージョンはスキップ）。
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      image_exists: ${{ steps.image.outputs.exists }}
+      npm_exists: ${{ steps.npm.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from version.txt
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(tr -d '[:space:]' < version.txt)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # SemVer のプレリリースはハイフンを含む（例 0.20.0-rc.1）。
+          if [[ "$VERSION" == *-* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Resolved version: $VERSION"
+
+      - name: Check if container image tag already exists
+        id: image
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # public パッケージは匿名 pull トークンでタグ一覧を取得できる。
+          TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:${GHCR_REPO}:pull" | jq -r '.token')
+          TAGS=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/${GHCR_REPO}/tags/list" | jq -r '.tags // [] | .[]')
+          if echo "$TAGS" | grep -qx "$VERSION"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Image ${IMAGE_NAME}:${VERSION} already exists. Skipping image build."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check if npm package version already exists
+        id: npm
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # 初回公開時は 404（versions 無し）→ exists=false。
+          if gh api "/users/yacchi/packages/npm/${CDK_PACKAGE}/versions" --jq '.[].name' 2>/dev/null | grep -qx "$VERSION"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "@yacchi/${CDK_PACKAGE}@${VERSION} already published. Skipping npm publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # 統合コンテナイメージを GHCR へ push（Lambda は arm64 なのでネイティブ arm64 ランナーで build）。
+  publish-image:
+    needs: prepare
+    if: needs.prepare.outputs.image_exists == 'false'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/relay-docker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.version }}
+          # 単一プラットフォームの素のマニフェストにする（Lambda / cdk-ecr-deployment と相性が良い）。
+          provenance: false
+
+  # CDK construct パッケージを GitHub Packages へ公開。
+  publish-cdk:
+    needs: prepare
+    if: needs.prepare.outputs.npm_exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@yacchi'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependency (relay-core)
+        # relay-aws の tsup は dts resolve で relay-core の .d.ts をインライン化するため、
+        # publish（prepublishOnly が relay-aws を build）の前に relay-core を build しておく。
+        run: pnpm --filter @yacchi/backlog-relay-core build
+
+      - name: Sync package version from version.txt
+        run: npm --prefix packages/relay-aws pkg set version="${{ needs.prepare.outputs.version }}"
+
+      - name: Publish to GitHub Packages
+        working-directory: packages/relay-aws
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIST_TAG=latest
+          if [ "${{ needs.prepare.outputs.is_prerelease }}" = "true" ]; then
+            DIST_TAG=next
+          fi
+          # prepublishOnly が tsup build を実行する。--no-git-checks は CI の detached HEAD 対策。
+          pnpm publish --no-git-checks --tag "$DIST_TAG"
