@@ -81,17 +81,20 @@ const imageTag = await resolveLatestImageTag(imageSource);
 
 new RelayStack(app, "BacklogRelay", {
   config: {
-    parameterName: "/backlog-relay/config",
+    // 最小構成は backlog_app のみ。以下はすべてデフォルトで動作する:
+    //   parameterName → "/backlog-relay/config"
+    //   server.port   → 8080
+    //   cloudFront    → 有効（無効化する場合のみ { enabled: false }）
     parameterValue: {
-      server: { port: 8080 },
       backlog_app: {
         client_id: process.env.BACKLOG_CLIENT_ID!,
         client_secret: process.env.BACKLOG_CLIENT_SECRET!,
       },
-      tenants: { "myspace.backlog.jp": { passphrase: "...", default_space: "myspace.backlog.jp" } },
+      tenants: { "myorg": { passphrase: "...", default_space: "myspace.backlog.jp" } },
     },
     mcp: { spaces: [{ pattern: "myspace\\.backlog\\.jp", writable: true }] },
-    cloudFront: { enabled: true, customDomain: { /* domainName, certificateArn, hostedZoneId */ } },
+    // カスタムドメインを使う場合のみ指定（ACM 証明書は us-east-1、Route53 が必要）。
+    cloudFront: { customDomain: { /* domainName, certificateArn, hostedZoneId */ } },
     image: { source: imageSource, tag: imageTag },
   },
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: "ap-northeast-1" },

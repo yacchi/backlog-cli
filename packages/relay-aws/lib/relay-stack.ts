@@ -19,6 +19,8 @@ import {
   CloudFrontCacheConfig,
   RelayConfig,
   buildSsmParameterValue,
+  DEFAULT_PARAMETER_NAME,
+  DEFAULT_CLOUDFRONT_ENABLED,
 } from "./types.js";
 import type { RelayConfig as CoreRelayConfig } from "@yacchi/backlog-relay-core";
 import { hashSync } from "bcryptjs";
@@ -71,11 +73,21 @@ export class RelayStack extends cdk.Stack {
     return this.config.mcp != null && this.config.mcp.spaces.length > 0;
   }
 
+  /** SSM パラメータ名（未指定時はデフォルトを使用）。 */
+  private get parameterName(): string {
+    return this.config.parameterName ?? DEFAULT_PARAMETER_NAME;
+  }
+
+  /** CloudFront を有効化するか（未指定時はデフォルトで有効）。 */
+  private get cloudFrontEnabled(): boolean {
+    return this.config.cloudFront?.enabled ?? DEFAULT_CLOUDFRONT_ENABLED;
+  }
+
   constructor(scope: Construct, id: string, props: RelayStackProps) {
     super(scope, id, props);
 
     this.config = props.config;
-    const cloudFrontEnabled = this.config.cloudFront?.enabled ?? false;
+    const cloudFrontEnabled = this.cloudFrontEnabled;
 
     // Relay secrets (JWKS, passphrase, client_secret) → Secrets Manager
     this.relaySecretsSecret = this.createRelaySecretsSecret();
@@ -110,7 +122,7 @@ export class RelayStack extends cdk.Stack {
     const hasJwks = !!value.jwks;
     if (!hasApp && !hasTenants && !hasJwks) return undefined;
 
-    const secretName = `${this.config.parameterName}-secrets`;
+    const secretName = `${this.parameterName}-secrets`;
     const secret = new secretsmanager.Secret(this, "RelaySecretsSecret", {
       secretName,
       generateSecretString: {
@@ -194,7 +206,7 @@ export class RelayStack extends cdk.Stack {
    * Secrets are stripped — only non-secret config is stored here.
    */
   private createConfigParameter(): ssm.StringParameter {
-    const parameterName = this.config.parameterName;
+    const parameterName = this.parameterName;
 
     // 許可するホストパターンを構築
     const patterns: string[] = [];
@@ -203,12 +215,13 @@ export class RelayStack extends cdk.Stack {
     patterns.push(`*.lambda-url.${this.region}.on.aws`);
 
     // CloudFront パターン（CloudFront 有効時）
-    if (this.config.cloudFront?.enabled) {
+    if (this.cloudFrontEnabled) {
       patterns.push("*.cloudfront.net");
 
       // カスタムドメイン（設定されている場合）
-      if (this.config.cloudFront.customDomain) {
-        patterns.push(this.config.cloudFront.customDomain.domainName);
+      const customDomain = this.config.cloudFront?.customDomain;
+      if (customDomain) {
+        patterns.push(customDomain.domainName);
       }
     }
 
@@ -374,11 +387,10 @@ export class RelayStack extends cdk.Stack {
    * CloudFront ディストリビューションを作成
    */
   private createCloudFrontDistribution(): cloudfront.Distribution | undefined {
-    const cloudFrontConfig = this.config.cloudFront;
-    if (!cloudFrontConfig?.enabled) {
+    if (!this.cloudFrontEnabled) {
       return;
     }
-    const { customDomain } = cloudFrontConfig;
+    const customDomain = this.config.cloudFront?.customDomain;
 
     // オリジン: Lambda Function URL (OAC 自動設定)
     const origin = this.createOrigin();

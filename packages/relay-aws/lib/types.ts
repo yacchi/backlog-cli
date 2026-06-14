@@ -10,6 +10,17 @@ import type { RelayConfigInput as CoreRelayConfigInput } from "@yacchi/backlog-r
 export type { BacklogAppConfig, TenantConfig } from "@yacchi/backlog-relay-core";
 
 /**
+ * SSM パラメータ名のデフォルト。config.parameterName を省略するとこの値を使う。
+ */
+export const DEFAULT_PARAMETER_NAME = "/backlog-relay/config";
+
+/**
+ * CloudFront のデフォルト有効状態。config.cloudFront を省略、または
+ * cloudFront.enabled を省略した場合に有効になる。
+ */
+export const DEFAULT_CLOUDFRONT_ENABLED = true;
+
+/**
  * JWK (JSON Web Key) for CDK configuration.
  * JWKS objects in config are serialized to JSON strings before storing in Parameter Store.
  */
@@ -92,7 +103,8 @@ export interface CloudFrontCustomDomain {
  * （部分指定だとカスタムドメインが黙って無効化されデプロイ事故につながるため）。
  */
 export interface CloudFrontConfig {
-  enabled: boolean;
+  /** CloudFront を有効化するか（省略時は有効。無効化する場合のみ false を指定）。 */
+  enabled?: boolean;
   /** カスタムドメイン設定（ドメイン名・証明書・任意でホストゾーン） */
   customDomain?: CloudFrontCustomDomain;
   cache?: CloudFrontCacheConfig;
@@ -102,7 +114,8 @@ export interface CloudFrontConfig {
  * Parameter Store configuration for CDK deployment.
  */
 export interface ParameterStoreConfig {
-  parameterName: string;
+  /** SSM パラメータ名（省略時は DEFAULT_PARAMETER_NAME を使用）。 */
+  parameterName?: string;
   parameterValue?: ParameterStoreValue;
 }
 
@@ -120,7 +133,8 @@ export interface BacklogAppInput {
  * and stored in Secrets Manager by the CDK stack. SSM only holds non-secret config.
  */
 export interface ParameterStoreValue {
-  server: {
+  /** サーバー設定（省略可。port は省略時 8080）。 */
+  server?: {
     port?: number;
     base_url?: string;
     allowed_host_patterns?: string;
@@ -218,7 +232,7 @@ export function buildSsmParameterValue(
   }
 
   const config: CoreRelayConfigInput = {
-    server: value.server,
+    server: value.server ?? {},
     backlog_app: {
       client_id: value.backlog_app.client_id,
       client_secret: "__from_secrets_manager__",

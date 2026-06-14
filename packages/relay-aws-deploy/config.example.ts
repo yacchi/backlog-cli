@@ -6,71 +6,65 @@
  *
  * config.ts は .gitignore に含まれているため、
  * シークレットを含んでもリポジトリにコミットされません。
+ *
+ * 最小構成は backlog_app（Client ID/Secret）のみ。それ以外はデフォルトで動作します。
+ *   - parameterName: 省略時 "/backlog-relay/config"
+ *   - server:        省略可（port は省略時 8080）
+ *   - cloudFront:    省略時に有効（無効化する場合のみ { enabled: false }）
+ *   - jwks/passphrase: 省略時に Secrets Manager で自動生成
  */
 import type { RelayConfig } from "@yacchi/backlog-relay-aws-cdk";
 
-// ============================================================
-// Parameter Store 参照（設定の一元管理）
-// ============================================================
 export const config: RelayConfig = {
-  parameterName: "/backlog-relay/config",
   parameterValue: {
-    server: {},
+    // 必須: Backlog アプリの OAuth クレデンシャル
     backlog_app: {
       client_id: "your-client-id",
       client_secret: "your-client-secret",
     },
 
     // ============================================================
-    // 統合テナント設定
+    // テナント設定（オプション）
     // ============================================================
-    // キーは "space.domain" 形式（例: "your-space.backlog.jp"）
-    // relay（バンドル署名）と mcp（アクセス制御）を一箇所で管理
+    // テナント = バンドル配布単位（name で識別、Backlog スペースとは無関係）。
+    // passphrase / jwks は省略でデプロイ時に自動生成され、Secrets Manager に保存される。
     //
     // tenants: {
-    //   "your-space.backlog.jp": {
-    //     // Relay バンドル署名設定
-    //     // JWKS (Ed25519) と passphrase は省略可能 — デプロイ時に自動生成されます。
-    //     // 自動生成された値は Secrets Manager に保存されます。
-    //     // passphrase の平文は SM シークレットから取得できます。
-    //     // default_space: "your-space.backlog.jp",  // CLI setup 時の --space デフォルト値
-    //     relay: {
-    //       // jwks: { keys: [...] },       // 省略で自動生成 (kid: "auto-1")
-    //       // active_keys: "auto-1",       // 省略で "auto-1" がデフォルト
-    //       // passphrase: "your-pass",     // 省略で自動生成（SM に平文も保存）
-    //       // passphrase_length: 16,       // 自動生成時の文字数（デフォルト: 32）
-    //       info_ttl: 600,
-    //     },
-    //     // MCP アクセス制御設定
-    //     mcp: {
-    //       cli_access: {
-    //         allow: [
-    //           "issue list *", "issue view *",
-    //           "pr list *", "pr view *",
-    //           "wiki list *", "wiki view *",
-    //           "project list *", "project view *",
-    //           "notification list *",
-    //           "api /api/v2/* -X GET",
-    //         ],
-    //         deny: [],
-    //       },
-    //       script: { enabled: false, max_cli_calls: 20, timeout_ms: 30000 },
-    //     },
+    //   "your-org": {
+    //     // passphrase: "your-pass",      // 省略で自動生成（SM に平文も保存）
+    //     // passphrase_length: 32,        // 自動生成時の文字数（デフォルト: 32）
+    //     default_space: "your-space.backlog.jp",  // CLI setup の --space デフォルト
     //   },
     // },
   },
 
   // ============================================================
+  // CloudFront 設定（オプション）
+  // ============================================================
+  // 省略時に有効。無効化する場合のみ { enabled: false } を指定。
+  // カスタムドメインは ACM 証明書（us-east-1）と Route53 が必要なため、
+  // 利用する場合だけ customDomain を指定する。
+  //
+  // cloudFront: {
+  //   customDomain: {
+  //     domainName: "backlog-relay.example.com",
+  //     certificateArn: "arn:aws:acm:us-east-1:...:certificate/...",  // us-east-1 のもの
+  //     hostedZoneId: "Z0123456789ABCDEFGHIJ",  // 指定時のみ Route53 にレコード作成
+  //   },
+  // },
+
+  // ============================================================
   // MCP Server 統合（オプション）
   // ============================================================
-  // mcp フィールドが存在し、いずれかのテナントに mcp 設定がある場合、
-  // この Lambda が /mcp/* エンドポイントも提供します。
-  // Backlog CLI のバイナリと Deno sandbox が Lambda にバンドルされます。
-  //
-  // MCP token key は Secrets Manager で自動生成・ローテーションされます。
+  // mcp.spaces を指定すると、この Lambda が /mcp エンドポイントも提供する。
+  // MCP token key は Secrets Manager で自動生成・ローテーションされる。
   //
   // mcp: {
-  //   tokenKeySecretName: "/backlog-mcp/token-key",  // default
-  //   tokenKeyRotationDays: 30,                       // default: 30, 0 で無効
+  //   spaces: [
+  //     { pattern: "your-space\\.backlog\\.jp", writable: true },
+  //     { pattern: ".*\\.backlog\\.(jp|com)", writable: false },
+  //   ],
+  //   // script: { max_cli_calls: 20, timeout_ms: 30000 },
+  //   // default_spaces: ["your-space.backlog.jp"],
   // },
 };
