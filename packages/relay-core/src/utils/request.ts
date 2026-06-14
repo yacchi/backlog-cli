@@ -8,6 +8,8 @@ import type { Context } from "hono";
  * Extracted request context for audit logging and URL construction.
  */
 export interface RequestContext {
+  /** Request ID for cross-log correlation */
+  requestId?: string;
   /** Client IP address */
   clientIp: string;
   /** User agent string */
@@ -54,7 +56,10 @@ export function extractRequestContext(c: Context): RequestContext {
   // Construct base URL
   const baseUrl = `${protocol}://${host}`;
 
+  const requestId = (c.get("requestId") as string | undefined) || undefined;
+
   return {
+    requestId,
     clientIp,
     userAgent,
     host,

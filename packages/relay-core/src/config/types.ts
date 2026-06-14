@@ -46,6 +46,8 @@ export interface CacheProvider {
  * Audit event for logging.
  */
 export interface AuditEvent {
+  /** Request ID for cross-log correlation (from Hono requestId middleware) */
+  requestId?: string;
   /** Unique session ID for correlation */
   sessionId?: string;
   /** Action being performed */

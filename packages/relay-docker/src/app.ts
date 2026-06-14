@@ -9,7 +9,9 @@
  * Docker / ローカル / Lambda コンテナの各ターゲットを提供できるようにしたもの。
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Hono, type Context, type Next } from "hono";
+import { requestId } from "hono/request-id";
 import { cors } from "hono/cors";
 import {
   createRelayApp,
@@ -19,6 +21,7 @@ import {
   parseConfig,
   extractRequestContext,
   type RelayConfig,
+  type AuditEvent,
   type AuditLogger,
   type PortalAssets,
 } from "@yacchi/backlog-relay-core";
@@ -33,6 +36,29 @@ import {
   type CreateMcpAppOptions,
   type TokenExchange,
 } from "@yacchi/backlog-mcp-server";
+
+/**
+ * AsyncLocalStorage for propagating request-scoped fields (requestId) into
+ * audit logs without passing them through every handler call site.
+ */
+const requestContextStore = new AsyncLocalStorage<{ requestId: string }>();
+
+/**
+ * Wrap an AuditLogger so that every event automatically receives the requestId
+ * stored in the current AsyncLocalStorage context. Handler code stays unchanged.
+ */
+function withRequestContext(base: AuditLogger): AuditLogger {
+  return {
+    log(event: AuditEvent) {
+      const ctx = requestContextStore.getStore();
+      if (ctx && !event.requestId) {
+        base.log({ ...event, requestId: ctx.requestId });
+      } else {
+        base.log(event);
+      }
+    },
+  };
+}
 
 /**
  * `x-mcp-authorization` から `Authorization` ヘッダーを復元する。
@@ -190,7 +216,8 @@ export function createDirectTokenExchange(
 export async function createUnifiedApp(
   options: CreateUnifiedAppOptions,
 ): Promise<Hono> {
-  const { rawConfig, auditLogger } = options;
+  const { rawConfig, auditLogger: baseAuditLogger } = options;
+  const auditLogger = withRequestContext(baseAuditLogger);
 
   const relayConfig = parseConfig(JSON.stringify(rawConfig));
   const serverJwks = relayConfig.jwks;
@@ -212,16 +239,28 @@ export async function createUnifiedApp(
   const baseLogger = new Logger({}, logLevel);
   baseLogger.info({ component: "config", log_level: logLevel, log_level_raw: serverConfig?.log_level });
 
+  // Request ID middleware — reuse Lambda Web Adapter's x-amzn-request-id when
+  // available, otherwise fall back to a generated UUID. Hono's requestId()
+  // checks X-Request-Id first (default headerName), then calls the generator.
+  app.use("*", requestId({
+    generator: (c) => c.req.header("x-amzn-request-id") ?? crypto.randomUUID(),
+  }));
+
   // Access log middleware — all requests get IP/UA/method/path/status/duration.
+  // Also populates AsyncLocalStorage so the wrapped audit logger can inject requestId.
   app.use("*", async (c: Context, next: Next) => {
     const start = Date.now();
+    const rid = c.get("requestId") as string;
     const reqCtx = extractRequestContext(c);
     const requestLogger = baseLogger.child({
+      requestId: rid,
       clientIp: reqCtx.clientIp,
       userAgent: reqCtx.userAgent,
     });
     c.set(LOGGER_CONTEXT_KEY, requestLogger);
-    await next();
+    await requestContextStore.run({ requestId: rid }, async () => {
+      await next();
+    });
     requestLogger.info({
       component: "access",
       method: c.req.method,

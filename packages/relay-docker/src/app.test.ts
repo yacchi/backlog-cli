@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { generateKeyPair, exportJWK } from "jose";
-import { NoopAuditLogger } from "@yacchi/backlog-relay-core";
+import { NoopAuditLogger, type AuditEvent, type AuditLogger } from "@yacchi/backlog-relay-core";
 import {
   createUnifiedApp,
   buildMcpConfig,
@@ -207,6 +207,28 @@ describe("createUnifiedApp (relay only)", () => {
     // MCP-specific discovery absent (not mounted).
     const mcpWk = await app.request("/.well-known/oauth-authorization-server");
     expect(mcpWk.status).toBe(404);
+  });
+});
+
+describe("requestId propagation into audit logs", () => {
+  it("injects requestId from requestId middleware into audit events via AsyncLocalStorage", async () => {
+    const events: AuditEvent[] = [];
+    const capturingLogger: AuditLogger = { log: (e) => events.push(e) };
+
+    const app = await createUnifiedApp({
+      rawConfig: relayOnlyRawConfig(),
+      auditLogger: capturingLogger,
+    });
+
+    // /auth/callback without code/state triggers an audit error event
+    const res = await app.request("/auth/callback");
+    expect(res.status).toBe(400);
+    expect(events.length).toBeGreaterThan(0);
+
+    const event = events[0];
+    expect(event.requestId).toBeDefined();
+    expect(typeof event.requestId).toBe("string");
+    expect(event.requestId!.length).toBeGreaterThan(0);
   });
 });
 
