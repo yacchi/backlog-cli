@@ -210,6 +210,7 @@ export async function createUnifiedApp(
   const serverConfig = rawConfig.server as { log_level?: string } | undefined;
   const logLevel = (serverConfig?.log_level ?? "info") as "debug" | "info" | "warn" | "error";
   const baseLogger = new Logger({}, logLevel);
+  baseLogger.info({ component: "config", log_level: logLevel, log_level_raw: serverConfig?.log_level });
 
   // Access log middleware — all requests get IP/UA/method/path/status/duration.
   app.use("*", async (c: Context, next: Next) => {

@@ -223,16 +223,11 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             token_endpoint_auth_method: "none",
         };
 
-        const dcrLogger = getLogger(c);
-        dcrLogger.info({
+        getLogger(c).info({
             component: "oauth",
             action: "dcr",
             client_name: req.client_name,
             client_id: clientId.slice(0, 20) + "...",
-        });
-        dcrLogger.debug({
-            component: "oauth",
-            action: "dcr_detail",
             redirect_uris: req.redirect_uris,
             grant_types: req.grant_types,
             response_types: req.response_types,
