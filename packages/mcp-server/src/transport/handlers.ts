@@ -261,9 +261,11 @@ export function createTransportHandlers(
         }
 
         const { token } = getAuthContext(c);
+        const reqLogger = getLogger(c);
 
         if (req.method === "tools/call") {
-            const toolParams = req.params as { arguments?: Record<string, unknown> } | undefined;
+            const toolParams = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
+            reqLogger.debug({ component: "jsonrpc", method: req.method, tool: toolParams?.name });
             const requestedSpace = toolParams?.arguments?.space as string | undefined;
             if (requestedSpace && !(await resolveSpaceToken(token, encKeys, requestedSpace))) {
                 c.header(
@@ -275,6 +277,8 @@ export function createTransportHandlers(
                     403,
                 );
             }
+        } else {
+            reqLogger.info({ component: "jsonrpc", method: req.method });
         }
 
         const spaceKey = token.space;
