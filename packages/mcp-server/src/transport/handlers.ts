@@ -5,7 +5,7 @@ import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-au
 import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
-import { logToolCall } from "../logging/logger.js";
+import { Logger, LOGGER_CONTEXT_KEY, logToolCall, type LoggingConfig } from "../logging/logger.js";
 import type { TokenPayload, SigningKeys } from "../crypto/jwt.js";
 import { listSpaceEntries } from "../crypto/jwt.js";
 
@@ -238,6 +238,10 @@ export function createTransportHandlers(
 ): Hono {
     const app = new Hono();
     const { verifyKeys, encKeys } = keys;
+    const loggingConfig: LoggingConfig = {
+        log_input: config.logging?.log_input ?? false,
+        log_output: config.logging?.log_output ?? false,
+    };
     const auth = jwtAuth(
         verifyKeys,
         (c) => `${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource`,
@@ -281,7 +285,7 @@ export function createTransportHandlers(
             );
         }
 
-        const result = await handleMethod(req, token, access);
+        const result = await handleMethod(c, req, token, access);
         return c.json(result);
     });
 
@@ -296,7 +300,12 @@ export function createTransportHandlers(
         return c.json({ status: "session_ended" });
     });
 
+    function getLogger(c: import("hono").Context): Logger {
+        return (c.get(LOGGER_CONTEXT_KEY) as Logger | undefined) ?? new Logger();
+    }
+
     async function handleMethod(
+        c: import("hono").Context,
         req: JsonRpcRequest,
         token: TokenPayload,
         access: SpaceAccess,
@@ -325,7 +334,7 @@ export function createTransportHandlers(
                 });
 
             case "tools/call":
-                return handleToolCall(req, token);
+                return handleToolCall(c, req, token);
 
             case "prompts/list":
                 return jsonRpcResult(req.id, {
@@ -355,9 +364,11 @@ export function createTransportHandlers(
     }
 
     async function handleToolCall(
+        c: import("hono").Context,
         req: JsonRpcRequest,
         token: TokenPayload,
     ): Promise<JsonRpcResponse> {
+        const logger = getLogger(c);
         const params = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
         const toolName = params?.name;
         const toolArgs = params?.arguments ?? {};
@@ -408,7 +419,7 @@ export function createTransportHandlers(
         switch (toolName) {
             case "backlog_help": {
                 const command = (toolArgs.command as string | undefined)?.trim();
-                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: "backlog_help", input: { command }, tenant: spaceKey, loggingConfig });
                 try {
                     const cliRef = await executeBacklogCommand(
                         'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
@@ -436,7 +447,7 @@ export function createTransportHandlers(
 
             case "who": {
                 const query = (toolArgs.query as string | undefined)?.trim();
-                const log = logToolCall({ tool: "who", input: { query }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: "who", input: { query }, tenant: spaceKey, loggingConfig });
                 try {
                     if (!query) {
                         const result = await executeBacklogCommand(
@@ -501,7 +512,7 @@ export function createTransportHandlers(
                 const files = toolArgs.files as ScriptFile[] | undefined;
                 const readOnly = toolName === "backlog_query" || !effectiveAccess.writable;
 
-                const log = logToolCall({ tool: toolName, input: { args }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: toolName, input: { args }, tenant: spaceKey, loggingConfig });
 
                 const filePaths = files?.length ? materializeFiles(files) : null;
                 try {
@@ -535,7 +546,7 @@ export function createTransportHandlers(
                 }
                 const files = toolArgs.files as ScriptFile[] | undefined;
 
-                const log = logToolCall({ tool: toolName, input: { script }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: toolName, input: { script }, tenant: spaceKey, loggingConfig });
 
                 if (!options?.runScript) {
                     log.finish({ error: `${toolName} sandbox is not available`, category: "sandbox_unavailable" });

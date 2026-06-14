@@ -10,6 +10,15 @@ export const ScriptConfigSchema = z.object({
     timeout_ms: z.number().positive().default(30000),
 });
 
+export const AuditConfigSchema = z.object({
+    collect_user_info: z.boolean().default(true),
+});
+
+export const LoggingConfigSchema = z.object({
+    log_input: z.boolean().default(false),
+    log_output: z.boolean().default(false),
+});
+
 export const McpServerConfigSchema = z.object({
     // Optional explicit OAuth issuer. When omitted, the base URL is derived from
     // the request host at runtime (see resolveBaseUrl).
@@ -22,6 +31,8 @@ export const McpServerConfigSchema = z.object({
     spaces: z.array(SpacePatternSchema).min(1),
     script: ScriptConfigSchema.optional(),
     default_spaces: z.array(z.string()).default([]),
+    audit: AuditConfigSchema.optional(),
+    logging: LoggingConfigSchema.optional(),
 });
 
 export type McpServerConfig = z.output<typeof McpServerConfigSchema>;

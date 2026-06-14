@@ -31,6 +31,8 @@ export interface TokenPayload {
     space: string;
     iat: number;
     exp?: number;
+    userEmail?: string;
+    clientName?: string;
     [key: string]: unknown;
 }
 

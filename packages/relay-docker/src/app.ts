@@ -9,7 +9,7 @@
  * Docker / ローカル / Lambda コンテナの各ターゲットを提供できるようにしたもの。
  */
 
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import {
   createRelayApp,
@@ -17,6 +17,7 @@ import {
   generateProvisioningToken,
   verifyPassphrase,
   parseConfig,
+  extractRequestContext,
   type RelayConfig,
   type AuditLogger,
   type PortalAssets,
@@ -26,6 +27,8 @@ import {
   verify,
   loadSigningKeys,
   parseConfig as parseMcpConfig,
+  Logger,
+  LOGGER_CONTEXT_KEY,
   type McpServerConfig,
   type CreateMcpAppOptions,
   type TokenExchange,
@@ -116,6 +119,8 @@ export function buildMcpConfig(
     spaces: mcpSpaces,
     script: rawConfig.mcp_script,
     default_spaces: rawConfig.mcp_default_spaces ?? [],
+    audit: rawConfig.mcp_audit,
+    logging: rawConfig.mcp_logging,
   };
   if (baseUrl) {
     mcpConfigObj.base_url = baseUrl;
@@ -202,6 +207,26 @@ export async function createUnifiedApp(
   });
 
   const app = new Hono();
+  const baseLogger = new Logger();
+
+  // Access log middleware — all requests get IP/UA/method/path/status/duration.
+  app.use("*", async (c: Context, next: Next) => {
+    const start = Date.now();
+    const reqCtx = extractRequestContext(c);
+    const requestLogger = baseLogger.child({
+      clientIp: reqCtx.clientIp,
+      userAgent: reqCtx.userAgent,
+    });
+    c.set(LOGGER_CONTEXT_KEY, requestLogger);
+    await next();
+    requestLogger.info({
+      component: "access",
+      method: c.req.method,
+      path: new URL(c.req.url).pathname,
+      status: c.res.status,
+      duration_ms: Date.now() - start,
+    });
+  });
 
   // MCP ブラウザクライアント（MCP Inspector 等）向けの CORS。relay エンドポイントは
   // Cookie ベースかつ same-origin なので無害。

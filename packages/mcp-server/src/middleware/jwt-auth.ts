@@ -4,6 +4,7 @@ import { verifyToken } from "../crypto/jwt.js";
 import type { TokenPayload, SpaceAccessEntry } from "../crypto/jwt.js";
 import { getSpaceEntry, listSpaceEntries } from "../crypto/jwt.js";
 import { open } from "../crypto/secret.js";
+import { Logger, LOGGER_CONTEXT_KEY } from "../logging/logger.js";
 
 export interface AuthContext {
     token: TokenPayload;
@@ -103,6 +104,8 @@ export function jwtAuth(
     return async (c: Context, next: Next) => {
         if (bypassToken) {
             c.set(AUTH_CONTEXT_KEY, { token: bypassToken } satisfies AuthContext);
+            const parentLogger = (c.get(LOGGER_CONTEXT_KEY) as Logger | undefined) ?? new Logger();
+            c.set(LOGGER_CONTEXT_KEY, parentLogger.child({ tenant: bypassToken.space }));
             return next();
         }
 
@@ -126,6 +129,14 @@ export function jwtAuth(
         }
 
         c.set(AUTH_CONTEXT_KEY, { token } satisfies AuthContext);
+
+        // Enrich logger with JWT-derived context
+        const parentLogger = (c.get(LOGGER_CONTEXT_KEY) as Logger | undefined) ?? new Logger();
+        const bindings: Record<string, unknown> = { tenant: token.space };
+        if (token.userEmail) bindings.userEmail = token.userEmail;
+        if (token.clientName) bindings.clientName = token.clientName;
+        c.set(LOGGER_CONTEXT_KEY, parentLogger.child(bindings));
+
         return next();
     };
 }

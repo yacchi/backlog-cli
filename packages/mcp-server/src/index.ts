@@ -24,7 +24,8 @@ export { createSandboxClient } from "./sandbox/sandbox-client.js";
 export type { SandboxClient, SandboxOptions } from "./sandbox/sandbox-client.js";
 export type { TokenExchange } from "./oauth/handlers.js";
 export type { ScriptFile } from "./transport/handlers.js";
-export { logToolCall, logSandbox } from "./logging/logger.js";
+export { Logger, LOGGER_CONTEXT_KEY, logToolCall, logSandbox } from "./logging/logger.js";
+export type { LoggingConfig } from "./logging/logger.js";
 import type { TokenExchange } from "./oauth/handlers.js";
 import type { ScriptFile } from "./transport/handlers.js";
 

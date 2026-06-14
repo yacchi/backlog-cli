@@ -171,6 +171,13 @@ export interface McpConfig {
     timeout_ms?: number;
   };
   default_spaces?: string[];
+  audit?: {
+    collect_user_info?: boolean;
+  };
+  logging?: {
+    log_input?: boolean;
+    log_output?: boolean;
+  };
 }
 
 /**
@@ -250,5 +257,7 @@ export function buildSsmParameterValue(
     mcpSpaces: mcp?.spaces,
     mcpScript: mcp?.script,
     mcpDefaultSpaces: mcp?.default_spaces,
+    mcpAudit: mcp?.audit,
+    mcpLogging: mcp?.logging,
   };
 }

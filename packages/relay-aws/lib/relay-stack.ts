@@ -231,7 +231,7 @@ export class RelayStack extends cdk.Stack {
     };
 
     // Build SSM value: strips secrets, converts tenants to relay-core array
-    const { config: ssmConfig, mcpSpaces, mcpScript, mcpDefaultSpaces } = buildSsmParameterValue(baseValue, this.config.mcp);
+    const { config: ssmConfig, mcpSpaces, mcpScript, mcpDefaultSpaces, mcpAudit, mcpLogging } = buildSsmParameterValue(baseValue, this.config.mcp);
 
     // NOTE: MCP's base_url (OAuth issuer) is derived at runtime from the request
     // host (x-original-host / Host). It is intentionally NOT injected here: the
@@ -251,6 +251,8 @@ export class RelayStack extends cdk.Stack {
       finalValue.mcp_spaces = mcpSpaces;
       if (mcpScript) finalValue.mcp_script = mcpScript;
       if (mcpDefaultSpaces && mcpDefaultSpaces.length > 0) finalValue.mcp_default_spaces = mcpDefaultSpaces;
+      if (mcpAudit) finalValue.mcp_audit = mcpAudit;
+      if (mcpLogging) finalValue.mcp_logging = mcpLogging;
     }
 
     const parameterValue = JSON.stringify(finalValue);
