@@ -12,6 +12,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
+import * as cr from "aws-cdk-lib/custom-resources";
 import { Construct } from "constructs";
 import * as path from "node:path";
 import { execSync } from "node:child_process";
@@ -103,6 +104,9 @@ export class RelayStack extends cdk.Stack {
 
     // CloudFront ディストリビューションを作成
     this.distribution = this.createCloudFrontDistribution();
+
+    // デプロイ時に discovery パスのキャッシュを invalidate（長 TTL の前提）
+    this.createDeployInvalidation();
 
     // Outputs を作成
     this.createOutputs(cloudFrontEnabled);
@@ -398,11 +402,14 @@ export class RelayStack extends cdk.Stack {
     const origin = this.createOrigin();
 
     // キャッシュポリシー
-    const { staticAssetsCachePolicy, dynamicContentsCachePolicy } =
+    const { staticAssetsCachePolicy, dynamicContentsCachePolicy, discoveryCachePolicy } =
       this.createCachePolicies();
 
     // オリジンリクエストポリシー: Content-* ヘッダーと Cookie を転送
     const originRequestPolicy = this.createOriginRequestPolicy();
+
+    // Discovery エンドポイント用: Cookie不要、最小限のヘッダーのみ転送
+    const discoveryOriginRequestPolicy = this.createDiscoveryOriginRequestPolicy();
 
     // CloudFront Function: x-original-host ヘッダーを追加 (viewer-request)
     const forwardHostFunction = this.createForwardHostFunction();
@@ -465,6 +472,40 @@ export class RelayStack extends cdk.Stack {
         cachePolicy: dynamicContentsCachePolicy,
       },
       additionalBehaviors: {
+        // Discovery endpoints (well-known): GET/HEAD/OPTIONS, Lambda@Edge 不要
+        // MCP OAuth discovery + Relay server discovery を含む
+        // OPTIONS を許可: MCP spec で CORS が必要（ブラウザベースクライアント用）
+        "/.well-known/*": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          cachePolicy: discoveryCachePolicy,
+          originRequestPolicy: discoveryOriginRequestPolicy,
+          compress: true,
+          functionAssociations: [
+            {
+              function: forwardHostFunction,
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+        },
+        // Tenant JWKS 公開鍵: GET/HEAD only, Lambda@Edge 不要
+        "/v1/relay/tenants/*/certs": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: discoveryCachePolicy,
+          originRequestPolicy: discoveryOriginRequestPolicy,
+          compress: true,
+          functionAssociations: [
+            {
+              function: forwardHostFunction,
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+        },
         // 静的アセット: ホスト情報不要、長期キャッシュ（immutable）
         "/assets/*": {
           origin,
@@ -595,12 +636,37 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
+   * Discovery エンドポイント用オリジンリクエストポリシー
+   * well-known / certs は認証・Cookie 不要なため最小限のヘッダーのみ転送
+   */
+  private createDiscoveryOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
+    return new cloudfront.OriginRequestPolicy(
+      this,
+      "DiscoveryOriginRequestPolicy",
+      {
+        originRequestPolicyName: `${this.stackName}-discovery-origin`,
+        comment: "Minimal headers for discovery endpoints (no cookies)",
+        headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+          "Accept",
+          "X-Original-Host",
+          "Access-Control-Request-Method",
+          "Access-Control-Request-Headers",
+        ),
+        queryStringBehavior:
+          cloudfront.OriginRequestQueryStringBehavior.none(),
+        cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
+      },
+    );
+  }
+
+  /**
    * キャッシュポリシーを作成
    * 設定値がない場合は DEFAULT_CACHE_CONFIG のデフォルト値を使用
    */
   private createCachePolicies(): {
     staticAssetsCachePolicy: cloudfront.CachePolicy;
     dynamicContentsCachePolicy: cloudfront.CachePolicy;
+    discoveryCachePolicy: cloudfront.CachePolicy;
   } {
     // 設定とデフォルト値をマージ
     const cacheConfig = {
@@ -651,7 +717,28 @@ export class RelayStack extends cdk.Stack {
       },
     );
 
-    return { staticAssetsCachePolicy, dynamicContentsCachePolicy };
+    // Discovery endpoints (well-known, certs): GET/HEAD only, host-keyed cache
+    // Lambda@Edge (content hash) は GET リクエストに不要なためスキップ
+    // オリジンの Cache-Control を尊重（minTtl=0）し、defaultTtl はフォールバック
+    const discoveryCachePolicy = new cloudfront.CachePolicy(
+      this,
+      "DiscoveryCachePolicy",
+      {
+        cachePolicyName: `${this.stackName}-discovery`,
+        comment: "Cache for well-known/discovery endpoints (host-keyed, deploy-invalidated)",
+        defaultTtl: cdk.Duration.days(7),
+        maxTtl: cdk.Duration.days(7),
+        minTtl: cdk.Duration.seconds(0),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true,
+        headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
+          "X-Original-Host",
+          "Origin",
+        ),
+      },
+    );
+
+    return { staticAssetsCachePolicy, dynamicContentsCachePolicy, discoveryCachePolicy };
   }
 
   /**
@@ -721,6 +808,65 @@ export class RelayStack extends cdk.Stack {
         description: "OAuth callback URL for custom domain",
       });
     }
+  }
+
+  /**
+   * デプロイ時に CloudFront の discovery パスをキャッシュ invalidate。
+   * well-known / certs は長 TTL でキャッシュしているため、
+   * コード変更（イメージ更新）時に古いレスポンスを確実に破棄する。
+   * イメージタグを physicalResourceId に使うことで、
+   * イメージ変更時のみ invalidation が発火する（冪等）。
+   */
+  private createDeployInvalidation(): void {
+    if (!this.distribution) return;
+
+    const imageTag = this.config.image?.tag ?? "unknown";
+    const distribution = this.distribution;
+
+    new cr.AwsCustomResource(this, "DeployCacheInvalidation", {
+      onCreate: {
+        service: "CloudFront",
+        action: "createInvalidation",
+        parameters: {
+          DistributionId: distribution.distributionId,
+          InvalidationBatch: {
+            CallerReference: `${this.stackName}-${imageTag}-create`,
+            Paths: {
+              Quantity: 2,
+              Items: ["/.well-known/*", "/v1/relay/tenants/*"],
+            },
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(
+          `cache-invalidation-${imageTag}`,
+        ),
+      },
+      onUpdate: {
+        service: "CloudFront",
+        action: "createInvalidation",
+        parameters: {
+          DistributionId: distribution.distributionId,
+          InvalidationBatch: {
+            CallerReference: `${this.stackName}-${imageTag}-update`,
+            Paths: {
+              Quantity: 2,
+              Items: ["/.well-known/*", "/v1/relay/tenants/*"],
+            },
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(
+          `cache-invalidation-${imageTag}`,
+        ),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new cdk.aws_iam.PolicyStatement({
+          actions: ["cloudfront:CreateInvalidation"],
+          resources: [
+            `arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`,
+          ],
+        }),
+      ]),
+    });
   }
 
   /**
