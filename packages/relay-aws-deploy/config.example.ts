@@ -67,6 +67,6 @@ export const config: RelayConfig = {
   //   // script: { max_cli_calls: 20, timeout_ms: 30000 },
   //   // default_spaces: ["your-space.backlog.jp"],
   //   // audit: { collect_user_info: true },
-  //   // logging: { log_input: false, log_output: false },
+  //   // logging: { debug: false, input: false, output: false },
   // },
 };

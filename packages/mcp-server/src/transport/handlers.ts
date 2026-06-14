@@ -239,8 +239,8 @@ export function createTransportHandlers(
     const app = new Hono();
     const { verifyKeys, encKeys } = keys;
     const loggingConfig: LoggingConfig = {
-        log_input: config.logging?.log_input ?? false,
-        log_output: config.logging?.log_output ?? false,
+        input: config.logging?.input ?? false,
+        output: config.logging?.output ?? false,
     };
     const auth = jwtAuth(
         verifyKeys,

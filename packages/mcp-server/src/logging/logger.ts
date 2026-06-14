@@ -1,14 +1,29 @@
-export type LogLevel = "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+const LEVEL_ORDER: Record<LogLevel, number> = {
+    debug: 0,
+    info: 1,
+    warn: 2,
+    error: 3,
+};
 
 export class Logger {
     private bindings: Record<string, unknown>;
+    private minLevel: number;
 
-    constructor(bindings: Record<string, unknown> = {}) {
+    constructor(bindings: Record<string, unknown> = {}, minLevel: LogLevel = "info") {
         this.bindings = bindings;
+        this.minLevel = LEVEL_ORDER[minLevel];
     }
 
     child(fields: Record<string, unknown>): Logger {
-        return new Logger({ ...this.bindings, ...fields });
+        const child = new Logger({ ...this.bindings, ...fields });
+        child.minLevel = this.minLevel;
+        return child;
+    }
+
+    debug(obj: Record<string, unknown>): void {
+        this.emit("debug", obj);
     }
 
     info(obj: Record<string, unknown>): void {
@@ -24,6 +39,7 @@ export class Logger {
     }
 
     private emit(level: LogLevel, obj: Record<string, unknown>): void {
+        if (LEVEL_ORDER[level] < this.minLevel) return;
         const entry = {
             level,
             ts: new Date().toISOString(),
@@ -42,8 +58,8 @@ export class Logger {
 export const LOGGER_CONTEXT_KEY = "logger";
 
 export interface LoggingConfig {
-    log_input: boolean;
-    log_output: boolean;
+    input: boolean;
+    output: boolean;
 }
 
 export interface ToolCallOptions {
@@ -80,8 +96,8 @@ export function logToolCall(
                 entry.tenant = opts.tenant;
             }
 
-            const logInput = opts.loggingConfig?.log_input ?? true;
-            const logOutput = opts.loggingConfig?.log_output ?? true;
+            const logInput = opts.loggingConfig?.input ?? true;
+            const logOutput = opts.loggingConfig?.output ?? true;
 
             if (logInput) {
                 entry.input = opts.input;

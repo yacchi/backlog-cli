@@ -175,8 +175,9 @@ export interface McpConfig {
     collect_user_info?: boolean;
   };
   logging?: {
-    log_input?: boolean;
-    log_output?: boolean;
+    debug?: boolean;
+    input?: boolean;
+    output?: boolean;
   };
 }
 
