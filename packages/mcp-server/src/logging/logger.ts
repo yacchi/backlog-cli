@@ -113,6 +113,18 @@ export function logToolCall(
             }
 
             logger[level](entry);
+
+            // Audit summary: lightweight record for the audit trail
+            const audit: Record<string, unknown> = {
+                component: "audit",
+                action: "tool_call",
+                tool: opts.tool,
+                result: result.error ? "error" : "success",
+                duration_ms,
+            };
+            if (result.error) audit.error = result.error;
+            if (result.category) audit.category = result.category;
+            logger[level](audit);
         },
     };
 }

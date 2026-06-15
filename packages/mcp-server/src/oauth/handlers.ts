@@ -224,7 +224,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         };
 
         getLogger(c).info({
-            component: "oauth",
+            component: "audit",
             action: "dcr",
             client_id: clientId,
             client_payload: clientPayload,
@@ -334,6 +334,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             signingKey,
             signingKid,
         );
+
+        getLogger(c).info({
+            component: "audit",
+            action: "authorize",
+            space: requiredSpaces[0].space,
+            clientName: clientPayload.client_name,
+            spaces: requiredSpaces.map((s) => s.space),
+        });
 
         const spacePatterns = config.spaces.map((s) => s.pattern);
         const auditNotice = config.audit?.collect_user_info !== false;
@@ -465,6 +473,12 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 sameSite: "Lax",
                 maxAge: COOKIE_MAX_AGE,
                 path: "/mcp/authorize",
+            });
+
+            getLogger(c).info({
+                component: "audit",
+                action: "callback",
+                space: authorizeState.space,
             });
 
             c.header("Cache-Control", "no-store");
@@ -599,6 +613,13 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 path: "/mcp/authorize",
             });
         }
+
+        getLogger(c).info({
+            component: "audit",
+            action: "complete",
+            space: authorizeState.space,
+            spaces: spaceHosts,
+        });
 
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
@@ -749,6 +770,15 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 signingKey,
                 signingKid,
             );
+
+            getLogger(c).info({
+                component: "audit",
+                action: "token_exchange",
+                space: primarySpace,
+                spaces: codeSpaces.map(([d]) => d),
+                userEmail,
+                clientName,
+            });
 
             return c.json({
                 access_token: accessTokenJwt,
@@ -932,6 +962,15 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 signingKey,
                 signingKid,
             );
+
+            getLogger(c).info({
+                component: "audit",
+                action: "token_refresh",
+                space: primarySpace,
+                spaces: refreshEntries.map((e) => e.domain),
+                userEmail: freshUserEmail,
+                clientName: prevClientName,
+            });
 
             return c.json({
                 access_token: accessTokenJwt,

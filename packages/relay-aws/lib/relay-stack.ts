@@ -950,11 +950,11 @@ export class RelayStack extends cdk.Stack {
     });
 
     new logs.CfnQueryDefinition(this, "QueryAuditLog", {
-      name: `${prefix}/監査ログ (認証イベント)`,
+      name: `${prefix}/監査ログ`,
       logGroupNames,
       queryString: [
         'filter component = "audit"',
-        "fields @timestamp, requestId, action, result, space, userEmail, userName, clientIp, error",
+        "fields @timestamp, requestId, action, result, tool, space, userEmail, clientName, clientIp, error",
         "sort @timestamp desc",
         "limit 100",
       ].join("\n| "),
