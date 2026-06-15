@@ -351,11 +351,13 @@ export class RelayStack extends cdk.Stack {
     // イメージが ECR に push されてから関数を作成/更新する
     fn.node.addDependency(imageCopy);
 
-    new logs.LogGroup(this, "RelayFunctionLogGroup", {
+    const logGroup = new logs.LogGroup(this, "RelayFunctionLogGroup", {
       logGroupName: `/aws/lambda/${fn.functionName}`,
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    this.createInsightsQueries(logGroup);
 
     // Parameter Store の読み取り権限を付与
     this.configParameter.grantRead(fn);
@@ -905,6 +907,80 @@ export class RelayStack extends cdk.Stack {
         });
       }
     }
+  }
+
+  /**
+   * Logs Insights の保存クエリを作成する。
+   * requestId でアクセスログ・MCP ツール・監査ログを横断追跡するためのクエリ群。
+   */
+  private createInsightsQueries(logGroup: logs.ILogGroup): void {
+    const logGroupNames = [logGroup.logGroupName];
+    const prefix = "backlog";
+
+    new logs.CfnQueryDefinition(this, "QueryRequestTrace", {
+      name: `${prefix}/requestId でリクエスト追跡`,
+      logGroupNames,
+      queryString: [
+        'filter requestId = "REQUEST_ID_HERE"',
+        "fields @timestamp, component, level, method, path, status, duration_ms, tool, action, result, error",
+        "sort @timestamp asc",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QuerySlowRequests", {
+      name: `${prefix}/レスポンスが遅いリクエスト`,
+      logGroupNames,
+      queryString: [
+        'filter component = "access" and duration_ms > 3000',
+        "fields @timestamp, requestId, method, path, status, duration_ms, clientIp",
+        "sort duration_ms desc",
+        "limit 50",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryErrors", {
+      name: `${prefix}/エラー一覧`,
+      logGroupNames,
+      queryString: [
+        'filter level = "error" or result = "error"',
+        "fields @timestamp, requestId, component, error, tool, action, tenant, clientIp",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryAuditLog", {
+      name: `${prefix}/監査ログ (認証イベント)`,
+      logGroupNames,
+      queryString: [
+        'filter component = "audit"',
+        "fields @timestamp, requestId, action, result, space, userEmail, userName, clientIp, error",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryMcpToolCalls", {
+      name: `${prefix}/MCP ツール呼び出し`,
+      logGroupNames,
+      queryString: [
+        'filter component = "tool"',
+        "fields @timestamp, requestId, tenant, tool, category, duration_ms, error, userEmail",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryByUser", {
+      name: `${prefix}/ユーザー別アクティビティ`,
+      logGroupNames,
+      queryString: [
+        'filter userEmail = "USER_EMAIL_HERE"',
+        "fields @timestamp, requestId, component, action, tool, result, error",
+        "sort @timestamp desc",
+        "limit 200",
+      ].join("\n| "),
+    });
   }
 
 }
