@@ -307,7 +307,7 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, setupLandingHTML, name, space, relayURL, authURL)
+		_, _ = fmt.Fprintf(w, setupLandingHTML, name, space, relayURL, authURL)
 	})
 
 	// コールバック: 認証結果を受け取る
@@ -315,26 +315,26 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 		if r.URL.Query().Get("state") != state {
 			resultCh <- callbackResult{err: fmt.Errorf("state mismatch")}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, setupResultHTML, "認証エラー", "セッションが無効です。もう一度やり直してください。", "#dc2626")
+			_, _ = fmt.Fprintf(w, setupResultHTML, "認証エラー", "セッションが無効です。もう一度やり直してください。", "#dc2626")
 			return
 		}
 		if errParam := r.URL.Query().Get("error"); errParam != "" {
 			desc := r.URL.Query().Get("error_description")
 			resultCh <- callbackResult{err: fmt.Errorf("%s: %s", errParam, desc)}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, setupResultHTML, "認証に失敗しました", desc, "#dc2626")
+			_, _ = fmt.Fprintf(w, setupResultHTML, "認証に失敗しました", desc, "#dc2626")
 			return
 		}
 		code := r.URL.Query().Get("code")
 		if code == "" {
 			resultCh <- callbackResult{err: fmt.Errorf("missing authorization code")}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprintf(w, setupResultHTML, "認証エラー", "認可コードが見つかりません。", "#dc2626")
+			_, _ = fmt.Fprintf(w, setupResultHTML, "認証エラー", "認可コードが見つかりません。", "#dc2626")
 			return
 		}
 		resultCh <- callbackResult{code: code}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, setupResultHTML,
+		_, _ = fmt.Fprintf(w, setupResultHTML,
 			"認証が完了しました",
 			"ターミナルに戻ってセットアップの完了をお待ちください。このタブは閉じて構いません。",
 			"#059669")
@@ -359,7 +359,7 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 	fmt.Println("Waiting for authentication... (press Ctrl+C to cancel)")
 
 	if err := browser.OpenURL(landingURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
 	}
 
 	var result callbackResult
