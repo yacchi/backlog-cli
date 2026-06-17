@@ -283,7 +283,6 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 		return nil, fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	// 軽量コールバックサーバーを起動
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start callback server: %w", err)
@@ -296,28 +295,49 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 	}
 	resultCh := make(chan callbackResult, 1)
 
+	authURL := fmt.Sprintf("%s/auth/start?space=%s&port=%d&state=%s",
+		strings.TrimRight(relayURL, "/"), space, port, state)
+
 	mux := http.NewServeMux()
+
+	// ランディングページ: 認証前に何の認証か説明する
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, setupLandingHTML, name, space, relayURL, authURL)
+	})
+
+	// コールバック: 認証結果を受け取る
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("state") != state {
 			resultCh <- callbackResult{err: fmt.Errorf("state mismatch")}
-			http.Error(w, "State mismatch", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, setupResultHTML, "認証エラー", "セッションが無効です。もう一度やり直してください。", "#dc2626")
 			return
 		}
 		if errParam := r.URL.Query().Get("error"); errParam != "" {
 			desc := r.URL.Query().Get("error_description")
 			resultCh <- callbackResult{err: fmt.Errorf("%s: %s", errParam, desc)}
-			fmt.Fprintf(w, "Authentication failed: %s. You can close this window.", desc)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, setupResultHTML, "認証に失敗しました", desc, "#dc2626")
 			return
 		}
 		code := r.URL.Query().Get("code")
 		if code == "" {
 			resultCh <- callbackResult{err: fmt.Errorf("missing authorization code")}
-			http.Error(w, "Missing code", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, setupResultHTML, "認証エラー", "認可コードが見つかりません。", "#dc2626")
 			return
 		}
 		resultCh <- callbackResult{code: code}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, "<html><body><h2>Authentication successful</h2><p>You can close this window.</p></body></html>")
+		fmt.Fprintf(w, setupResultHTML,
+			"認証が完了しました",
+			"ターミナルに戻ってセットアップの完了をお待ちください。このタブは閉じて構いません。",
+			"#059669")
 	})
 
 	server := &http.Server{Handler: mux}
@@ -328,22 +348,20 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
-	// ブラウザでリレーの OAuth 開始 URL を開く
-	authURL := fmt.Sprintf("%s/auth/start?space=%s&port=%d&state=%s",
-		strings.TrimRight(relayURL, "/"), space, port, state)
+	// ランディングページを開く（直接 Backlog に飛ばさない）
+	landingURL := fmt.Sprintf("http://localhost:%d/", port)
 
 	fmt.Println()
 	fmt.Println("Open this URL in your browser to authenticate:")
 	fmt.Println()
-	fmt.Printf("  %s\n", authURL)
+	fmt.Printf("  %s\n", landingURL)
 	fmt.Println()
 	fmt.Println("Waiting for authentication... (press Ctrl+C to cancel)")
 
-	if err := browser.OpenURL(authURL); err != nil {
+	if err := browser.OpenURL(landingURL); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not open browser: %v\n", err)
 	}
 
-	// コールバック待機
 	var result callbackResult
 	select {
 	case result = <-resultCh:
@@ -355,7 +373,6 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 		return nil, fmt.Errorf("authentication failed: %w", result.err)
 	}
 
-	// コード → トークン交換
 	ui.Info("Exchanging authorization code...")
 	client := auth.NewClient(relayURL)
 	tokenResp, err := client.ExchangeToken(auth.TokenRequest{
@@ -368,7 +385,6 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 		return nil, fmt.Errorf("failed to exchange token: %w", err)
 	}
 
-	// トークンでプロビジョニングキーを取得
 	ui.Info("Requesting provisioning key...")
 	provResp, err := config.RequestProvisioningKeyWithToken(ctx, relayURL, name, tokenResp.AccessToken, space)
 	if err != nil {
@@ -377,6 +393,54 @@ func runSetupOAuth(ctx context.Context, relayURL, name, space string) (*config.P
 
 	return provResp, nil
 }
+
+const setupPageStyle = `
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+background:#f8fafc;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
+.card{background:#fff;border-radius:1rem;box-shadow:0 1px 3px rgba(0,0,0,.1);
+max-width:28rem;width:100%%;padding:2.5rem;text-align:center}
+.badge{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.15em;color:#6b7280}
+h1{font-size:1.5rem;font-weight:600;color:#1e293b;margin:.75rem 0}
+p{font-size:.875rem;color:#64748b;line-height:1.6}
+.info{margin:1.25rem 0;text-align:left}
+.info-row{display:flex;padding:.5rem .75rem;border-radius:.5rem;background:#f1f5f9;margin-bottom:.5rem}
+.info-label{font-size:.75rem;font-weight:500;color:#6b7280;min-width:6rem}
+.info-value{font-size:.75rem;color:#1e293b;word-break:break-all}
+.btn{display:inline-block;padding:.75rem 2rem;border-radius:.75rem;font-size:.875rem;font-weight:500;
+text-decoration:none;transition:all .15s;cursor:pointer;border:none}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.hint{font-size:.75rem;color:#94a3b8;margin-top:1rem}
+`
+
+var setupLandingHTML = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Backlog CLI Setup</title><style>` + setupPageStyle + `</style></head>
+<body><div class="card">
+<p class="badge">Backlog CLI</p>
+<h1>CLIセットアップ認証</h1>
+<p>以下の設定でセットアップを行います。<br>Backlog にログインして認証を完了してください。</p>
+<div class="info">
+<div class="info-row"><span class="info-label">テナント</span><span class="info-value">%s</span></div>
+<div class="info-row"><span class="info-label">スペース</span><span class="info-value">%s</span></div>
+<div class="info-row"><span class="info-label">リレーサーバー</span><span class="info-value">%s</span></div>
+</div>
+<a class="btn btn-primary" href="%s">Backlog にログイン</a>
+<p class="hint">認証後、自動的にこのページに戻ります</p>
+</div></body></html>`
+
+var setupResultHTML = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Backlog CLI Setup</title><style>` + setupPageStyle + `
+.icon{font-size:2.5rem;margin-bottom:.5rem}
+</style></head>
+<body><div class="card">
+<p class="badge">Backlog CLI</p>
+<div class="icon" style="color:%[3]s">` + "&#x25cf;" + `</div>
+<h1>%[1]s</h1>
+<p>%[2]s</p>
+</div></body></html>`
 
 // resolveFlag はフラグ値を環境変数でフォールバックする
 func resolveFlag(flagValue, envKey string) string {
