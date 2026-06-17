@@ -112,6 +112,9 @@ func runSetupWithToken(cmd *cobra.Command, token string) error {
 	fmt.Println()
 	fmt.Println("You can now authenticate with:")
 	fmt.Printf("  backlog auth login\n")
+
+	fmt.Println()
+	maybeInstallClaudePlugin(cmd)
 	return nil
 }
 
@@ -273,6 +276,9 @@ func finishSetup(cmd *cobra.Command, relayURL, space, provisioningKey string) er
 	fmt.Println()
 	fmt.Println("You can now authenticate with:")
 	fmt.Printf("  backlog auth login\n")
+
+	fmt.Println()
+	maybeInstallClaudePlugin(cmd)
 	return nil
 }
 
