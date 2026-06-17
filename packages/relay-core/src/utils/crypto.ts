@@ -79,17 +79,9 @@ export async function verifyEd25519(
   signature: Uint8Array,
   data: Uint8Array,
 ): Promise<boolean> {
-  const spkiHeader = new Uint8Array([
-    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
-    0x03, 0x21, 0x00,
-  ]);
-  const spkiKey = new Uint8Array(spkiHeader.length + publicKeyBytes.length);
-  spkiKey.set(spkiHeader);
-  spkiKey.set(publicKeyBytes, spkiHeader.length);
-
   const publicKey = await crypto.subtle.importKey(
-    "spki",
-    spkiKey,
+    "raw",
+    publicKeyBytes,
     { name: "Ed25519" },
     false,
     ["verify"],
