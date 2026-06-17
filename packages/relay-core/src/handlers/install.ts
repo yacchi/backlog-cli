@@ -26,6 +26,12 @@ const INSTALL_SCRIPT = `#!/bin/sh
 #   BACKLOG_PASSPHRASE   Passphrase for portal authentication (optional)
 #   BACKLOG_SPACE        Space host (e.g. example.backlog.jp)
 
+# Wrap everything in main() so the shell reads the entire script into memory
+# before executing. This prevents commands like brew from consuming the
+# remaining bytes of the pipe when invoked via "curl | sh".
+
+main() {
+
 set -e
 
 GITHUB_REPO="yacchi/backlog-cli"
@@ -96,7 +102,7 @@ install_with_brew() {
         return 1
     fi
     info "Installing via Homebrew..."
-    brew install "$BREW_TAP" </dev/null || brew upgrade "$BREW_TAP" </dev/null 2>/dev/null || true
+    brew install "$BREW_TAP" || brew upgrade "$BREW_TAP" 2>/dev/null || true
     return 0
 }
 
@@ -174,7 +180,7 @@ else
     info "Backlog CLI already installed: $(backlog version 2>/dev/null || echo 'unknown version')"
     if command -v brew > /dev/null 2>&1 && brew list --formula 2>/dev/null | grep -q backlog-cli; then
         info "Upgrading via Homebrew..."
-        brew upgrade "$BREW_TAP" </dev/null 2>/dev/null || true
+        brew upgrade "$BREW_TAP" 2>/dev/null || true
     fi
 fi
 
@@ -214,6 +220,10 @@ else
     # shellcheck disable=SC2086
     backlog config setup --yes $setup_args
 fi
+
+} # end main
+
+main "$@"
 `;
 
 /**
