@@ -9,7 +9,9 @@
  * Docker / ローカル / Lambda コンテナの各ターゲットを提供できるようにしたもの。
  */
 
-import { Hono } from "hono";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { Hono, type Context, type Next } from "hono";
+import { requestId } from "hono/request-id";
 import { cors } from "hono/cors";
 import {
   createRelayApp,
@@ -17,7 +19,9 @@ import {
   generateProvisioningToken,
   verifyPassphrase,
   parseConfig,
+  extractRequestContext,
   type RelayConfig,
+  type AuditEvent,
   type AuditLogger,
   type PortalAssets,
 } from "@yacchi/backlog-relay-core";
@@ -26,10 +30,41 @@ import {
   verify,
   loadSigningKeys,
   parseConfig as parseMcpConfig,
+  Logger,
+  LOGGER_CONTEXT_KEY,
   type McpServerConfig,
   type CreateMcpAppOptions,
   type TokenExchange,
 } from "@yacchi/backlog-mcp-server";
+
+/**
+ * AsyncLocalStorage for propagating request-scoped Logger into audit logs.
+ * The stored Logger already carries requestId / clientIp / userAgent bindings,
+ * so audit events inherit them automatically.
+ */
+const loggerContextStore = new AsyncLocalStorage<{ logger: Logger }>();
+
+/**
+ * Create an AuditLogger that delegates to the request-scoped Logger stored in
+ * AsyncLocalStorage. Falls back to `baseLogger` outside a request context.
+ * This unifies audit event output with the structured Logger format so that
+ * all log lines share the same schema (level, ts, requestId, etc.).
+ */
+function createLoggerAuditLogger(baseLogger: Logger): AuditLogger {
+  return {
+    log(event: AuditEvent) {
+      const ctx = loggerContextStore.getStore();
+      const logger = ctx?.logger ?? baseLogger;
+      const { timestamp, result, ...fields } = event;
+      const level = result === "error" ? "error" : "info";
+      logger[level]({
+        component: "audit",
+        ...fields,
+        result,
+      });
+    },
+  };
+}
 
 /**
  * `x-mcp-authorization` から `Authorization` ヘッダーを復元する。
@@ -59,8 +94,6 @@ export function restoreMcpAuthorization(req: Request): Request {
 export interface CreateUnifiedAppOptions {
   /** raw 設定オブジェクト（ConfigSource が secrets をマージ済み）。 */
   rawConfig: Record<string, unknown>;
-  /** 監査ロガー。 */
-  auditLogger: AuditLogger;
   /** Portal SPA アセット（任意）。 */
   portalAssets?: PortalAssets;
   /** MCP の `backlog` ツール用の Backlog CLI バイナリパス。 */
@@ -116,6 +149,8 @@ export function buildMcpConfig(
     spaces: mcpSpaces,
     script: rawConfig.mcp_script,
     default_spaces: rawConfig.mcp_default_spaces ?? [],
+    audit: rawConfig.mcp_audit,
+    logging: rawConfig.mcp_logging,
   };
   if (baseUrl) {
     mcpConfigObj.base_url = baseUrl;
@@ -185,23 +220,62 @@ export function createDirectTokenExchange(
 export async function createUnifiedApp(
   options: CreateUnifiedAppOptions,
 ): Promise<Hono> {
-  const { rawConfig, auditLogger } = options;
+  const { rawConfig } = options;
 
   const relayConfig = parseConfig(JSON.stringify(rawConfig));
   const serverJwks = relayConfig.jwks;
+
+  const app = new Hono();
+  const serverConfig = rawConfig.server as { log_level?: string } | undefined;
+  const logLevel = (serverConfig?.log_level ?? "info") as "debug" | "info" | "warn" | "error";
+  const baseLogger = new Logger({}, logLevel);
+  baseLogger.info({ component: "config", log_level: logLevel, log_level_raw: serverConfig?.log_level });
+
+  const auditLogger = createLoggerAuditLogger(baseLogger);
 
   const relayApp = createRelayApp({
     config: relayConfig,
     auditLogger,
     verifyPassphrase,
-    createBundle: (tenant, domain, relayUrl) =>
-      createBundle(tenant, domain, relayUrl, serverJwks),
-    generateProvisionToken: (tenant, domain, relayUrl) =>
-      generateProvisioningToken(tenant, domain, relayUrl, serverJwks),
+    createBundle: (tenant, domain, relayUrl, issuedBy) =>
+      createBundle(tenant, domain, relayUrl, serverJwks, issuedBy),
+    generateProvisionToken: (tenant, domain, relayUrl, issuedBy) =>
+      generateProvisioningToken(tenant, domain, relayUrl, serverJwks, issuedBy),
     portalAssets: options.portalAssets,
+    enablePortalOAuth: !!serverJwks,
   });
 
-  const app = new Hono();
+  // Request ID middleware — reuse Lambda Web Adapter's x-amzn-request-id when
+  // available, otherwise fall back to a generated UUID. Hono's requestId()
+  // checks X-Request-Id first (default headerName), then calls the generator.
+  app.use("*", requestId({
+    generator: (c) => c.req.header("x-amzn-request-id") ?? crypto.randomUUID(),
+  }));
+
+  // Access log middleware — all requests get IP/UA/method/path/status/duration.
+  // Stores the request-scoped Logger in both Hono context and AsyncLocalStorage
+  // so that downstream handlers AND the audit logger share the same bindings.
+  app.use("*", async (c: Context, next: Next) => {
+    const start = Date.now();
+    const rid = c.get("requestId") as string;
+    const reqCtx = extractRequestContext(c);
+    const requestLogger = baseLogger.child({
+      requestId: rid,
+      clientIp: reqCtx.clientIp,
+      userAgent: reqCtx.userAgent,
+    });
+    c.set(LOGGER_CONTEXT_KEY, requestLogger);
+    await loggerContextStore.run({ logger: requestLogger }, async () => {
+      await next();
+    });
+    requestLogger.info({
+      component: "access",
+      method: c.req.method,
+      path: new URL(c.req.url).pathname,
+      status: c.res.status,
+      duration_ms: Date.now() - start,
+    });
+  });
 
   // MCP ブラウザクライアント（MCP Inspector 等）向けの CORS。relay エンドポイントは
   // Cookie ベースかつ same-origin なので無害。

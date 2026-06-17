@@ -8,6 +8,8 @@ import type { Context } from "hono";
  * Extracted request context for audit logging and URL construction.
  */
 export interface RequestContext {
+  /** Request ID for cross-log correlation */
+  requestId?: string;
   /** Client IP address */
   clientIp: string;
   /** User agent string */
@@ -27,14 +29,16 @@ export function extractRequestContext(c: Context): RequestContext {
   const req = c.req;
 
   // Get client IP from various headers (in priority order)
+  // x-viewer-ip: set by our CloudFront Function from event.viewer.ip (true viewer IP)
   const clientIp =
+    req.header("x-viewer-ip") ||
     req.header("cf-connecting-ip") ||
     req.header("x-real-ip") ||
     req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
 
-  // Get user agent
-  const userAgent = req.header("user-agent") || "unknown";
+  // Get user agent (x-original-user-agent preserves viewer UA behind CloudFront)
+  const userAgent = req.header("x-original-user-agent") || req.header("user-agent") || "unknown";
 
   // Get host from headers
   // x-original-host is used by CloudFront (x-forwarded-host is reserved)
@@ -52,7 +56,10 @@ export function extractRequestContext(c: Context): RequestContext {
   // Construct base URL
   const baseUrl = `${protocol}://${host}`;
 
+  const requestId = (c.get("requestId") as string | undefined) || undefined;
+
   return {
+    requestId,
     clientIp,
     userAgent,
     host,

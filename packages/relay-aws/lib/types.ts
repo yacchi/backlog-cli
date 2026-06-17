@@ -138,6 +138,8 @@ export interface ParameterStoreValue {
     port?: number;
     base_url?: string;
     allowed_host_patterns?: string;
+    /** ログレベル。"debug" で DCR 詳細等の診断情報を出力（デフォルト: "info"）。 */
+    log_level?: "debug" | "info" | "warn" | "error";
   };
   backlog_app: BacklogAppInput;
 
@@ -171,6 +173,13 @@ export interface McpConfig {
     timeout_ms?: number;
   };
   default_spaces?: string[];
+  audit?: {
+    collect_user_info?: boolean;
+  };
+  logging?: {
+    input?: boolean;
+    output?: boolean;
+  };
 }
 
 /**
@@ -218,7 +227,7 @@ export interface RelayConfig extends ParameterStoreConfig {
 export function buildSsmParameterValue(
   value: ParameterStoreValue,
   mcp?: McpConfig,
-): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[] } {
+): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[]; mcpAudit?: McpConfig["audit"]; mcpLogging?: McpConfig["logging"] } {
   const relayTenants: Array<{
     name: string;
     default_space?: string;
@@ -250,5 +259,7 @@ export function buildSsmParameterValue(
     mcpSpaces: mcp?.spaces,
     mcpScript: mcp?.script,
     mcpDefaultSpaces: mcp?.default_spaces,
+    mcpAudit: mcp?.audit,
+    mcpLogging: mcp?.logging,
   };
 }

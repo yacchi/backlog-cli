@@ -142,6 +142,104 @@ func RequestProvisioningKey(ctx context.Context, relayURL, name, passphrase stri
 	return &result, nil
 }
 
+// PortalInfo は /api/v1/portal/:name/info のレスポンス
+type PortalInfo struct {
+	Name          string `json:"name"`
+	HasPassphrase bool   `json:"has_passphrase"`
+	OAuthEnabled  bool   `json:"oauth_enabled"`
+	DefaultSpace  string `json:"default_space,omitempty"`
+}
+
+// FetchPortalInfo はリレーサーバーからテナントのポータル情報を取得する。
+func FetchPortalInfo(ctx context.Context, relayURL, name string) (*PortalInfo, error) {
+	endpoint, err := url.JoinPath(relayURL, "/api/v1/portal/", name, "/info")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build info URL: %w", err)
+	}
+	debug.Log("fetching portal info", "url", endpoint)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("portal info request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("portal info returned status %d", resp.StatusCode)
+	}
+
+	var info PortalInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, fmt.Errorf("failed to parse portal info: %w", err)
+	}
+	return &info, nil
+}
+
+// RequestProvisioningKeyWithToken は Backlog OAuth アクセストークンを使ってプロビジョニングキーを取得する。
+func RequestProvisioningKeyWithToken(ctx context.Context, relayURL, name, accessToken, space string) (*ProvisionResponse, error) {
+	if strings.TrimSpace(relayURL) == "" {
+		return nil, errors.New("relay_url is required")
+	}
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("name is required")
+	}
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, errors.New("access_token is required")
+	}
+
+	endpoint, err := url.JoinPath(relayURL, "/api/v1/portal/", name, "/provision")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build provision URL: %w", err)
+	}
+	debug.Log("requesting provisioning key with token", "url", endpoint)
+
+	body, err := json.Marshal(map[string]string{"space": space})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("provision request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read provision response: %w", err)
+	}
+
+	var result ProvisionResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse provision response: %w", err)
+	}
+
+	if !result.Success {
+		errMsg := result.Error
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("provision failed: %s", errMsg)
+	}
+
+	debug.Log("provisioning key obtained via token", "has_default_space", result.DefaultSpace != "")
+	return &result, nil
+}
+
 // ProvisionFromToken はプロビジョニングトークンを使ってバンドルをダウンロード・インポートする
 func ProvisionFromToken(ctx context.Context, store *Store, token string, opts ProvisionOptions) (*TrustedBundle, error) {
 	if store == nil {

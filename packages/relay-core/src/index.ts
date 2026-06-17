@@ -8,6 +8,7 @@
 
 import { Hono } from "hono";
 import type { RelayConfig, AuditLogger, TenantConfig } from "./config/types.js";
+import type { IssuedByInfo } from "./utils/bundle.js";
 import { ConsoleAuditLogger } from "./middleware/audit.js";
 import { createAuthHandlers } from "./handlers/auth.js";
 import { createTokenHandlers } from "./handlers/token.js";
@@ -17,6 +18,8 @@ import { createCertsHandlers } from "./handlers/certs.js";
 import { createInfoHandlers } from "./handlers/info.js";
 import { createBundleHandlers } from "./handlers/bundle.js";
 import { createInstallHandlers } from "./handlers/install.js";
+import { createPortalAuthHandlers, handlePortalCallback as handlePortalCallbackImpl } from "./handlers/portal-auth.js";
+import type { PortalCallbackHandler } from "./handlers/portal-auth.js";
 
 // Re-export types
 export type {
@@ -47,12 +50,15 @@ export {
 } from "./config/schema.js";
 
 // Re-export utilities
-export { encodeState, decodeState, extractSessionId } from "./utils/state.js";
-export type { EncodedStateClaims } from "./utils/state.js";
+export { encodeState, decodeState, extractSessionId, parseRawState, encodePortalState, decodePortalState } from "./utils/state.js";
+export type { EncodedStateClaims, PortalStateClaims } from "./utils/state.js";
 export { extractRequestContext } from "./utils/request.js";
 export type { RequestContext } from "./utils/request.js";
 export { createBundle, generateProvisioningToken } from "./utils/bundle.js";
+export type { IssuedByInfo } from "./utils/bundle.js";
 export { verifyPassphrase } from "./utils/passphrase.js";
+export { createPortalSessionToken, verifyPortalSessionToken } from "./utils/portal-session.js";
+export type { PortalSessionClaims } from "./utils/portal-session.js";
 
 // Re-export middleware
 export { AccessControl } from "./middleware/access-control.js";
@@ -76,6 +82,8 @@ export { createCertsHandlers } from "./handlers/certs.js";
 export { createInfoHandlers } from "./handlers/info.js";
 export { createBundleHandlers } from "./handlers/bundle.js";
 export { createInstallHandlers } from "./handlers/install.js";
+export { createPortalAuthHandlers, handlePortalCallback } from "./handlers/portal-auth.js";
+export type { PortalCallbackHandler } from "./handlers/portal-auth.js";
 
 /**
  * Options for creating the relay app.
@@ -91,16 +99,20 @@ export interface CreateRelayAppOptions {
   createBundle?: (
     tenant: TenantConfig,
     domain: string,
-    relayUrl: string
+    relayUrl: string,
+    issuedBy?: IssuedByInfo,
   ) => Promise<Uint8Array>;
   /** Provisioning token generation function (required for provisioning key feature) */
   generateProvisionToken?: (
     tenant: TenantConfig,
     domain: string,
-    relayUrl: string
+    relayUrl: string,
+    issuedBy?: IssuedByInfo,
   ) => Promise<string>;
   /** Portal SPA assets (required for portal SPA serving) */
   portalAssets?: PortalAssets;
+  /** Enable portal OAuth authentication (requires server-level JWKS) */
+  enablePortalOAuth?: boolean;
 }
 
 /**
@@ -127,8 +139,12 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
   // Mount well-known handlers
   app.route("/", createWellKnownHandlers(config));
 
-  // Mount auth handlers
-  app.route("/", createAuthHandlers(config, auditLogger));
+  // Mount auth handlers (with optional portal callback dispatch)
+  const portalCallback: PortalCallbackHandler | undefined =
+    options.enablePortalOAuth && config.jwks
+      ? handlePortalCallbackImpl
+      : undefined;
+  app.route("/", createAuthHandlers(config, auditLogger, portalCallback));
 
   // Mount token handlers
   app.route("/", createTokenHandlers(config, auditLogger));
@@ -150,19 +166,26 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
   // Mount install script handler
   app.route("/", createInstallHandlers(config));
 
-  // Mount portal handlers if both functions are provided
-  if (options.verifyPassphrase && options.createBundle) {
+  // Mount portal OAuth handlers if enabled
+  if (options.enablePortalOAuth && config.jwks) {
+    app.route("/", createPortalAuthHandlers(config, auditLogger));
+  }
+
+  // Mount portal handlers when bundle creation is available or portal OAuth is enabled
+  if (options.createBundle || options.enablePortalOAuth) {
+    const noopVerify = async () => false;
+    const noopBundle = async () => { throw new Error("bundle not configured"); };
     const noopProvision = async () => { throw new Error("provisioning not configured"); };
     app.route(
       "/",
       createPortalHandlers(
         config,
         auditLogger,
-        options.verifyPassphrase,
-        options.createBundle,
+        options.verifyPassphrase ?? noopVerify,
+        options.createBundle ?? noopBundle,
         options.generateProvisionToken ?? noopProvision,
-        options.portalAssets
-      )
+        options.portalAssets,
+      ),
     );
   }
 

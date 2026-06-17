@@ -1,13 +1,12 @@
 import { Hono } from "hono";
-import type { CryptoKey } from "jose";
 import type { McpServerConfig, SpaceAccess, ScriptConfig } from "../config/schema.js";
 import { matchSpacePattern } from "../config/schema.js";
 import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
 import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
-import { logToolCall } from "../logging/logger.js";
-import type { TokenPayload } from "../crypto/jwt.js";
+import { Logger, LOGGER_CONTEXT_KEY, logToolCall, type LoggingConfig } from "../logging/logger.js";
+import type { TokenPayload, SigningKeys } from "../crypto/jwt.js";
 import { listSpaceEntries } from "../crypto/jwt.js";
 
 export interface ScriptFile {
@@ -234,10 +233,15 @@ const SKILL_PROMPT = {
 
 export function createTransportHandlers(
     config: McpServerConfig,
-    verifyKeys: Map<string, CryptoKey>,
+    keys: SigningKeys,
     options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
 ): Hono {
     const app = new Hono();
+    const { verifyKeys, encKeys } = keys;
+    const loggingConfig: LoggingConfig = {
+        input: config.logging?.input ?? false,
+        output: config.logging?.output ?? false,
+    };
     const auth = jwtAuth(
         verifyKeys,
         (c) => `${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource`,
@@ -257,11 +261,13 @@ export function createTransportHandlers(
         }
 
         const { token } = getAuthContext(c);
+        const reqLogger = getLogger(c);
 
         if (req.method === "tools/call") {
-            const toolParams = req.params as { arguments?: Record<string, unknown> } | undefined;
+            const toolParams = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
+            reqLogger.debug({ component: "jsonrpc", method: req.method, tool: toolParams?.name });
             const requestedSpace = toolParams?.arguments?.space as string | undefined;
-            if (requestedSpace && !resolveSpaceToken(token, requestedSpace)) {
+            if (requestedSpace && !(await resolveSpaceToken(token, encKeys, requestedSpace))) {
                 c.header(
                     "WWW-Authenticate",
                     `Bearer error="insufficient_scope", resource_metadata="${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource"`,
@@ -271,6 +277,8 @@ export function createTransportHandlers(
                     403,
                 );
             }
+        } else {
+            reqLogger.info({ component: "jsonrpc", method: req.method });
         }
 
         const spaceKey = token.space;
@@ -281,7 +289,7 @@ export function createTransportHandlers(
             );
         }
 
-        const result = await handleMethod(req, token, access);
+        const result = await handleMethod(c, req, token, access);
         return c.json(result);
     });
 
@@ -296,7 +304,12 @@ export function createTransportHandlers(
         return c.json({ status: "session_ended" });
     });
 
+    function getLogger(c: import("hono").Context): Logger {
+        return (c.get(LOGGER_CONTEXT_KEY) as Logger | undefined) ?? new Logger();
+    }
+
     async function handleMethod(
+        c: import("hono").Context,
         req: JsonRpcRequest,
         token: TokenPayload,
         access: SpaceAccess,
@@ -325,7 +338,7 @@ export function createTransportHandlers(
                 });
 
             case "tools/call":
-                return handleToolCall(req, token);
+                return handleToolCall(c, req, token);
 
             case "prompts/list":
                 return jsonRpcResult(req.id, {
@@ -355,14 +368,16 @@ export function createTransportHandlers(
     }
 
     async function handleToolCall(
+        c: import("hono").Context,
         req: JsonRpcRequest,
         token: TokenPayload,
     ): Promise<JsonRpcResponse> {
+        const logger = getLogger(c);
         const params = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
         const toolName = params?.name;
         const toolArgs = params?.arguments ?? {};
         const requestedSpace = toolArgs.space as string | undefined;
-        const resolved = resolveSpaceToken(token, requestedSpace);
+        const resolved = await resolveSpaceToken(token, encKeys, requestedSpace);
         if (!resolved) {
             const spaceEntries = listSpaceEntries(token);
             const authenticated = spaceEntries.length > 0
@@ -408,7 +423,7 @@ export function createTransportHandlers(
         switch (toolName) {
             case "backlog_help": {
                 const command = (toolArgs.command as string | undefined)?.trim();
-                const log = logToolCall({ tool: "backlog_help", input: { command }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: "backlog_help", input: { command }, tenant: spaceKey, loggingConfig });
                 try {
                     const cliRef = await executeBacklogCommand(
                         'cli-ref --diff --exclude "ai,auth,config,markdown,profile,version"',
@@ -436,7 +451,7 @@ export function createTransportHandlers(
 
             case "who": {
                 const query = (toolArgs.query as string | undefined)?.trim();
-                const log = logToolCall({ tool: "who", input: { query }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: "who", input: { query }, tenant: spaceKey, loggingConfig });
                 try {
                     if (!query) {
                         const result = await executeBacklogCommand(
@@ -501,7 +516,7 @@ export function createTransportHandlers(
                 const files = toolArgs.files as ScriptFile[] | undefined;
                 const readOnly = toolName === "backlog_query" || !effectiveAccess.writable;
 
-                const log = logToolCall({ tool: toolName, input: { args }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: toolName, input: { args }, tenant: spaceKey, loggingConfig });
 
                 const filePaths = files?.length ? materializeFiles(files) : null;
                 try {
@@ -535,7 +550,7 @@ export function createTransportHandlers(
                 }
                 const files = toolArgs.files as ScriptFile[] | undefined;
 
-                const log = logToolCall({ tool: toolName, input: { script }, tenant: spaceKey });
+                const log = logToolCall(logger, { tool: toolName, input: { script }, tenant: spaceKey, loggingConfig });
 
                 if (!options?.runScript) {
                     log.finish({ error: `${toolName} sandbox is not available`, category: "sandbox_unavailable" });

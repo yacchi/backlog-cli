@@ -68,3 +68,51 @@ export function decodeState(encoded: string): EncodedStateClaims {
 export function extractSessionId(cliState: string): string {
   return cliState.slice(0, 16);
 }
+
+/**
+ * Parse raw state without validation.
+ * Used to determine the state type (CLI vs portal) before type-specific decoding.
+ */
+export function parseRawState(encoded: string): Record<string, unknown> {
+  let base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4) {
+    base64 += "=";
+  }
+  const json = atob(base64);
+  return JSON.parse(json) as Record<string, unknown>;
+}
+
+/**
+ * Claims stored in portal OAuth state.
+ */
+export interface PortalStateClaims {
+  purpose: "portal";
+  tenant: string;
+  space: string;
+  nonce: string;
+}
+
+/**
+ * Encode portal state claims to a URL-safe string.
+ */
+export function encodePortalState(claims: PortalStateClaims): string {
+  const json = JSON.stringify(claims);
+  const base64 = btoa(json);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Decode and validate portal state from a URL-safe string.
+ */
+export function decodePortalState(encoded: string): PortalStateClaims {
+  const raw = parseRawState(encoded);
+  if (
+    raw.purpose !== "portal" ||
+    typeof raw.tenant !== "string" ||
+    typeof raw.space !== "string" ||
+    typeof raw.nonce !== "string"
+  ) {
+    throw new Error("Invalid portal state claims");
+  }
+  return raw as unknown as PortalStateClaims;
+}

@@ -6,10 +6,12 @@
   "description": "Deployment app (template) for @yacchi/backlog-relay-aws-cdk. Copy this directory, edit config.ts, and run cdk deploy.",
   "scripts": {
     "cdk": "cdk",
-    "deploy": "cdk deploy",
+    "prebuild": "pnpm --filter @yacchi/backlog-relay-core build && pnpm --filter @yacchi/backlog-relay-aws-cdk build",
+    "build": "tsc --noEmit",
+    "deploy": "pnpm build && cdk deploy",
     "destroy": "cdk destroy",
-    "diff": "cdk diff",
-    "synth": "cdk synth",
+    "diff": "pnpm build && cdk diff",
+    "synth": "pnpm build && cdk synth",
     "invalidate-cache": "./scripts/invalidate-cache.sh",
     "update-passphrase": "tsx scripts/update-passphrase.ts",
     "lint:typecheck": "tsc"

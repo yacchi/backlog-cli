@@ -119,4 +119,24 @@ describe("loadSigningKeys", () => {
     it("throws on empty JWKS", async () => {
         await expect(loadSigningKeys(JSON.stringify({ keys: [] }))).rejects.toThrow("JWKS has no keys");
     });
+
+    it("derives an enc key per kid that has a private scalar", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const keys = await loadSigningKeys(jwksJson);
+
+        const enc = keys.encKeys.get("test-key-1");
+        expect(enc).toBeDefined();
+        expect(enc!.length).toBe(32);
+    });
+
+    it("does not derive an enc key for public-only (retired) keys", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const jwks = JSON.parse(jwksJson);
+        const { x, kty, crv } = jwks.keys[0];
+        jwks.keys.push({ kid: "retired-pub-only", kty, crv, x });
+
+        const keys = await loadSigningKeys(JSON.stringify(jwks));
+        expect(keys.verifyKeys.has("retired-pub-only")).toBe(true);
+        expect(keys.encKeys.has("retired-pub-only")).toBe(false);
+    });
 });

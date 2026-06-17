@@ -14,7 +14,6 @@
 import { serve } from "@hono/node-server";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AuditLogger, AuditEvent } from "@yacchi/backlog-relay-core";
 import {
   createSandboxClient,
   type McpServerConfig,
@@ -36,17 +35,6 @@ export const ENV_VARS = {
   BACKLOG_BIN_PATH: "BACKLOG_BIN_PATH",
   SANDBOX_WORKER_PATH: "SANDBOX_WORKER_PATH",
 } as const;
-
-/**
- * stdout に JSON 形式でログ出力する AuditLogger を生成する。
- */
-export function createDockerAuditLogger(): AuditLogger {
-  return {
-    log(event: AuditEvent): void {
-      console.log(JSON.stringify(event));
-    },
-  };
-}
 
 /**
  * web dist のパスを環境変数または既定値から取得する。
@@ -111,14 +99,12 @@ async function createRunScript(
 export async function startServer(): Promise<void> {
   const configSource = selectConfigSource();
   const rawConfig = await configSource.loadRawConfig();
-  const auditLogger = createDockerAuditLogger();
 
   const webDistPath = getWebDistPath();
   const portalAssets = await loadPortalAssets(webDistPath);
 
   const app = await createUnifiedApp({
     rawConfig,
-    auditLogger,
     portalAssets,
     binPath: process.env[ENV_VARS.BACKLOG_BIN_PATH],
     createRunScript,

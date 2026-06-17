@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify, importJWK, type JWK, type CryptoKey } from "jose";
+import { deriveEncKey } from "./secret.js";
 
 /** Per-space entry in the authorization code (has both access + refresh). */
 export interface SpaceToken {
@@ -30,6 +31,8 @@ export interface TokenPayload {
     space: string;
     iat: number;
     exp?: number;
+    userEmail?: string;
+    clientName?: string;
     [key: string]: unknown;
 }
 
@@ -73,6 +76,14 @@ export interface SigningKeys {
     signingKey: CryptoKey;
     signingKid: string;
     verifyKeys: Map<string, CryptoKey>;
+    /**
+     * Per-`kid` AES-256-GCM keys derived from each signing key's private
+     * scalar (`d`), used to seal/open the raw Backlog tokens carried inside the
+     * JWT. A key is present only when its JWK includes `d`; retired keys must
+     * keep `d` so previously-issued (encrypted) tokens can still be opened
+     * after a signing-key rotation.
+     */
+    encKeys: Map<string, Uint8Array>;
 }
 
 export async function loadSigningKeys(jwksJson: string): Promise<SigningKeys> {
@@ -90,13 +101,17 @@ export async function loadSigningKeys(jwksJson: string): Promise<SigningKeys> {
     const signingKid = first.kid;
 
     const verifyKeys = new Map<string, CryptoKey>();
+    const encKeys = new Map<string, Uint8Array>();
     for (const jwk of jwks.keys) {
         const publicJwk: JWK = { kty: jwk.kty, crv: jwk.crv, x: jwk.x };
         const key = await importJWK(publicJwk, ALG) as CryptoKey;
         verifyKeys.set(jwk.kid, key);
+        if (jwk.d) {
+            encKeys.set(jwk.kid, deriveEncKey(jwk.d));
+        }
     }
 
-    return { signingKey, signingKid, verifyKeys };
+    return { signingKey, signingKid, verifyKeys, encKeys };
 }
 
 export async function sign(

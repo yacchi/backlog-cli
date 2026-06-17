@@ -90,9 +90,10 @@ export async function loadPortalAssets(
       return undefined;
     }
 
-    // Read all assets from the assets subdirectory
+    // Read all assets from the assets subdirectory.
+    // basePath="assets" so keys match the URL path (e.g. "assets/index-abc.js").
     const assetsDir = join(webDistPath, "assets");
-    const assets = await readDirRecursive(assetsDir);
+    const assets = await readDirRecursive(assetsDir, "assets");
 
     console.log(`[portal-assets] Loaded ${assets.size} assets from ${webDistPath}`);
 

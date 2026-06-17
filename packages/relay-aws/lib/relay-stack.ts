@@ -12,6 +12,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
+import * as cr from "aws-cdk-lib/custom-resources";
 import { Construct } from "constructs";
 import * as path from "node:path";
 import { execSync } from "node:child_process";
@@ -103,6 +104,9 @@ export class RelayStack extends cdk.Stack {
 
     // CloudFront ディストリビューションを作成
     this.distribution = this.createCloudFrontDistribution();
+
+    // デプロイ時に discovery パスのキャッシュを invalidate（長 TTL の前提）
+    this.createDeployInvalidation();
 
     // Outputs を作成
     this.createOutputs(cloudFrontEnabled);
@@ -231,7 +235,7 @@ export class RelayStack extends cdk.Stack {
     };
 
     // Build SSM value: strips secrets, converts tenants to relay-core array
-    const { config: ssmConfig, mcpSpaces, mcpScript, mcpDefaultSpaces } = buildSsmParameterValue(baseValue, this.config.mcp);
+    const { config: ssmConfig, mcpSpaces, mcpScript, mcpDefaultSpaces, mcpAudit, mcpLogging } = buildSsmParameterValue(baseValue, this.config.mcp);
 
     // NOTE: MCP's base_url (OAuth issuer) is derived at runtime from the request
     // host (x-original-host / Host). It is intentionally NOT injected here: the
@@ -251,6 +255,8 @@ export class RelayStack extends cdk.Stack {
       finalValue.mcp_spaces = mcpSpaces;
       if (mcpScript) finalValue.mcp_script = mcpScript;
       if (mcpDefaultSpaces && mcpDefaultSpaces.length > 0) finalValue.mcp_default_spaces = mcpDefaultSpaces;
+      if (mcpAudit) finalValue.mcp_audit = mcpAudit;
+      if (mcpLogging) finalValue.mcp_logging = mcpLogging;
     }
 
     const parameterValue = JSON.stringify(finalValue);
@@ -345,11 +351,13 @@ export class RelayStack extends cdk.Stack {
     // イメージが ECR に push されてから関数を作成/更新する
     fn.node.addDependency(imageCopy);
 
-    new logs.LogGroup(this, "RelayFunctionLogGroup", {
+    const logGroup = new logs.LogGroup(this, "RelayFunctionLogGroup", {
       logGroupName: `/aws/lambda/${fn.functionName}`,
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    this.createInsightsQueries(logGroup);
 
     // Parameter Store の読み取り権限を付与
     this.configParameter.grantRead(fn);
@@ -396,11 +404,14 @@ export class RelayStack extends cdk.Stack {
     const origin = this.createOrigin();
 
     // キャッシュポリシー
-    const { staticAssetsCachePolicy, dynamicContentsCachePolicy } =
+    const { staticAssetsCachePolicy, dynamicContentsCachePolicy, discoveryCachePolicy } =
       this.createCachePolicies();
 
     // オリジンリクエストポリシー: Content-* ヘッダーと Cookie を転送
     const originRequestPolicy = this.createOriginRequestPolicy();
+
+    // Discovery エンドポイント用: Cookie不要、最小限のヘッダーのみ転送
+    const discoveryOriginRequestPolicy = this.createDiscoveryOriginRequestPolicy();
 
     // CloudFront Function: x-original-host ヘッダーを追加 (viewer-request)
     const forwardHostFunction = this.createForwardHostFunction();
@@ -463,6 +474,40 @@ export class RelayStack extends cdk.Stack {
         cachePolicy: dynamicContentsCachePolicy,
       },
       additionalBehaviors: {
+        // Discovery endpoints (well-known): GET/HEAD/OPTIONS, Lambda@Edge 不要
+        // MCP OAuth discovery + Relay server discovery を含む
+        // OPTIONS を許可: MCP spec で CORS が必要（ブラウザベースクライアント用）
+        "/.well-known/*": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          cachePolicy: discoveryCachePolicy,
+          originRequestPolicy: discoveryOriginRequestPolicy,
+          compress: true,
+          functionAssociations: [
+            {
+              function: forwardHostFunction,
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+        },
+        // Tenant JWKS 公開鍵: GET/HEAD only, Lambda@Edge 不要
+        "/v1/relay/tenants/*/certs": {
+          origin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: discoveryCachePolicy,
+          originRequestPolicy: discoveryOriginRequestPolicy,
+          compress: true,
+          functionAssociations: [
+            {
+              function: forwardHostFunction,
+              eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+        },
         // 静的アセット: ホスト情報不要、長期キャッシュ（immutable）
         "/assets/*": {
           origin,
@@ -583,11 +628,37 @@ export class RelayStack extends cdk.Stack {
         "Origin",
         "Referer",
         "X-Original-Host",
+        "X-Original-User-Agent",
+        "X-Viewer-Ip",
         "X-MCP-Authorization",
       ),
       queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.all(),
       cookieBehavior: cloudfront.OriginRequestCookieBehavior.all(),
     });
+  }
+
+  /**
+   * Discovery エンドポイント用オリジンリクエストポリシー
+   * well-known / certs は認証・Cookie 不要なため最小限のヘッダーのみ転送
+   */
+  private createDiscoveryOriginRequestPolicy(): cloudfront.OriginRequestPolicy {
+    return new cloudfront.OriginRequestPolicy(
+      this,
+      "DiscoveryOriginRequestPolicy",
+      {
+        originRequestPolicyName: `${this.stackName}-discovery-origin`,
+        comment: "Minimal headers for discovery endpoints (no cookies)",
+        headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
+          "Accept",
+          "X-Original-Host",
+          "Access-Control-Request-Method",
+          "Access-Control-Request-Headers",
+        ),
+        queryStringBehavior:
+          cloudfront.OriginRequestQueryStringBehavior.none(),
+        cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
+      },
+    );
   }
 
   /**
@@ -597,6 +668,7 @@ export class RelayStack extends cdk.Stack {
   private createCachePolicies(): {
     staticAssetsCachePolicy: cloudfront.CachePolicy;
     dynamicContentsCachePolicy: cloudfront.CachePolicy;
+    discoveryCachePolicy: cloudfront.CachePolicy;
   } {
     // 設定とデフォルト値をマージ
     const cacheConfig = {
@@ -647,7 +719,28 @@ export class RelayStack extends cdk.Stack {
       },
     );
 
-    return { staticAssetsCachePolicy, dynamicContentsCachePolicy };
+    // Discovery endpoints (well-known, certs): GET/HEAD only, host-keyed cache
+    // Lambda@Edge (content hash) は GET リクエストに不要なためスキップ
+    // オリジンの Cache-Control を尊重（minTtl=0）し、defaultTtl はフォールバック
+    const discoveryCachePolicy = new cloudfront.CachePolicy(
+      this,
+      "DiscoveryCachePolicy",
+      {
+        cachePolicyName: `${this.stackName}-discovery`,
+        comment: "Cache for well-known/discovery endpoints (host-keyed, deploy-invalidated)",
+        defaultTtl: cdk.Duration.days(7),
+        maxTtl: cdk.Duration.days(7),
+        minTtl: cdk.Duration.seconds(0),
+        enableAcceptEncodingGzip: true,
+        enableAcceptEncodingBrotli: true,
+        headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
+          "X-Original-Host",
+          "Origin",
+        ),
+      },
+    );
+
+    return { staticAssetsCachePolicy, dynamicContentsCachePolicy, discoveryCachePolicy };
   }
 
   /**
@@ -720,6 +813,65 @@ export class RelayStack extends cdk.Stack {
   }
 
   /**
+   * デプロイ時に CloudFront の discovery パスをキャッシュ invalidate。
+   * well-known / certs は長 TTL でキャッシュしているため、
+   * コード変更（イメージ更新）時に古いレスポンスを確実に破棄する。
+   * イメージタグを physicalResourceId に使うことで、
+   * イメージ変更時のみ invalidation が発火する（冪等）。
+   */
+  private createDeployInvalidation(): void {
+    if (!this.distribution) return;
+
+    const imageTag = this.config.image?.tag ?? "unknown";
+    const distribution = this.distribution;
+
+    new cr.AwsCustomResource(this, "DeployCacheInvalidation", {
+      onCreate: {
+        service: "CloudFront",
+        action: "createInvalidation",
+        parameters: {
+          DistributionId: distribution.distributionId,
+          InvalidationBatch: {
+            CallerReference: `${this.stackName}-${imageTag}-create`,
+            Paths: {
+              Quantity: 2,
+              Items: ["/.well-known/*", "/v1/relay/tenants/*"],
+            },
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(
+          `cache-invalidation-${imageTag}`,
+        ),
+      },
+      onUpdate: {
+        service: "CloudFront",
+        action: "createInvalidation",
+        parameters: {
+          DistributionId: distribution.distributionId,
+          InvalidationBatch: {
+            CallerReference: `${this.stackName}-${imageTag}-update`,
+            Paths: {
+              Quantity: 2,
+              Items: ["/.well-known/*", "/v1/relay/tenants/*"],
+            },
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(
+          `cache-invalidation-${imageTag}`,
+        ),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new cdk.aws_iam.PolicyStatement({
+          actions: ["cloudfront:CreateInvalidation"],
+          resources: [
+            `arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`,
+          ],
+        }),
+      ]),
+    });
+  }
+
+  /**
    * 基本の Outputs を作成
    */
   private createOutputs(cloudFrontEnabled: boolean): void {
@@ -755,6 +907,80 @@ export class RelayStack extends cdk.Stack {
         });
       }
     }
+  }
+
+  /**
+   * Logs Insights の保存クエリを作成する。
+   * requestId でアクセスログ・MCP ツール・監査ログを横断追跡するためのクエリ群。
+   */
+  private createInsightsQueries(logGroup: logs.ILogGroup): void {
+    const logGroupNames = [logGroup.logGroupName];
+    const prefix = "backlog";
+
+    new logs.CfnQueryDefinition(this, "QueryRequestTrace", {
+      name: `${prefix}/requestId でリクエスト追跡`,
+      logGroupNames,
+      queryString: [
+        'filter requestId = "REQUEST_ID_HERE"',
+        "fields @timestamp, component, level, method, path, status, duration_ms, tool, action, result, error",
+        "sort @timestamp asc",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QuerySlowRequests", {
+      name: `${prefix}/レスポンスが遅いリクエスト`,
+      logGroupNames,
+      queryString: [
+        'filter component = "access" and duration_ms > 3000',
+        "fields @timestamp, requestId, method, path, status, duration_ms, clientIp",
+        "sort duration_ms desc",
+        "limit 50",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryErrors", {
+      name: `${prefix}/エラー一覧`,
+      logGroupNames,
+      queryString: [
+        'filter level = "error" or result = "error"',
+        "fields @timestamp, requestId, component, error, tool, action, tenant, clientIp",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryAuditLog", {
+      name: `${prefix}/監査ログ`,
+      logGroupNames,
+      queryString: [
+        'filter component = "audit"',
+        "fields @timestamp, requestId, action, result, tool, space, userEmail, clientName, clientIp, error",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryMcpToolCalls", {
+      name: `${prefix}/MCP ツール呼び出し`,
+      logGroupNames,
+      queryString: [
+        'filter component = "tool"',
+        "fields @timestamp, requestId, tenant, tool, category, duration_ms, error, userEmail",
+        "sort @timestamp desc",
+        "limit 100",
+      ].join("\n| "),
+    });
+
+    new logs.CfnQueryDefinition(this, "QueryByUser", {
+      name: `${prefix}/ユーザー別アクティビティ`,
+      logGroupNames,
+      queryString: [
+        'filter userEmail = "USER_EMAIL_HERE"',
+        "fields @timestamp, requestId, component, action, tool, result, error",
+        "sort @timestamp desc",
+        "limit 200",
+      ].join("\n| "),
+    });
   }
 
 }

@@ -557,6 +557,68 @@ backlog completion fish >~/.config/fish/completions/backlog.fish
 - **認証状態チェック**: `--quiet` オプションでスクリプト向けの終了コード
 - **テキスト形式対応**: プロジェクトの設定に応じた Backlog 記法 / Markdown の使い分け
 
+## 監査ログ
+
+中継サーバー（Relay）と MCP サーバーは、認証イベントやツール呼び出しを `component: "audit"` の構造化ログとして出力します。すべてのログに `requestId` が付与されるため、アクセスログ・監査ログ・ツール詳細ログを横断的に追跡できます。
+
+### ログフォーマット
+
+```json
+{"level":"info","ts":"2026-06-15T01:05:00.689Z","requestId":"57ffbf7f-...","component":"audit","action":"tool_call","tool":"backlog_query","result":"success","duration_ms":123,"tenant":"myspace.backlog.jp","userEmail":"user@example.com"}
+```
+
+### 監査アクション一覧
+
+#### MCP サーバー
+
+| action | トリガー | 説明 |
+|---|---|---|
+| `dcr` | `POST /mcp/register` | Dynamic Client Registration |
+| `authorize` | `GET /mcp/authorize` | OAuth 認可ページ表示 |
+| `callback` | `GET /mcp/authorize/callback` | Backlog からのコールバック受信 |
+| `complete` | `POST /mcp/authorize/complete` | 全スペース認可完了 |
+| `token_exchange` | `POST /mcp/token` | 認可コード → トークン発行 |
+| `token_refresh` | `POST /mcp/token` | リフレッシュトークンによる更新 |
+| `tool_call` | MCP ツール実行 | `backlog_query`, `backlog_mutate` 等のツール呼び出し |
+
+#### Relay サーバー
+
+| action | トリガー | 説明 |
+|---|---|---|
+| `auth_start` | `GET /auth/start` | CLI OAuth フロー開始 |
+| `auth_callback` | `GET /auth/callback` | Backlog からのコールバック受信 |
+| `token_exchange` | `POST /auth/token` | 認可コード → トークン交換 |
+| `token_refresh` | `POST /auth/token` | リフレッシュトークンによる更新 |
+| `access_denied` | 各エンドポイント | アクセス制御による拒否 |
+| `portal_verify` | `POST /api/v1/portal/verify` | ポータルパスフレーズ検証 |
+| `portal_download` | `POST /api/v1/portal/:name/bundle` | ポータル経由バンドルダウンロード |
+| `portal_provision` | `POST /api/v1/portal/:name/provision` | プロビジョニングキー発行 |
+| `relay_bundle` | `GET /v1/relay/tenants/:name/bundle` | 設定バンドルダウンロード |
+| `bundle_auth` | バンドル認証ミドルウェア | バンドルトークン検証 |
+
+### 共通フィールド
+
+| フィールド | 説明 |
+|---|---|
+| `requestId` | リクエスト相関 ID（Lambda 環境では `x-amzn-request-id` を再利用） |
+| `component` | 常に `"audit"` |
+| `action` | 上記アクション名 |
+| `result` | `"success"` または `"error"` |
+| `space` | Backlog スペースホスト |
+| `userEmail` | ユーザーのメールアドレス |
+| `clientName` | MCP クライアント名 |
+| `clientIp` | クライアント IP アドレス |
+| `error` | エラーメッセージ（エラー時のみ） |
+
+### CloudWatch Logs Insights クエリ例
+
+```
+filter component = "audit"
+| fields @timestamp, requestId, action, result, tool, space, userEmail, clientName, clientIp, error
+| sort @timestamp desc
+| limit 100
+```
+
 ## ライセンス
 
 Apache License 2.0

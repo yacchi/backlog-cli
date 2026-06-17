@@ -1,66 +1,144 @@
-export type LogLevel = "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
-export interface ToolLogEntry {
-    level: LogLevel;
-    ts: string;
-    component: string;
-    tool?: string;
-    input?: unknown;
-    output?: unknown;
-    error?: string;
-    category?: string;
-    tenant?: string;
-    duration_ms?: number;
-    meta?: Record<string, unknown>;
-}
+const LEVEL_ORDER: Record<LogLevel, number> = {
+    debug: 0,
+    info: 1,
+    warn: 2,
+    error: 3,
+};
 
-function emit(entry: ToolLogEntry): void {
-    const line = JSON.stringify(entry);
-    if (entry.level === "error") {
-        process.stderr.write(line + "\n");
-    } else {
-        process.stdout.write(line + "\n");
+export class Logger {
+    private bindings: Record<string, unknown>;
+    private minLevel: number;
+
+    constructor(bindings: Record<string, unknown> = {}, minLevel: LogLevel = "info") {
+        this.bindings = bindings;
+        this.minLevel = LEVEL_ORDER[minLevel];
+    }
+
+    child(fields: Record<string, unknown>): Logger {
+        const child = new Logger({ ...this.bindings, ...fields });
+        child.minLevel = this.minLevel;
+        return child;
+    }
+
+    debug(obj: Record<string, unknown>): void {
+        this.emit("debug", obj);
+    }
+
+    info(obj: Record<string, unknown>): void {
+        this.emit("info", obj);
+    }
+
+    warn(obj: Record<string, unknown>): void {
+        this.emit("warn", obj);
+    }
+
+    error(obj: Record<string, unknown>): void {
+        this.emit("error", obj);
+    }
+
+    private emit(level: LogLevel, obj: Record<string, unknown>): void {
+        if (LEVEL_ORDER[level] < this.minLevel) return;
+        const entry = {
+            level,
+            ts: new Date().toISOString(),
+            ...this.bindings,
+            ...obj,
+        };
+        const line = JSON.stringify(entry);
+        if (level === "error") {
+            process.stderr.write(line + "\n");
+        } else {
+            process.stdout.write(line + "\n");
+        }
     }
 }
 
-export function logToolCall(opts: {
+export const LOGGER_CONTEXT_KEY = "logger";
+
+export interface LoggingConfig {
+    input: boolean;
+    output: boolean;
+}
+
+export interface ToolCallOptions {
     tool: string;
     input: unknown;
     tenant?: string;
-}): { finish: (result: { output?: unknown; error?: string; category?: string }) => void } {
+    loggingConfig?: LoggingConfig;
+}
+
+export function logToolCall(
+    logger: Logger,
+    opts: ToolCallOptions,
+): { finish: (result: { output?: unknown; error?: string; category?: string }) => void } {
     const start = Date.now();
 
     return {
         finish(result) {
             const duration_ms = Date.now() - start;
             const level: LogLevel = result.error ? "error" : "info";
-            emit({
-                level,
-                ts: new Date().toISOString(),
+
+            const entry: Record<string, unknown> = {
                 component: "tool",
                 tool: opts.tool,
-                input: opts.input,
-                output: result.error ? undefined : truncate(result.output, 2000),
-                error: result.error,
-                category: result.category,
-                tenant: opts.tenant,
                 duration_ms,
-            });
+            };
+
+            if (result.error) {
+                entry.error = result.error;
+            }
+            if (result.category) {
+                entry.category = result.category;
+            }
+            if (opts.tenant) {
+                entry.tenant = opts.tenant;
+            }
+
+            const logInput = opts.loggingConfig?.input ?? true;
+            const logOutput = opts.loggingConfig?.output ?? true;
+
+            if (logInput) {
+                entry.input = opts.input;
+            } else {
+                const inp = opts.input as Record<string, unknown> | undefined;
+                if (inp && typeof inp === "object" && "script" in inp) {
+                    entry.input = { script: inp.script };
+                }
+            }
+
+            if (logOutput && !result.error) {
+                entry.output = truncate(result.output, 2000);
+            }
+
+            logger[level](entry);
+
+            // Audit summary: lightweight record for the audit trail
+            const audit: Record<string, unknown> = {
+                component: "audit",
+                action: "tool_call",
+                tool: opts.tool,
+                result: result.error ? "error" : "success",
+                duration_ms,
+            };
+            if (result.error) audit.error = result.error;
+            if (result.category) audit.category = result.category;
+            logger[level](audit);
         },
     };
 }
 
-export function logSandbox(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
-    emit({
-        level,
-        ts: new Date().toISOString(),
+export function logSandbox(logger: Logger, level: LogLevel, message: string, meta?: Record<string, unknown>): void {
+    const entry: Record<string, unknown> = {
         component: "sandbox",
-        error: level === "error" ? message : undefined,
+        ...(level === "error" ? { error: message } : {}),
         meta: {
             ...(level !== "error" ? { message } : {}),
             ...meta,
         },
-    });
+    };
+    logger[level](entry);
 }
 
 function truncate(value: unknown, maxLen: number): unknown {

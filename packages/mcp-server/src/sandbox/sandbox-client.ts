@@ -8,7 +8,7 @@ import type { ScriptConfig } from "../config/schema.js";
 import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
 import { materializeFiles, substituteFileRefs } from "../tools/files.js";
-import { logSandbox } from "../logging/logger.js";
+import { Logger, logSandbox } from "../logging/logger.js";
 
 const BOOT_TIMEOUT = 60_000;
 const SCRIPT_TIMEOUT = 30_000;
@@ -16,6 +16,7 @@ const SCRIPT_TIMEOUT = 30_000;
 export interface SandboxOptions {
     workerPath?: string;
     binPath?: string;
+    logger?: Logger;
 }
 
 export interface SandboxClient {
@@ -37,6 +38,7 @@ interface SandboxState {
 export async function createSandboxClient(
     options?: SandboxOptions,
 ): Promise<SandboxClient> {
+    const logger = options?.logger ?? new Logger();
     let state: SandboxState | null = null;
 
     function isAlive(): boolean {
@@ -70,12 +72,12 @@ export async function createSandboxClient(
             stdio: ["pipe", "pipe", "pipe"],
         });
 
-        logSandbox("info", "Starting sandbox worker", { workerPath });
+        logSandbox(logger, "info", "Starting sandbox worker", { workerPath });
 
         const port = await new Promise<number>((resolve, reject) => {
             const timer = setTimeout(
                 () => {
-                    logSandbox("error", "Deno sandbox boot timeout", { workerPath, timeout_ms: BOOT_TIMEOUT });
+                    logSandbox(logger, "error", "Deno sandbox boot timeout", { workerPath, timeout_ms: BOOT_TIMEOUT });
                     reject(new Error("Deno sandbox boot timeout"));
                 },
                 BOOT_TIMEOUT,
@@ -88,10 +90,10 @@ export async function createSandboxClient(
                 clearTimeout(timer);
                 try {
                     const data = JSON.parse(line) as { port: number };
-                    logSandbox("info", "Sandbox worker started", { port: data.port });
+                    logSandbox(logger, "info", "Sandbox worker started", { port: data.port });
                     resolve(data.port);
                 } catch {
-                    logSandbox("error", "Bad port line from sandbox worker", { line });
+                    logSandbox(logger, "error", "Bad port line from sandbox worker", { line });
                     reject(new Error(`Bad port line: ${line}`));
                 }
                 rl.close();
@@ -99,7 +101,7 @@ export async function createSandboxClient(
 
             proc.on("error", (err) => {
                 clearTimeout(timer);
-                logSandbox("error", `Sandbox process error: ${err.message}`, { workerPath });
+                logSandbox(logger, "error", `Sandbox process error: ${err.message}`, { workerPath });
                 reject(err);
             });
 
@@ -107,7 +109,7 @@ export async function createSandboxClient(
                 clearTimeout(timer);
                 const stderr = Buffer.concat(stderrChunks).toString().trim();
                 const detail = stderr ? `\n${stderr.slice(0, 500)}` : "";
-                logSandbox("error", "Sandbox boot failed", { exit_code: code, stderr: stderr.slice(0, 1000), workerPath });
+                logSandbox(logger, "error", "Sandbox boot failed", { exit_code: code, stderr: stderr.slice(0, 1000), workerPath });
                 reject(new Error(`Sandbox boot failed (exit code ${code}).${detail}`));
             });
 
@@ -161,11 +163,11 @@ export async function createSandboxClient(
             } catch (err) {
                 if ((err as Error).name === "AbortError") {
                     const limitMs = scriptConfig?.timeout_ms ?? SCRIPT_TIMEOUT;
-                    logSandbox("error", "Script execution timed out", { timeout_ms: limitMs, script: script.slice(0, 2000) });
+                    logSandbox(logger, "error", "Script execution timed out", { timeout_ms: limitMs, script: script.slice(0, 2000) });
                     return { result: "", error: `Script execution timed out after ${limitMs / 1000}s. Consider reducing the number of backlog() calls or simplifying the script.` };
                 }
 
-                logSandbox("error", `Sandbox execute error: ${(err as Error).message}`, { script: script.slice(0, 2000) });
+                logSandbox(logger, "error", `Sandbox execute error: ${(err as Error).message}`, { script: script.slice(0, 2000) });
                 cleanup();
                 throw err;
             } finally {

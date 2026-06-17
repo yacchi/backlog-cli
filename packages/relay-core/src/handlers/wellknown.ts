@@ -247,8 +247,7 @@ export function createWellKnownHandlers(_config: RelayConfig): Hono {
       supported_domains: ["backlog.jp", "backlog.com"],
     };
 
-    // Set cache headers for discovery endpoint
-    c.header("Cache-Control", "public, max-age=3600");
+    c.header("Cache-Control", "public, max-age=604800");
 
     return c.json(response);
   });

@@ -7,7 +7,7 @@ export function createWellKnownHandlers(config: McpServerConfig): Hono {
 
     const protectedResourceHandler = (c: import("hono").Context) => {
         const baseUrl = resolveBaseUrl(c, config.base_url);
-        c.header("Cache-Control", "public, max-age=3600");
+        c.header("Cache-Control", "public, max-age=604800");
         return c.json({
             resource: `${baseUrl}/mcp`,
             authorization_servers: [baseUrl],
@@ -19,7 +19,7 @@ export function createWellKnownHandlers(config: McpServerConfig): Hono {
 
     app.get("/.well-known/oauth-authorization-server", (c) => {
         const baseUrl = resolveBaseUrl(c, config.base_url);
-        c.header("Cache-Control", "public, max-age=3600");
+        c.header("Cache-Control", "public, max-age=604800");
         return c.json({
             issuer: baseUrl,
             authorization_endpoint: `${baseUrl}/mcp/authorize`,
