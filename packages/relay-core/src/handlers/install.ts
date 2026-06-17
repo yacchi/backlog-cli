@@ -96,7 +96,7 @@ install_with_brew() {
         return 1
     fi
     info "Installing via Homebrew..."
-    brew install "$BREW_TAP" || brew upgrade "$BREW_TAP" 2>/dev/null || true
+    brew install "$BREW_TAP" </dev/null || brew upgrade "$BREW_TAP" </dev/null 2>/dev/null || true
     return 0
 }
 
@@ -174,7 +174,7 @@ else
     info "Backlog CLI already installed: $(backlog version 2>/dev/null || echo 'unknown version')"
     if command -v brew > /dev/null 2>&1 && brew list --formula 2>/dev/null | grep -q backlog-cli; then
         info "Upgrading via Homebrew..."
-        brew upgrade "$BREW_TAP" 2>/dev/null || true
+        brew upgrade "$BREW_TAP" </dev/null 2>/dev/null || true
     fi
 fi
 
