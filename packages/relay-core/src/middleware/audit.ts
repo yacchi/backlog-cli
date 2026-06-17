@@ -14,6 +14,9 @@ export const AuditActions = {
   PORTAL_VERIFY: "portal_verify",
   PORTAL_DOWNLOAD: "portal_download",
   PORTAL_PROVISION: "portal_provision",
+  PORTAL_OAUTH_START: "portal_oauth_start",
+  PORTAL_OAUTH_LOGIN: "portal_oauth_login",
+  PORTAL_LOGOUT: "portal_logout",
   RELAY_BUNDLE: "relay_bundle",
   BUNDLE_AUTH: "bundle_auth",
 } as const;

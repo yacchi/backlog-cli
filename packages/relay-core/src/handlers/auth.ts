@@ -11,7 +11,8 @@ import type {
 import { AccessControl } from "../middleware/access-control.js";
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
-import { encodeState, decodeState, extractSessionId } from "../utils/state.js";
+import { encodeState, decodeState, extractSessionId, parseRawState, decodePortalState } from "../utils/state.js";
+import type { PortalCallbackHandler } from "./portal-auth.js";
 
 /**
  * Normalize space to a full host (e.g., "myspace.backlog.jp").
@@ -37,7 +38,8 @@ interface ErrorResponse {
  */
 export function createAuthHandlers(
   config: RelayConfig,
-  auditLogger: AuditLogger
+  auditLogger: AuditLogger,
+  portalCallbackHandler?: PortalCallbackHandler,
 ): Hono {
   const app = new Hono();
   const accessControl = new AccessControl(config.access_control);
@@ -296,7 +298,20 @@ export function createAuthHandlers(
       );
     }
 
-    // Decode state
+    // Check if this is a portal callback
+    if (portalCallbackHandler) {
+      try {
+        const raw = parseRawState(encodedState);
+        if (raw.purpose === "portal") {
+          const portalState = decodePortalState(encodedState);
+          return portalCallbackHandler(c, portalState, code, config, auditLogger);
+        }
+      } catch {
+        // Not a portal state — fall through to CLI callback
+      }
+    }
+
+    // Decode CLI state
     let claims;
     try {
       claims = decodeState(encodedState);

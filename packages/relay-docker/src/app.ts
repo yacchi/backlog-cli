@@ -237,11 +237,12 @@ export async function createUnifiedApp(
     config: relayConfig,
     auditLogger,
     verifyPassphrase,
-    createBundle: (tenant, domain, relayUrl) =>
-      createBundle(tenant, domain, relayUrl, serverJwks),
-    generateProvisionToken: (tenant, domain, relayUrl) =>
-      generateProvisioningToken(tenant, domain, relayUrl, serverJwks),
+    createBundle: (tenant, domain, relayUrl, issuedBy) =>
+      createBundle(tenant, domain, relayUrl, serverJwks, issuedBy),
+    generateProvisionToken: (tenant, domain, relayUrl, issuedBy) =>
+      generateProvisioningToken(tenant, domain, relayUrl, serverJwks, issuedBy),
     portalAssets: options.portalAssets,
+    enablePortalOAuth: !!serverJwks,
   });
 
   // Request ID middleware — reuse Lambda Web Adapter's x-amzn-request-id when

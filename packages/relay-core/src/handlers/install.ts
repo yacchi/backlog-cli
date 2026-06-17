@@ -14,13 +14,16 @@ const INSTALL_SCRIPT = `#!/bin/sh
 # Backlog CLI installer
 #
 # Usage:
-#   curl -fsSL __RELAY_URL__/install.sh | sh
+#   curl -fsSL __RELAY_URL__/install.sh | sh -s -- --name my-tenant
+#     (opens browser for Backlog OAuth authentication)
+#
 #   curl -fsSL __RELAY_URL__/install.sh | sh -s -- --name my-tenant --passphrase 'secret'
+#     (passphrase authentication for CI/CD environments)
 #
 # Environment variables (alternative to flags):
 #   BACKLOG_RELAY_URL    Relay server URL (auto-set when downloaded from relay)
 #   BACKLOG_NAME         Tenant name
-#   BACKLOG_PASSPHRASE   Passphrase for portal authentication
+#   BACKLOG_PASSPHRASE   Passphrase for portal authentication (optional)
 #   BACKLOG_SPACE        Space host (e.g. example.backlog.jp)
 
 set -e
