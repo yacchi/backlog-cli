@@ -33,7 +33,7 @@ Examples:
   backlog issue list -p all --mine --state all
 
   # Limit to multiple projects (comma-separated)
-  backlog issue list -p INFRA,LCS --mine
+  backlog issue list -p PROJ1,PROJ2 --mine
 
   # Filter by assignee
   backlog issue list --assignee @me
