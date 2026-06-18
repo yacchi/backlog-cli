@@ -26,7 +26,7 @@ the CLI searches the project's wiki pages and uses the match if unique.
 
 Examples:
   backlog wiki view 12345
-  backlog wiki view 開発新人向け -p DEV
+  backlog wiki view "Getting Started" -p PROJ
   backlog wiki view 12345 --web`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
