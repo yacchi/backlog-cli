@@ -17,12 +17,16 @@ import (
 )
 
 var viewCmd = &cobra.Command{
-	Use:   "view <wiki-id>",
+	Use:   "view <wiki-id-or-name>",
 	Short: "View a wiki page",
 	Long: `View detailed information about a wiki page.
 
+Accepts a numeric wiki ID or a page name. When a name is given,
+the CLI searches the project's wiki pages and uses the match if unique.
+
 Examples:
   backlog wiki view 12345
+  backlog wiki view 開発新人向け -p DEV
   backlog wiki view 12345 --web`,
 	Args: cobra.ExactArgs(1),
 	RunE: runView,
@@ -45,17 +49,37 @@ func init() {
 }
 
 func runView(c *cobra.Command, args []string) error {
-	wikiID, err := strconv.Atoi(args[0])
-	if err != nil {
-		return fmt.Errorf("invalid wiki ID: %s", args[0])
-	}
-
 	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
 		return err
 	}
 
 	profile := cfg.CurrentProfile()
+	ctx := c.Context()
+
+	wikiID, parseErr := strconv.Atoi(args[0])
+	if parseErr != nil {
+		// 数値でない場合はプロジェクト内で名前検索
+		projectKey := cmdutil.GetCurrentProject(cfg)
+		if projectKey == "" {
+			return fmt.Errorf("invalid wiki ID: %s\nTo search by name, specify a project with -p/--project", args[0])
+		}
+		wikis, err := client.GetWikis(ctx, projectKey, args[0])
+		if err != nil {
+			return fmt.Errorf("failed to search wiki pages: %w", err)
+		}
+		options := make([]cmdutil.NamedResolverOption, len(wikis))
+		for i, w := range wikis {
+			options[i] = cmdutil.NamedResolverOption{
+				ID:    w.ID,
+				Label: w.Name,
+			}
+		}
+		wikiID, err = cmdutil.ResolveNamedID(args[0], "wiki page", "wiki pages", options)
+		if err != nil {
+			return fmt.Errorf("failed to resolve wiki page: %w", err)
+		}
+	}
 
 	// ブラウザで開く
 	if viewWeb {
@@ -65,7 +89,7 @@ func runView(c *cobra.Command, args []string) error {
 	}
 
 	// Wiki取得
-	wiki, err := client.GetWiki(c.Context(), wikiID)
+	wiki, err := client.GetWiki(ctx, wikiID)
 	if err != nil {
 		return fmt.Errorf("failed to get wiki page: %w", err)
 	}
