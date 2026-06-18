@@ -124,6 +124,10 @@ var (
 	listInvolved            string
 	listIncludeCommented    bool
 	listViewed              bool
+	// gh-compatible aliases
+	listSince   string
+	listKeyword string
+	listQuery   string
 )
 
 func init() {
@@ -167,6 +171,13 @@ func init() {
 	listCmd.Flags().StringVar(&listInvolved, "involved", "", "Show issues the user is involved in (assignee ∪ author); accepts @me, user ID, userId, or display name")
 	listCmd.Flags().BoolVar(&listIncludeCommented, "include-commented", false, "With --involved, also scan comments to include comment-only involvement (slower, opt-in)")
 	listCmd.Flags().BoolVar(&listViewed, "viewed", false, "Show recently viewed issues (opt-in; ignores other filters)")
+
+	// gh-compatible aliases
+	listCmd.Flags().StringVar(&listSince, "since", "", "Filter by created date since (YYYY-MM-DD) — alias for --created-since")
+	listCmd.Flags().StringVar(&listKeyword, "keyword", "", "")
+	listCmd.Flags().StringVar(&listQuery, "query", "", "")
+	_ = listCmd.Flags().MarkHidden("keyword")
+	_ = listCmd.Flags().MarkHidden("query")
 }
 
 // Backlog の標準ステータスID（全プロジェクト共通）
@@ -221,6 +232,17 @@ func runList(c *cobra.Command, args []string) error {
 
 	profile := cfg.CurrentProfile()
 	ctx := c.Context()
+
+	// gh-compatible alias merging
+	if err := mergeStringAlias(c, "since", &listSince, "created-since", &listCreatedSince); err != nil {
+		return err
+	}
+	if err := mergeStringAlias(c, "keyword", &listKeyword, "search", &listSearch); err != nil {
+		return err
+	}
+	if err := mergeStringAlias(c, "query", &listQuery, "search", &listSearch); err != nil {
+		return err
+	}
 
 	// 日付フラグのバリデーション（YYYY-MM-DD形式のみ受け付ける）
 	for _, df := range []struct{ name, value string }{
@@ -875,6 +897,18 @@ func getIssueFieldValue(ctx context.Context, client *api.Client, issue backlog.I
 	default:
 		return "-"
 	}
+}
+
+// mergeStringAlias copies the alias flag's value into the canonical flag when only the alias is set.
+func mergeStringAlias(c *cobra.Command, aliasName string, aliasVar *string, canonicalName string, canonicalVar *string) error {
+	if *aliasVar == "" {
+		return nil
+	}
+	if c.Flags().Changed(canonicalName) {
+		return fmt.Errorf("--%s and --%s cannot be used together", aliasName, canonicalName)
+	}
+	*canonicalVar = *aliasVar
+	return nil
 }
 
 func validateDateFlag(name, value string) error {
