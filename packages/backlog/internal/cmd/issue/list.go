@@ -175,7 +175,7 @@ func init() {
 	// gh-compatible aliases
 	listCmd.Flags().StringVar(&listSince, "since", "", "Filter by created date since (YYYY-MM-DD) — alias for --created-since")
 	listCmd.Flags().StringVar(&listKeyword, "keyword", "", "")
-	listCmd.Flags().StringVar(&listQuery, "query", "", "")
+	listCmd.Flags().StringVarP(&listQuery, "query", "q", "", "")
 	_ = listCmd.Flags().MarkHidden("keyword")
 	_ = listCmd.Flags().MarkHidden("query")
 }
