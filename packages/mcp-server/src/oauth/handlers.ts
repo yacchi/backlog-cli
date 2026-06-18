@@ -533,6 +533,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             });
         }
 
+        c.header("Cache-Control", "no-store");
         return c.json({ spaces: statuses });
     });
 
@@ -909,8 +910,8 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
                 } catch {
                     return jsonError(
                         c,
-                        403,
-                        "insufficient_scope",
+                        400,
+                        "invalid_grant",
                         `Token refresh failed for ${entry.domain}. Re-authentication required.`,
                     );
                 }

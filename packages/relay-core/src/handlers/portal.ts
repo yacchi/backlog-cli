@@ -326,6 +326,7 @@ export function createPortalHandlers(
    * GET /api/v1/portal/session - Check current portal session.
    */
   app.get("/api/v1/portal/session", async (c) => {
+    c.header("Cache-Control", "no-store");
     if (!jwksJson) {
       return c.json({ authenticated: false });
     }
