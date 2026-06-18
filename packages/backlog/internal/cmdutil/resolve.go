@@ -25,7 +25,10 @@ func (o NamedResolverOption) displayText() string {
 	return o.Label
 }
 
-// ResolveNamedID resolves a single ID or exact name alias.
+// ResolveNamedID resolves a single ID, exact name, alias, or fuzzy match.
+// Resolution order: exact match → prefix match → contains match.
+// If exactly one candidate matches at any stage, it is used.
+// If multiple candidates match, they are presented as suggestions.
 func ResolveNamedID(input, singular, plural string, options []NamedResolverOption) (int, error) {
 	value := strings.TrimSpace(input)
 	if value == "" {
@@ -36,40 +39,107 @@ func ResolveNamedID(input, singular, plural string, options []NamedResolverOptio
 		return id, nil
 	}
 
-	var matches []NamedResolverOption
+	// Stage 1: exact match (case-insensitive)
+	var exactMatches []NamedResolverOption
 	for _, option := range options {
 		if strings.EqualFold(option.Label, value) {
-			matches = append(matches, option)
+			exactMatches = append(exactMatches, option)
 			continue
 		}
 		for _, alias := range option.Aliases {
 			if strings.EqualFold(alias, value) {
-				matches = append(matches, option)
+				exactMatches = append(exactMatches, option)
 				break
 			}
 		}
 	}
+	if len(exactMatches) == 1 {
+		return exactMatches[0].ID, nil
+	}
+	if len(exactMatches) > 1 {
+		return 0, ambiguousError(plural, value, exactMatches)
+	}
 
-	switch len(matches) {
-	case 1:
-		return matches[0].ID, nil
-	case 0:
-		lines := []string{fmt.Sprintf("%s not found: %s", singular, value)}
-		if len(options) > 0 {
-			lines = append(lines, "", fmt.Sprintf("Available %s:", plural))
-			for _, option := range options {
-				lines = append(lines, fmt.Sprintf("  %d # %s", option.ID, option.displayText()))
-			}
+	// Stage 2: prefix match (case-insensitive)
+	lowerValue := strings.ToLower(value)
+	var prefixMatches []NamedResolverOption
+	for _, option := range options {
+		if matchesPrefix(option, lowerValue) {
+			prefixMatches = append(prefixMatches, option)
 		}
-		return 0, errors.New(strings.Join(lines, "\n"))
-	default:
-		lines := []string{fmt.Sprintf("multiple %s match %q:", plural, value)}
-		for _, option := range matches {
+	}
+	if len(prefixMatches) == 1 {
+		return prefixMatches[0].ID, nil
+	}
+	if len(prefixMatches) > 1 {
+		return 0, didYouMeanError(singular, value, prefixMatches)
+	}
+
+	// Stage 3: contains match (case-insensitive)
+	var containsMatches []NamedResolverOption
+	for _, option := range options {
+		if matchesContains(option, lowerValue) {
+			containsMatches = append(containsMatches, option)
+		}
+	}
+	if len(containsMatches) == 1 {
+		return containsMatches[0].ID, nil
+	}
+	if len(containsMatches) > 1 {
+		return 0, didYouMeanError(singular, value, containsMatches)
+	}
+
+	// No match at all
+	lines := []string{fmt.Sprintf("%s not found: %s", singular, value)}
+	if len(options) > 0 {
+		lines = append(lines, "", fmt.Sprintf("Available %s:", plural))
+		for _, option := range options {
 			lines = append(lines, fmt.Sprintf("  %d # %s", option.ID, option.displayText()))
 		}
-		lines = append(lines, "", "Use a numeric ID to disambiguate.")
-		return 0, errors.New(strings.Join(lines, "\n"))
 	}
+	return 0, errors.New(strings.Join(lines, "\n"))
+}
+
+func matchesPrefix(option NamedResolverOption, lowerValue string) bool {
+	if strings.HasPrefix(strings.ToLower(option.Label), lowerValue) {
+		return true
+	}
+	for _, alias := range option.Aliases {
+		if strings.HasPrefix(strings.ToLower(alias), lowerValue) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesContains(option NamedResolverOption, lowerValue string) bool {
+	if strings.Contains(strings.ToLower(option.Label), lowerValue) {
+		return true
+	}
+	for _, alias := range option.Aliases {
+		if strings.Contains(strings.ToLower(alias), lowerValue) {
+			return true
+		}
+	}
+	return false
+}
+
+func ambiguousError(plural, value string, matches []NamedResolverOption) error {
+	lines := []string{fmt.Sprintf("multiple %s match %q:", plural, value)}
+	for _, option := range matches {
+		lines = append(lines, fmt.Sprintf("  %d # %s", option.ID, option.displayText()))
+	}
+	lines = append(lines, "", "Use a numeric ID to disambiguate.")
+	return errors.New(strings.Join(lines, "\n"))
+}
+
+func didYouMeanError(singular, value string, matches []NamedResolverOption) error {
+	lines := []string{fmt.Sprintf("%s not found: %s", singular, value)}
+	lines = append(lines, "", "Did you mean:")
+	for _, option := range matches {
+		lines = append(lines, fmt.Sprintf("  %d # %s", option.ID, option.displayText()))
+	}
+	return errors.New(strings.Join(lines, "\n"))
 }
 
 // ResolveNamedIDs resolves a comma-separated list of IDs or exact name aliases.
@@ -186,6 +256,15 @@ func ResolveMilestone(ctx context.Context, client *api.Client, projectKey, input
 	return nil, nil
 }
 
+// issueTypeAliases maps Japanese issue type names to common English equivalents.
+var issueTypeAliases = map[string][]string{
+	"バグ":   {"bug"},
+	"タスク":  {"task"},
+	"要望":   {"feature", "enhancement", "request"},
+	"その他":  {"other"},
+	"障害対応": {"incident"},
+}
+
 // ResolveIssueTypeIDs resolves issue type IDs or exact names for a project.
 func ResolveIssueTypeIDs(ctx context.Context, client *api.Client, projectKey, input string) ([]int, error) {
 	if projectKey == "" && hasNonNumericToken(input) {
@@ -200,8 +279,9 @@ func ResolveIssueTypeIDs(ctx context.Context, client *api.Client, projectKey, in
 	options := make([]NamedResolverOption, len(issueTypes))
 	for i, issueType := range issueTypes {
 		options[i] = NamedResolverOption{
-			ID:    issueType.ID,
-			Label: issueType.Name,
+			ID:      issueType.ID,
+			Label:   issueType.Name,
+			Aliases: issueTypeAliases[issueType.Name],
 		}
 	}
 
@@ -218,8 +298,9 @@ func ResolveIssueType(ctx context.Context, client *api.Client, projectKey, input
 	options := make([]NamedResolverOption, len(issueTypes))
 	for i, issueType := range issueTypes {
 		options[i] = NamedResolverOption{
-			ID:    issueType.ID,
-			Label: issueType.Name,
+			ID:      issueType.ID,
+			Label:   issueType.Name,
+			Aliases: issueTypeAliases[issueType.Name],
 		}
 	}
 
@@ -258,6 +339,13 @@ func ResolveStatusIDs(ctx context.Context, client *api.Client, projectKey, input
 	return ResolveNamedIDs(input, "status", "statuses", options)
 }
 
+// priorityAliases maps Japanese priority names to common English equivalents.
+var priorityAliases = map[string][]string{
+	"高": {"high"},
+	"中": {"medium", "normal"},
+	"低": {"low"},
+}
+
 // ResolvePriorityIDs resolves priority IDs or exact names (space-scoped).
 func ResolvePriorityIDs(ctx context.Context, client *api.Client, input string) ([]int, error) {
 	priorities, err := client.GetPriorities(ctx)
@@ -268,8 +356,9 @@ func ResolvePriorityIDs(ctx context.Context, client *api.Client, input string) (
 	options := make([]NamedResolverOption, len(priorities))
 	for i, priority := range priorities {
 		options[i] = NamedResolverOption{
-			ID:    priority.ID.Value,
-			Label: priority.Name.Value,
+			ID:      priority.ID.Value,
+			Label:   priority.Name.Value,
+			Aliases: priorityAliases[priority.Name.Value],
 		}
 	}
 

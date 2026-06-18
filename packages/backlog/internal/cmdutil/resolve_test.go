@@ -66,6 +66,118 @@ func TestResolveNamedIDReportsAmbiguousMatches(t *testing.T) {
 	}
 }
 
+func TestResolveNamedIDPrefixMatch(t *testing.T) {
+	options := []NamedResolverOption{
+		{ID: 1, Label: "未対応"},
+		{ID: 2, Label: "処理中"},
+		{ID: 3, Label: "処理済み"},
+		{ID: 4, Label: "完了"},
+	}
+
+	// "処理" matches both 処理中 and 処理済み → ambiguous
+	_, err := ResolveNamedID("処理", "status", "statuses", options)
+	if err == nil {
+		t.Fatal("expected error for ambiguous prefix match")
+	}
+	if !strings.Contains(err.Error(), "Did you mean") {
+		t.Fatalf("expected 'Did you mean' suggestion, got: %s", err.Error())
+	}
+
+	// "完" matches only 完了 → unique prefix match
+	id, err := ResolveNamedID("完", "status", "statuses", options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 4 {
+		t.Fatalf("id = %d, want 4", id)
+	}
+}
+
+func TestResolveNamedIDContainsMatch(t *testing.T) {
+	options := []NamedResolverOption{
+		{ID: 1, Label: "初回リリース"},
+		{ID: 2, Label: "環境クローズ"},
+		{ID: 3, Label: "障害対応"},
+	}
+
+	// "障害" is contained only in 障害対応
+	id, err := ResolveNamedID("障害", "issue type", "issue types", options)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != 3 {
+		t.Fatalf("id = %d, want 3", id)
+	}
+}
+
+func TestResolveNamedIDAliasWithFuzzy(t *testing.T) {
+	options := []NamedResolverOption{
+		{ID: 2, Label: "高", Aliases: []string{"high"}},
+		{ID: 3, Label: "中", Aliases: []string{"medium", "normal"}},
+		{ID: 4, Label: "低", Aliases: []string{"low"}},
+	}
+
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{name: "English exact", input: "high", want: 2},
+		{name: "English uppercase", input: "HIGH", want: 2},
+		{name: "English medium", input: "medium", want: 3},
+		{name: "English normal", input: "normal", want: 3},
+		{name: "English low", input: "Low", want: 4},
+		{name: "Japanese exact", input: "高", want: 2},
+		{name: "English prefix hi", input: "hi", want: 2},
+		{name: "English prefix lo", input: "lo", want: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, err := ResolveNamedID(tt.input, "priority", "priorities", options)
+			if err != nil {
+				t.Fatalf("ResolveNamedID(%q) error: %v", tt.input, err)
+			}
+			if id != tt.want {
+				t.Errorf("ResolveNamedID(%q) = %d, want %d", tt.input, id, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveNamedIDIssueTypeAlias(t *testing.T) {
+	options := []NamedResolverOption{
+		{ID: 1, Label: "バグ", Aliases: []string{"bug"}},
+		{ID: 2, Label: "タスク", Aliases: []string{"task"}},
+		{ID: 3, Label: "要望", Aliases: []string{"feature", "enhancement", "request"}},
+	}
+
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"Bug", 1},
+		{"bug", 1},
+		{"BUG", 1},
+		{"task", 2},
+		{"Task", 2},
+		{"feature", 3},
+		{"enhancement", 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			id, err := ResolveNamedID(tt.input, "issue type", "issue types", options)
+			if err != nil {
+				t.Fatalf("ResolveNamedID(%q) error: %v", tt.input, err)
+			}
+			if id != tt.want {
+				t.Errorf("ResolveNamedID(%q) = %d, want %d", tt.input, id, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseParentChild(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -126,7 +126,10 @@ const QUERY_TOOLS = [
     {
         name: "backlog_query",
         description:
-            `Execute a read-only backlog CLI command (similar to gh CLI). Supports list, view, and GET API calls. Use --json flag for structured output, --jq for filtering. For user lookup, use the who tool. For write operations, use backlog_mutate. ${CLI_REF_HINT}`,
+            `Execute a read-only backlog CLI command (similar to gh CLI). Supports list, view, and GET API calls. Use --json flag for structured output, --jq for filtering. For user lookup, use the who tool. For write operations, use backlog_mutate. ${CLI_REF_HINT}
+
+Key flags for 'issue list': -p PROJECT (required), -L LIMIT, -S/--search KEYWORD, -s/--state open|closed|all, -a/--assignee USER|@me, --mine, -T/--type TYPE, --priority NAME, --since YYYY-MM-DD, --sort FIELD, --order asc|desc, --json=FIELDS, --count.
+Flags accept names (case-insensitive, fuzzy): --priority high (=高), --type bug (=バグ), --type task (=タスク).`,
         inputSchema: {
             type: "object" as const,
             properties: {
@@ -150,7 +153,9 @@ const QUERY_TOOLS = [
     {
         name: "backlog_query_script",
         description:
-            `Execute a read-only Python analysis script with backlog() helper. Only read commands (list, view, GET API calls) are allowed — write operations are blocked. Use for multi-step data retrieval, aggregation, filtering, and reporting across multiple API calls in one round trip. Python standard library available (json, datetime, re, collections, etc.). ${CLI_REF_HINT}`,
+            `Execute a read-only Python analysis script with backlog() helper. Only read commands (list, view, GET API calls) are allowed — write operations are blocked. Use for multi-step data retrieval, aggregation, filtering, and reporting across multiple API calls in one round trip. Python standard library available (json, datetime, re, collections, etc.). ${CLI_REF_HINT}
+
+IMPORTANT: backlog() takes CLI subcommand args as a string, NOT HTTP methods. Correct: backlog('issue list -p PROJ --json=issueKey,summary'). Wrong: backlog('GET /api/v2/issues'). The return value from backlog() with --json is already a parsed dict/list — do NOT call json.loads() on it.`,
         inputSchema: {
             type: "object" as const,
             properties: {
@@ -177,7 +182,11 @@ const MUTATION_TOOLS = [
     {
         name: "backlog_mutate",
         description:
-            `Execute a backlog CLI command that modifies data (create, update, delete). For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[0] instead of inline -b/--body to avoid escaping issues. For read-only commands, use backlog_query. ${CLI_REF_HINT}`,
+            `Execute a backlog CLI command that modifies data (create, update, delete). For multi-line text content (issue body, comments, wiki content), use the files parameter with --body-file $file[0] instead of inline -b/--body to avoid escaping issues. For read-only commands, use backlog_query. ${CLI_REF_HINT}
+
+Key flags for 'issue create': -p PROJECT, -t/--title TITLE, --body-file $file[0], -T/--type TYPE, --priority NAME, -a/--assignee USER.
+Flags accept names (case-insensitive, fuzzy): --priority high (=高), --type bug (=バグ), --type task (=タスク).
+Wiki commands require numeric IDs: use 'wiki list' first, then 'wiki view ID'.`,
         inputSchema: {
             type: "object" as const,
             properties: {
