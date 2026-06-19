@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
+	"gopkg.in/yaml.v3"
 )
 
 // RelayInfoPayload is the decoded payload from /v1/relay/tenants/{name}/info.
@@ -179,7 +180,7 @@ type BundleImportResult struct {
 }
 
 // FetchAndImportRelayBundle fetches a bundle from relay and imports it.
-// ダウンロードしたバンドルの SHA256 が既存バンドルと一致する場合はインポートをスキップし、
+// マニフェストの issued_at が既存バンドルと一致する場合はインポートをスキップし、
 // Unchanged=true を返す。
 func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name, bundleToken string, opts BundleFetchOptions) (*BundleImportResult, error) {
 	if store == nil {
@@ -237,14 +238,16 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name
 		return nil, fmt.Errorf("failed to write bundle: %w", err)
 	}
 
-	newSHA, err := sha256File(bundlePath)
-	if err != nil {
-		return nil, err
-	}
-
-	if existing := FindTrustedBundleByName(store, name); existing != nil && existing.Source.SHA256 == newSHA {
-		debug.Log("bundle unchanged, skipping import", "name", name, "sha256", newSHA)
-		return &BundleImportResult{Bundle: existing, Unchanged: true}, nil
+	manifestBytes, _, _, peekErr := readRelayBundle(bundlePath)
+	if peekErr == nil {
+		var manifest RelayBundleManifest
+		if yaml.Unmarshal(manifestBytes, &manifest) == nil {
+			bundleName := manifest.BundleName()
+			if existing := FindTrustedBundleByName(store, bundleName); existing != nil && existing.IssuedAt == manifest.IssuedAt {
+				debug.Log("bundle unchanged, skipping import", "name", bundleName, "issued_at", manifest.IssuedAt)
+				return &BundleImportResult{Bundle: existing, Unchanged: true}, nil
+			}
+		}
 	}
 
 	imported, err := ImportRelayBundle(ctx, store, bundlePath, BundleImportOptions{
