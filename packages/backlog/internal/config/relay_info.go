@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/debug"
 )
 
 // RelayInfoPayload is the decoded payload from /v1/relay/tenants/{name}/info.
@@ -170,8 +172,16 @@ type BundleFetchOptions struct {
 	NoDefaults bool
 }
 
+// BundleImportResult は FetchAndImportRelayBundle の結果
+type BundleImportResult struct {
+	Bundle    *TrustedBundle
+	Unchanged bool
+}
+
 // FetchAndImportRelayBundle fetches a bundle from relay and imports it.
-func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name, bundleToken string, opts BundleFetchOptions) (*TrustedBundle, error) {
+// ダウンロードしたバンドルの SHA256 が既存バンドルと一致する場合はインポートをスキップし、
+// Unchanged=true を返す。
+func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name, bundleToken string, opts BundleFetchOptions) (*BundleImportResult, error) {
 	if store == nil {
 		return nil, errors.New("config store is nil")
 	}
@@ -227,10 +237,24 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name
 		return nil, fmt.Errorf("failed to write bundle: %w", err)
 	}
 
-	return ImportRelayBundle(ctx, store, bundlePath, BundleImportOptions{
+	newSHA, err := sha256File(bundlePath)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing := FindTrustedBundleByName(store, name); existing != nil && existing.Source.SHA256 == newSHA {
+		debug.Log("bundle unchanged, skipping import", "name", name, "sha256", newSHA)
+		return &BundleImportResult{Bundle: existing, Unchanged: true}, nil
+	}
+
+	imported, err := ImportRelayBundle(ctx, store, bundlePath, BundleImportOptions{
 		NoDefaults: opts.NoDefaults,
 		CacheDir:   cacheDir,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &BundleImportResult{Bundle: imported, Unchanged: false}, nil
 }
 
 // BundleUpdateRequiredError indicates the bundle should be refreshed.

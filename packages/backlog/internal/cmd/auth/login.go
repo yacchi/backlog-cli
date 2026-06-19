@@ -708,20 +708,22 @@ func verifyRelayInfoIfTrusted(ctx context.Context, cfg *config.Store, relayServe
 				return fmt.Errorf("failed to build relay bundle url: %w", urlErr)
 			}
 			debug.Log("fetching relay bundle", "url", bundleURL, "name", name)
-			updated, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, name, bundle.BundleToken, config.BundleFetchOptions{
+			result, updateErr := config.FetchAndImportRelayBundle(ctx, cfg, relayServer, name, bundle.BundleToken, config.BundleFetchOptions{
 				CacheDir:   cacheDir,
 				NoDefaults: true,
 			})
 			if updateErr != nil {
 				return fmt.Errorf("bundle update failed: %w", updateErr)
 			}
-			if err := cfg.Save(ctx); err != nil {
-				return fmt.Errorf("failed to save updated bundle: %w", err)
+			if !result.Unchanged {
+				if err := cfg.Save(ctx); err != nil {
+					return fmt.Errorf("failed to save updated bundle: %w", err)
+				}
+				if err := cfg.Reload(ctx); err != nil {
+					return fmt.Errorf("failed to reload config after bundle update: %w", err)
+				}
+				fmt.Printf("Updated relay bundle %s\n", result.Bundle.ResolvedName())
 			}
-			if err := cfg.Reload(ctx); err != nil {
-				return fmt.Errorf("failed to reload config after bundle update: %w", err)
-			}
-			fmt.Printf("Updated relay bundle %s\n", updated.Name)
 		} else {
 			return err
 		}

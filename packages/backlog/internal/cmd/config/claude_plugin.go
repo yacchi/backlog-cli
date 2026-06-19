@@ -109,17 +109,9 @@ func promptInstallClaudePlugin(cmd *cobra.Command, claudeBin string) {
 	ui.Success("Claude Code プラグインをインストールしました（反映には Claude Code の再起動が必要な場合があります）")
 }
 
-// promptUpdateClaudePlugin は導入済み時に更新を提案する
+// promptUpdateClaudePlugin は導入済み時にプラグインを更新する
 func promptUpdateClaudePlugin(cmd *cobra.Command, claudeBin string, plugin *claudePluginInfo) {
-	ui.Info("Claude Code プラグインはインストール済みです (v%s)。", plugin.Version)
-
-	approved, err := ui.Confirm("最新版に更新しますか?", false)
-	if err != nil || !approved {
-		return
-	}
-
-	ui.Info("プラグインを更新しています...")
-	// update には "backlog-cli@yacchi-plugins" のような Marketplace 付きの完全な ID が必要
+	ui.Info("Claude Code プラグインを更新しています (v%s)...", plugin.Version)
 	if err := runClaude(cmd, claudeBin, "plugin", "update", plugin.ID); err != nil {
 		ui.Warning("プラグインの更新に失敗しました: %v", err)
 		return

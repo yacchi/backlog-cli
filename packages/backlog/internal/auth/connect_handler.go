@@ -153,7 +153,7 @@ func (cs *CallbackServer) Configure(
 					return resp, nil
 				}
 				debug.Log("fetching relay bundle", "url", bundleURL, "name", bundleName)
-				_, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, bundleName, bundle.BundleToken, config.BundleFetchOptions{
+				result, updateErr := config.FetchAndImportRelayBundle(ctx, cs.configStore, relayServer, bundleName, bundle.BundleToken, config.BundleFetchOptions{
 					CacheDir:   cacheDir,
 					NoDefaults: true,
 				})
@@ -163,7 +163,11 @@ func (cs *CallbackServer) Configure(
 					resp.Msg.Error = stringPtr(fmt.Sprintf("バンドル更新に失敗しました: %v", updateErr))
 					return resp, nil
 				}
-				debug.Log("bundle update completed", "name", bundleName)
+				if result.Unchanged {
+					debug.Log("bundle unchanged, skipping save", "name", bundleName)
+				} else {
+					debug.Log("bundle update completed", "name", bundleName)
+				}
 			} else {
 				debug.Log("failed to check bundle update", "error", err)
 				resp.Msg.Success = false

@@ -241,7 +241,7 @@ func RequestProvisioningKeyWithToken(ctx context.Context, relayURL, name, access
 }
 
 // ProvisionFromToken はプロビジョニングトークンを使ってバンドルをダウンロード・インポートする
-func ProvisionFromToken(ctx context.Context, store *Store, token string, opts ProvisionOptions) (*TrustedBundle, error) {
+func ProvisionFromToken(ctx context.Context, store *Store, token string, opts ProvisionOptions) (*BundleImportResult, error) {
 	if store == nil {
 		return nil, errors.New("config store is nil")
 	}
