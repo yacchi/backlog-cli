@@ -129,7 +129,7 @@ const QUERY_TOOLS = [
             `Execute a read-only backlog CLI command (similar to gh CLI). Supports list, view, and GET API calls. Use --json flag for structured output, --jq for filtering. For user lookup, use the who tool. For write operations, use backlog_mutate. ${CLI_REF_HINT}
 
 Key flags for 'issue list': -p PROJECT (required), -L LIMIT, -S/--search KEYWORD, -s/--state open|closed|all, -a/--assignee USER|@me, --mine, -T/--type TYPE, --priority NAME, --since YYYY-MM-DD, --sort FIELD, --order asc|desc, --json=FIELDS, --count.
-Key flags for 'issue view': -c/--comments (show comments, default count), -c N (N comments), -c all (all comments), --comments-order asc|desc, --comments-since ID.
+Key flags for 'issue view': -c/--comments (show comments, default: 20), -c N (N comments), -c all (all comments), --comments-order asc|desc, --comments-since ID.
 Flags accept names (case-insensitive, fuzzy): --priority high (=高), --type bug (=バグ), --type task (=タスク).`,
         inputSchema: {
             type: "object" as const,
