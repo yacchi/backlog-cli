@@ -180,8 +180,8 @@ type BundleImportResult struct {
 }
 
 // FetchAndImportRelayBundle fetches a bundle from relay and imports it.
-// マニフェストの issued_at が既存バンドルと一致する場合はインポートをスキップし、
-// Unchanged=true を返す。
+// マニフェストの信頼設定（relay_url, relay_keys, bundle_token, certs_cache_ttl）が
+// 既存バンドルと一致する場合はインポートをスキップし、Unchanged=true を返す。
 func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name, bundleToken string, opts BundleFetchOptions) (*BundleImportResult, error) {
 	if store == nil {
 		return nil, errors.New("config store is nil")
@@ -242,9 +242,8 @@ func FetchAndImportRelayBundle(ctx context.Context, store *Store, relayURL, name
 	if peekErr == nil {
 		var manifest RelayBundleManifest
 		if yaml.Unmarshal(manifestBytes, &manifest) == nil {
-			bundleName := manifest.BundleName()
-			if existing := FindTrustedBundleByName(store, bundleName); existing != nil && existing.IssuedAt == manifest.IssuedAt {
-				debug.Log("bundle unchanged, skipping import", "name", bundleName, "issued_at", manifest.IssuedAt)
+			if existing := FindTrustedBundleByName(store, manifest.BundleName()); existing != nil && bundleContentEqual(existing, &manifest) {
+				debug.Log("bundle unchanged, skipping import", "name", manifest.BundleName())
 				return &BundleImportResult{Bundle: existing, Unchanged: true}, nil
 			}
 		}
@@ -371,4 +370,26 @@ func verifyRelayInfoSignature(payload string, signatures []relayBundleJWSSign, a
 
 func relayURLMatches(expected, actual string) bool {
 	return strings.TrimRight(expected, "/") == strings.TrimRight(actual, "/")
+}
+
+func bundleContentEqual(existing *TrustedBundle, manifest *RelayBundleManifest) bool {
+	if !relayURLMatches(existing.RelayURL, manifest.RelayURL) {
+		return false
+	}
+	if existing.BundleToken != manifest.BundleToken {
+		return false
+	}
+	if existing.CertsCacheTTL != manifest.CertsCacheTTL {
+		return false
+	}
+	if len(existing.RelayKeys) != len(manifest.RelayKeys) {
+		return false
+	}
+	for i, ek := range existing.RelayKeys {
+		mk := manifest.RelayKeys[i]
+		if ek.KeyID != mk.KeyID || ek.Thumbprint != mk.Thumbprint {
+			return false
+		}
+	}
+	return true
 }
