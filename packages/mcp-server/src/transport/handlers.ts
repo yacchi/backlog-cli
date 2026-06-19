@@ -260,28 +260,41 @@ export function createTransportHandlers(
     const hasScript = !!options?.runScript;
 
     app.get("/dl", async (c) => {
-        const t = c.req.query("t");
+        const logger = getLogger(c);
         const sp = c.req.query("sp");
-        if (!t || !sp) {
+        const apiPath = c.req.query("path");
+        const authHeader = c.req.header("Authorization");
+        if (!sp || !apiPath || !authHeader) {
             return c.text("Missing parameters", 400);
         }
 
+        const jwe = authHeader.replace(/^Bearer\s+/i, "");
+        if (!jwe) {
+            return c.text("Invalid Authorization header", 401);
+        }
+
+        const start = Date.now();
         try {
-            const plain = await open(t, (kid) => encKeys.get(kid), { sp, use: "dl" });
-            const payload = JSON.parse(plain) as { apiPath: string; at: string; exp: number };
+            const plain = await open(jwe, (kid) => encKeys.get(kid), { sp, use: "dl" });
+            const payload = JSON.parse(plain) as { at: string; exp: number };
 
             if (payload.exp < Math.floor(Date.now() / 1000)) {
+                logger.warn({ component: "audit", action: "download", tenant: sp, apiPath, error: "token_expired" });
                 return c.text("Token expired", 403);
             }
 
-            const backlogUrl = `https://${sp}/api/v2${payload.apiPath}`;
+            const backlogUrl = `https://${sp}/api/v2${apiPath}`;
             const upstream = await fetch(backlogUrl, {
                 headers: { Authorization: `Bearer ${payload.at}` },
             });
 
             if (!upstream.ok) {
+                logger.error({ component: "audit", action: "download", tenant: sp, apiPath, error: `upstream_${upstream.status}`, duration_ms: Date.now() - start });
                 return c.text(`Upstream error: ${upstream.status}`, upstream.status as 400);
             }
+
+            const contentLength = upstream.headers.get("Content-Length");
+            logger.info({ component: "audit", action: "download", tenant: sp, apiPath, status: upstream.status, content_length: contentLength, duration_ms: Date.now() - start });
 
             const headers = new Headers();
             const ct = upstream.headers.get("Content-Type");
@@ -293,8 +306,10 @@ export function createTransportHandlers(
             return new Response(upstream.body, { status: 200, headers });
         } catch (err) {
             if (err instanceof DecryptError) {
+                logger.warn({ component: "audit", action: "download", tenant: sp, apiPath, error: "decrypt_error", duration_ms: Date.now() - start });
                 return c.text("Invalid token", 403);
             }
+            logger.error({ component: "audit", action: "download", tenant: sp, apiPath, error: (err as Error).message, duration_ms: Date.now() - start });
             return c.text("Internal error", 500);
         }
     });
@@ -729,17 +744,21 @@ async function resolveDownloadRedirects(
     const lines = cliOutput.split("\n").filter(Boolean);
     const content: Array<Record<string, unknown>> = [];
     const textLines: string[] = [];
+    let hasDownloads = false;
 
     for (const line of lines) {
         try {
             const parsed = JSON.parse(line) as DownloadRedirectMeta;
             if (parsed.__download && parsed.apiPath) {
-                const url = await generateDownloadUrl(c, token, spaceKey, parsed.apiPath, signingKeys, serverConfig);
+                hasDownloads = true;
+                const cred = await generateDownloadCredential(
+                    c, token, spaceKey, parsed.apiPath,
+                    parsed.outPath || parsed.filename,
+                    signingKeys, serverConfig,
+                );
                 content.push({
-                    type: "resource_link",
-                    uri: url,
-                    name: parsed.filename,
-                    mimeType: guessMimeType(parsed.filename),
+                    type: "text",
+                    text: formatDownloadInstruction(cred),
                 });
                 continue;
             }
@@ -755,42 +774,47 @@ async function resolveDownloadRedirects(
         content.push({ type: "text", text: "" });
     }
 
+    if (hasDownloads) {
+        content.push({ type: "text", text: "NEXT ACTION: Download the file(s) above using curl with the provided Authorization header and URL." });
+    }
+
     return content;
 }
 
-async function generateDownloadUrl(
+function formatDownloadInstruction(cred: DownloadCredential): string {
+    return JSON.stringify({
+        file: cred.filename,
+        headers: [["Authorization", `Bearer ${cred.authToken}`]],
+        url: cred.url,
+    });
+}
+
+interface DownloadCredential {
+    url: string;
+    authToken: string;
+    filename: string;
+}
+
+async function generateDownloadCredential(
     c: import("hono").Context,
     token: TokenPayload,
     spaceKey: string,
     apiPath: string,
+    filename: string,
     signingKeys: SigningKeys,
     serverConfig: McpServerConfig,
-): Promise<string> {
+): Promise<DownloadCredential> {
     const encKey = signingKeys.encKeys.get(signingKeys.signingKid);
     if (!encKey) throw new Error("No encryption key available");
 
     const payload = JSON.stringify({
-        apiPath,
         at: token.bl_access_token,
         exp: Math.floor(Date.now() / 1000) + DOWNLOAD_TOKEN_TTL,
     });
     const jwe = await seal(payload, encKey, signingKeys.signingKid, spaceKey, "dl");
     const baseUrl = resolveBaseUrl(c, serverConfig.base_url);
-    return `${baseUrl}/dl?t=${encodeURIComponent(jwe)}&sp=${encodeURIComponent(spaceKey)}`;
-}
-
-function guessMimeType(filename: string): string {
-    const ext = (filename.match(/\.[^.]+$/) ?? [""])[0].toLowerCase();
-    const map: Record<string, string> = {
-        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
-        ".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv",
-        ".json": "application/json", ".xml": "application/xml",
-        ".zip": "application/zip", ".md": "text/markdown",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    };
-    return map[ext] ?? "application/octet-stream";
+    const url = `${baseUrl}/dl?sp=${encodeURIComponent(spaceKey)}&path=${encodeURIComponent(apiPath)}`;
+    return { url, authToken: jwe, filename };
 }
 
 async function buildContentWithDownloadUrls(
@@ -803,6 +827,7 @@ async function buildContentWithDownloadUrls(
     serverConfig: McpServerConfig,
 ): Promise<Array<Record<string, unknown>>> {
     const content: Array<Record<string, unknown>> = [];
+    let hasDownloads = false;
 
     if (textOutput) {
         content.push({ type: "text", text: textOutput });
@@ -810,13 +835,11 @@ async function buildContentWithDownloadUrls(
 
     for (const file of outputFiles) {
         if (file.apiPath) {
-            const url = await generateDownloadUrl(c, token, spaceKey, file.apiPath, signingKeys, serverConfig);
-            content.push({
-                type: "resource_link",
-                uri: url,
-                name: file.name,
-                mimeType: file.mimeType,
-            });
+            hasDownloads = true;
+            const cred = await generateDownloadCredential(
+                c, token, spaceKey, file.apiPath, file.name, signingKeys, serverConfig,
+            );
+            content.push({ type: "text", text: formatDownloadInstruction(cred) });
         } else if (file.mimeType.startsWith("image/")) {
             content.push({ type: "image", data: file.data, mimeType: file.mimeType });
         } else {
@@ -826,6 +849,10 @@ async function buildContentWithDownloadUrls(
 
     if (content.length === 0) {
         content.push({ type: "text", text: "" });
+    }
+
+    if (hasDownloads) {
+        content.push({ type: "text", text: "NEXT ACTION: Download the file(s) above using curl with the provided Authorization header and URL." });
     }
 
     return content;
@@ -860,6 +887,15 @@ You have access to backlog tools which execute the Backlog CLI — a command-lin
 - **Newlines in text**: Use \`\\n\` inside double quotes (e.g., \`-b "line1\\nline2"\`)
 - For read-only analysis combining multiple API calls, use \`backlog_query_script\`
 - For scripts that include write operations, use \`backlog_mutate_script\`
+
+## File Downloads
+- Use the download subcommand with \`--link\` flag:
+  - \`issue attachment download PROJ-1 42 --link\`
+  - \`wiki attachment download 100 42 --link\`
+  - \`file download 999 -p PROJ --link\`
+- The result is a JSON object: \`{"file": "<path>", "headers": [["Authorization", "Bearer ..."]], "url": "<download-url>"}\`
+- Download with: \`curl -sSf -o <file> -H '<name>: <value>' '<url>'\`
+- Do **NOT** use the \`api\` subcommand for file downloads — binary data cannot be returned in MCP mode
 `;
 
     if (cliRefOutput) {
