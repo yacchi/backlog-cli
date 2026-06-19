@@ -736,11 +736,10 @@ async function resolveDownloadRedirects(
             if (parsed.__download && parsed.apiPath) {
                 const url = await generateDownloadUrl(c, token, spaceKey, parsed.apiPath, signingKeys, serverConfig);
                 content.push({
-                    type: "resource",
-                    resource: {
-                        uri: url,
-                        mimeType: guessMimeType(parsed.filename),
-                    },
+                    type: "resource_link",
+                    uri: url,
+                    name: parsed.filename,
+                    mimeType: guessMimeType(parsed.filename),
                 });
                 continue;
             }
@@ -813,11 +812,10 @@ async function buildContentWithDownloadUrls(
         if (file.apiPath) {
             const url = await generateDownloadUrl(c, token, spaceKey, file.apiPath, signingKeys, serverConfig);
             content.push({
-                type: "resource",
-                resource: {
-                    uri: url,
-                    mimeType: file.mimeType,
-                },
+                type: "resource_link",
+                uri: url,
+                name: file.name,
+                mimeType: file.mimeType,
             });
         } else if (file.mimeType.startsWith("image/")) {
             content.push({ type: "image", data: file.data, mimeType: file.mimeType });
