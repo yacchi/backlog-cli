@@ -17,16 +17,22 @@ const app = new cdk.App();
 // still wins).
 const imageSource = config.image?.source ?? DEFAULT_IMAGE_SOURCE;
 const imageTag =
+  process.env.IMAGE_TAG ??
   config.image?.tag ??
   (await resolveLatestImageTag(imageSource, {
     prerelease: config.image?.prerelease,
   }));
 
+const tagSource = process.env.IMAGE_TAG
+  ? "env IMAGE_TAG"
+  : config.image?.tag
+    ? "pinned"
+    : config.image?.prerelease
+      ? "latest incl. prerelease"
+      : "latest stable";
+
 // eslint-disable-next-line no-console
-console.log(
-  `Using container image ${imageSource}:${imageTag}` +
-    (config.image?.tag ? " (pinned)" : config.image?.prerelease ? " (latest incl. prerelease)" : " (latest stable)"),
-);
+console.log(`Using container image ${imageSource}:${imageTag} (${tagSource})`);
 
 new RelayStack(app, "BacklogRelay", {
   config: { ...config, image: { ...config.image, source: imageSource, tag: imageTag } },
