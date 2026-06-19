@@ -114,6 +114,11 @@ export function logToolCall(
 
             logger[level](entry);
 
+            const inputBytes = byteLength(opts.input);
+            const outputBytes = result.output != null ? byteLength(result.output) : 0;
+            entry.input_bytes = inputBytes;
+            entry.output_bytes = outputBytes;
+
             // Audit summary: lightweight record for the audit trail
             const audit: Record<string, unknown> = {
                 component: "audit",
@@ -121,6 +126,8 @@ export function logToolCall(
                 tool: opts.tool,
                 result: result.error ? "error" : "success",
                 duration_ms,
+                input_bytes: inputBytes,
+                output_bytes: outputBytes,
             };
             if (result.error) audit.error = result.error;
             if (result.category) audit.category = result.category;
@@ -139,6 +146,12 @@ export function logSandbox(logger: Logger, level: LogLevel, message: string, met
         },
     };
     logger[level](entry);
+}
+
+function byteLength(value: unknown): number {
+    if (value === undefined || value === null) return 0;
+    const s = typeof value === "string" ? value : JSON.stringify(value);
+    return new TextEncoder().encode(s).byteLength;
 }
 
 function truncate(value: unknown, maxLen: number): unknown {
