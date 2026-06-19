@@ -7,7 +7,7 @@ import type { TokenPayload } from "../crypto/jwt.js";
 import type { ScriptConfig } from "../config/schema.js";
 import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
-import { materializeFiles, substituteFileRefs, createOutputDir, collectOutputFiles, type CollectedFile } from "../tools/files.js";
+import { materializeFiles, substituteFileRefs, type CollectedFile } from "../tools/files.js";
 import { Logger, logSandbox } from "../logging/logger.js";
 
 const BOOT_TIMEOUT = 60_000;
@@ -238,18 +238,12 @@ function startCallbackServer(
                 return;
             }
 
-            const outputDir = createOutputDir();
             try {
                 const result = await executeBacklogCommand(
                     args,
                     token,
-                    { readOnly, binPath, additionalEnv: { BACKLOG_OUTPUT_DIR: outputDir.path } },
+                    { readOnly, binPath, additionalEnv: { BACKLOG_DOWNLOAD_MODE: "redirect" } },
                 );
-
-                const outputFiles = collectOutputFiles(outputDir.path);
-                if (accumulatedFiles && outputFiles.length > 0) {
-                    accumulatedFiles.push(...outputFiles);
-                }
 
                 if (result.exitCode !== 0) {
                     res.writeHead(200);
@@ -259,33 +253,39 @@ function startCallbackServer(
                     return;
                 }
 
+                const downloadMeta = tryParseDownloadRedirect(result.output);
+                if (downloadMeta) {
+                    const fileResult = await fetchFromBacklog(
+                        token.space, token.bl_access_token!,
+                        downloadMeta.apiPath, downloadMeta.outPath || downloadMeta.filename,
+                    );
+                    if (accumulatedFiles) {
+                        accumulatedFiles.push(fileResult.collected);
+                    }
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        __backlog_output: `✓ Downloaded: ${downloadMeta.filename}`,
+                        __backlog_files: [{
+                            path: downloadMeta.outPath || `/${downloadMeta.filename}`,
+                            data: fileResult.collected.data,
+                        }],
+                    }));
+                    return;
+                }
+
                 let output: unknown;
                 try {
                     output = JSON.parse(result.output);
                 } catch {
                     output = result.output;
                 }
-
-                if (outputFiles.length > 0) {
-                    res.writeHead(200, { "Content-Type": "application/json" });
-                    res.end(JSON.stringify({
-                        __backlog_output: output,
-                        __backlog_files: outputFiles.map(f => ({
-                            path: f.path,
-                            data: f.data,
-                        })),
-                    }));
-                } else {
-                    res.writeHead(200, { "Content-Type": "application/json" });
-                    res.end(JSON.stringify(output));
-                }
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify(output));
             } catch (err) {
                 res.writeHead(500);
                 res.end(
                     JSON.stringify({ error: (err as Error).message }),
                 );
-            } finally {
-                outputDir.cleanup();
             }
         });
 
@@ -295,6 +295,50 @@ function startCallbackServer(
             resolvePromise({ server, port });
         });
     });
+}
+
+interface DownloadRedirectMeta {
+    __download: boolean;
+    apiPath: string;
+    filename: string;
+    outPath?: string;
+}
+
+function tryParseDownloadRedirect(output: string): DownloadRedirectMeta | null {
+    try {
+        const parsed = JSON.parse(output.trim()) as DownloadRedirectMeta;
+        if (parsed.__download && parsed.apiPath) return parsed;
+    } catch { /* not a redirect */ }
+    return null;
+}
+
+async function fetchFromBacklog(
+    space: string,
+    accessToken: string,
+    apiPath: string,
+    outPath: string,
+): Promise<{ collected: CollectedFile }> {
+    const url = `https://${space}/api/v2${apiPath}`;
+    const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!resp.ok) {
+        throw new Error(`Backlog API error: ${resp.status} ${resp.statusText}`);
+    }
+
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const ct = resp.headers.get("Content-Type") || "application/octet-stream";
+    const name = outPath.split("/").pop() || "download";
+
+    return {
+        collected: {
+            name,
+            path: outPath.startsWith("/") ? outPath : `/${outPath}`,
+            data: buf.toString("base64"),
+            mimeType: ct,
+            size: buf.length,
+        },
+    };
 }
 
 function readBody(req: import("node:http").IncomingMessage): Promise<string> {

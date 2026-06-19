@@ -4,10 +4,11 @@ import { matchSpacePattern } from "../config/schema.js";
 import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
 import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
-import { materializeFiles, substituteFileRefs, createOutputDir, collectOutputFiles, type CollectedFile } from "../tools/files.js";
+import { materializeFiles, substituteFileRefs, type CollectedFile } from "../tools/files.js";
 import { Logger, LOGGER_CONTEXT_KEY, logToolCall, type LoggingConfig } from "../logging/logger.js";
 import type { TokenPayload, SigningKeys } from "../crypto/jwt.js";
 import { listSpaceEntries } from "../crypto/jwt.js";
+import { seal, open, DecryptError } from "../crypto/secret.js";
 
 export interface ScriptFile {
     content: string;
@@ -257,6 +258,46 @@ export function createTransportHandlers(
         (c) => `${resolveBaseUrl(c, config.base_url)}/.well-known/oauth-protected-resource`,
     );
     const hasScript = !!options?.runScript;
+
+    app.get("/dl", async (c) => {
+        const t = c.req.query("t");
+        const sp = c.req.query("sp");
+        if (!t || !sp) {
+            return c.text("Missing parameters", 400);
+        }
+
+        try {
+            const plain = await open(t, (kid) => encKeys.get(kid), { sp, use: "dl" });
+            const payload = JSON.parse(plain) as { apiPath: string; at: string; exp: number };
+
+            if (payload.exp < Math.floor(Date.now() / 1000)) {
+                return c.text("Token expired", 403);
+            }
+
+            const backlogUrl = `https://${sp}/api/v2${payload.apiPath}`;
+            const upstream = await fetch(backlogUrl, {
+                headers: { Authorization: `Bearer ${payload.at}` },
+            });
+
+            if (!upstream.ok) {
+                return c.text(`Upstream error: ${upstream.status}`, upstream.status as 400);
+            }
+
+            const headers = new Headers();
+            const ct = upstream.headers.get("Content-Type");
+            if (ct) headers.set("Content-Type", ct);
+            const cd = upstream.headers.get("Content-Disposition");
+            if (cd) headers.set("Content-Disposition", cd);
+            headers.set("Cache-Control", "private, max-age=60");
+
+            return new Response(upstream.body, { status: 200, headers });
+        } catch (err) {
+            if (err instanceof DecryptError) {
+                return c.text("Invalid token", 403);
+            }
+            return c.text("Internal error", 500);
+        }
+    });
 
     app.post("/mcp", auth, async (c) => {
         let req: JsonRpcRequest;
@@ -529,17 +570,17 @@ export function createTransportHandlers(
                 const log = logToolCall(logger, { tool: toolName, input: { args }, tenant: spaceKey, loggingConfig });
 
                 const filePaths = files?.length ? materializeFiles(files) : null;
-                const outputDir = createOutputDir();
                 try {
                     const resolvedArgs = filePaths ? substituteFileRefs(args, filePaths.paths) : args;
                     const result = await executeBacklogCommand(
                         resolvedArgs,
                         effectiveToken,
-                        { readOnly, binPath: options?.binPath, additionalEnv: { BACKLOG_OUTPUT_DIR: outputDir.path } },
+                        { readOnly, binPath: options?.binPath, additionalEnv: { BACKLOG_DOWNLOAD_MODE: "redirect" } },
                     );
 
-                    const outputFiles = collectOutputFiles(outputDir.path);
-                    const content = buildContentWithFiles(result.output, outputFiles);
+                    const content = await resolveDownloadRedirects(
+                        c, result.output, effectiveToken, spaceKey, keys, config,
+                    );
 
                     log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined, category: result.exitCode !== 0 ? "cli_error" : undefined });
                     return jsonRpcResult(req.id, {
@@ -554,7 +595,6 @@ export function createTransportHandlers(
                     });
                 } finally {
                     filePaths?.cleanup();
-                    outputDir.cleanup();
                 }
             }
 
@@ -664,6 +704,91 @@ function jsonRpcError(
     data?: unknown,
 ): JsonRpcResponse {
     return { jsonrpc: "2.0", id: id ?? null, error: { code, message, data } };
+}
+
+interface DownloadRedirectMeta {
+    __download: boolean;
+    apiPath: string;
+    filename: string;
+    outPath?: string;
+}
+
+const DOWNLOAD_TOKEN_TTL = 300;
+
+async function resolveDownloadRedirects(
+    c: import("hono").Context,
+    cliOutput: string,
+    token: TokenPayload,
+    spaceKey: string,
+    signingKeys: SigningKeys,
+    serverConfig: McpServerConfig,
+): Promise<Array<Record<string, unknown>>> {
+    const lines = cliOutput.split("\n").filter(Boolean);
+    const content: Array<Record<string, unknown>> = [];
+    const textLines: string[] = [];
+
+    for (const line of lines) {
+        try {
+            const parsed = JSON.parse(line) as DownloadRedirectMeta;
+            if (parsed.__download && parsed.apiPath) {
+                const url = await generateDownloadUrl(c, token, spaceKey, parsed.apiPath, signingKeys, serverConfig);
+                content.push({
+                    type: "resource",
+                    resource: {
+                        uri: url,
+                        mimeType: guessMimeType(parsed.filename),
+                    },
+                });
+                continue;
+            }
+        } catch { /* not JSON, treat as text */ }
+        textLines.push(line);
+    }
+
+    if (textLines.length > 0) {
+        content.unshift({ type: "text", text: textLines.join("\n") });
+    }
+
+    if (content.length === 0) {
+        content.push({ type: "text", text: "" });
+    }
+
+    return content;
+}
+
+async function generateDownloadUrl(
+    c: import("hono").Context,
+    token: TokenPayload,
+    spaceKey: string,
+    apiPath: string,
+    signingKeys: SigningKeys,
+    serverConfig: McpServerConfig,
+): Promise<string> {
+    const encKey = signingKeys.encKeys.get(signingKeys.signingKid);
+    if (!encKey) throw new Error("No encryption key available");
+
+    const payload = JSON.stringify({
+        apiPath,
+        at: token.bl_access_token,
+        exp: Math.floor(Date.now() / 1000) + DOWNLOAD_TOKEN_TTL,
+    });
+    const jwe = await seal(payload, encKey, signingKeys.signingKid, spaceKey, "dl");
+    const baseUrl = resolveBaseUrl(c, serverConfig.base_url);
+    return `${baseUrl}/dl?t=${encodeURIComponent(jwe)}&sp=${encodeURIComponent(spaceKey)}`;
+}
+
+function guessMimeType(filename: string): string {
+    const ext = (filename.match(/\.[^.]+$/) ?? [""])[0].toLowerCase();
+    const map: Record<string, string> = {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+        ".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv",
+        ".json": "application/json", ".xml": "application/xml",
+        ".zip": "application/zip", ".md": "text/markdown",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    };
+    return map[ext] ?? "application/octet-stream";
 }
 
 function buildContentWithFiles(

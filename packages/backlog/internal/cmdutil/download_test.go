@@ -3,6 +3,7 @@ package cmdutil
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,12 +11,17 @@ import (
 	"testing"
 )
 
+var noop = func(_ context.Context, w io.Writer) (string, int64, error) {
+	n, e := w.Write([]byte("data"))
+	return "", int64(n), e
+}
+
 func TestRunAttachmentDownload_stdout(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := RunAttachmentDownload(context.Background(), "-", "fallback", func(_ context.Context, out io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "-", "fallback", "/issues/X/attachments/1", func(_ context.Context, out io.Writer) (string, int64, error) {
 		n, _ := out.Write([]byte("hello"))
 		return "", int64(n), nil
 	})
@@ -38,7 +44,7 @@ func TestRunAttachmentDownload_explicitPath(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "out.txt")
 
-	err := RunAttachmentDownload(context.Background(), outPath, "fallback", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), outPath, "fallback", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("data"))
 		return "server-name.txt", int64(n), e
 	})
@@ -57,18 +63,14 @@ func TestRunAttachmentDownload_serverFilename(t *testing.T) {
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(orig) }()
 
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("content"))
 		return "server.txt", int64(n), e
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	b, readErr := os.ReadFile("server.txt")
-	if readErr != nil {
-		t.Fatalf("file not created: %v", readErr)
-	}
-	if string(b) != "content" {
+	if b, _ := os.ReadFile("server.txt"); string(b) != "content" {
 		t.Errorf("file content got %q, want %q", string(b), "content")
 	}
 }
@@ -79,87 +81,48 @@ func TestRunAttachmentDownload_fallbackName(t *testing.T) {
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(orig) }()
 
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("bytes"))
 		return "", int64(n), e
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	b, readErr := os.ReadFile("fallback.bin")
-	if readErr != nil {
-		t.Fatalf("file not created: %v", readErr)
-	}
-	if !strings.Contains(string(b), "bytes") {
+	if b, _ := os.ReadFile("fallback.bin"); !strings.Contains(string(b), "bytes") {
 		t.Errorf("unexpected file content: %q", string(b))
 	}
 }
 
-func TestRunAttachmentDownload_outputDirPreservesPath(t *testing.T) {
-	outputDir := t.TempDir()
-	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
+func TestRunAttachmentDownload_redirectMode(t *testing.T) {
+	t.Setenv("BACKLOG_DOWNLOAD_MODE", "redirect")
 
-	// -o の絶対パス構造が output dir 配下に再現される
-	err := RunAttachmentDownload(context.Background(), "/private/tmp/scratchpad/my-report.png", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
-		n, e := w.Write([]byte("output-dir-content"))
-		return "server-name.png", int64(n), e
-	})
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := RunAttachmentDownload(context.Background(), "/tmp/my-report.png", "fallback.bin", "/issues/PROJ-1/attachments/42", noop)
+
+	_ = w.Close()
+	os.Stdout = old
+
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	outPath := filepath.Join(outputDir, "private/tmp/scratchpad/my-report.png")
-	b, readErr := os.ReadFile(outPath)
-	if readErr != nil {
-		t.Fatalf("file not created at %s: %v", outPath, readErr)
-	}
-	if string(b) != "output-dir-content" {
-		t.Errorf("file content got %q, want %q", string(b), "output-dir-content")
-	}
-}
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
 
-func TestRunAttachmentDownload_outputDirServerName(t *testing.T) {
-	outputDir := t.TempDir()
-	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
-
-	// -o 未指定時はサーバー応答のファイル名を output dir 直下に保存
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
-		n, e := w.Write([]byte("data"))
-		return "server.txt", int64(n), e
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	var meta DownloadRedirect
+	if err := json.Unmarshal(buf.Bytes(), &meta); err != nil {
+		t.Fatalf("failed to parse redirect JSON: %v", err)
 	}
-
-	outPath := filepath.Join(outputDir, "server.txt")
-	b, readErr := os.ReadFile(outPath)
-	if readErr != nil {
-		t.Fatalf("file not created at %s: %v", outPath, readErr)
+	if !meta.Download {
+		t.Error("__download should be true")
 	}
-	if string(b) != "data" {
-		t.Errorf("file content got %q, want %q", string(b), "data")
+	if meta.APIPath != "/issues/PROJ-1/attachments/42" {
+		t.Errorf("apiPath got %q, want %q", meta.APIPath, "/issues/PROJ-1/attachments/42")
 	}
-}
-
-func TestRunAttachmentDownload_outputDirFallback(t *testing.T) {
-	outputDir := t.TempDir()
-	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
-
-	// -o もサーバー名もない場合はフォールバック名
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
-		n, e := w.Write([]byte("data"))
-		return "", int64(n), e
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	outPath := filepath.Join(outputDir, "fallback.bin")
-	b, readErr := os.ReadFile(outPath)
-	if readErr != nil {
-		t.Fatalf("file not created at %s: %v", outPath, readErr)
-	}
-	if string(b) != "data" {
-		t.Errorf("file content got %q, want %q", string(b), "data")
+	if meta.Filename != "my-report.png" {
+		t.Errorf("filename got %q, want %q", meta.Filename, "my-report.png")
 	}
 }

@@ -161,7 +161,8 @@ func runWikiAttachmentDownload(c *cobra.Command, args []string) error {
 	}
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), wikiAttachmentDownloadOutput, fallback,
+	apiPath := fmt.Sprintf("/wikis/%d/attachments/%d", wikiID, attachmentID)
+	return cmdutil.RunAttachmentDownload(c.Context(), wikiAttachmentDownloadOutput, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadWikiAttachment(ctx, wikiID, attachmentID, w)
 		})

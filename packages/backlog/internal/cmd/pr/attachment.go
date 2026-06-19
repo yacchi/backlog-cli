@@ -125,7 +125,9 @@ func runPRAttachmentDownload(c *cobra.Command, args []string) error {
 	projectKey := cmdutil.GetCurrentProject(cfg)
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), prAttachmentDownloadOutput, fallback,
+	apiPath := fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d/attachments/%d",
+		projectKey, prAttachmentDownloadRepo, number, attachmentID)
+	return cmdutil.RunAttachmentDownload(c.Context(), prAttachmentDownloadOutput, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadPRAttachment(ctx, projectKey, prAttachmentDownloadRepo, number, attachmentID, w)
 		})

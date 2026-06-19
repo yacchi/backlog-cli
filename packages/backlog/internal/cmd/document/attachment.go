@@ -48,7 +48,8 @@ func runAttachmentDownload(c *cobra.Command, args []string) error {
 	}
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), attachmentOutput, fallback,
+	apiPath := fmt.Sprintf("/documents/%s/attachments/%d", documentID, attachmentID)
+	return cmdutil.RunAttachmentDownload(c.Context(), attachmentOutput, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadDocumentAttachment(ctx, documentID, attachmentID, w)
 		})

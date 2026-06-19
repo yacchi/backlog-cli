@@ -5,7 +5,7 @@ const ENC = "A256GCM";
 /** HKDF info label — bump the version suffix if the enc algorithm changes. */
 const HKDF_INFO = "backlog-mcp:token-enc:A256GCM:v1";
 
-export type TokenUse = "at" | "rt";
+export type TokenUse = "at" | "rt" | "dl";
 
 /**
  * Raised when a sealed value cannot be opened (wrong/unknown key, tampering,

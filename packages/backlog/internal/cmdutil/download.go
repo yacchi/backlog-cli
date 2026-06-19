@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -13,12 +14,20 @@ import (
 // DownloadFunc は添付ファイルのダウンロード関数シグネチャ
 type DownloadFunc func(ctx context.Context, w io.Writer) (filename string, size int64, err error)
 
+// DownloadRedirect は BACKLOG_DOWNLOAD_MODE=redirect 時に出力するメタデータ
+type DownloadRedirect struct {
+	Download bool   `json:"__download"`
+	APIPath  string `json:"apiPath"`
+	Filename string `json:"filename"`
+	OutPath  string `json:"outPath,omitempty"`
+}
+
 // RunAttachmentDownload は共通のダウンロード実行ロジック
-// BACKLOG_OUTPUT_DIR が設定されている場合、そのディレクトリに保存（MCP サーバー用）
+// BACKLOG_DOWNLOAD_MODE=redirect の場合、ダウンロードせずメタデータ JSON を出力（MCP サーバー用）
 // outputFlag == "-" → stdout、outputFlag != "" → 指定パス、空の場合 → fallbackName またはサーバー応答ファイル名
-func RunAttachmentDownload(ctx context.Context, outputFlag string, fallbackName string, dl DownloadFunc) error {
-	if outputDir := os.Getenv("BACKLOG_OUTPUT_DIR"); outputDir != "" {
-		return downloadToDir(ctx, outputDir, outputFlag, fallbackName, dl)
+func RunAttachmentDownload(ctx context.Context, outputFlag string, fallbackName string, apiPath string, dl DownloadFunc) error {
+	if os.Getenv("BACKLOG_DOWNLOAD_MODE") == "redirect" {
+		return outputRedirect(apiPath, outputFlag, fallbackName)
 	}
 
 	useStdout := outputFlag == "-"
@@ -64,48 +73,18 @@ func RunAttachmentDownload(ctx context.Context, outputFlag string, fallbackName 
 	return nil
 }
 
-func downloadToDir(ctx context.Context, dir, outputFlag, fallbackName string, dl DownloadFunc) error {
-	tmpFile, err := os.CreateTemp("", "backlog-attachment-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpName := tmpFile.Name()
-	defer func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpName)
-	}()
-
-	filename, _, err := dl(ctx, tmpFile)
-	if err != nil {
-		return fmt.Errorf("failed to download attachment: %w", err)
-	}
-	_ = tmpFile.Close()
-
-	var outPath string
+func outputRedirect(apiPath, outputFlag, fallbackName string) error {
+	filename := fallbackName
 	if outputFlag != "" && outputFlag != "-" {
-		// -o のパス構造を output dir 配下にそのまま再現
-		p := outputFlag
-		if filepath.IsAbs(p) {
-			p = p[1:]
-		}
-		outPath = filepath.Join(dir, p)
-	} else {
-		name := fallbackName
-		if filename != "" {
-			name = filepath.Base(filename)
-		}
-		outPath = filepath.Join(dir, name)
+		filename = filepath.Base(outputFlag)
 	}
-	_ = os.MkdirAll(filepath.Dir(outPath), 0o755)
-
-	if err := os.Rename(tmpName, outPath); err != nil {
-		if copyErr := copyFile(tmpName, outPath); copyErr != nil {
-			return fmt.Errorf("failed to save attachment: %w", copyErr)
-		}
+	meta := DownloadRedirect{
+		Download: true,
+		APIPath:  apiPath,
+		Filename: filename,
+		OutPath:  outputFlag,
 	}
-
-	ui.Success("Downloaded: %s", outPath)
-	return nil
+	return json.NewEncoder(os.Stdout).Encode(meta)
 }
 
 func copyFile(src, dst string) error {
