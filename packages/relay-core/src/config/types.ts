@@ -72,6 +72,12 @@ export interface AuditEvent {
   result: "success" | "error";
   /** Error message if result is "error" */
   error?: string;
+  /** Request body size in bytes */
+  requestBytes?: number;
+  /** Response body size in bytes */
+  responseBytes?: number;
+  /** Duration in milliseconds */
+  durationMs?: number;
   /** Timestamp */
   timestamp: Date;
 }

@@ -90,30 +90,47 @@ export function createTokenHandlers(
     return c.json(response, status as 400);
   }
 
+  interface TokenRequestResult {
+    token: TokenResponse;
+    requestBytes: number;
+    responseBytes: number;
+    durationMs: number;
+  }
+
   /**
    * Request token from Backlog OAuth server.
    */
   async function requestToken(
     spaceHost: string,
     params: URLSearchParams
-  ): Promise<TokenResponse> {
+  ): Promise<TokenRequestResult> {
     const tokenUrl = `https://${spaceHost}/api/v2/oauth2/token`;
+    const reqBody = params.toString();
+    const requestBytes = new TextEncoder().encode(reqBody).byteLength;
+    const start = Date.now();
 
     const response = await fetch(tokenUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: params.toString(),
+      body: reqBody,
     });
 
     const body = await response.text();
+    const durationMs = Date.now() - start;
+    const responseBytes = new TextEncoder().encode(body).byteLength;
 
     if (!response.ok) {
       throw new Error(`Token request failed: ${body}`);
     }
 
-    return JSON.parse(body) as TokenResponse;
+    return {
+      token: JSON.parse(body) as TokenResponse,
+      requestBytes,
+      responseBytes,
+      durationMs,
+    };
   }
 
   const backlogApp = config.backlog_app;
@@ -125,7 +142,7 @@ export function createTokenHandlers(
     c: Context,
     spaceHost: string,
     code: string
-  ): Promise<TokenResponse> {
+  ): Promise<TokenRequestResult> {
     const params = new URLSearchParams();
     params.set("grant_type", "authorization_code");
     params.set("code", code);
@@ -142,7 +159,7 @@ export function createTokenHandlers(
   async function refreshToken(
     spaceHost: string,
     refreshTokenValue: string
-  ): Promise<TokenResponse> {
+  ): Promise<TokenRequestResult> {
     const params = new URLSearchParams();
     params.set("grant_type", "refresh_token");
     params.set("refresh_token", refreshTokenValue);
@@ -212,7 +229,7 @@ export function createTokenHandlers(
     // Normalize space: if it doesn't contain a dot but domain is provided, combine them
     const spaceHost = normalizeSpace(req.space, req.domain);
 
-    let tokenResp: TokenResponse;
+    let result: TokenRequestResult;
     let auditAction: string;
 
     try {
@@ -227,7 +244,7 @@ export function createTokenHandlers(
               "code is required for authorization_code grant"
             );
           }
-          tokenResp = await exchangeCode(c, spaceHost, req.code);
+          result = await exchangeCode(c, spaceHost, req.code);
           break;
 
         case "refresh_token":
@@ -240,7 +257,7 @@ export function createTokenHandlers(
               "refresh_token is required for refresh_token grant"
             );
           }
-          tokenResp = await refreshToken(
+          result = await refreshToken(
             spaceHost,
             req.refresh_token
           );
@@ -273,7 +290,7 @@ export function createTokenHandlers(
     // Fetch user information
     const user = await fetchCurrentUser(
       spaceHost,
-      tokenResp.access_token
+      result.token.access_token
     );
 
     // Log success
@@ -289,6 +306,9 @@ export function createTokenHandlers(
         clientIp: reqCtx.clientIp,
         userAgent: reqCtx.userAgent,
         result: "success",
+        requestBytes: result.requestBytes,
+        responseBytes: result.responseBytes,
+        durationMs: result.durationMs,
       })
     );
 
@@ -296,7 +316,7 @@ export function createTokenHandlers(
     c.header("Cache-Control", "no-store");
     c.header("Pragma", "no-cache");
 
-    return c.json(tokenResp);
+    return c.json(result.token);
   });
 
   return app;

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -62,6 +63,15 @@ Examples:
 }
 
 func init() {
+	if cmdutil.IsMCPMode() {
+		APICmd.Long += `
+
+NOTE (MCP server mode): This command cannot return binary data (file downloads).
+Use the appropriate download subcommand with --link instead:
+  backlog issue attachment download PROJ-123 42 --link
+  backlog wiki attachment download 100 42 --link
+  backlog file download 999 -p PROJ --link`
+	}
 	APICmd.Flags().StringVarP(&method, "method", "X", "GET", "HTTP method to use (GET, POST, PATCH, DELETE)")
 	APICmd.Flags().StringArrayVar(&rawFields, "raw-field", nil, "Add a string parameter in key=value format")
 	APICmd.Flags().StringArrayVarP(&typedFields, "field", "F", nil, "Add a typed parameter in key=value format (integers, booleans auto-converted; @file reads value from file)")
@@ -134,6 +144,18 @@ func runAPI(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if cmdutil.IsMCPMode() && method == "GET" {
+		if isBinaryEndpoint(endpoint) {
+			apiPath := strings.TrimPrefix(endpoint, "/api/v2")
+			meta := cmdutil.DownloadRedirect{
+				Download: true,
+				APIPath:  apiPath,
+				Filename: filenameFromPath(apiPath),
+			}
+			return json.NewEncoder(os.Stdout).Encode(meta)
+		}
+	}
+
 	ctx := cmd.Context()
 
 	// Make the request
@@ -177,6 +199,22 @@ func runAPI(cmd *cobra.Command, args []string) error {
 	if !silent && len(resp.Body) > 0 {
 		var jsonData interface{}
 		isJSON := json.Unmarshal(resp.Body, &jsonData) == nil
+
+		if !isJSON && cmdutil.IsMCPMode() {
+			apiPath := strings.TrimPrefix(endpoint, "/api/v2")
+			filename := "download"
+			if cd := resp.Headers["Content-Disposition"]; len(cd) > 0 {
+				if i := strings.Index(cd[0], "filename="); i >= 0 {
+					filename = strings.Trim(cd[0][i+9:], "\" ")
+				}
+			}
+			meta := cmdutil.DownloadRedirect{
+				Download: true,
+				APIPath:  apiPath,
+				Filename: filename,
+			}
+			return json.NewEncoder(os.Stdout).Encode(meta)
+		}
 
 		if isJSON && (profile.Output == "json" || profile.JQ != "" || profile.Template != "") {
 			return cmdutil.OutputJSONFromProfile(jsonData, profile.JSONFields, profile.JQ, profile.Template)
@@ -293,6 +331,39 @@ func doDeleteRequest(ctx context.Context, client *internalapi.Client, path strin
 		Headers:    resp.Header,
 		Body:       respBody,
 	}, nil
+}
+
+var binaryEndpointPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`/issues/[^/]+/attachments/\d+$`),
+	regexp.MustCompile(`/wikis/\d+/attachments/\d+$`),
+	regexp.MustCompile(`/documents/[^/]+/attachments/\d+$`),
+	regexp.MustCompile(`/projects/[^/]+/files/\d+$`),
+	regexp.MustCompile(`/projects/[^/]+/git/repositories/[^/]+/pullRequests/\d+/attachments/\d+$`),
+	regexp.MustCompile(`/space/image$`),
+	regexp.MustCompile(`/projects/[^/]+/image$`),
+	regexp.MustCompile(`/users/\d+/icon$`),
+	regexp.MustCompile(`/teams/\d+/icon$`),
+}
+
+func isBinaryEndpoint(path string) bool {
+	normalized := strings.TrimPrefix(path, "/api/v2")
+	for _, re := range binaryEndpointPatterns {
+		if re.MatchString(normalized) {
+			return true
+		}
+	}
+	return false
+}
+
+func filenameFromPath(apiPath string) string {
+	parts := strings.Split(strings.TrimRight(apiPath, "/"), "/")
+	if len(parts) >= 2 {
+		parent := parts[len(parts)-2]
+		if parent == "image" || parent == "icon" {
+			return parent + ".png"
+		}
+	}
+	return "download"
 }
 
 // resolveTypedValue applies gh-compatible type conversion for -F/--field values.

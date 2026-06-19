@@ -340,6 +340,7 @@ export class RelayStack extends cdk.Stack {
         CONFIG_PARAMETER_NAME: this.configParameter.parameterName,
         // Lambda Web Adapter: /health が 200 を返したらトラフィックを流す
         AWS_LWA_READINESS_CHECK_PATH: "/health",
+        AWS_LWA_INVOKE_MODE: "response_stream",
         DEPLOY_VERSION: "2026-06-13-container",
         ...relaySecretsEnv,
       },
@@ -380,6 +381,7 @@ export class RelayStack extends cdk.Stack {
       authType: useIamAuth
         ? lambda.FunctionUrlAuthType.AWS_IAM
         : lambda.FunctionUrlAuthType.NONE,
+      invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
       // CloudFront 無効時のみ CORS を設定（直接アクセス用）
       ...(!useIamAuth && {
         cors: {

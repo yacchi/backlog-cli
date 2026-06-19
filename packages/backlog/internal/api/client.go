@@ -105,7 +105,9 @@ func NewClient(space, accessToken string, opts ...ClientOption) *Client {
 		Timeout: 30 * time.Second,
 		Transport: &ReadOnlyTransport{
 			Base: &RetryTransport{
-				Base:       http.DefaultTransport,
+				Base: &LoggingTransport{
+					Base: http.DefaultTransport,
+				},
 				MaxRetries: 5,
 			},
 		},

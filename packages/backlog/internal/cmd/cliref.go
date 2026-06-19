@@ -140,6 +140,10 @@ func writeCommandTree(w io.Writer, cmd *cobra.Command, prefix string, exclude ma
 			_, _ = fmt.Fprintf(w, "\n## %s — %s\n", fullName, desc)
 		}
 
+		if child.Long != "" && child.Long != child.Short {
+			_, _ = fmt.Fprintf(w, "%s\n", child.Long)
+		}
+
 		inGhGroup := diff && isInGhGroup(fullName)
 		writeLocalFlags(w, child, inGhGroup)
 

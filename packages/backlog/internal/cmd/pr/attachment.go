@@ -97,11 +97,16 @@ Examples:
 var (
 	prAttachmentDownloadRepo   string
 	prAttachmentDownloadOutput string
+	prAttachmentDownloadLink   bool
 )
 
 func init() {
 	prAttachmentDownloadCmd.Flags().StringVarP(&prAttachmentDownloadRepo, "repo", "R", "", "Repository name (required)")
 	prAttachmentDownloadCmd.Flags().StringVarP(&prAttachmentDownloadOutput, "output", "o", "", "Output file path (use \"-\" for stdout)")
+	prAttachmentDownloadCmd.Flags().BoolVar(&prAttachmentDownloadLink, "link", false, "Output download link as JSON {file, headers, url} instead of file content")
+	if !cmdutil.IsMCPMode() {
+		_ = prAttachmentDownloadCmd.Flags().MarkHidden("link")
+	}
 	_ = prAttachmentDownloadCmd.MarkFlagRequired("repo")
 }
 
@@ -127,7 +132,7 @@ func runPRAttachmentDownload(c *cobra.Command, args []string) error {
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
 	apiPath := fmt.Sprintf("/projects/%s/git/repositories/%s/pullRequests/%d/attachments/%d",
 		projectKey, prAttachmentDownloadRepo, number, attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), prAttachmentDownloadOutput, fallback, apiPath,
+	return cmdutil.RunAttachmentDownload(c.Context(), prAttachmentDownloadOutput, prAttachmentDownloadLink, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadPRAttachment(ctx, projectKey, prAttachmentDownloadRepo, number, attachmentID, w)
 		})

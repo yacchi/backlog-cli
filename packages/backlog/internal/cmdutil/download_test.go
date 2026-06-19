@@ -21,7 +21,7 @@ func TestRunAttachmentDownload_stdout(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := RunAttachmentDownload(context.Background(), "-", "fallback", "/issues/X/attachments/1", func(_ context.Context, out io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "-", false, "fallback", "/issues/X/attachments/1", func(_ context.Context, out io.Writer) (string, int64, error) {
 		n, _ := out.Write([]byte("hello"))
 		return "", int64(n), nil
 	})
@@ -44,7 +44,7 @@ func TestRunAttachmentDownload_explicitPath(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "out.txt")
 
-	err := RunAttachmentDownload(context.Background(), outPath, "fallback", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), outPath, false, "fallback", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("data"))
 		return "server-name.txt", int64(n), e
 	})
@@ -63,7 +63,7 @@ func TestRunAttachmentDownload_serverFilename(t *testing.T) {
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(orig) }()
 
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "", false, "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("content"))
 		return "server.txt", int64(n), e
 	})
@@ -81,7 +81,7 @@ func TestRunAttachmentDownload_fallbackName(t *testing.T) {
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(orig) }()
 
-	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
+	err := RunAttachmentDownload(context.Background(), "", false, "fallback.bin", "/issues/X/attachments/1", func(_ context.Context, w io.Writer) (string, int64, error) {
 		n, e := w.Write([]byte("bytes"))
 		return "", int64(n), e
 	})
@@ -93,14 +93,12 @@ func TestRunAttachmentDownload_fallbackName(t *testing.T) {
 	}
 }
 
-func TestRunAttachmentDownload_redirectMode(t *testing.T) {
-	t.Setenv("BACKLOG_DOWNLOAD_MODE", "redirect")
-
+func TestRunAttachmentDownload_linkFlag(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := RunAttachmentDownload(context.Background(), "/tmp/my-report.png", "fallback.bin", "/issues/PROJ-1/attachments/42", noop)
+	err := RunAttachmentDownload(context.Background(), "/tmp/my-report.png", true, "fallback.bin", "/issues/PROJ-1/attachments/42", noop)
 
 	_ = w.Close()
 	os.Stdout = old
