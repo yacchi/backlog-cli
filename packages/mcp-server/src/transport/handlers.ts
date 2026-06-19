@@ -629,7 +629,10 @@ export function createTransportHandlers(
                     });
 
                     const textOutput = result.error ? `Error: ${result.error}` : result.result;
-                    const content = buildContentWithFiles(textOutput, result.outputFiles ?? []);
+                    const content = await buildContentWithDownloadUrls(
+                        c, textOutput, result.outputFiles ?? [],
+                        effectiveToken, spaceKey, keys, config,
+                    );
 
                     return jsonRpcResult(req.id, {
                         content,
@@ -791,10 +794,15 @@ function guessMimeType(filename: string): string {
     return map[ext] ?? "application/octet-stream";
 }
 
-function buildContentWithFiles(
+async function buildContentWithDownloadUrls(
+    c: import("hono").Context,
     textOutput: string,
     outputFiles: CollectedFile[],
-): Array<Record<string, unknown>> {
+    token: TokenPayload,
+    spaceKey: string,
+    signingKeys: SigningKeys,
+    serverConfig: McpServerConfig,
+): Promise<Array<Record<string, unknown>>> {
     const content: Array<Record<string, unknown>> = [];
 
     if (textOutput) {
@@ -802,31 +810,19 @@ function buildContentWithFiles(
     }
 
     for (const file of outputFiles) {
-        if (file.mimeType.startsWith("image/")) {
-            content.push({
-                type: "image",
-                data: file.data,
-                mimeType: file.mimeType,
-            });
-        } else if (
-            file.mimeType.startsWith("text/") ||
-            file.mimeType === "application/json" ||
-            file.mimeType === "application/xml"
-        ) {
-            const text = Buffer.from(file.data, "base64").toString("utf8");
-            content.push({
-                type: "text",
-                text: `--- ${file.path} (${file.size} bytes) ---\n${text}`,
-            });
-        } else {
+        if (file.apiPath) {
+            const url = await generateDownloadUrl(c, token, spaceKey, file.apiPath, signingKeys, serverConfig);
             content.push({
                 type: "resource",
                 resource: {
-                    uri: `attachment://${file.path}`,
+                    uri: url,
                     mimeType: file.mimeType,
-                    blob: file.data,
                 },
             });
+        } else if (file.mimeType.startsWith("image/")) {
+            content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+        } else {
+            content.push({ type: "text", text: `${file.name} (${file.size} bytes)` });
         }
     }
 

@@ -337,6 +337,7 @@ async function fetchFromBacklog(
             data: buf.toString("base64"),
             mimeType: ct,
             size: buf.length,
+            apiPath,
         },
     };
 }

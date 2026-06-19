@@ -85,6 +85,7 @@ export interface CollectedFile {
     data: string;
     mimeType: string;
     size: number;
+    apiPath?: string;
 }
 
 const MIME_TYPES: Record<string, string> = {
