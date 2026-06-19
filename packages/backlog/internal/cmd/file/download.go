@@ -27,11 +27,16 @@ Examples:
 var (
 	downloadProject string
 	downloadOutput  string
+	downloadLink    bool
 )
 
 func init() {
 	downloadCmd.Flags().StringVarP(&downloadProject, "project", "p", "", "Project key (required if not in project context)")
 	downloadCmd.Flags().StringVarP(&downloadOutput, "output", "o", "", "Output file path (use \"-\" for stdout)")
+	downloadCmd.Flags().BoolVar(&downloadLink, "link", false, "Output download link as JSON {file, headers, url} instead of file content")
+	if !cmdutil.IsMCPMode() {
+		_ = downloadCmd.Flags().MarkHidden("link")
+	}
 }
 
 func runDownload(c *cobra.Command, args []string) error {
@@ -55,7 +60,7 @@ func runDownload(c *cobra.Command, args []string) error {
 
 	fallback := fmt.Sprintf("file-%d", sharedFileID)
 	apiPath := fmt.Sprintf("/projects/%s/files/%d", projectKey, sharedFileID)
-	return cmdutil.RunAttachmentDownload(c.Context(), downloadOutput, fallback, apiPath,
+	return cmdutil.RunAttachmentDownload(c.Context(), downloadOutput, downloadLink, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadProjectFile(ctx, projectKey, sharedFileID, w)
 		})

@@ -135,10 +135,17 @@ Examples:
 	RunE: runWikiAttachmentDownload,
 }
 
-var wikiAttachmentDownloadOutput string
+var (
+	wikiAttachmentDownloadOutput string
+	wikiAttachmentDownloadLink   bool
+)
 
 func init() {
 	wikiAttachmentDownloadCmd.Flags().StringVarP(&wikiAttachmentDownloadOutput, "output", "o", "", "Output file path (use \"-\" for stdout)")
+	wikiAttachmentDownloadCmd.Flags().BoolVar(&wikiAttachmentDownloadLink, "link", false, "Output download link as JSON {file, headers, url} instead of file content")
+	if !cmdutil.IsMCPMode() {
+		_ = wikiAttachmentDownloadCmd.Flags().MarkHidden("link")
+	}
 	wikiAttachmentCmd.AddCommand(wikiAttachmentListCmd)
 	wikiAttachmentCmd.AddCommand(wikiAttachmentUploadCmd)
 	wikiAttachmentCmd.AddCommand(wikiAttachmentDownloadCmd)
@@ -162,7 +169,7 @@ func runWikiAttachmentDownload(c *cobra.Command, args []string) error {
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
 	apiPath := fmt.Sprintf("/wikis/%d/attachments/%d", wikiID, attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), wikiAttachmentDownloadOutput, fallback, apiPath,
+	return cmdutil.RunAttachmentDownload(c.Context(), wikiAttachmentDownloadOutput, wikiAttachmentDownloadLink, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadWikiAttachment(ctx, wikiID, attachmentID, w)
 		})

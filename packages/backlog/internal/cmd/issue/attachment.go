@@ -82,10 +82,17 @@ Examples:
 	RunE: runIssueAttachmentDownload,
 }
 
-var issueAttachmentDownloadOutput string
+var (
+	issueAttachmentDownloadOutput string
+	issueAttachmentDownloadLink   bool
+)
 
 func init() {
 	issueAttachmentDownloadCmd.Flags().StringVarP(&issueAttachmentDownloadOutput, "output", "o", "", "Output file path (use \"-\" for stdout)")
+	issueAttachmentDownloadCmd.Flags().BoolVar(&issueAttachmentDownloadLink, "link", false, "Output download link as JSON {file, headers, url} instead of file content")
+	if !cmdutil.IsMCPMode() {
+		_ = issueAttachmentDownloadCmd.Flags().MarkHidden("link")
+	}
 	attachmentCmd.AddCommand(issueAttachmentListCmd)
 	attachmentCmd.AddCommand(issueAttachmentDownloadCmd)
 	attachmentCmd.AddCommand(issueAttachmentDeleteCmd)
@@ -106,7 +113,7 @@ func runIssueAttachmentDownload(c *cobra.Command, args []string) error {
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
 	apiPath := fmt.Sprintf("/issues/%s/attachments/%d", issueKey, attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), issueAttachmentDownloadOutput, fallback, apiPath,
+	return cmdutil.RunAttachmentDownload(c.Context(), issueAttachmentDownloadOutput, issueAttachmentDownloadLink, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadIssueAttachment(ctx, issueKey, attachmentID, w)
 		})

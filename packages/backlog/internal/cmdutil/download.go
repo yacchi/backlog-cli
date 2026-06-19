@@ -25,8 +25,8 @@ type DownloadRedirect struct {
 // RunAttachmentDownload は共通のダウンロード実行ロジック
 // BACKLOG_DOWNLOAD_MODE=redirect の場合、ダウンロードせずメタデータ JSON を出力（MCP サーバー用）
 // outputFlag == "-" → stdout、outputFlag != "" → 指定パス、空の場合 → fallbackName またはサーバー応答ファイル名
-func RunAttachmentDownload(ctx context.Context, outputFlag string, fallbackName string, apiPath string, dl DownloadFunc) error {
-	if os.Getenv("BACKLOG_DOWNLOAD_MODE") == "redirect" {
+func RunAttachmentDownload(ctx context.Context, outputFlag string, linkMode bool, fallbackName string, apiPath string, dl DownloadFunc) error {
+	if linkMode || os.Getenv("BACKLOG_DOWNLOAD_MODE") == "redirect" {
 		return outputRedirect(apiPath, outputFlag, fallbackName)
 	}
 
@@ -116,4 +116,9 @@ func copyFile(src, dst string) error {
 		}
 	}
 	return nil
+}
+
+// IsMCPMode は MCP サーバー経由で実行されているかを返す
+func IsMCPMode() bool {
+	return os.Getenv("BACKLOG_MCP_MODE") == "1"
 }

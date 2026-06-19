@@ -28,10 +28,17 @@ Examples:
 	RunE: runAttachmentDownload,
 }
 
-var attachmentOutput string
+var (
+	attachmentOutput string
+	attachmentLink   bool
+)
 
 func init() {
 	attachmentDownloadCmd.Flags().StringVarP(&attachmentOutput, "output", "o", "", "Output file path (use \"-\" for stdout)")
+	attachmentDownloadCmd.Flags().BoolVar(&attachmentLink, "link", false, "Output download link as JSON {file, headers, url} instead of file content")
+	if !cmdutil.IsMCPMode() {
+		_ = attachmentDownloadCmd.Flags().MarkHidden("link")
+	}
 	attachmentCmd.AddCommand(attachmentDownloadCmd)
 }
 
@@ -49,7 +56,7 @@ func runAttachmentDownload(c *cobra.Command, args []string) error {
 
 	fallback := fmt.Sprintf("attachment-%d", attachmentID)
 	apiPath := fmt.Sprintf("/documents/%s/attachments/%d", documentID, attachmentID)
-	return cmdutil.RunAttachmentDownload(c.Context(), attachmentOutput, fallback, apiPath,
+	return cmdutil.RunAttachmentDownload(c.Context(), attachmentOutput, attachmentLink, fallback, apiPath,
 		func(ctx context.Context, w io.Writer) (string, int64, error) {
 			return client.DownloadDocumentAttachment(ctx, documentID, attachmentID, w)
 		})
