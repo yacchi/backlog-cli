@@ -94,24 +94,28 @@ func runSetupWithToken(cmd *cobra.Command, token string) error {
 
 	ui.Info("Downloading and importing config bundle...")
 
-	imported, err := config.ProvisionFromToken(cmd.Context(), cfg, token, config.ProvisionOptions{
+	result, err := config.ProvisionFromToken(cmd.Context(), cfg, token, config.ProvisionOptions{
 		NoDefaults: noDefaults,
 	})
 	if err != nil {
 		return fmt.Errorf("provisioning failed: %w", err)
 	}
 
-	if err := cfg.Save(cmd.Context()); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
+	if result.Unchanged {
+		ui.Success("Bundle %s is already up to date.", result.Bundle.ResolvedName())
+	} else {
+		if err := cfg.Save(cmd.Context()); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
 
-	ui.Success("Setup complete for bundle %s", imported.Name)
-	fmt.Printf("  Relay URL:   %s\n", imported.RelayURL)
-	fmt.Printf("  Keys:        %d key(s)\n", len(imported.RelayKeys))
-	fmt.Printf("  Expires at:  %s\n", imported.ExpiresAt)
-	fmt.Println()
-	fmt.Println("You can now authenticate with:")
-	fmt.Printf("  backlog auth login\n")
+		ui.Success("Setup complete for bundle %s", result.Bundle.ResolvedName())
+		fmt.Printf("  Relay URL:   %s\n", result.Bundle.RelayURL)
+		fmt.Printf("  Keys:        %d key(s)\n", len(result.Bundle.RelayKeys))
+		fmt.Printf("  Expires at:  %s\n", result.Bundle.ExpiresAt)
+		fmt.Println()
+		fmt.Println("You can now authenticate with:")
+		fmt.Printf("  backlog auth login\n")
+	}
 
 	fmt.Println()
 	maybeInstallClaudePlugin(cmd)
@@ -251,31 +255,35 @@ func finishSetup(cmd *cobra.Command, relayURL, space, provisioningKey string) er
 
 	ui.Info("Downloading and importing config bundle...")
 
-	imported, err := config.ProvisionFromToken(cmd.Context(), cfg, provisioningKey, config.ProvisionOptions{
+	result, err := config.ProvisionFromToken(cmd.Context(), cfg, provisioningKey, config.ProvisionOptions{
 		NoDefaults: noDefaults,
 	})
 	if err != nil {
 		return fmt.Errorf("provisioning failed: %w", err)
 	}
 
-	if space != "" {
-		if err := applySpaceDefaults(cfg, space); err != nil {
-			return fmt.Errorf("failed to apply space defaults: %w", err)
+	if result.Unchanged {
+		ui.Success("Bundle %s is already up to date.", result.Bundle.ResolvedName())
+	} else {
+		if space != "" {
+			if err := applySpaceDefaults(cfg, space); err != nil {
+				return fmt.Errorf("failed to apply space defaults: %w", err)
+			}
 		}
-	}
 
-	if err := cfg.Save(cmd.Context()); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
+		if err := cfg.Save(cmd.Context()); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
 
-	ui.Success("Setup complete for bundle %s", imported.Name)
-	fmt.Printf("  Relay URL:   %s\n", imported.RelayURL)
-	fmt.Printf("  Space:       %s\n", space)
-	fmt.Printf("  Keys:        %d key(s)\n", len(imported.RelayKeys))
-	fmt.Printf("  Expires at:  %s\n", imported.ExpiresAt)
-	fmt.Println()
-	fmt.Println("You can now authenticate with:")
-	fmt.Printf("  backlog auth login\n")
+		ui.Success("Setup complete for bundle %s", result.Bundle.ResolvedName())
+		fmt.Printf("  Relay URL:   %s\n", result.Bundle.RelayURL)
+		fmt.Printf("  Space:       %s\n", space)
+		fmt.Printf("  Keys:        %d key(s)\n", len(result.Bundle.RelayKeys))
+		fmt.Printf("  Expires at:  %s\n", result.Bundle.ExpiresAt)
+		fmt.Println()
+		fmt.Println("You can now authenticate with:")
+		fmt.Printf("  backlog auth login\n")
+	}
 
 	fmt.Println()
 	maybeInstallClaudePlugin(cmd)
