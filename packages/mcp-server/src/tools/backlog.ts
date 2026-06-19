@@ -13,7 +13,7 @@ export interface BacklogToolResult {
 export async function executeBacklogCommand(
     args: string,
     token: TokenPayload,
-    options?: { readOnly?: boolean; binPath?: string },
+    options?: { readOnly?: boolean; binPath?: string; additionalEnv?: Record<string, string> },
 ): Promise<BacklogToolResult> {
     const cliPath = options?.binPath ?? resolveDefaultBinPath();
     const parsedArgs = parseArgs(args);
@@ -28,6 +28,7 @@ export async function executeBacklogCommand(
                     BACKLOG_SPACE: token.space,
                     BACKLOG_ASSUME_YES: "1",
                     ...(options?.readOnly ? { BACKLOG_ACCESS_MODE: "read-only" } : {}),
+                    ...options?.additionalEnv,
                     HOME: "/tmp",
                     PATH: process.env.PATH,
                 },

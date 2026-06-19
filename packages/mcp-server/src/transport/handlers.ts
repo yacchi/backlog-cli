@@ -4,7 +4,7 @@ import { matchSpacePattern } from "../config/schema.js";
 import { jwtAuth, getAuthContext, resolveSpaceToken } from "../middleware/jwt-auth.js";
 import { resolveBaseUrl } from "../base-url.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
-import { materializeFiles, substituteFileRefs } from "../tools/files.js";
+import { materializeFiles, substituteFileRefs, createOutputDir, collectOutputFiles, type CollectedFile } from "../tools/files.js";
 import { Logger, LOGGER_CONTEXT_KEY, logToolCall, type LoggingConfig } from "../logging/logger.js";
 import type { TokenPayload, SigningKeys } from "../crypto/jwt.js";
 import { listSpaceEntries } from "../crypto/jwt.js";
@@ -529,16 +529,21 @@ export function createTransportHandlers(
                 const log = logToolCall(logger, { tool: toolName, input: { args }, tenant: spaceKey, loggingConfig });
 
                 const filePaths = files?.length ? materializeFiles(files) : null;
+                const outputDir = createOutputDir();
                 try {
                     const resolvedArgs = filePaths ? substituteFileRefs(args, filePaths.paths) : args;
                     const result = await executeBacklogCommand(
                         resolvedArgs,
                         effectiveToken,
-                        { readOnly, binPath: options?.binPath },
+                        { readOnly, binPath: options?.binPath, additionalEnv: { BACKLOG_OUTPUT_DIR: outputDir.path } },
                     );
+
+                    const outputFiles = collectOutputFiles(outputDir.path);
+                    const content = buildContentWithFiles(result.output, outputFiles);
+
                     log.finish({ output: result.output, error: result.exitCode !== 0 ? result.output : undefined, category: result.exitCode !== 0 ? "cli_error" : undefined });
                     return jsonRpcResult(req.id, {
-                        content: [{ type: "text", text: result.output }],
+                        content,
                         isError: result.exitCode !== 0,
                     });
                 } catch (err) {
@@ -549,6 +554,7 @@ export function createTransportHandlers(
                     });
                 } finally {
                     filePaths?.cleanup();
+                    outputDir.cleanup();
                 }
             }
 
@@ -657,6 +663,52 @@ function jsonRpcError(
     data?: unknown,
 ): JsonRpcResponse {
     return { jsonrpc: "2.0", id: id ?? null, error: { code, message, data } };
+}
+
+function buildContentWithFiles(
+    textOutput: string,
+    outputFiles: CollectedFile[],
+): Array<Record<string, unknown>> {
+    const content: Array<Record<string, unknown>> = [];
+
+    if (textOutput) {
+        content.push({ type: "text", text: textOutput });
+    }
+
+    for (const file of outputFiles) {
+        if (file.mimeType.startsWith("image/")) {
+            content.push({
+                type: "image",
+                data: file.data,
+                mimeType: file.mimeType,
+            });
+        } else if (
+            file.mimeType.startsWith("text/") ||
+            file.mimeType === "application/json" ||
+            file.mimeType === "application/xml"
+        ) {
+            const text = Buffer.from(file.data, "base64").toString("utf8");
+            content.push({
+                type: "text",
+                text: `--- ${file.path} (${file.size} bytes) ---\n${text}`,
+            });
+        } else {
+            content.push({
+                type: "resource",
+                resource: {
+                    uri: `attachment://${file.path}`,
+                    mimeType: file.mimeType,
+                    blob: file.data,
+                },
+            });
+        }
+    }
+
+    if (content.length === 0) {
+        content.push({ type: "text", text: "" });
+    }
+
+    return content;
 }
 
 function buildCliReferencePrompt(space: string, cliRefOutput?: string): string {

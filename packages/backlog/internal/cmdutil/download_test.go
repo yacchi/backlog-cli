@@ -94,3 +94,72 @@ func TestRunAttachmentDownload_fallbackName(t *testing.T) {
 		t.Errorf("unexpected file content: %q", string(b))
 	}
 }
+
+func TestRunAttachmentDownload_outputDirPreservesPath(t *testing.T) {
+	outputDir := t.TempDir()
+	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
+
+	// -o の絶対パス構造が output dir 配下に再現される
+	err := RunAttachmentDownload(context.Background(), "/private/tmp/scratchpad/my-report.png", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
+		n, e := w.Write([]byte("output-dir-content"))
+		return "server-name.png", int64(n), e
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	outPath := filepath.Join(outputDir, "private/tmp/scratchpad/my-report.png")
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("file not created at %s: %v", outPath, readErr)
+	}
+	if string(b) != "output-dir-content" {
+		t.Errorf("file content got %q, want %q", string(b), "output-dir-content")
+	}
+}
+
+func TestRunAttachmentDownload_outputDirServerName(t *testing.T) {
+	outputDir := t.TempDir()
+	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
+
+	// -o 未指定時はサーバー応答のファイル名を output dir 直下に保存
+	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
+		n, e := w.Write([]byte("data"))
+		return "server.txt", int64(n), e
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	outPath := filepath.Join(outputDir, "server.txt")
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("file not created at %s: %v", outPath, readErr)
+	}
+	if string(b) != "data" {
+		t.Errorf("file content got %q, want %q", string(b), "data")
+	}
+}
+
+func TestRunAttachmentDownload_outputDirFallback(t *testing.T) {
+	outputDir := t.TempDir()
+	t.Setenv("BACKLOG_OUTPUT_DIR", outputDir)
+
+	// -o もサーバー名もない場合はフォールバック名
+	err := RunAttachmentDownload(context.Background(), "", "fallback.bin", func(_ context.Context, w io.Writer) (string, int64, error) {
+		n, e := w.Write([]byte("data"))
+		return "", int64(n), e
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	outPath := filepath.Join(outputDir, "fallback.bin")
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("file not created at %s: %v", outPath, readErr)
+	}
+	if string(b) != "data" {
+		t.Errorf("file content got %q, want %q", string(b), "data")
+	}
+}
