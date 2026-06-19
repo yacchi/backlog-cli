@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/api"
@@ -132,20 +131,9 @@ func runAddComment(c *cobra.Command, issueKey string) error {
 	}
 
 	// 添付ファイルのアップロード
-	var attachmentIDs []int
-	if len(commentAttachFiles) > 0 {
-		for _, filePath := range commentAttachFiles {
-			f, err := os.Open(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to open %s: %w", filePath, err)
-			}
-			up, err := client.UploadSpaceAttachment(c.Context(), filepath.Base(filePath), f)
-			_ = f.Close()
-			if err != nil {
-				return fmt.Errorf("failed to upload %s: %w", filePath, err)
-			}
-			attachmentIDs = append(attachmentIDs, up.ID)
-		}
+	attachmentIDs, err := cmdutil.UploadFiles(c.Context(), client, commentAttachFiles)
+	if err != nil {
+		return err
 	}
 
 	comment, err := client.AddComment(c.Context(), issueKey, message, nil, attachmentIDs)

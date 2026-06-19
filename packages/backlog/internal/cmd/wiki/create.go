@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -113,18 +112,9 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// 添付ファイルのアップロード（Wiki作成APIは添付に非対応のため、作成後に紐付ける）
 	if len(createAttachFiles) > 0 {
-		var attachmentIDs []int
-		for _, filePath := range createAttachFiles {
-			f, err := os.Open(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to open %s: %w", filePath, err)
-			}
-			up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
-			_ = f.Close()
-			if err != nil {
-				return fmt.Errorf("failed to upload %s: %w", filePath, err)
-			}
-			attachmentIDs = append(attachmentIDs, up.ID)
+		attachmentIDs, err := cmdutil.UploadFiles(ctx, client, createAttachFiles)
+		if err != nil {
+			return err
 		}
 		if _, err := client.AttachFilesToWiki(ctx, wiki.ID, attachmentIDs); err != nil {
 			return fmt.Errorf("failed to attach files to wiki %d: %w", wiki.ID, err)

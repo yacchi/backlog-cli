@@ -47,7 +47,9 @@ func RunAttachmentDownload(ctx context.Context, outputFlag string, linkMode bool
 		_ = os.Remove(tmpName)
 	}()
 
-	filename, _, err := dl(ctx, tmpFile)
+	pw := ui.NewProgressWriter(tmpFile, "Downloading", 0)
+	filename, _, err := dl(ctx, pw)
+	pw.Finish()
 	if err != nil {
 		return fmt.Errorf("failed to download attachment: %w", err)
 	}

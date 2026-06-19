@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -96,19 +95,9 @@ func runWikiAttachmentUpload(c *cobra.Command, args []string) error {
 	}
 
 	ctx := c.Context()
-	var attachmentIDs []int
-	for _, filePath := range files {
-		f, err := os.Open(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to open %s: %w", filePath, err)
-		}
-		up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
-		_ = f.Close()
-		if err != nil {
-			return fmt.Errorf("failed to upload %s: %w", filePath, err)
-		}
-		attachmentIDs = append(attachmentIDs, up.ID)
-		fmt.Printf("Uploaded: %s (id: %d)\n", up.Name, up.ID)
+	attachmentIDs, err := cmdutil.UploadFiles(ctx, client, files)
+	if err != nil {
+		return err
 	}
 
 	atts, err := client.AttachFilesToWiki(ctx, wikiID, attachmentIDs)

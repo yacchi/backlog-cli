@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"mime"
@@ -46,22 +45,31 @@ type UploadedAttachment struct {
 
 // UploadSpaceAttachment はファイルをスペース添付としてアップロードする
 // 返された ID を issue create/edit/wiki attachment などで使用する
+// io.Pipe を使い、multipart エンコードと HTTP 送信を並行実行する
 func (c *Client) UploadSpaceAttachment(ctx context.Context, filename string, r io.Reader) (*UploadedAttachment, error) {
-	body := &bytes.Buffer{}
-	w := multipart.NewWriter(body)
-	fw, err := w.CreateFormFile("file", filename)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := io.Copy(fw, r); err != nil {
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
+	pr, pw := io.Pipe()
+	w := multipart.NewWriter(pw)
 
-	resp, err := c.RawRequest(ctx, "POST", "/api/v2/space/attachment", nil, body, w.FormDataContentType())
+	go func() {
+		fw, err := w.CreateFormFile("file", filename)
+		if err != nil {
+			_ = pw.CloseWithError(err)
+			return
+		}
+		if _, err := io.Copy(fw, r); err != nil {
+			_ = pw.CloseWithError(err)
+			return
+		}
+		if err := w.Close(); err != nil {
+			_ = pw.CloseWithError(err)
+			return
+		}
+		_ = pw.Close()
+	}()
+
+	resp, err := c.RawRequest(ctx, "POST", "/api/v2/space/attachment", nil, pr, w.FormDataContentType())
 	if err != nil {
+		_ = pr.Close()
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()

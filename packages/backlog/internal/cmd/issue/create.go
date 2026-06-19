@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -254,18 +253,9 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	// 添付ファイルのアップロード
 	if len(createAttachFiles) > 0 {
-		var attachmentIDs []int
-		for _, filePath := range createAttachFiles {
-			f, err := os.Open(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to open %s: %w", filePath, err)
-			}
-			up, err := client.UploadSpaceAttachment(ctx, filepath.Base(filePath), f)
-			_ = f.Close()
-			if err != nil {
-				return fmt.Errorf("failed to upload %s: %w", filePath, err)
-			}
-			attachmentIDs = append(attachmentIDs, up.ID)
+		attachmentIDs, err := cmdutil.UploadFiles(ctx, client, createAttachFiles)
+		if err != nil {
+			return err
 		}
 		input.AttachmentIDs = attachmentIDs
 	}
