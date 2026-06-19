@@ -107,7 +107,7 @@ func runView(c *cobra.Command, args []string) error {
 		case "default":
 			fetchCount = display.DefaultCommentCount
 			if fetchCount == 0 {
-				fetchCount = 10 // fallback
+				fetchCount = 20 // fallback
 			}
 		case "all", "0":
 			fetchAll = true
@@ -119,7 +119,7 @@ func runView(c *cobra.Command, args []string) error {
 				// 不正な値の場合はデフォルト
 				fetchCount = display.DefaultCommentCount
 				if fetchCount == 0 {
-					fetchCount = 10
+					fetchCount = 20
 				}
 			}
 		}
