@@ -244,7 +244,7 @@ const SKILL_PROMPT = {
 export function createTransportHandlers(
     config: McpServerConfig,
     keys: SigningKeys,
-    options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }> },
+    options?: { binPath?: string; runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string; outputFiles?: CollectedFile[] }> },
 ): Hono {
     const app = new Hono();
     const { verifyKeys, encKeys } = keys;
@@ -587,11 +587,12 @@ export function createTransportHandlers(
                         error: result.error,
                         category: result.error ? "script_error" : undefined,
                     });
+
+                    const textOutput = result.error ? `Error: ${result.error}` : result.result;
+                    const content = buildContentWithFiles(textOutput, result.outputFiles ?? []);
+
                     return jsonRpcResult(req.id, {
-                        content: [{
-                            type: "text",
-                            text: result.error ? `Error: ${result.error}` : result.result,
-                        }],
+                        content,
                         isError: !!result.error,
                     });
                 } catch (err) {

@@ -7,7 +7,7 @@ import type { TokenPayload } from "../crypto/jwt.js";
 import type { ScriptConfig } from "../config/schema.js";
 import type { ScriptFile } from "../transport/handlers.js";
 import { executeBacklogCommand } from "../tools/backlog.js";
-import { materializeFiles, substituteFileRefs } from "../tools/files.js";
+import { materializeFiles, substituteFileRefs, createOutputDir, collectOutputFiles, type CollectedFile } from "../tools/files.js";
 import { Logger, logSandbox } from "../logging/logger.js";
 
 const BOOT_TIMEOUT = 60_000;
@@ -26,7 +26,7 @@ export interface SandboxClient {
         scriptConfig: ScriptConfig | undefined,
         readOnly?: boolean,
         files?: ScriptFile[],
-    ): Promise<{ result: string; error?: string }>;
+    ): Promise<{ result: string; error?: string; outputFiles?: CollectedFile[] }>;
     shutdown(): void;
 }
 
@@ -128,9 +128,11 @@ export async function createSandboxClient(
             const s = await ensureRunning();
 
             const filePaths = files?.length ? materializeFiles(files) : null;
+            const accumulatedFiles: CollectedFile[] = [];
 
             const { server: cbServer, port: cbPort } = await startCallbackServer(
                 token, scriptConfig, readOnly ?? false, options?.binPath, filePaths?.paths,
+                accumulatedFiles,
             );
 
             const controller = new AbortController();
@@ -156,10 +158,17 @@ export async function createSandboxClient(
                     category?: string;
                 };
                 if (data.ok) {
-                    return { result: data.result ?? "" };
+                    return {
+                        result: data.result ?? "",
+                        outputFiles: accumulatedFiles.length > 0 ? accumulatedFiles : undefined,
+                    };
                 }
                 const errorPrefix = data.category ? `[${data.category}] ` : "";
-                return { result: "", error: `${errorPrefix}${data.error ?? "Unknown error"}` };
+                return {
+                    result: "",
+                    error: `${errorPrefix}${data.error ?? "Unknown error"}`,
+                    outputFiles: accumulatedFiles.length > 0 ? accumulatedFiles : undefined,
+                };
             } catch (err) {
                 if ((err as Error).name === "AbortError") {
                     const limitMs = scriptConfig?.timeout_ms ?? SCRIPT_TIMEOUT;
@@ -189,6 +198,7 @@ function startCallbackServer(
     readOnly: boolean,
     binPath?: string,
     filePaths?: string[],
+    accumulatedFiles?: CollectedFile[],
 ): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
     const maxCalls = scriptConfig?.max_cli_calls ?? 20;
     let callCount = 0;
@@ -228,12 +238,18 @@ function startCallbackServer(
                 return;
             }
 
+            const outputDir = createOutputDir();
             try {
                 const result = await executeBacklogCommand(
                     args,
                     token,
-                    { readOnly, binPath },
+                    { readOnly, binPath, additionalEnv: { BACKLOG_OUTPUT_DIR: outputDir.path } },
                 );
+
+                const outputFiles = collectOutputFiles(outputDir.path);
+                if (accumulatedFiles && outputFiles.length > 0) {
+                    accumulatedFiles.push(...outputFiles);
+                }
 
                 if (result.exitCode !== 0) {
                     res.writeHead(200);
@@ -243,23 +259,33 @@ function startCallbackServer(
                     return;
                 }
 
+                let output: unknown;
                 try {
-                    const data = JSON.parse(result.output);
-                    res.writeHead(200, {
-                        "Content-Type": "application/json",
-                    });
-                    res.end(JSON.stringify(data));
+                    output = JSON.parse(result.output);
                 } catch {
-                    res.writeHead(200, {
-                        "Content-Type": "application/json",
-                    });
-                    res.end(JSON.stringify(result.output));
+                    output = result.output;
+                }
+
+                if (outputFiles.length > 0) {
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({
+                        __backlog_output: output,
+                        __backlog_files: outputFiles.map(f => ({
+                            path: f.path,
+                            data: f.data,
+                        })),
+                    }));
+                } else {
+                    res.writeHead(200, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify(output));
                 }
             } catch (err) {
                 res.writeHead(500);
                 res.end(
                     JSON.stringify({ error: (err as Error).message }),
                 );
+            } finally {
+                outputDir.cleanup();
             }
         });
 

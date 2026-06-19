@@ -133,15 +133,41 @@ const snapshot = await (async () => {
 
 // Restore a fresh, isolated instance from the snapshot and wire its backlog() bridge
 // to THIS request's callback URL (captured in the closure — never a shared global).
+function ensureParentDir(fs, path) {
+    const parts = path.split("/").filter(Boolean);
+    parts.pop();
+    let cur = "";
+    for (const part of parts) {
+        cur += "/" + part;
+        try { fs.mkdir(cur); } catch { /* exists */ }
+    }
+}
+
 async function createInstance(callbackUrl) {
     const py = await loadPyodide({ _loadSnapshot: snapshot });
     py.registerJsModule("_backlog_bridge", {
-        call: (args) =>
-            fetch(callbackUrl, {
+        call: async (args) => {
+            const res = await fetch(callbackUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ args }),
-            }).then((r) => r.text()),
+            });
+            const text = await res.text();
+            try {
+                const data = JSON.parse(text);
+                if (data && data.__backlog_files) {
+                    for (const f of data.__backlog_files) {
+                        ensureParentDir(py.FS, f.path);
+                        const raw = atob(f.data);
+                        const bytes = new Uint8Array(raw.length);
+                        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+                        py.FS.writeFile(f.path, bytes);
+                    }
+                    return JSON.stringify(data.__backlog_output);
+                }
+            } catch { /* not an envelope, return raw text */ }
+            return text;
+        },
     });
     await py.runPythonAsync(BRIDGE_INIT);
     return py;
