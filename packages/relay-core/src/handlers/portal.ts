@@ -8,7 +8,7 @@ import type { Context } from "hono";
 import type { RelayConfig, AuditLogger, TenantConfig } from "../config/types.js";
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
-import { verifyPortalSessionToken } from "../utils/portal-session.js";
+import { verifyPortalSessionToken, refreshPortalSession } from "../utils/portal-session.js";
 import type { IssuedByInfo } from "../utils/bundle.js";
 
 /**
@@ -40,6 +40,8 @@ export interface PortalAssets {
 }
 
 const SESSION_COOKIE = "portal_session";
+const REFRESH_COOKIE = "portal_refresh";
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600;
 
 interface AuthResult {
   method: "oauth" | "bearer" | "passphrase";
@@ -76,6 +78,7 @@ async function authenticatePortalRequest(
   tenant: TenantConfig,
   jwksJson: string | undefined,
   verifyPassphrase: (hash: string, passphrase: string) => Promise<boolean>,
+  backlogApp?: { client_id: string; client_secret: string },
 ): Promise<AuthResult | null> {
   // 1. Session Cookie (OAuth)
   if (jwksJson) {
@@ -90,7 +93,42 @@ async function authenticatePortalRequest(
           };
         }
       } catch {
-        // Invalid/expired session — fall through
+        // Invalid/expired session — try refresh
+      }
+    }
+
+    // 1b. Try transparent refresh via refresh token cookie
+    if (backlogApp) {
+      const refreshCookie = getCookie(c, REFRESH_COOKIE);
+      if (refreshCookie) {
+        try {
+          const result = await refreshPortalSession(
+            refreshCookie,
+            jwksJson,
+            backlogApp.client_id,
+            backlogApp.client_secret,
+          );
+          if (result.claims.tenant === tenant.name) {
+            const secure = c.req.url.startsWith("https");
+            setCookie(c, SESSION_COOKIE, result.sessionToken, {
+              httpOnly: true, secure, sameSite: "Lax", maxAge: 3600, path: "/",
+            });
+            setCookie(c, REFRESH_COOKIE, result.encryptedRefreshToken, {
+              httpOnly: true, secure, sameSite: "Lax", maxAge: REFRESH_COOKIE_MAX_AGE, path: "/",
+            });
+            return {
+              method: "oauth",
+              user: {
+                user_id: result.claims.sub,
+                name: result.claims.name,
+                email: result.claims.email,
+              },
+            };
+          }
+        } catch {
+          // Refresh failed — clear stale cookie, fall through to other methods
+          setCookie(c, REFRESH_COOKIE, "", { maxAge: 0, path: "/" });
+        }
       }
     }
   }
@@ -331,19 +369,51 @@ export function createPortalHandlers(
       return c.json({ authenticated: false });
     }
     const sessionCookie = getCookie(c, SESSION_COOKIE);
-    if (!sessionCookie) {
-      return c.json({ authenticated: false });
+    if (sessionCookie) {
+      try {
+        const claims = await verifyPortalSessionToken(sessionCookie, jwksJson);
+        return c.json({
+          authenticated: true,
+          user: { id: claims.sub, name: claims.name, email: claims.email },
+          tenant: claims.tenant,
+        });
+      } catch {
+        // Session expired — try refresh below
+      }
     }
-    try {
-      const claims = await verifyPortalSessionToken(sessionCookie, jwksJson);
-      return c.json({
-        authenticated: true,
-        user: { id: claims.sub, name: claims.name, email: claims.email },
-        tenant: claims.tenant,
-      });
-    } catch {
-      return c.json({ authenticated: false });
+
+    // Try transparent refresh
+    const refreshCookie = getCookie(c, REFRESH_COOKIE);
+    if (refreshCookie && config.backlog_app) {
+      try {
+        const result = await refreshPortalSession(
+          refreshCookie,
+          jwksJson,
+          config.backlog_app.client_id,
+          config.backlog_app.client_secret,
+        );
+        const secure = c.req.url.startsWith("https");
+        setCookie(c, SESSION_COOKIE, result.sessionToken, {
+          httpOnly: true, secure, sameSite: "Lax", maxAge: 3600, path: "/",
+        });
+        setCookie(c, REFRESH_COOKIE, result.encryptedRefreshToken, {
+          httpOnly: true, secure, sameSite: "Lax", maxAge: REFRESH_COOKIE_MAX_AGE, path: "/",
+        });
+        return c.json({
+          authenticated: true,
+          user: {
+            id: result.claims.sub,
+            name: result.claims.name,
+            email: result.claims.email,
+          },
+          tenant: result.claims.tenant,
+        });
+      } catch {
+        setCookie(c, REFRESH_COOKIE, "", { maxAge: 0, path: "/" });
+      }
     }
+
+    return c.json({ authenticated: false });
   });
 
   /**
@@ -352,6 +422,7 @@ export function createPortalHandlers(
   app.delete("/api/v1/portal/session", (c) => {
     const reqCtx = extractRequestContext(c);
     setCookie(c, SESSION_COOKIE, "", { maxAge: 0, path: "/" });
+    setCookie(c, REFRESH_COOKIE, "", { maxAge: 0, path: "/" });
     auditLogger.log(
       createAuditEvent({
         action: AuditActions.PORTAL_LOGOUT,
@@ -386,7 +457,7 @@ export function createPortalHandlers(
       return c.json({ success: false, error: "tenant not found" } as PortalVerifyResponse, 404);
     }
 
-    const auth = await authenticatePortalRequest(c, tenant, jwksJson, verifyPassphrase);
+    const auth = await authenticatePortalRequest(c, tenant, jwksJson, verifyPassphrase, config.backlog_app);
     if (!auth) {
       auditLogger.log(
         createAuditEvent({
@@ -465,7 +536,7 @@ export function createPortalHandlers(
       return c.json({ success: false, error: "tenant not found" } as PortalVerifyResponse, 404);
     }
 
-    const auth = await authenticatePortalRequest(c, tenant, jwksJson, verifyPassphrase);
+    const auth = await authenticatePortalRequest(c, tenant, jwksJson, verifyPassphrase, config.backlog_app);
     if (!auth) {
       auditLogger.log(
         createAuditEvent({

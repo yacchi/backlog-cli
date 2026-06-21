@@ -12,10 +12,12 @@ import type { RelayConfig, AuditLogger, TenantConfig } from "../config/types.js"
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
 import { encodePortalState, type PortalStateClaims } from "../utils/state.js";
-import { createPortalSessionToken } from "../utils/portal-session.js";
+import { createPortalSessionToken, encryptRefreshToken } from "../utils/portal-session.js";
 
 const NONCE_COOKIE = "portal_nonce";
 const SESSION_COOKIE = "portal_session";
+const REFRESH_COOKIE = "portal_refresh";
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600; // 30 days
 
 function findTenant(config: RelayConfig, name: string): TenantConfig | undefined {
   return config.tenants?.find((t) => t.name === name);
@@ -243,6 +245,21 @@ export async function handlePortalCallback(
       secure,
       sameSite: "Lax",
       maxAge: 3600,
+      path: "/",
+    });
+
+    // Set encrypted refresh token cookie
+    const encryptedRefresh = await encryptRefreshToken(
+      tokenResp.refresh_token,
+      portalState.space,
+      portalState.tenant,
+      jwksJson,
+    );
+    setCookie(c, REFRESH_COOKIE, encryptedRefresh, {
+      httpOnly: true,
+      secure,
+      sameSite: "Lax",
+      maxAge: REFRESH_COOKIE_MAX_AGE,
       path: "/",
     });
 

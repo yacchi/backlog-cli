@@ -57,8 +57,10 @@ export type { RequestContext } from "./utils/request.js";
 export { createBundle, generateProvisioningToken } from "./utils/bundle.js";
 export type { IssuedByInfo } from "./utils/bundle.js";
 export { verifyPassphrase } from "./utils/passphrase.js";
-export { createPortalSessionToken, verifyPortalSessionToken } from "./utils/portal-session.js";
-export type { PortalSessionClaims } from "./utils/portal-session.js";
+export { deriveEncKey, seal, open, DecryptError } from "./utils/crypto.js";
+export type { TokenUse } from "./utils/crypto.js";
+export { createPortalSessionToken, verifyPortalSessionToken, encryptRefreshToken, decryptRefreshToken, refreshPortalSession } from "./utils/portal-session.js";
+export type { PortalSessionClaims, RefreshResult } from "./utils/portal-session.js";
 
 // Re-export middleware
 export { AccessControl } from "./middleware/access-control.js";

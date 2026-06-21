@@ -107,7 +107,7 @@ export async function loadSigningKeys(jwksJson: string): Promise<SigningKeys> {
         const key = await importJWK(publicJwk, ALG) as CryptoKey;
         verifyKeys.set(jwk.kid, key);
         if (jwk.d) {
-            encKeys.set(jwk.kid, deriveEncKey(jwk.d));
+            encKeys.set(jwk.kid, await deriveEncKey(jwk.d));
         }
     }
 

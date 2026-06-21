@@ -1,5 +1,4 @@
 import { CompactEncrypt, compactDecrypt } from "jose";
-import { hkdfSync } from "node:crypto";
 
 const ENC = "A256GCM";
 /** HKDF info label — bump the version suffix if the enc algorithm changes. */
@@ -21,14 +20,25 @@ export class DecryptError extends Error {
 
 /**
  * Derive a 32-byte AES-256-GCM key from an Ed25519 signing key's private
- * scalar (the JWK "d" value, base64url). The encryption key is bound to the
- * same key material (and therefore the same `kid`) as the signing key, so no
- * separate secret needs to be provisioned or rotated.
+ * scalar (the JWK "d" value, base64url). Uses Web Crypto HKDF for
+ * cross-runtime compatibility (Node.js, Cloudflare Workers, Deno).
  */
-export function deriveEncKey(dBase64url: string): Uint8Array {
+export async function deriveEncKey(dBase64url: string): Promise<Uint8Array> {
     const ikm = Buffer.from(dBase64url, "base64url");
-    const derived = hkdfSync("sha256", ikm, new Uint8Array(0), HKDF_INFO, 32);
-    return new Uint8Array(derived as ArrayBuffer);
+    const baseKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, [
+        "deriveBits",
+    ]);
+    const derived = await crypto.subtle.deriveBits(
+        {
+            name: "HKDF",
+            hash: "SHA-256",
+            salt: new Uint8Array(0),
+            info: new TextEncoder().encode(HKDF_INFO),
+        },
+        baseKey,
+        256,
+    );
+    return new Uint8Array(derived);
 }
 
 /**
@@ -44,7 +54,7 @@ export async function seal(
     use: TokenUse,
 ): Promise<string> {
     return new CompactEncrypt(new TextEncoder().encode(plain))
-        .setProtectedHeader({ alg: "dir", enc: ENC, kid, sp, use })
+        .setProtectedHeader({ alg: "dir", enc: ENC, kid, sp, use } as Parameters<CompactEncrypt["setProtectedHeader"]>[0])
         .encrypt(key);
 }
 
