@@ -163,3 +163,92 @@ export function getFirstSigningKey(
   }
   return { kid, jwk };
 }
+
+// --- JWE token encryption (mirrors mcp-server/src/crypto/secret.ts) ---
+
+import { CompactEncrypt, compactDecrypt } from "jose";
+
+const ENC = "A256GCM";
+const HKDF_INFO = "backlog-mcp:token-enc:A256GCM:v1";
+
+export type TokenUse = "at" | "rt" | "dl";
+
+export class DecryptError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "DecryptError";
+  }
+}
+
+/**
+ * Derive a 32-byte AES-256-GCM key from an Ed25519 JWK "d" value (base64url).
+ * Uses Web Crypto HKDF (cross-runtime) instead of node:crypto hkdfSync.
+ */
+export async function deriveEncKey(dBase64url: string): Promise<Uint8Array> {
+  const ikm = base64UrlDecode(dBase64url);
+  const baseKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, [
+    "deriveBits",
+  ]);
+  const derived = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(0),
+      info: new TextEncoder().encode(HKDF_INFO),
+    },
+    baseKey,
+    256,
+  );
+  return new Uint8Array(derived);
+}
+
+/**
+ * Encrypt a secret value into a JWE compact string.
+ * Same format as mcp-server's seal — sp/use are AEAD-bound via the protected header.
+ */
+export async function seal(
+  plain: string,
+  key: Uint8Array,
+  kid: string,
+  sp: string,
+  use: TokenUse,
+): Promise<string> {
+  return new CompactEncrypt(new TextEncoder().encode(plain))
+    .setProtectedHeader({ alg: "dir", enc: ENC, kid, sp, use } as Parameters<CompactEncrypt["setProtectedHeader"]>[0])
+    .encrypt(key);
+}
+
+/**
+ * Decrypt a JWE compact string produced by {@link seal}.
+ */
+export async function open(
+  jwe: string,
+  keyForKid: (kid: string) => Uint8Array | undefined,
+  expected?: { sp?: string; use?: TokenUse },
+): Promise<string> {
+  let plaintext: Uint8Array;
+  let header: Record<string, unknown>;
+  try {
+    const result = await compactDecrypt(jwe, (protectedHeader) => {
+      const kid = protectedHeader.kid;
+      if (!kid) throw new DecryptError("JWE missing kid header");
+      const key = keyForKid(kid);
+      if (!key) throw new DecryptError(`unknown enc kid: ${kid}`);
+      return key;
+    });
+    plaintext = result.plaintext;
+    header = result.protectedHeader as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof DecryptError) throw err;
+    throw new DecryptError("failed to decrypt token", { cause: err });
+  }
+
+  if (expected?.sp !== undefined && header.sp !== expected.sp) {
+    throw new DecryptError("JWE sp mismatch");
+  }
+  if (expected?.use !== undefined && header.use !== expected.use) {
+    throw new DecryptError("JWE use mismatch");
+  }
+
+  return new TextDecoder().decode(plaintext);
+}
