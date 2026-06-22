@@ -29,13 +29,17 @@ If project is configured, you can omit the project prefix:
 Examples:
   backlog issue view PROJ-123
   backlog issue view 123       # uses configured project
-  backlog issue view PROJ-123 -c            # show comments (default: 20)
-  backlog issue view PROJ-123 -c 50         # show 50 comments
-  backlog issue view PROJ-123 -c all        # show all comments
+  backlog issue view PROJ-123 -c             # show comments (default: 20)
+  backlog issue view PROJ-123 -c=50          # show 50 comments
+  backlog issue view PROJ-123 -c=all         # show all comments
+  backlog issue view PROJ-123 --comments=all # long form
   backlog issue view PROJ-123 --summary
-  backlog issue view PROJ-123 -c --comments-order asc   # oldest first
-  backlog issue view PROJ-123 -c all --comments-since 12345  # comments after ID 12345`,
-	Args: cobra.ExactArgs(1),
+  backlog issue view PROJ-123 -c --comments-order asc    # oldest first
+  backlog issue view PROJ-123 -c=all --comments-since 12345  # comments after ID 12345
+
+Note: -c accepts an optional value. Use '=' to pass a value: -c=50, -c=all.
+      -c without a value shows the default number of comments (20).`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runView,
 }
 
@@ -55,7 +59,7 @@ var (
 )
 
 func init() {
-	viewCmd.Flags().StringVarP(&viewComments, "comments", "c", "", "Show comments: -c (default: 20), -c N (N comments), -c all (all comments)")
+	viewCmd.Flags().StringVarP(&viewComments, "comments", "c", "", "Show comments: -c (default: 20), -c=N (N comments), -c=all (all comments). Use '=' to pass a value")
 	viewCmd.Flags().Lookup("comments").NoOptDefVal = "default"
 	viewCmd.Flags().BoolVarP(&viewWeb, "web", "w", false, "Open in browser")
 	viewCmd.Flags().BoolVar(&viewSummary, "summary", false, "Show AI summary (description only)")
@@ -71,6 +75,14 @@ func init() {
 }
 
 func runView(c *cobra.Command, args []string) error {
+	// NoOptDefVal による未消費引数の吸収: -c all / -c 50 のスペース区切りを処理
+	if len(args) == 2 {
+		if c.Flags().Changed("comments") && viewComments == "default" && isValidCommentsValue(args[1]) {
+			viewComments = args[1]
+		} else {
+			return fmt.Errorf("unexpected argument: %s", args[1])
+		}
+	}
 	issueKey := args[0]
 
 	client, cfg, err := cmdutil.GetAPIClient(c)
@@ -482,4 +494,12 @@ func fetchAllComments(ctx context.Context, client *api.Client, issueKey string, 
 	}
 
 	return allComments, nil
+}
+
+func isValidCommentsValue(s string) bool {
+	if s == "all" || s == "0" {
+		return true
+	}
+	_, err := strconv.Atoi(s)
+	return err == nil
 }
