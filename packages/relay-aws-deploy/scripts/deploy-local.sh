@@ -30,7 +30,14 @@ done
 
 if [[ -z "$TAG" ]]; then
   SHORT_SHA=$(git -C "$REPO_ROOT" rev-parse --short HEAD)
-  TAG="dev-${SHORT_SHA}"
+  # ワーキングツリーに未コミット変更がある場合、diff のハッシュを付加して
+  # 毎回ユニークなタグを生成する（ECR IMMUTABLE でも上書き不要）。
+  if git -C "$REPO_ROOT" diff --quiet HEAD -- && git -C "$REPO_ROOT" diff --cached --quiet HEAD --; then
+    TAG="dev-${SHORT_SHA}"
+  else
+    DIRTY_HASH=$(git -C "$REPO_ROOT" diff HEAD -- | sha256sum | cut -c1-8)
+    TAG="dev-${SHORT_SHA}-${DIRTY_HASH}"
+  fi
 fi
 
 FULL_IMAGE="${IMAGE_NAME}:${TAG}"

@@ -119,21 +119,29 @@ export function logToolCall(
             entry.input_bytes = inputBytes;
             entry.output_bytes = outputBytes;
 
-            // Audit summary: lightweight record for the audit trail
-            const audit: Record<string, unknown> = {
-                component: "audit",
+            const audit = auditEvent({
                 action: "tool_call",
-                tool: opts.tool,
                 result: result.error ? "error" : "success",
+                tool: opts.tool,
                 duration_ms,
                 input_bytes: inputBytes,
                 output_bytes: outputBytes,
-            };
-            if (result.error) audit.error = result.error;
-            if (result.category) audit.category = result.category;
+                ...(result.error ? { error: result.error } : {}),
+                ...(result.category ? { category: result.category } : {}),
+            });
             logger[level](audit);
         },
     };
+}
+
+export interface AuditFields {
+    action: string;
+    result: "success" | "error";
+    [key: string]: unknown;
+}
+
+export function auditEvent(fields: AuditFields): Record<string, unknown> {
+    return { component: "audit", ...fields };
 }
 
 export function logSandbox(logger: Logger, level: LogLevel, message: string, meta?: Record<string, unknown>): void {
