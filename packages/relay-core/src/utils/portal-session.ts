@@ -27,6 +27,8 @@ export interface PortalSessionClaims {
   email: string;
   tenant: string;
   space: string;
+  role: number;
+  auth_time: number;
   purpose: "portal_session";
   iat: number;
   exp: number;
@@ -34,10 +36,11 @@ export interface PortalSessionClaims {
 }
 
 export async function createPortalSessionToken(
-  user: { userId: string; name: string; email: string },
+  user: { userId: string; name: string; email: string; roleType?: number },
   tenant: string,
   space: string,
   jwksJson: string,
+  authTime?: number,
 ): Promise<string> {
   const jwks: JWKS = JSON.parse(jwksJson);
   const jwkByKid = await normalizeJWKS(jwks);
@@ -53,6 +56,8 @@ export async function createPortalSessionToken(
     email: user.email,
     tenant,
     space,
+    role: user.roleType ?? 0,
+    auth_time: authTime ?? now,
     purpose: "portal_session",
     iat: now,
     exp: now + SESSION_EXPIRY_SECONDS,
@@ -141,6 +146,7 @@ export async function refreshPortalSession(
   jwksJson: string,
   clientId: string,
   clientSecret: string,
+  previousAuthTime?: number,
 ): Promise<RefreshResult> {
   const { refreshToken, space, tenant } = await decryptRefreshToken(
     encryptedRefresh,
@@ -176,6 +182,7 @@ export async function refreshPortalSession(
     userId?: string;
     name?: string;
     mailAddress?: string;
+    roleType?: number;
   };
 
   const sessionToken = await createPortalSessionToken(
@@ -183,10 +190,12 @@ export async function refreshPortalSession(
       userId: user.userId ?? "",
       name: user.name ?? "",
       email: user.mailAddress ?? "",
+      roleType: user.roleType,
     },
     tenant,
     space,
     jwksJson,
+    previousAuthTime,
   );
 
   const newEncryptedRefresh = await encryptRefreshToken(

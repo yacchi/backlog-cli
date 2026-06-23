@@ -42,7 +42,7 @@ function isSecureContext(c: Context): boolean {
 async function fetchCurrentUser(
   spaceHost: string,
   accessToken: string,
-): Promise<{ userId: string; name: string; mailAddress: string } | null> {
+): Promise<{ userId: string; name: string; mailAddress: string; roleType: number } | null> {
   try {
     const url = `https://${spaceHost}/api/v2/users/myself`;
     const response = await fetch(url, {
@@ -54,11 +54,13 @@ async function fetchCurrentUser(
       userId?: string;
       name?: string;
       mailAddress?: string;
+      roleType?: number;
     };
     return {
       userId: data.userId ?? "",
       name: data.name ?? "",
       mailAddress: data.mailAddress ?? "",
+      roleType: data.roleType ?? 0,
     };
   } catch {
     return null;
@@ -230,11 +232,13 @@ export async function handlePortalCallback(
     }
 
     // Create session token
+    const authTime = Math.floor(Date.now() / 1000);
     const sessionToken = await createPortalSessionToken(
-      { userId: user.userId, name: user.name, email: user.mailAddress },
+      { userId: user.userId, name: user.name, email: user.mailAddress, roleType: user.roleType },
       portalState.tenant,
       portalState.space,
       jwksJson,
+      authTime,
     );
 
     const secure = isSecureContext(c);

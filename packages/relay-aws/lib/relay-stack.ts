@@ -341,7 +341,7 @@ export class RelayStack extends cdk.Stack {
         // Lambda Web Adapter: /health が 200 を返したらトラフィックを流す
         AWS_LWA_READINESS_CHECK_PATH: "/health",
         AWS_LWA_INVOKE_MODE: "response_stream",
-        DEPLOY_VERSION: "2026-06-13-container",
+        DEPLOY_VERSION: "2026-06-22-container",
         ...relaySecretsEnv,
       },
       description: mcpEnabled
@@ -363,10 +363,32 @@ export class RelayStack extends cdk.Stack {
     // Parameter Store の読み取り権限を付与
     this.configParameter.grantRead(fn);
 
-    // Secrets Manager の読み取り権限を付与
+    // Secrets Manager の読み取り + 書き込み権限を付与（Admin passphrase management）
     if (this.relaySecretsSecret) {
       this.relaySecretsSecret.grantRead(fn);
+      this.relaySecretsSecret.grantWrite(fn);
     }
+
+    // Admin: CloudWatch Logs Insights クエリ権限
+    // logGroup.logGroupArn を使うと fn ↔ logGroup の循環参照になるため
+    // 自アカウントの log group に対する Insights 権限を付与
+    fn.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: [
+          "logs:StartQuery",
+          "logs:GetQueryResults",
+          "logs:StopQuery",
+        ],
+        resources: [
+          cdk.Arn.format({
+            service: "logs",
+            resource: "log-group",
+            resourceName: "/aws/lambda/*",
+            arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME,
+          }, cdk.Stack.of(this)),
+        ],
+      }),
+    );
 
     return fn;
   }
@@ -518,6 +540,19 @@ export class RelayStack extends cdk.Stack {
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachePolicy: staticAssetsCachePolicy,
           compress: true,
+        },
+        // ポータル: セッション依存の動的コンテンツ、キャッシュ禁止
+        // SPA HTML、OAuth フロー、Admin API すべてを含む
+        "/portal/*": {
+          ...baseBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        },
+        // ポータル API: セッション Cookie 依存、キャッシュ禁止
+        "/api/v1/portal/*": {
+          ...baseBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         },
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
@@ -817,14 +852,13 @@ export class RelayStack extends cdk.Stack {
   /**
    * デプロイ時に CloudFront の discovery パスをキャッシュ invalidate。
    * well-known / certs は長 TTL でキャッシュしているため、
-   * コード変更（イメージ更新）時に古いレスポンスを確実に破棄する。
-   * イメージタグを physicalResourceId に使うことで、
-   * イメージ変更時のみ invalidation が発火する（冪等）。
+   * デプロイ時に古いレスポンスを確実に破棄する。
+   * synth 時刻を CallerReference に含め、毎デプロイで一意にする。
    */
   private createDeployInvalidation(): void {
     if (!this.distribution) return;
 
-    const imageTag = this.config.image?.tag ?? "unknown";
+    const deployId = Date.now().toString(36);
     const distribution = this.distribution;
 
     new cr.AwsCustomResource(this, "DeployCacheInvalidation", {
@@ -834,7 +868,7 @@ export class RelayStack extends cdk.Stack {
         parameters: {
           DistributionId: distribution.distributionId,
           InvalidationBatch: {
-            CallerReference: `${this.stackName}-${imageTag}-create`,
+            CallerReference: `${this.stackName}-${deployId}-create`,
             Paths: {
               Quantity: 2,
               Items: ["/.well-known/*", "/v1/relay/tenants/*"],
@@ -842,7 +876,7 @@ export class RelayStack extends cdk.Stack {
           },
         },
         physicalResourceId: cr.PhysicalResourceId.of(
-          `cache-invalidation-${imageTag}`,
+          `cache-invalidation-${deployId}`,
         ),
       },
       onUpdate: {
@@ -851,7 +885,7 @@ export class RelayStack extends cdk.Stack {
         parameters: {
           DistributionId: distribution.distributionId,
           InvalidationBatch: {
-            CallerReference: `${this.stackName}-${imageTag}-update`,
+            CallerReference: `${this.stackName}-${deployId}-update`,
             Paths: {
               Quantity: 2,
               Items: ["/.well-known/*", "/v1/relay/tenants/*"],
@@ -859,7 +893,7 @@ export class RelayStack extends cdk.Stack {
           },
         },
         physicalResourceId: cr.PhysicalResourceId.of(
-          `cache-invalidation-${imageTag}`,
+          `cache-invalidation-${deployId}`,
         ),
       },
       policy: cr.AwsCustomResourcePolicy.fromStatements([

@@ -41,6 +41,23 @@ describe("portal session token", () => {
         expect(claims.name).toBe("Test");
         expect(claims.tenant).toBe("tenant1");
         expect(claims.space).toBe("space.backlog.jp");
+        expect(claims.role).toBe(0);
+        expect(claims.auth_time).toBeGreaterThan(0);
+    });
+
+    it("preserves roleType and authTime", async () => {
+        const jwksJson = await makeTestJWKS();
+        const authTime = 1700000000;
+        const token = await createPortalSessionToken(
+            { userId: "u1", name: "Admin", email: "admin@example.com", roleType: 1 },
+            "tenant1",
+            "space.backlog.jp",
+            jwksJson,
+            authTime,
+        );
+        const claims = await verifyPortalSessionToken(token, jwksJson);
+        expect(claims.role).toBe(1);
+        expect(claims.auth_time).toBe(authTime);
     });
 });
 

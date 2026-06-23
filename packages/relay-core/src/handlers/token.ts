@@ -97,6 +97,16 @@ export function createTokenHandlers(
     durationMs: number;
   }
 
+  class UpstreamError extends Error {
+    statusCode: number;
+    body: string;
+    constructor(message: string, statusCode: number, body: string) {
+      super(message);
+      this.statusCode = statusCode;
+      this.body = body;
+    }
+  }
+
   /**
    * Request token from Backlog OAuth server.
    */
@@ -122,7 +132,11 @@ export function createTokenHandlers(
     const responseBytes = new TextEncoder().encode(body).byteLength;
 
     if (!response.ok) {
-      throw new Error(`Token request failed: ${body}`);
+      throw new UpstreamError(
+        `Token request failed: ${body}`,
+        response.status,
+        body,
+      );
     }
 
     return {
@@ -273,6 +287,7 @@ export function createTokenHandlers(
       }
     } catch (err) {
       const sessionId = req.state ? extractSessionId(req.state) : undefined;
+      const isClientError = err instanceof UpstreamError && err.statusCode >= 400 && err.statusCode < 500;
       auditLogger.log(
         createAuditEvent({
           sessionId,
@@ -280,10 +295,18 @@ export function createTokenHandlers(
           space: spaceHost,
           clientIp: reqCtx.clientIp,
           userAgent: reqCtx.userAgent,
-          result: "error",
+          result: isClientError ? "success" : "error",
           error: (err as Error).message,
         })
       );
+      if (isClientError) {
+        try {
+          const parsed = JSON.parse((err as UpstreamError).body) as ErrorResponse;
+          return writeError(c, 400, parsed.error, parsed.error_description);
+        } catch {
+          return writeError(c, 400, "invalid_grant", (err as Error).message);
+        }
+      }
       return writeError(c, 502, "upstream_error", (err as Error).message);
     }
 

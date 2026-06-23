@@ -115,11 +115,15 @@ export class EnvConfigSource implements ConfigSource {
 export class AwsConfigSource implements ConfigSource {
   private cached: Record<string, unknown> | null = null;
   private readonly parameterName: string;
-  private readonly secretName?: string;
+  readonly secretName?: string;
 
   constructor(parameterName: string, secretName?: string) {
     this.parameterName = parameterName;
     this.secretName = secretName;
+  }
+
+  invalidateCache(): void {
+    this.cached = null;
   }
 
   async loadRawConfig(): Promise<Record<string, unknown>> {

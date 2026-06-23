@@ -7,12 +7,14 @@ import LoginConfirm from "./pages/LoginConfirm";
 import LoginMethodSelect from "./pages/LoginMethodSelect";
 import LoginSetup from "./pages/LoginSetup";
 import Portal from "./pages/Portal";
+import PortalAdmin from "./pages/PortalAdmin";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Portal route (no auth context needed) */}
+        {/* Portal routes (no auth context needed) */}
+        <Route path="/portal/:name/admin" element={<PortalAdmin />} />
         <Route path="/portal/:name" element={<Portal />} />
 
         {/* Auth routes */}

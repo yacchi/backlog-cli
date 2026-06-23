@@ -19,6 +19,11 @@ export const AuditActions = {
   PORTAL_LOGOUT: "portal_logout",
   RELAY_BUNDLE: "relay_bundle",
   BUNDLE_AUTH: "bundle_auth",
+  ADMIN_AUDIT_QUERY: "admin_audit_query",
+  ADMIN_PASSPHRASE_VIEW: "admin_passphrase_view",
+  ADMIN_PASSPHRASE_SET: "admin_passphrase_set",
+  ADMIN_PASSPHRASE_GENERATE: "admin_passphrase_generate",
+  ADMIN_PASSPHRASE_CLEAR: "admin_passphrase_clear",
 } as const;
 
 /**

@@ -8,7 +8,7 @@ import type { Context } from "hono";
 import type { RelayConfig, AuditLogger, TenantConfig } from "../config/types.js";
 import { AuditActions, createAuditEvent } from "../middleware/audit.js";
 import { extractRequestContext } from "../utils/request.js";
-import { verifyPortalSessionToken, refreshPortalSession } from "../utils/portal-session.js";
+import { verifyPortalSessionToken, refreshPortalSession, type PortalSessionClaims } from "../utils/portal-session.js";
 import type { IssuedByInfo } from "../utils/bundle.js";
 
 /**
@@ -51,7 +51,7 @@ interface AuthResult {
 async function fetchCurrentUser(
   spaceHost: string,
   accessToken: string,
-): Promise<{ userId: string; name: string; mailAddress: string } | null> {
+): Promise<{ userId: string; name: string; mailAddress: string; roleType: number } | null> {
   try {
     const url = `https://${spaceHost}/api/v2/users/myself`;
     const response = await fetch(url, {
@@ -62,11 +62,13 @@ async function fetchCurrentUser(
       userId?: string;
       name?: string;
       mailAddress?: string;
+      roleType?: number;
     };
     return {
       userId: data.userId ?? "",
       name: data.name ?? "",
       mailAddress: data.mailAddress ?? "",
+      roleType: data.roleType ?? 0,
     };
   } catch {
     return null;
@@ -197,13 +199,19 @@ export function createPortalHandlers(
      */
     app.get("/portal/:name", (c) => {
       c.header("Content-Type", "text/html; charset=utf-8");
-      c.header("Cache-Control", "no-cache");
+      c.header("Cache-Control", "no-store");
       return c.body(portalAssets.indexHtml);
     });
 
     app.get("/portal/:name/", (c) => {
       c.header("Content-Type", "text/html; charset=utf-8");
-      c.header("Cache-Control", "no-cache");
+      c.header("Cache-Control", "no-store");
+      return c.body(portalAssets.indexHtml);
+    });
+
+    app.get("/portal/:name/admin", (c) => {
+      c.header("Content-Type", "text/html; charset=utf-8");
+      c.header("Cache-Control", "no-store");
       return c.body(portalAssets.indexHtml);
     });
 
@@ -376,10 +384,26 @@ export function createPortalHandlers(
           authenticated: true,
           user: { id: claims.sub, name: claims.name, email: claims.email },
           tenant: claims.tenant,
+          role: claims.role,
+          auth_time: claims.auth_time,
         });
       } catch {
         // Session expired — try refresh below
       }
+    }
+
+    // Extract auth_time from expired session for refresh preservation
+    let previousAuthTime: number | undefined;
+    if (sessionCookie) {
+      try {
+        const [, claimsB64] = sessionCookie.split(".");
+        const decoded = JSON.parse(
+          new TextDecoder().decode(
+            Uint8Array.from(atob(claimsB64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))
+          )
+        ) as Partial<PortalSessionClaims>;
+        previousAuthTime = decoded.auth_time;
+      } catch { /* ignore parse errors */ }
     }
 
     // Try transparent refresh
@@ -391,6 +415,7 @@ export function createPortalHandlers(
           jwksJson,
           config.backlog_app.client_id,
           config.backlog_app.client_secret,
+          previousAuthTime,
         );
         const secure = c.req.url.startsWith("https");
         setCookie(c, SESSION_COOKIE, result.sessionToken, {
@@ -407,6 +432,8 @@ export function createPortalHandlers(
             email: result.claims.email,
           },
           tenant: result.claims.tenant,
+          role: result.claims.role,
+          auth_time: result.claims.auth_time,
         });
       } catch {
         setCookie(c, REFRESH_COOKIE, "", { maxAge: 0, path: "/" });

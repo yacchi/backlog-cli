@@ -23,8 +23,12 @@ import {
   type RelayConfig,
   type AuditEvent,
   type AuditLogger,
+  type AuditLogReader,
+  type PassphraseManager,
   type PortalAssets,
 } from "@yacchi/backlog-relay-core";
+import { CloudWatchLogsAuditReader } from "./audit-reader.js";
+import { SecretsManagerPassphraseManager } from "./passphrase-manager.js";
 import {
   createMcpApp,
   verify,
@@ -96,6 +100,12 @@ export interface CreateUnifiedAppOptions {
   rawConfig: Record<string, unknown>;
   /** Portal SPA アセット（任意）。 */
   portalAssets?: PortalAssets;
+  /** CloudWatch Logs のロググループ名（監査ログ閲覧用）。 */
+  auditLogGroupName?: string;
+  /** Secrets Manager のシークレット名（パスフレーズ管理用）。 */
+  secretName?: string;
+  /** 設定キャッシュ無効化コールバック（パスフレーズ更新後に呼ばれる）。 */
+  onConfigInvalidate?: () => void;
   /** MCP の `backlog` ツール用の Backlog CLI バイナリパス。 */
   binPath?: string;
   /**
@@ -233,6 +243,19 @@ export async function createUnifiedApp(
 
   const auditLogger = createLoggerAuditLogger(baseLogger);
 
+  let auditLogReader: AuditLogReader | undefined;
+  if (options.auditLogGroupName) {
+    auditLogReader = new CloudWatchLogsAuditReader(options.auditLogGroupName);
+  }
+
+  let passphraseManager: PassphraseManager | undefined;
+  if (options.secretName) {
+    passphraseManager = new SecretsManagerPassphraseManager(
+      options.secretName,
+      options.onConfigInvalidate,
+    );
+  }
+
   const relayApp = createRelayApp({
     config: relayConfig,
     auditLogger,
@@ -243,6 +266,8 @@ export async function createUnifiedApp(
       generateProvisioningToken(tenant, domain, relayUrl, serverJwks, issuedBy),
     portalAssets: options.portalAssets,
     enablePortalOAuth: !!serverJwks,
+    auditLogReader,
+    passphraseManager,
   });
 
   // Request ID middleware — reuse Lambda Web Adapter's x-amzn-request-id when

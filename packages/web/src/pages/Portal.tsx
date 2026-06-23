@@ -14,6 +14,8 @@ interface SessionInfo {
   authenticated: boolean;
   user?: { id: string; name: string; email: string };
   tenant?: string;
+  role?: number;
+  auth_time?: number;
 }
 
 interface PortalInfo {
@@ -297,13 +299,23 @@ export default function Portal() {
               <span className="text-sm text-emerald-800">
                 {session.user.name} としてログイン中
               </span>
-              <button
-                type="button"
-                className="text-xs font-medium text-emerald-600 hover:text-emerald-800"
-                onClick={handleLogout}
-              >
-                ログアウト
-              </button>
+              <div className="flex items-center gap-3">
+                {session.role === 1 && (
+                  <a
+                    href={`/portal/${encodeURIComponent(name ?? "")}/admin`}
+                    className="text-xs font-medium text-emerald-600 hover:text-emerald-800"
+                  >
+                    管理
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800"
+                  onClick={handleLogout}
+                >
+                  ログアウト
+                </button>
+              </div>
             </div>
           )}
 

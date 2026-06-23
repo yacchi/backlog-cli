@@ -20,7 +20,7 @@ import {
   type CreateMcpAppOptions,
 } from "@yacchi/backlog-mcp-server";
 import { loadPortalAssets } from "./portal-assets.js";
-import { selectConfigSource } from "./config-source.js";
+import { selectConfigSource, AwsConfigSource } from "./config-source.js";
 import { createUnifiedApp, restoreMcpAuthorization } from "./app.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -103,11 +103,26 @@ export async function startServer(): Promise<void> {
   const webDistPath = getWebDistPath();
   const portalAssets = await loadPortalAssets(webDistPath);
 
+  const auditLogGroupName =
+    process.env["AUDIT_LOG_GROUP_NAME"] ||
+    (process.env["AWS_LAMBDA_FUNCTION_NAME"]
+      ? `/aws/lambda/${process.env["AWS_LAMBDA_FUNCTION_NAME"]}`
+      : undefined);
+  const secretName = configSource instanceof AwsConfigSource
+    ? configSource.secretName
+    : undefined;
+  const onConfigInvalidate = configSource instanceof AwsConfigSource
+    ? () => configSource.invalidateCache()
+    : undefined;
+
   const app = await createUnifiedApp({
     rawConfig,
     portalAssets,
     binPath: process.env[ENV_VARS.BACKLOG_BIN_PATH],
     createRunScript,
+    auditLogGroupName,
+    secretName,
+    onConfigInvalidate,
   });
 
   // ポートの優先順位: PORT 環境変数（Lambda Web Adapter が設定）> config > 8080。

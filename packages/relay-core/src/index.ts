@@ -20,6 +20,8 @@ import { createBundleHandlers } from "./handlers/bundle.js";
 import { createInstallHandlers } from "./handlers/install.js";
 import { createPortalAuthHandlers, handlePortalCallback as handlePortalCallbackImpl } from "./handlers/portal-auth.js";
 import type { PortalCallbackHandler } from "./handlers/portal-auth.js";
+import { createPortalAdminHandlers } from "./handlers/portal-admin.js";
+import type { AuditLogReader, PassphraseManager } from "./admin/types.js";
 
 // Re-export types
 export type {
@@ -86,6 +88,10 @@ export { createBundleHandlers } from "./handlers/bundle.js";
 export { createInstallHandlers } from "./handlers/install.js";
 export { createPortalAuthHandlers, handlePortalCallback } from "./handlers/portal-auth.js";
 export type { PortalCallbackHandler } from "./handlers/portal-auth.js";
+export { createPortalAdminHandlers } from "./handlers/portal-admin.js";
+
+// Re-export admin types
+export type { AuditLogReader, AuditLogQuery, AuditLogEntry, PassphraseManager, PassphraseInfo } from "./admin/types.js";
 
 /**
  * Options for creating the relay app.
@@ -115,6 +121,10 @@ export interface CreateRelayAppOptions {
   portalAssets?: PortalAssets;
   /** Enable portal OAuth authentication (requires server-level JWKS) */
   enablePortalOAuth?: boolean;
+  /** Audit log reader for admin audit log viewing (pluggable) */
+  auditLogReader?: AuditLogReader;
+  /** Passphrase manager for admin passphrase management (pluggable) */
+  passphraseManager?: PassphraseManager;
 }
 
 /**
@@ -171,6 +181,19 @@ export function createRelayApp(options: CreateRelayAppOptions): Hono {
   // Mount portal OAuth handlers if enabled
   if (options.enablePortalOAuth && config.jwks) {
     app.route("/", createPortalAuthHandlers(config, auditLogger));
+  }
+
+  // Mount portal admin handlers if admin features are provided
+  if (options.auditLogReader || options.passphraseManager) {
+    app.route(
+      "/",
+      createPortalAdminHandlers(
+        config,
+        auditLogger,
+        options.auditLogReader,
+        options.passphraseManager,
+      ),
+    );
   }
 
   // Mount portal handlers when bundle creation is available or portal OAuth is enabled
