@@ -80,7 +80,18 @@ Available on all commands: `-p/--project`, `--output table|json`, `--json <field
 
 **Check the project's rule before posting content** — `backlog project view PROJ --json textFormattingRule` returns `"backlog"` or `"markdown"`.
 
-When rule is `markdown`, use standard GitHub Flavored Markdown. When rule is `backlog`, use Backlog native syntax (not discoverable via `--help`):
+When rule is `markdown`, use standard GitHub Flavored Markdown — **except** for these Backlog extensions that differ from GitHub:
+
+```
+![alt][filename]   ![alt][N]   embed an attached image inline (N = attachment's 1-based index).
+                               NOT ![alt](url) — upload the file first (--attach / attachment upload),
+                               then reference it by filename or index.
+[label][filename]  [label][N]  link to an attached file (non-image).
+[[BLG-98]]   BLG-95            link to an issue (bare key also auto-links).
+[[WikiPageName]]              link to a wiki page.
+```
+
+When rule is `backlog`, use Backlog native syntax (not discoverable via `--help`):
 
 ```
 *Heading 1  **Heading 2  ***Heading 3
