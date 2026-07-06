@@ -125,3 +125,23 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      # GitHub Action (composite) を `@vN` の浮動メジャータグで参照できるようにする。
+      # 安定版リリースが成功したら v{major} を今回のコミットへ貼り替える。
+      # プレリリース（例 0.28.0-rc.1）では浮動タグを動かさない。
+      - name: Update floating major tag for the Action
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [[ "${VERSION}" == *-* ]]; then
+            echo "Pre-release (${VERSION}); skipping floating tag update."
+            exit 0
+          fi
+          MAJOR="v${VERSION%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # HEAD はリリースタグ v${VERSION} と同じコミット（version.txt を更新したコミット）
+          git tag -f "${MAJOR}" -m "Update ${MAJOR} to v${VERSION}"
+          git push -f origin "refs/tags/${MAJOR}"
+          echo "Moved floating tag ${MAJOR} -> v${VERSION}"
