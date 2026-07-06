@@ -18,6 +18,22 @@ inputs:
     description: 'Verify the downloaded archive against checksums.txt from the release.'
     required: false
     default: 'true'
+  api-key:
+    description: 'Backlog API key. When set, it is exported to the environment (BACKLOG_API_KEY) for subsequent steps.'
+    required: false
+    default: ''
+  space:
+    description: 'Backlog space name. When set, it is exported to the environment (BACKLOG_SPACE) for subsequent steps.'
+    required: false
+    default: ''
+  domain:
+    description: 'Backlog domain (backlog.jp or backlog.com). When set, it is exported to the environment (BACKLOG_DOMAIN) for subsequent steps.'
+    required: false
+    default: ''
+  access-mode:
+    description: 'Set to "read-only" to disable write commands. When set, it is exported to the environment (BACKLOG_ACCESS_MODE) for subsequent steps.'
+    required: false
+    default: ''
 
 outputs:
   version:
@@ -131,3 +147,29 @@ runs:
         echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
         echo "path=${INSTALL_DIR}/${BIN}" >> "${GITHUB_OUTPUT}"
         echo "Installed backlog CLI ${VERSION} to ${INSTALL_DIR}/${BIN}"
+
+    # 認証情報が渡された場合は環境変数へ export し、以降のステップで
+    # env: 指定なしに backlog コマンドを実行できるようにする。
+    - id: configure
+      shell: bash
+      env:
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_SPACE: ${{ inputs.space }}
+        INPUT_DOMAIN: ${{ inputs.domain }}
+        INPUT_ACCESS_MODE: ${{ inputs.access-mode }}
+      run: |
+        set -euo pipefail
+        if [ -n "${INPUT_API_KEY}" ]; then
+          echo "::add-mask::${INPUT_API_KEY}"
+          echo "BACKLOG_API_KEY=${INPUT_API_KEY}" >> "${GITHUB_ENV}"
+          echo "Exported BACKLOG_API_KEY for subsequent steps."
+        fi
+        if [ -n "${INPUT_SPACE}" ]; then
+          echo "BACKLOG_SPACE=${INPUT_SPACE}" >> "${GITHUB_ENV}"
+        fi
+        if [ -n "${INPUT_DOMAIN}" ]; then
+          echo "BACKLOG_DOMAIN=${INPUT_DOMAIN}" >> "${GITHUB_ENV}"
+        fi
+        if [ -n "${INPUT_ACCESS_MODE}" ]; then
+          echo "BACKLOG_ACCESS_MODE=${INPUT_ACCESS_MODE}" >> "${GITHUB_ENV}"
+        fi
