@@ -12,6 +12,41 @@ Backlog をターミナルから操作するためのコマンドラインツー
 go install github.com/yacchi/backlog-cli/cmd/backlog@latest
 ```
 
+### GitHub Actions でインストール
+
+ワークフローからは、このリポジトリが提供するセットアップアクション（composite action）で `backlog` を
+導入できます。ビルド済みバイナリをダウンロードするだけなので高速で、Go のセットアップは不要です。
+対応: Linux / macOS / Windows、`amd64` / `arm64`。
+
+```yaml
+- uses: yacchi/backlog-cli@v0.27.0
+  with:
+    version: 0.27.0        # 省略時は最新リリース ("latest")
+- run: backlog issue list --json
+  env:
+    BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+    BACKLOG_SPACE: your-space
+    BACKLOG_DOMAIN: backlog.jp        # backlog.jp または backlog.com
+    BACKLOG_ACCESS_MODE: read-only    # 任意: 書き込み系コマンドを無効化
+```
+
+**inputs**
+
+| 名前              | デフォルト             | 説明                                                       |
+|-----------------|-------------------|----------------------------------------------------------|
+| `version`       | `latest`          | インストールするバージョン。`0.27.0` / `v0.27.0` / `latest` を受け付ける。 |
+| `github-token`  | `${{ github.token }}` | リリース情報の取得・アセットのダウンロードに使うトークン。                           |
+| `verify-checksum` | `true`            | `checksums.txt` によるダウンロードアーカイブの検証を行うか。                   |
+
+**outputs**: `version`（インストールしたバージョン）、`path`（`backlog` 実行ファイルの絶対パス）。
+
+**バージョン参照**: 特定バージョンに固定したい場合は `@v0.27.0`、最新のメジャー系列を追従したい場合は
+浮動タグ `@v0` を使えます（`@v0` は安定版リリースのたびに最新へ更新されます）。
+
+```yaml
+- uses: yacchi/backlog-cli@v0        # v0 系列の最新に追従
+```
+
 ### Claude Code プラグイン
 
 [Claude Code](https://claude.com/claude-code) から Backlog を操作するためのプラグインも提供しています。

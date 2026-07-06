@@ -1,0 +1,34 @@
+name: Test Setup Action
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'action.yml'
+      - '.github/workflows/test-setup-action.yml'
+  pull_request:
+    paths:
+      - 'action.yml'
+      - '.github/workflows/test-setup-action.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install backlog CLI via action
+        id: setup
+        uses: ./
+
+      - name: Verify it is on PATH and runs
+        shell: bash
+        run: |
+          echo "Installed version: ${{ steps.setup.outputs.version }}"
+          echo "Installed path:    ${{ steps.setup.outputs.path }}"
+          backlog version

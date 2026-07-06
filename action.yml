@@ -1,0 +1,133 @@
+name: 'Setup Backlog CLI'
+description: 'Install the backlog CLI (GitHub CLI-compatible command-line tool for Backlog) and add it to PATH.'
+author: 'yacchi'
+branding:
+  icon: 'terminal'
+  color: 'green'
+
+inputs:
+  version:
+    description: 'Version of backlog CLI to install (e.g. "0.27.0" or "v0.27.0"). Defaults to the latest release.'
+    required: false
+    default: 'latest'
+  github-token:
+    description: 'Token used to query the GitHub API for release metadata and download assets. Defaults to the workflow token.'
+    required: false
+    default: ${{ github.token }}
+  verify-checksum:
+    description: 'Verify the downloaded archive against checksums.txt from the release.'
+    required: false
+    default: 'true'
+
+outputs:
+  version:
+    description: 'The version of backlog CLI that was installed (without the leading "v").'
+    value: ${{ steps.install.outputs.version }}
+  path:
+    description: 'Absolute path to the installed backlog executable.'
+    value: ${{ steps.install.outputs.path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - id: install
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_VERIFY_CHECKSUM: ${{ inputs.verify-checksum }}
+      run: |
+        set -euo pipefail
+
+        REPO="yacchi/backlog-cli"
+        API="https://api.github.com/repos/${REPO}"
+
+        # --- Resolve version ---------------------------------------------------
+        VERSION="${INPUT_VERSION}"
+        if [ "${VERSION}" = "latest" ] || [ -z "${VERSION}" ]; then
+          echo "Resolving latest release of ${REPO}..."
+          # curl 出力を一旦変数へ格納してから解析する。
+          # `curl | grep -m1` のように下流が早期にパイプを閉じると、pipefail 下で
+          # curl が SIGPIPE により exit 23 となりスクリプトが中断するため。
+          RESP="$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${API}/releases/latest")"
+          TAG="$(sed -nE '/"tag_name"/{s/.*"tag_name": *"([^"]+)".*/\1/p;q;}' <<< "${RESP}")"
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to resolve the latest release tag." >&2
+            exit 1
+          fi
+        else
+          # Accept both "0.27.0" and "v0.27.0"
+          TAG="v${VERSION#v}"
+        fi
+        VERSION="${TAG#v}"
+        echo "Installing backlog CLI ${TAG}"
+
+        # --- Detect OS / arch --------------------------------------------------
+        UNAME_S="$(uname -s)"
+        case "${UNAME_S}" in
+          Linux*)   OS="linux";   EXT="tar.gz"; BIN="backlog" ;;
+          Darwin*)  OS="darwin";  EXT="tar.gz"; BIN="backlog" ;;
+          MINGW*|MSYS*|CYGWIN*) OS="windows"; EXT="zip"; BIN="backlog.exe" ;;
+          *) echo "::error::Unsupported OS: ${UNAME_S}" >&2; exit 1 ;;
+        esac
+
+        UNAME_M="$(uname -m)"
+        case "${UNAME_M}" in
+          x86_64|amd64)   ARCH="amd64" ;;
+          arm64|aarch64)  ARCH="arm64" ;;
+          *) echo "::error::Unsupported architecture: ${UNAME_M}" >&2; exit 1 ;;
+        esac
+
+        ASSET="backlog-cli_${VERSION}_${OS}_${ARCH}.${EXT}"
+        BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+        WORKDIR="$(mktemp -d)"
+        cd "${WORKDIR}"
+
+        echo "Downloading ${ASSET}..."
+        curl -fsSL -o "${ASSET}" "${BASE_URL}/${ASSET}"
+
+        # --- Verify checksum ---------------------------------------------------
+        if [ "${INPUT_VERIFY_CHECKSUM}" = "true" ]; then
+          echo "Verifying checksum..."
+          curl -fsSL -o checksums.txt "${BASE_URL}/checksums.txt"
+          EXPECTED="$(grep " ${ASSET}\$" checksums.txt | awk '{print $1}')"
+          if [ -z "${EXPECTED}" ]; then
+            echo "::error::Checksum for ${ASSET} not found in checksums.txt" >&2
+            exit 1
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            ACTUAL="$(sha256sum "${ASSET}" | awk '{print $1}')"
+          elif command -v shasum >/dev/null 2>&1; then
+            ACTUAL="$(shasum -a 256 "${ASSET}" | awk '{print $1}')"
+          else
+            echo "::warning::No sha256 tool available; skipping checksum verification."
+            ACTUAL="${EXPECTED}"
+          fi
+          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+            echo "::error::Checksum mismatch for ${ASSET} (expected ${EXPECTED}, got ${ACTUAL})" >&2
+            exit 1
+          fi
+        fi
+
+        # --- Extract -----------------------------------------------------------
+        if [ "${EXT}" = "zip" ]; then
+          unzip -q "${ASSET}"
+        else
+          tar -xzf "${ASSET}"
+        fi
+
+        # --- Install into a stable, PATH-exported directory --------------------
+        INSTALL_DIR="${RUNNER_TEMP:-${WORKDIR}}/backlog-cli-bin"
+        mkdir -p "${INSTALL_DIR}"
+        install -m 0755 "${BIN}" "${INSTALL_DIR}/${BIN}" 2>/dev/null || {
+          cp "${BIN}" "${INSTALL_DIR}/${BIN}"
+          chmod +x "${INSTALL_DIR}/${BIN}"
+        }
+        echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+        echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+        echo "path=${INSTALL_DIR}/${BIN}" >> "${GITHUB_OUTPUT}"
+        echo "Installed backlog CLI ${VERSION} to ${INSTALL_DIR}/${BIN}"
