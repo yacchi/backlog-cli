@@ -25,6 +25,9 @@ jobs:
       - name: Install backlog CLI via action
         id: setup
         uses: ./
+        with:
+          space: test-space
+          domain: backlog.jp
 
       - name: Verify it is on PATH and runs
         shell: bash
@@ -32,3 +35,10 @@ jobs:
           echo "Installed version: ${{ steps.setup.outputs.version }}"
           echo "Installed path:    ${{ steps.setup.outputs.path }}"
           backlog version
+
+      - name: Verify credential inputs are exported to env
+        shell: bash
+        run: |
+          test "${BACKLOG_SPACE}" = "test-space" || { echo "BACKLOG_SPACE not exported"; exit 1; }
+          test "${BACKLOG_DOMAIN}" = "backlog.jp" || { echo "BACKLOG_DOMAIN not exported"; exit 1; }
+          echo "Credential inputs exported correctly."

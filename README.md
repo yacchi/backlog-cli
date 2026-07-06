@@ -18,33 +18,72 @@ go install github.com/yacchi/backlog-cli/cmd/backlog@latest
 導入できます。ビルド済みバイナリをダウンロードするだけなので高速で、Go のセットアップは不要です。
 対応: Linux / macOS / Windows、`amd64` / `arm64`。
 
+認証情報を `with:` に渡すと setup ステップで環境変数へ設定され、以降のステップは `env:` 指定なしで
+`backlog` を実行できます（設定を 1 か所に集約）。
+
 ```yaml
-- uses: yacchi/backlog-cli@v0.27.0
+- uses: yacchi/backlog-cli@v0
   with:
-    version: 0.27.0        # 省略時は最新リリース ("latest")
-- run: backlog issue list --json
-  env:
-    BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
-    BACKLOG_SPACE: your-space
-    BACKLOG_DOMAIN: backlog.jp        # backlog.jp または backlog.com
-    BACKLOG_ACCESS_MODE: read-only    # 任意: 書き込み系コマンドを無効化
+    api-key: ${{ secrets.BACKLOG_API_KEY }}
+    space: your-space
+    domain: backlog.jp            # backlog.jp または backlog.com
+    access-mode: read-only        # 任意: 書き込み系コマンドを無効化
+- run: backlog issue list --json   # env 指定不要
+- run: backlog issue view ABC-1
 ```
+
+`api-key` はログでマスクされます。複数ジョブで共有したい場合は、代わりにジョブ／ワークフローレベルの
+`env:`（`BACKLOG_API_KEY` / `BACKLOG_SPACE` / `BACKLOG_DOMAIN` / `BACKLOG_ACCESS_MODE`）に設定しても
+同じ効果が得られます。
 
 **inputs**
 
-| 名前              | デフォルト             | 説明                                                       |
-|-----------------|-------------------|----------------------------------------------------------|
-| `version`       | `latest`          | インストールするバージョン。`0.27.0` / `v0.27.0` / `latest` を受け付ける。 |
-| `github-token`  | `${{ github.token }}` | リリース情報の取得・アセットのダウンロードに使うトークン。                           |
-| `verify-checksum` | `true`            | `checksums.txt` によるダウンロードアーカイブの検証を行うか。                   |
+| 名前              | デフォルト             | 説明                                                                 |
+|-----------------|-------------------|--------------------------------------------------------------------|
+| `version`       | `latest`          | インストールするバージョン。`0.28.0` / `v0.28.0` / `latest` を受け付ける。           |
+| `github-token`  | `${{ github.token }}` | リリース情報の取得・アセットのダウンロードに使うトークン。                                     |
+| `verify-checksum` | `true`            | `checksums.txt` によるダウンロードアーカイブの検証を行うか。                             |
+| `api-key`       | （空）              | Backlog API キー。設定すると `BACKLOG_API_KEY` として後続ステップへ export（マスク付き）。 |
+| `space`         | （空）              | Backlog スペース名。設定すると `BACKLOG_SPACE` として後続ステップへ export。            |
+| `domain`        | （空）              | Backlog ドメイン。設定すると `BACKLOG_DOMAIN` として後続ステップへ export。            |
+| `access-mode`   | （空）              | `read-only` で書き込み系を無効化。設定すると `BACKLOG_ACCESS_MODE` として export。   |
 
 **outputs**: `version`（インストールしたバージョン）、`path`（`backlog` 実行ファイルの絶対パス）。
 
-**バージョン参照**: 特定バージョンに固定したい場合は `@v0.27.0`、最新のメジャー系列を追従したい場合は
-浮動タグ `@v0` を使えます（`@v0` は安定版リリースのたびに最新へ更新されます）。
+#### アクションのバージョン参照（`uses:` の `@` 指定）
+
+CI での参照方法は 3 通りあります。用途に応じて選んでください。
+
+| 方式             | 例                        | 特徴 / 向く用途                                                       |
+|----------------|--------------------------|----------------------------------------------------------------|
+| 浮動メジャータグ       | `@v0`                    | v0 系列の最新に自動追従（安定版リリースごとに更新）。手軽さ重視。**可変**。                  |
+| バージョンタグ        | `@v0.28.0`               | 特定リリースに固定。タグは移動しないため再現性が高い。**推奨のデフォルト**。                 |
+| コミット SHA        | `@<40桁のコミットSHA>`         | タグ改ざんの影響を受けない最も厳格な固定。サプライチェーン安全性重視（OpenSSF/Dependabot 推奨）。 |
 
 ```yaml
-- uses: yacchi/backlog-cli@v0        # v0 系列の最新に追従
+# 浮動メジャータグ（最新に追従・手軽）
+- uses: yacchi/backlog-cli@v0
+
+# バージョンタグ（再現性重視）
+- uses: yacchi/backlog-cli@v0.28.0
+
+# コミット SHA（最も厳格。コメントでバージョンを併記すると管理しやすい）
+- uses: yacchi/backlog-cli@0000000000000000000000000000000000000000  # v0.28.0
+```
+
+> `@v0` はリリースのたびに force-push で貼り替わる**可変タグ**です。厳密な再現性やサプライチェーン
+> 安全性が必要な場合はバージョンタグか SHA を使ってください。特定バージョンの SHA は
+> `git rev-parse v0.28.0^{commit}` で取得できます。Dependabot（`package-ecosystem: github-actions`）を
+> 使うと SHA ピン留めの更新も自動化できます。
+
+**注意（2 つのバージョンは別物）**: `uses: ...@REF` は「アクション（`action.yml`）のバージョン」、
+`with.version` は「インストールする CLI バイナリのバージョン」を指します。完全な再現性が必要な場合は
+両方を固定してください。
+
+```yaml
+- uses: yacchi/backlog-cli@v0.28.0
+  with:
+    version: 0.28.0
 ```
 
 ### Claude Code プラグイン
