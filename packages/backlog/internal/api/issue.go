@@ -409,16 +409,38 @@ func (c *Client) UpdateIssue(ctx context.Context, issueIDOrKey string, input *Up
 		req.AttachmentId = input.AttachmentIDs
 	}
 
-	return c.backlogClient.UpdateIssue(ctx, backlog.NewOptUpdateIssueReq(req), backlog.UpdateIssueParams{
+	result, err := c.backlogClient.UpdateIssue(ctx, backlog.NewOptUpdateIssueReq(req), backlog.UpdateIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	c.invalidateIssueCache(issueIDOrKey)
+
+	return result, nil
 }
 
 // DeleteIssue は課題を削除する
 func (c *Client) DeleteIssue(ctx context.Context, issueIDOrKey string) (*backlog.Issue, error) {
-	return c.backlogClient.DeleteIssue(ctx, backlog.DeleteIssueParams{
+	result, err := c.backlogClient.DeleteIssue(ctx, backlog.DeleteIssueParams{
 		IssueIdOrKey: issueIDOrKey,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	c.invalidateIssueCache(issueIDOrKey)
+
+	return result, nil
+}
+
+func (c *Client) invalidateIssueCache(issueIDOrKey string) {
+	if c.cache == nil {
+		return
+	}
+	key := fmt.Sprintf("issue:%s:%s", c.space, issueIDOrKey)
+	_ = c.cache.Delete(key)
 }
 
 // ListIssueAttachments は課題の添付ファイル一覧を取得する

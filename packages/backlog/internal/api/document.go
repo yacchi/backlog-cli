@@ -333,8 +333,18 @@ func (c *Client) DeleteDocument(ctx context.Context, documentID string) (*Docume
 		return nil, err
 	}
 
+	c.invalidateDocumentCache(documentID)
+
 	doc := convertDocument(*res)
 	return &doc, nil
+}
+
+func (c *Client) invalidateDocumentCache(documentID string) {
+	if c.cache == nil {
+		return
+	}
+	key := fmt.Sprintf("document:%s:%s", c.space, documentID)
+	_ = c.cache.Delete(key)
 }
 
 // GetDocumentComments はドキュメントコメントを取得する

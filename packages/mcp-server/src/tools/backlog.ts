@@ -28,6 +28,7 @@ export async function executeBacklogCommand(
                     BACKLOG_SPACE: token.space,
                     BACKLOG_ASSUME_YES: "1",
                     BACKLOG_MCP_MODE: "1",
+                    BACKLOG_CACHE_ENABLED: "false",
                     ...(options?.readOnly ? { BACKLOG_ACCESS_MODE: "read-only" } : {}),
                     ...options?.additionalEnv,
                     HOME: "/tmp",

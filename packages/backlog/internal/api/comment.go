@@ -151,6 +151,8 @@ func (c *Client) AddComment(ctx context.Context, issueIDOrKey string, content st
 		return nil, err
 	}
 
+	c.invalidateCommentCache(issueIDOrKey)
+
 	return &comment, nil
 }
 
@@ -170,6 +172,8 @@ func (c *Client) UpdateComment(ctx context.Context, issueIDOrKey string, comment
 		return nil, err
 	}
 
+	c.invalidateCommentCache(issueIDOrKey)
+
 	return &comment, nil
 }
 
@@ -186,5 +190,15 @@ func (c *Client) DeleteComment(ctx context.Context, issueIDOrKey string, comment
 		return nil, err
 	}
 
+	c.invalidateCommentCache(issueIDOrKey)
+
 	return &comment, nil
+}
+
+func (c *Client) invalidateCommentCache(issueIDOrKey string) {
+	if c.cache == nil {
+		return
+	}
+	prefix := fmt.Sprintf("comments:%s:%s:", c.space, issueIDOrKey)
+	_ = c.cache.DeleteByPrefix(prefix)
 }

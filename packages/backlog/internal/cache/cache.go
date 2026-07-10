@@ -16,6 +16,8 @@ import (
 type Cache interface {
 	Get(key string, v interface{}) (bool, error)
 	Set(key string, v interface{}, ttl time.Duration) error
+	Delete(key string) error
+	DeleteByPrefix(prefix string) error
 	Clear() error
 	Cleanup(ctx context.Context, ttl time.Duration) error
 }
@@ -125,6 +127,43 @@ func (c *FileCache) Set(key string, v interface{}, ttl time.Duration) error {
 	defer func() { _ = f.Close() }()
 
 	return json.NewEncoder(f).Encode(item)
+}
+
+// Delete は指定キーのキャッシュを削除する
+func (c *FileCache) Delete(key string) error {
+	path := c.getFilePath(key)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// DeleteByPrefix は指定プレフィックスに一致するキャッシュを全て削除する
+func (c *FileCache) DeleteByPrefix(prefix string) error {
+	safePrefix := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' {
+			return r
+		}
+		return '_'
+	}, prefix)
+
+	entries, err := os.ReadDir(c.dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(entry.Name(), safePrefix) {
+			_ = os.Remove(filepath.Join(c.dir, entry.Name()))
+		}
+	}
+	return nil
 }
 
 // Clear はキャッシュディレクトリを削除する
