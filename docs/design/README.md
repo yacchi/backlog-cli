@@ -13,3 +13,4 @@
 - `config.md`: 設定レイヤー、プロファイル、資格情報、信頼バンドルの扱い
 - `relay-config-bundle.md`: Relay Config Bundle 仕様（信頼の起点）
 - `backlog-gfm-conversion.md`: Backlog記法→GFM変換仕様
+- `patch-editing.md`: Wiki・課題説明のパッチ編集（部分更新・衝突検出・三方マージ）

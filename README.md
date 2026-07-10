@@ -430,11 +430,62 @@ backlog issue comment PROJ-123 --edit-last --editor
 
 ### Wiki (`wiki`)
 
-| コマンド             | 説明              |
-|------------------|-----------------|
-| `wiki list`      | Wiki ページ一覧を表示   |
-| `wiki view <ID>` | Wiki ページの詳細を表示  |
-| `wiki create`    | 新しい Wiki ページを作成 |
+| コマンド                  | 説明                |
+|-----------------------|-------------------|
+| `wiki list`           | Wiki ページ一覧を表示     |
+| `wiki view <ID>`      | Wiki ページの詳細を表示    |
+| `wiki create`         | 新しい Wiki ページを作成   |
+| `wiki edit <ID\|名前>`  | Wiki ページを編集       |
+| `wiki delete <ID\|名前>` | Wiki ページを削除       |
+
+### パッチ編集（課題・Wiki 共通）
+
+`issue edit` と `wiki edit` は共通のパッチフラグで、テキスト本文（課題の説明文 / Wiki のコンテンツ）を部分的に更新できます。全文を生成・送信する必要がなく、同時編集による変更消失も自動検出します。
+
+#### 検索置換（`--patch`）
+
+JSON で検索・置換のペアを指定します。単体オブジェクトまたは配列を受け付けます。
+
+```bash
+# 単一の置換
+backlog wiki edit 12345 --patch '{"find":"旧テキスト","replace":"新テキスト"}'
+backlog issue edit PROJ-123 --patch '{"find":"Status: Draft","replace":"Status: Done"}'
+
+# 複数箇所を一度に置換
+backlog wiki edit 12345 --patch '[{"find":"v1.0","replace":"v1.1"},{"find":"Draft","replace":"Released"}]'
+
+# ファイルや stdin からパッチを読み込み
+echo '[{"find":"A","replace":"B"}]' | backlog wiki edit 12345 --patch-file -
+```
+
+対象テキストが見つからない場合はエラーになるため、古い内容を参照していたことを即座に検出できます。
+
+#### 追記・挿入（`--append` / `--prepend`）
+
+既存の内容に触れず、末尾または先頭にテキストを追加します。
+
+```bash
+backlog wiki edit 12345 --append "## 新しいセクション"
+backlog issue edit PROJ-123 --prepend "> 2024-07-10 更新"
+```
+
+#### 安全な全文置換（`--safe`）
+
+`--content`/`--body` と併用すると、書き込み前に衝突検出を行います。衝突があれば三方マージで自動解決を試み、解決できない場合はコンフリクトを報告します。
+
+```bash
+backlog wiki edit 12345 --content "新しい内容" --safe
+backlog issue edit PROJ-123 --body "新しい本文" --safe
+```
+
+#### フォールバック
+
+パッチモードで解決できない場合は、`--safe` なしの従来モード（last-write-wins）がいつでも使えます。
+
+```bash
+backlog wiki edit 12345 --content "上書き"
+backlog issue edit PROJ-123 --body "上書き"
+```
 
 ### プロジェクト (`project`)
 

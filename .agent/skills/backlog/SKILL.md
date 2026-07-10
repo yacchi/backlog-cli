@@ -21,7 +21,7 @@ Triggered automatically by issue key patterns: `[A-Z0-9_]+-[0-9]+` — a project
 - `backlog issue list` (alias `ls`) — list/filter issues. `-L 0` fetches ALL via auto-pagination. Filters follow gh: `-s open|closed|all`, `-a`/`-A @me`, `-T` type, `-l` category, `-m` milestone, `-S` search, `--mine`, `--count`.
 - `backlog issue create` (alias `new`) — see **Creating an issue** below.
 - `backlog issue comment <key>` — add (`-b` / `-F -` / `--editor`), edit (`--edit-last` / `--edit <id>`), or delete (`--delete-last`) a comment.
-- `backlog issue edit <key>` — update fields: `-t`, `-b`, `-a`, `--status`, `--priority`, `--due`, `--milestone`, and `--category` / `--add-category` / `--remove-category`.
+- `backlog issue edit <key>` — update fields: `-t`, `-b`, `-a`, `--status`, `--priority`, `--due`, `--milestone`, and `--category` / `--add-category` / `--remove-category`. **Patch mode**: `--patch '{"find":"old","replace":"new"}'`, `--append`, `--prepend`, `--safe`. See "Patch Editing" below.
 - `backlog issue close <key>` / `reopen <key>` — change state; `-c` adds a comment, `--resolution` on close.
 - `backlog issue delete <key>` — **irreversible**; requires admin or project-admin. `--yes` skips confirmation.
 - `backlog issue status` — issues relevant to you (assigned, created, recently updated).
@@ -49,7 +49,7 @@ For long bodies use `--body-file`; attach files with `--attach` (repeatable).
 - **project** — `list`, `view <key>`, `current`, `init <key>` (creates `.backlog.yaml`). Set a global default with `backlog config set client.default.project PROJ`.
 - **pr** — `list`/`view`/`create`/`edit`/`comment`/`close`/`merge`, all requiring `-R <repo>`. `--issue` links a related issue; `--markdown` on view converts Backlog notation.
 - **document** — `list`/`tree`/`view`/`create`/`delete`/`comment list`/`tag`/`attachment download`. **IDs are strings** (e.g. `01HXXXX`), unlike issue/wiki. No update API — use `wiki` for editable pages; comments are read-only.
-- **wiki** — `list`/`view`/`create`/`edit`/`delete`. `--notify` on edit sends mail.
+- **wiki** — `list`/`view`/`create`/`edit`/`delete`. `--notify` on edit sends mail. **Patch mode**: `edit --patch '{"find":"old","replace":"new"}'`, `--append`, `--prepend`, `--safe`. See "Patch Editing" below.
 - **milestone** — `list`/`view`/`create`/`edit`/`delete`. Filter issues with `backlog issue list -m`.
 - **issue-type** — `list`/`view`/`create`/`edit`/`delete`. Backlog-specific; **required single value** on issue create.
 - **category** — `list`/`create`/`delete`. Equivalent to GitHub labels (`backlog issue list -l`, `issue edit --category`).
@@ -63,6 +63,91 @@ For long bodies use `--body-file`; attach files with `--attach` (repeatable).
 - **ai** — `prompt optimize`/`prompt apply` (tune AI summary prompts).
 - **api** — direct authenticated requests like `gh api` (`-X`, `-F`, `-i`, `--input -`, `-s`).
 - **markdown migrate** — `init`/`list`/`status`/`apply`/`rollback`/`clean`/`snapshot`; `backlog markdown logs` for conversion logs.
+
+## Patch Editing (Wiki & Issue Description)
+
+Wiki ページと課題の説明文（description）を部分的に更新する機能。全文を生成・送信せずに変更箇所だけを指定でき、同時編集による変更消失を自動検出する。
+
+### モード選択ガイド
+
+| やりたいこと | 使うモード | フラグ |
+|------------|----------|------|
+| 特定のテキストだけ変えたい | Search-and-replace | `--find` + `--replace-with` |
+| 末尾に情報を追加したい | Append | `--append` |
+| 先頭にメタ情報を入れたい | Prepend | `--prepend` |
+| 全文を書き換えたいが他者の変更を消したくない | Safe full replacement | `--content`/`--body` + `--safe` |
+| 全文を確実に上書きしたい（フォールバック） | Direct replacement | `--content`/`--body`（既存動作） |
+
+**選択の原則**: 変更範囲が狭いほど安全。`--find`/`--replace-with` > `--append`/`--prepend` > `--safe` > 直接置換 の順に衝突リスクが低い。
+
+### Search-and-replace (`--patch`)
+
+JSON で検索・置換のペアを指定する。単体オブジェクト `{"find":"...","replace":"..."}` または配列 `[{...},{...}]` を受け付ける。対象が見つからなければエラー（古い内容を参照していたことを即座に検出）。
+
+```bash
+# 単一の置換
+backlog wiki edit 12345 --patch '{"find":"旧テキスト","replace":"新テキスト"}'
+backlog issue edit PROJ-123 --patch '{"find":"Status: Draft","replace":"Status: Review"}'
+
+# 複数箇所を一度に置換
+backlog wiki edit 12345 --patch '[{"find":"## 未着手","replace":"## 着手済み"},{"find":"担当: 未定","replace":"担当: 山田"}]'
+
+# stdin から読み込み（大きなパッチや MCP 向き）
+echo '[{"find":"A","replace":"B"}]' | backlog wiki edit 12345 --patch-file -
+```
+
+**エラー例**: `patch target not found: "旧テキスト"` → ページが既に更新されている。`backlog wiki view` で現在の内容を確認してリトライ。
+
+### Append / Prepend
+
+既存の内容に一切触れず、末尾・先頭にテキストを追加する。衝突リスクが最も低い。
+
+```bash
+# Wiki に議事録を追記
+backlog wiki edit 12345 --append "## 2024-07-10 会議
+- 決定事項A
+- TODO: Bさんが調査"
+
+# 課題の先頭に注意書きを挿入
+backlog issue edit PROJ-123 --prepend "> ⚠ この課題はブロッカーです"
+```
+
+### Safe full replacement
+
+全文を差し替えるが、書き込み前にリモートの変更を検出する。異なるセクションへの変更は三方マージで自動解決。同一箇所への変更はコンフリクトとしてエラー報告し、`--content`/`--body`（`--safe` なし）でのフォールバックを案内する。
+
+```bash
+backlog wiki edit 12345 --content "完全に新しい内容" --safe
+backlog issue edit PROJ-123 --body "新しい本文" --safe
+```
+
+### 組み合わせ
+
+パッチフラグは組み合わせ可能。適用順: patch → prepend → append。
+
+```bash
+# テキスト置換 + 末尾に変更履歴を追記
+backlog wiki edit 12345 \
+  --patch '{"find":"v1.0","replace":"v1.1"}' \
+  --append "- 2024-07-10: v1.1 にバージョンアップ"
+```
+
+### MCP でのベストプラクティス
+
+MCP ツール経由（LLM がバックログを操作する場合）では、パッチモードが特に有効:
+
+1. **`--patch` JSON を最優先で使う** — モデルは変更箇所だけ生成すればよく、入出力トークンを大幅に節約。巨大な Wiki を丸ごと生成する必要がない
+2. **追記には `--append`** — 議事録の追加、ステータス更新の追記など。内容を読む必要すらない場合がある
+3. **`--safe` は全文書き換えが必要な時のみ** — 構造を大きく変える場合。衝突があれば自動マージを試みる
+4. **直接置換はフォールバック** — パッチモードでコンフリクトが解消できない場合の最終手段
+
+### エラーハンドリング
+
+| エラー | 原因 | 対処 |
+|-------|------|------|
+| `patch target not found: "..."` | `--patch` の `find` 対象が現在の内容にない | `view` で現在の内容を確認し、正しいテキストで再試行 |
+| `conflict: N region(s) could not be automatically merged` | 同じ箇所を別の人が変更済み | 内容を確認し、`--content`/`--body`（`--safe` なし）で上書き、または手動で再パッチ |
+| `invalid patch JSON...` | `--patch` の JSON が不正 | `{"find":"...","replace":"..."}` または配列形式を確認 |
 
 ## File Operations
 
