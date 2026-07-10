@@ -888,6 +888,16 @@ You have access to backlog tools which execute the Backlog CLI — a command-lin
 - For read-only analysis combining multiple API calls, use \`backlog_query_script\`
 - For scripts that include write operations, use \`backlog_mutate_script\`
 
+## Patch Editing (wiki edit / issue edit)
+
+**Prefer \`--patch\` over full \`--content\`/\`--body\` replacement** — generates only the diff, saving tokens on large documents and preventing concurrent edit loss.
+
+- **\`--patch '<json>'\`**: Search-and-replace via JSON. Single: \`{"find":"old","replace":"new"}\`. Multiple: \`[{...},{...}]\`. Use \`--patch-file $file[0]\` with the files parameter for complex JSON.
+- **\`--append "text"\`**: Add text to end of content/description.
+- **\`--prepend "text"\`**: Add text to start of content/description.
+- **\`--safe\`**: Add to \`--content\`/\`--body\` for conflict detection + three-way merge.
+- All patch modes auto-detect concurrent edits. If conflicts cannot be merged, fall back to \`--content\`/\`--body\` without \`--safe\`.
+
 ## File Downloads
 - Use the download subcommand with \`--link\` flag:
   - \`issue attachment download PROJ-1 42 --link\`
