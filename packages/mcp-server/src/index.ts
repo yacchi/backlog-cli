@@ -10,7 +10,9 @@ import { loadSigningKeys } from "./crypto/jwt.js";
 const MCP_CORS_HEADERS = {
     origin: "*",
     allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "Accept", "MCP-Protocol-Version"],
+    // Mcp-Method/Mcp-Name mirror body values on every modern (2026-07-28) POST,
+    // so browser clients need them cleared by preflight.
+    allowHeaders: ["Content-Type", "Authorization", "Accept", "MCP-Protocol-Version", "Mcp-Method", "Mcp-Name"],
     exposeHeaders: ["WWW-Authenticate"],
 };
 
@@ -23,6 +25,9 @@ export { materializeFiles, substituteFileRefs } from "./tools/files.js";
 export { createSandboxClient } from "./sandbox/sandbox-client.js";
 export type { SandboxClient, SandboxOptions } from "./sandbox/sandbox-client.js";
 export type { TokenExchange } from "./oauth/handlers.js";
+export { createClientMetadataResolver, isClientIdUrl, ClientMetadataError } from "./oauth/cimd.js";
+export type { ClientIdMetadata, ClientMetadataResolver } from "./oauth/cimd.js";
+import type { ClientMetadataResolver } from "./oauth/cimd.js";
 export type { ScriptFile } from "./transport/handlers.js";
 export { Logger, LOGGER_CONTEXT_KEY, logToolCall, logSandbox } from "./logging/logger.js";
 export type { LoggingConfig } from "./logging/logger.js";
@@ -35,6 +40,7 @@ export interface CreateMcpAppOptions {
     runScript?: (script: string, token: TokenPayload, scriptConfig: ScriptConfig | undefined, options?: { readOnly?: boolean; files?: ScriptFile[] }) => Promise<{ result: string; error?: string }>;
     tokenExchange?: TokenExchange;
     callbackPath?: string;
+    clientMetadataResolver?: ClientMetadataResolver;
 }
 
 export async function createMcpApp(options: CreateMcpAppOptions): Promise<Hono> {
@@ -55,6 +61,7 @@ export async function createMcpApp(options: CreateMcpAppOptions): Promise<Hono> 
     app.route("/", createOAuthHandlers(config, keys, {
         tokenExchange: options.tokenExchange,
         callbackPath: options.callbackPath,
+        clientMetadataResolver: options.clientMetadataResolver,
     }));
     app.route("/", createTransportHandlers(config, keys, {
         binPath: options.binPath,

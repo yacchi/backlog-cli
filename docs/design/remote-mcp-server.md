@@ -28,6 +28,110 @@ Backlog CLI の Remote MCP Server は、Claude Desktop / claude.ai / Claude Code
                                      └──────────┘
 ```
 
+## MCP プロトコル対応（dual-era）
+
+サーバーは modern 版（`2026-07-28` 以降。バージョン・クライアント識別・capability を
+リクエストごとの `_meta` で運ぶ）と legacy 版（`initialize` ハンドシェイクでセッションを
+確立する `2025-11-25` 以前）を同一エンドポイントで両対応する。
+
+| 対応バージョン | 位置づけ |
+|---|---|
+| `2026-07-28` | modern。`server/discover` / `_meta` / `resultType` を使用 |
+| `2025-11-25`, `2025-06-18`, `2025-03-26` | legacy。`initialize` でネゴシエート |
+
+### バージョン決定
+
+1. リクエストボディの `_meta["io.modelcontextprotocol/protocolVersion"]`
+2. なければ `MCP-Protocol-Version` ヘッダ
+3. どちらも無ければ `2025-03-26` とみなす（ヘッダ導入前のクライアント向け。仕様の MAY）
+
+`_meta` とヘッダの両方があって値が異なる場合は `400` + JSON-RPC `-32020`
+(`HeaderMismatch`)。未サポートのバージョンは `400` + `-32022`
+(`UnsupportedProtocolVersion`, `data.supported` にサポート一覧)。
+
+`initialize`（legacy）はクライアントが要求したバージョンがサポート範囲なら**そのまま返す**。
+範囲外なら最新の legacy 版（`2025-11-25`）を返す — legacy クライアントには fall-forward の
+手段がないため、返答が唯一の診断情報になる。
+
+### ミラーヘッダの検証
+
+`Mcp-Method` / `Mcp-Name` はボディの `method` / `params.name`（または `params.uri`）を
+ミラーしたもの。ロードバランサ等がヘッダで振り分け、サーバーがボディで実行すると
+判断根拠がズレるため、**値の不一致は `-32020` で拒否**する。`Mcp-Name` の
+`=?base64?<b64>?=` 形式はデコードして比較する。
+
+ヘッダの**欠落は拒否しない**（仕様上は MUST だが、移行途上のクライアントを壊さないため。
+不一致だけを拒否すればセキュリティ上の目的は満たせる）。
+
+### `server/discover`
+
+modern では実装が MUST。`supportedVersions` / `capabilities` / `instructions` を返し、
+サーバー識別は `_meta["io.modelcontextprotocol/serverInfo"]` に入れる。
+バージョン宣言のないリクエストでも応答する（クライアントが era 判定のプローブに使えるように）。
+
+### 応答エンベロープ
+
+modern と判定したリクエストの結果にのみ以下を付与する（legacy 応答は変更しない）:
+
+| フィールド | 値 |
+|---|---|
+| `resultType` | 常に `"complete"`（MRTR の `input_required` は未使用） |
+| `_meta["io.modelcontextprotocol/serverInfo"]` | サーバー名/バージョン |
+| `ttlMs` / `cacheScope` | `tools/list` / `prompts/list` は 5 分 / `private`（呼び出し元のトークンに依存するため）、`server/discover` は 1 時間 / `public` |
+
+未実装メソッドは modern では `404` + `-32601`（stray な HTTP 404 と区別できるよう本文に
+JSON-RPC エラーを入れる）、legacy では従来どおり `200` + `-32601`。
+
+### 未対応（意図的）
+
+MRTR / tasks 拡張 / `subscriptions/listen` / Roots / Sampling / MCP Logging は未実装。
+いずれも 2026-07-28 で新設または deprecated となった機能で、このサーバーが提供していない
+ため対応不要。セッション（`Mcp-Session-Id`）と SSE 再開（`Last-Event-ID`）は元から未使用で、
+2026-07-28 の削除とすでに整合している。
+
+## クライアント登録
+
+| 方式 | 状態 |
+|---|---|
+| Client ID Metadata Documents (CIMD) | 推奨。`client_id_metadata_document_supported: true` で広告 |
+| Dynamic Client Registration (DCR) | 後方互換用に維持（`/mcp/register`、署名 JWS を `client_id` として発行） |
+
+### CIMD
+
+`client_id` が https URL の場合、その URL からクライアントメタデータ文書を取得して検証する
+（`src/oauth/cimd.ts`）。文書の `client_id` は URL と完全一致していなければならず、
+`redirect_uris` は認可リクエストの `redirect_uri` 照合に使う。
+
+クライアント指定の URL に対してサーバーが外向き通信を行うため、以下で囲い込む:
+
+- https のみ / パス必須 / fragment・credentials 禁止
+- IP リテラル・`localhost`・`.local`・`.localhost`・`.internal`・`.home.arpa`・ドット無しホストを拒否
+  （リンクローカルのメタデータエンドポイント等への SSRF 防止）
+- リダイレクト追跡なし（`redirect: "error"`）、5 秒タイムアウト、32KB 上限、`application/json` 以外を拒否
+- `Cache-Control: max-age` を尊重したインメモリキャッシュ（60 秒〜24 時間、既定 5 分、最大 256 エントリ）
+- 任意の許可ホストリスト（`cimd.allowed_hosts`、完全一致の正規表現。既定は空＝公開ホストなら許可）
+
+設定例:
+
+```json
+{
+    "cimd": {
+        "enabled": true,
+        "allowed_hosts": ["claude\\.ai", ".*\\.anthropic\\.com"]
+    }
+}
+```
+
+`enabled: false` で CIMD を無効化でき、その場合 URL 形式の `client_id` は `invalid_client`
+として拒否される（DCR のみ受け付ける）。
+
+### 認可レスポンスの `iss`
+
+認可コードを返すリダイレクト（単一スペースの `/mcp/authorize/callback`、
+複数スペースの `/mcp/authorize/complete`）には RFC 9207 の `iss` パラメーターを付与する。
+クライアントはコードを交換する前に、記録した issuer と一致するか検証できる（mix-up 攻撃対策）。
+AS メタデータでは `authorization_response_iss_parameter_supported: true` として広告する。
+
 ## セットアップ手順
 
 ### 前提条件
@@ -239,7 +343,10 @@ aws secretsmanager rotate-secret --secret-id /backlog-mcp/token-key
 | トークンリプレイ | `exp` クレームで有効期限を強制 |
 | 鍵漏洩 | SM 自動ローテーション + `AWSPREVIOUS` で旧鍵復号 |
 | シークレット漏洩 | client_secret/JWKS/passphrase を SM に分離、SSM には非秘匿情報のみ |
-| 不正な redirect_uri | DCR 時に登録された URI を client_id JWE に内包し、認可時に検証 |
+| 不正な redirect_uri | DCR 時に登録された URI を client_id JWS に内包し、認可時に検証。CIMD ではメタデータ文書の `redirect_uris` と照合 |
+| CIMD 解決による SSRF | https/パス必須、IP・ローカルホスト系を拒否、リダイレクト追跡なし、タイムアウト・サイズ上限、任意の許可ホストリスト |
+| 認可サーバー mix-up | 認可レスポンスに `iss` を付与（RFC 9207） |
+| ヘッダとボディの不整合 | ミラーヘッダ (`Mcp-Method` / `Mcp-Name` / `MCP-Protocol-Version`) の不一致を `-32020` で拒否 |
 | コマンドインジェクション | `execFile` で引数を配列渡し（シェル経由しない） |
 | CLI 設定ファイル干渉 | `HOME=/tmp` で既存設定を隔離 |
 | sandbox エスケープ | Deno 権限 (OS 層) + Pyodide import 制限 (アプリ層) の二重防御 |
@@ -279,8 +386,8 @@ packages/
 │   │   ├── serve.ts          # standalone サーバー (node:http)
 │   │   ├── config/schema.ts  # Zod バリデーション
 │   │   ├── crypto/jwe.ts     # JWE 暗号化/復号 (jose)
-│   │   ├── oauth/            # MCP OAuth AS (DCR + PKCE + TokenExchange)
-│   │   ├── transport/        # Streamable HTTP (POST/GET/DELETE /mcp)
+│   │   ├── oauth/            # MCP OAuth AS (CIMD + DCR + PKCE + TokenExchange)
+│   │   ├── transport/        # Streamable HTTP (dual-era: modern + legacy)
 │   │   ├── middleware/       # JWE 認証 + CLI アクセス制御
 │   │   ├── tools/            # backlog CLI ツール
 │   │   └── sandbox/          # Deno + Pyodide sandbox

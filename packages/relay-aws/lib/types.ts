@@ -180,6 +180,12 @@ export interface McpConfig {
     input?: boolean;
     output?: boolean;
   };
+  /** Client ID Metadata Documents (MCP 2026-07-28 client registration). */
+  cimd?: {
+    enabled?: boolean;
+    /** Full-string regex patterns of permitted metadata hosts. Empty = any public host. */
+    allowed_hosts?: string[];
+  };
 }
 
 /**
@@ -227,7 +233,7 @@ export interface RelayConfig extends ParameterStoreConfig {
 export function buildSsmParameterValue(
   value: ParameterStoreValue,
   mcp?: McpConfig,
-): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[]; mcpAudit?: McpConfig["audit"]; mcpLogging?: McpConfig["logging"] } {
+): { config: CoreRelayConfigInput; mcpSpaces?: SpacePatternInput[]; mcpScript?: McpConfig["script"]; mcpDefaultSpaces?: string[]; mcpAudit?: McpConfig["audit"]; mcpLogging?: McpConfig["logging"]; mcpCimd?: McpConfig["cimd"] } {
   const relayTenants: Array<{
     name: string;
     default_space?: string;
@@ -261,5 +267,6 @@ export function buildSsmParameterValue(
     mcpDefaultSpaces: mcp?.default_spaces,
     mcpAudit: mcp?.audit,
     mcpLogging: mcp?.logging,
+    mcpCimd: mcp?.cimd,
   };
 }

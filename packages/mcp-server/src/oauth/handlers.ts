@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
-import { matchSpacePattern } from "../config/schema.js";
+import { matchSpacePattern, cimdEnabled } from "../config/schema.js";
+import { isClientIdUrl, createClientMetadataResolver, type ClientMetadataResolver } from "./cimd.js";
 import { resolveBaseUrl } from "../base-url.js";
 import { sign, verify, signToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
@@ -26,6 +27,8 @@ export interface TokenExchange {
 export interface OAuthHandlerOptions {
     tokenExchange?: TokenExchange;
     callbackPath?: string;
+    /** Override the CIMD resolver (tests inject a stub fetch through this). */
+    clientMetadataResolver?: ClientMetadataResolver;
 }
 
 const SCOPE_PATTERN = /^backlog:(.+)$/;
@@ -108,6 +111,36 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         open(value, (kid) => encKeys.get(kid), { sp: domain, use });
 
     const tokenExchange = options?.tokenExchange;
+
+    // Client ID Metadata Documents: `client_id` is an https URL serving the
+    // client's metadata, resolved on demand instead of being registered.
+    const useCimd = cimdEnabled(config);
+    const clientMetadata = options?.clientMetadataResolver
+        ?? createClientMetadataResolver({ allowedHosts: config.cimd?.allowed_hosts ?? [] });
+
+    /**
+     * Resolve a client_id into its registered metadata: a CIMD URL is fetched
+     * and validated, anything else is verified as a stateless-DCR JWS.
+     */
+    async function resolveClient(clientId: string): Promise<ClientIdPayload> {
+        if (isClientIdUrl(clientId)) {
+            if (!useCimd) {
+                throw new Error("Client ID Metadata Documents are disabled on this server");
+            }
+            const metadata = await clientMetadata.resolve(clientId);
+            return {
+                redirect_uris: metadata.redirect_uris,
+                client_name: metadata.client_name,
+                iat: 0,
+            };
+        }
+        const raw = await verifyClientId(clientId, verifyKeys);
+        return {
+            redirect_uris: raw.redirect_uris ?? [],
+            client_name: raw.client_name,
+            iat: raw.iat,
+        };
+    }
 
     // Path appended to the resolved base URL to form the Backlog redirect_uri.
     // base_url is derived per-request (resolveBaseUrl); authorize and callback
@@ -286,13 +319,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         let clientPayload: ClientIdPayload;
         try {
-            const raw = await verifyClientId(clientId, verifyKeys);
-            clientPayload = {
-                redirect_uris: raw.redirect_uris ?? [],
-                client_name: raw.client_name,
-                iat: raw.iat,
-            };
-        } catch {
+            clientPayload = await resolveClient(clientId);
+        } catch (err) {
+            getLogger(c).warn(auditEvent({
+                action: "mcp_client_resolve",
+                result: "error",
+                client_id: clientId,
+                error: (err as Error).message,
+            }));
             return jsonError(c, 400, "invalid_client", "Invalid client_id");
         }
 
@@ -502,6 +536,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
         redirectUrl.searchParams.set("state", authorizeState.state);
+        redirectUrl.searchParams.set("iss", resolveBaseUrl(c, config.base_url));
 
         c.header("Cache-Control", "no-store");
         return c.redirect(redirectUrl.toString(), 302);
@@ -625,6 +660,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
         redirectUrl.searchParams.set("state", authorizeState.state);
+        redirectUrl.searchParams.set("iss", resolveBaseUrl(c, config.base_url));
 
         c.header("Cache-Control", "no-store");
         return c.redirect(redirectUrl.toString(), 302);
@@ -713,9 +749,8 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         let clientName: string | undefined;
         if (req.client_id) {
             try {
-                const clientPayload = await verifyClientId(req.client_id, verifyKeys);
-                clientName = clientPayload.client_name;
-            } catch { /* ignore invalid client_id */ }
+                clientName = (await resolveClient(req.client_id)).client_name;
+            } catch { /* ignore unresolvable client_id */ }
         }
 
         const collectUserInfo = config.audit?.collect_user_info !== false;

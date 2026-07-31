@@ -60,6 +60,109 @@ describe("Well-known endpoints", () => {
         expect(body.code_challenge_methods_supported).toContain("S256");
         expect(body.token_endpoint_auth_methods_supported).toContain("none");
     });
+
+    it("advertises CIMD support and the iss parameter", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/.well-known/oauth-authorization-server");
+        const body = await res.json();
+        expect(body.client_id_metadata_document_supported).toBe(true);
+        expect(body.authorization_response_iss_parameter_supported).toBe(true);
+        // DCR stays available for clients that do not implement CIMD yet.
+        expect(body.registration_endpoint).toBeTruthy();
+    });
+
+    it("reports CIMD as unsupported when disabled", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig({ cimd: { enabled: false, allowed_hosts: [] } }),
+        });
+        const res = await app.request("/.well-known/oauth-authorization-server");
+        expect((await res.json()).client_id_metadata_document_supported).toBe(false);
+    });
+});
+
+describe("GET /mcp/authorize with a Client ID Metadata Document", () => {
+    const CLIENT_ID = "https://app.example.com/oauth/client.json";
+
+    function authorizeParams(overrides?: Record<string, string>): URLSearchParams {
+        return new URLSearchParams({
+            client_id: CLIENT_ID,
+            redirect_uri: "https://app.example.com/cb",
+            response_type: "code",
+            state: "cimd-state",
+            code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            code_challenge_method: "S256",
+            scope: "backlog:mycompany.backlog.jp",
+            ...overrides,
+        });
+    }
+
+    function stubResolver(metadata: Record<string, unknown>) {
+        return {
+            resolve: async () => metadata as never,
+        };
+    }
+
+    it("accepts a URL client_id whose document lists the redirect_uri", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/cb"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain("mycompany.backlog.jp");
+    });
+
+    it("rejects a redirect_uri absent from the document", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/other"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_redirect_uri");
+    });
+
+    it("rejects a URL client_id when the document cannot be resolved", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: {
+                resolve: async () => {
+                    throw new Error("fetch failed");
+                },
+            },
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_client");
+    });
+
+    it("rejects a URL client_id when CIMD is disabled", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig({ cimd: { enabled: false, allowed_hosts: [] } }),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/cb"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_client");
+    });
 });
 
 describe("POST /mcp/register (DCR)", () => {
@@ -412,6 +515,31 @@ describe("space cookie session binding", () => {
         expect(loc).toBeTruthy();
         expect(loc).toContain("code=");
         expect(loc).toContain("state=state-A");
+    });
+
+    // RFC 9207 (MCP SEP-2468): the authorization response must identify the
+    // issuer so clients can detect mix-up attacks before redeeming the code.
+    it("complete: authorization response carries the iss parameter", async () => {
+        await initTestKeys();
+        const { sessionFingerprint } = await import("./handlers.js");
+        const app = await createMcpApp({ config: makeConfig() });
+
+        const session = await getAuthorizeSession(app, "state-iss");
+        const sid = await sessionFingerprint(session);
+        const space = "mycompany.backlog.jp";
+        const cookie = await craftSpaceCookie(space, sid);
+
+        const res = await app.request("/mcp/authorize/complete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: `${cookie.name}=${cookie.value}`,
+            },
+            body: new URLSearchParams({ session, spaces: space }).toString(),
+        });
+        expect(res.status).toBe(302);
+        const loc = new URL(res.headers.get("location")!);
+        expect(loc.searchParams.get("iss")).toBe("https://mcp.example.com");
     });
 });
 

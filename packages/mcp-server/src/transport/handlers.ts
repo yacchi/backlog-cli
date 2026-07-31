@@ -30,7 +30,36 @@ interface JsonRpcResponse {
     error?: { code: number; message: string; data?: unknown };
 }
 
-const MCP_PROTOCOL_VERSION = "2025-03-26";
+// Dual-era server: "modern" revisions (2026-07-28 and later) carry the protocol
+// version, client identity and capabilities in per-request `_meta`; "legacy"
+// revisions establish them with an `initialize` handshake. Both are served on
+// the same endpoint — see docs/design/remote-mcp-server.md.
+const MODERN_PROTOCOL_VERSION = "2026-07-28";
+const LEGACY_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"];
+const SUPPORTED_PROTOCOL_VERSIONS = [MODERN_PROTOCOL_VERSION, ...LEGACY_PROTOCOL_VERSIONS];
+// Clients predating 2025-06-18 send no MCP-Protocol-Version header; the spec
+// allows treating those requests as the revision that introduced the transport.
+const ASSUMED_PROTOCOL_VERSION = "2025-03-26";
+
+const META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo";
+const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
+
+// MCP-reserved JSON-RPC error codes (spec revision 2026-07-28).
+const ERR_HEADER_MISMATCH = -32020;
+const ERR_UNSUPPORTED_PROTOCOL_VERSION = -32022;
+
+const SERVER_INFO = { name: "backlog-mcp-server", version: "0.1.0" };
+
+/** Cache hints for modern results. Lists depend on the caller's token → private. */
+const LIST_TTL_MS = 300_000;
+const DISCOVER_TTL_MS = 3_600_000;
+const CACHEABLE_LIST_METHODS = new Set(["tools/list", "prompts/list"]);
+
+const SERVER_CAPABILITIES = {
+    tools: { listChanged: false },
+    prompts: { listChanged: false },
+};
 
 const SERVER_INSTRUCTIONS = `Backlog CLI MCP Server — provides Backlog project management via the \`backlog\` CLI, a GitHub CLI (gh) compatible command-line tool for Backlog.
 
@@ -242,6 +271,101 @@ const SKILL_PROMPT = {
     arguments: [],
 };
 
+/** Decode the `=?base64?<b64>?=` sentinel encoding allowed for header values. */
+function decodeHeaderValue(value: string): string {
+    if (!value.startsWith("=?base64?") || !value.endsWith("?=")) return value;
+    try {
+        const b64 = value.slice("=?base64?".length, -"?=".length);
+        const bin = atob(b64);
+        const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch {
+        return value;
+    }
+}
+
+type ProtocolResolution =
+    | { ok: true; version: string; modern: boolean }
+    | { ok: false; code: number; message: string; data?: unknown };
+
+/**
+ * Determine which protocol revision a request speaks. Modern clients declare it
+ * in `_meta`, mirrored into the MCP-Protocol-Version header; the two MUST agree.
+ */
+function resolveProtocol(req: JsonRpcRequest, headerVersion: string | undefined): ProtocolResolution {
+    const meta = req.params?._meta as Record<string, unknown> | undefined;
+    const rawMetaVersion = meta?.[META_PROTOCOL_VERSION];
+    const metaVersion = typeof rawMetaVersion === "string" ? rawMetaVersion : undefined;
+
+    if (metaVersion && headerVersion && metaVersion !== headerVersion) {
+        return {
+            ok: false,
+            code: ERR_HEADER_MISMATCH,
+            message: `Header mismatch: MCP-Protocol-Version header value '${headerVersion}' does not match body value '${metaVersion}'`,
+        };
+    }
+
+    const requested = metaVersion ?? headerVersion;
+    if (requested && !SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) {
+        return {
+            ok: false,
+            code: ERR_UNSUPPORTED_PROTOCOL_VERSION,
+            message: "Unsupported protocol version",
+            data: { supported: SUPPORTED_PROTOCOL_VERSIONS, requested },
+        };
+    }
+
+    const version = requested ?? ASSUMED_PROTOCOL_VERSION;
+    return { ok: true, version, modern: version >= MODERN_PROTOCOL_VERSION };
+}
+
+/**
+ * Mirrored headers must agree with the body: intermediaries route on the header
+ * while the server executes on the body, so a divergence is a security issue.
+ * Missing headers are tolerated (older clients never sent them).
+ */
+function checkMirroredHeaders(
+    req: JsonRpcRequest,
+    methodHeader: string | undefined,
+    nameHeader: string | undefined,
+): { code: number; message: string } | null {
+    if (methodHeader && methodHeader !== req.method) {
+        return {
+            code: ERR_HEADER_MISMATCH,
+            message: `Header mismatch: Mcp-Method header value '${methodHeader}' does not match body value '${req.method}'`,
+        };
+    }
+    if (nameHeader) {
+        const params = req.params as { name?: string; uri?: string } | undefined;
+        const bodyValue = params?.name ?? params?.uri ?? "";
+        const decoded = decodeHeaderValue(nameHeader);
+        if (decoded !== bodyValue) {
+            return {
+                code: ERR_HEADER_MISMATCH,
+                message: `Header mismatch: Mcp-Name header value '${decoded}' does not match body value '${bodyValue}'`,
+            };
+        }
+    }
+    return null;
+}
+
+/**
+ * Modern results carry a `resultType`, server identity in `_meta` and — for
+ * cacheable list methods — freshness hints. Legacy results are left untouched.
+ */
+function decorateModernResult(method: string, resp: JsonRpcResponse): void {
+    if (!resp.result || typeof resp.result !== "object") return;
+    const result = resp.result as Record<string, unknown>;
+    result.resultType ??= "complete";
+    const meta = (result._meta as Record<string, unknown> | undefined) ?? {};
+    meta[META_SERVER_INFO] ??= SERVER_INFO;
+    result._meta = meta;
+    if (CACHEABLE_LIST_METHODS.has(method)) {
+        result.ttlMs ??= LIST_TTL_MS;
+        result.cacheScope ??= "private";
+    }
+}
+
 export function createTransportHandlers(
     config: McpServerConfig,
     keys: SigningKeys,
@@ -329,9 +453,30 @@ export function createTransportHandlers(
         const { token } = getAuthContext(c);
         const reqLogger = getLogger(c);
 
+        const protocol = resolveProtocol(req, c.req.header("mcp-protocol-version"));
+        if (!protocol.ok) {
+            return c.json(
+                jsonRpcError(req.id ?? null, protocol.code, protocol.message, protocol.data),
+                400,
+            );
+        }
+        const headerMismatch = checkMirroredHeaders(req, c.req.header("mcp-method"), c.req.header("mcp-name"));
+        if (headerMismatch) {
+            return c.json(
+                jsonRpcError(req.id ?? null, headerMismatch.code, headerMismatch.message),
+                400,
+            );
+        }
+
+        // Modern clients identify themselves on every request instead of once at
+        // initialize; keep that in the log line for observability.
+        const rawClientInfo = (req.params?._meta as Record<string, unknown> | undefined)?.[META_CLIENT_INFO];
+        const clientInfo = rawClientInfo as { name?: string; version?: string } | undefined;
+        const client = clientInfo?.name ? `${clientInfo.name}/${clientInfo.version ?? "?"}` : undefined;
+
         if (req.method === "tools/call") {
             const toolParams = req.params as { name?: string; arguments?: Record<string, unknown> } | undefined;
-            reqLogger.debug({ component: "jsonrpc", method: req.method, tool: toolParams?.name });
+            reqLogger.debug({ component: "jsonrpc", method: req.method, tool: toolParams?.name, protocol: protocol.version, client });
             const requestedSpace = toolParams?.arguments?.space as string | undefined;
             if (requestedSpace && !(await resolveSpaceToken(token, encKeys, requestedSpace))) {
                 c.header(
@@ -344,7 +489,7 @@ export function createTransportHandlers(
                 );
             }
         } else {
-            reqLogger.info({ component: "jsonrpc", method: req.method });
+            reqLogger.info({ component: "jsonrpc", method: req.method, protocol: protocol.version, client });
         }
 
         const spaceKey = token.space;
@@ -356,6 +501,14 @@ export function createTransportHandlers(
         }
 
         const result = await handleMethod(c, req, token, access);
+        if (protocol.modern) {
+            decorateModernResult(req.method, result);
+            // Modern transport binding: an unimplemented method is a 404 whose
+            // JSON-RPC body distinguishes it from a stray HTTP 404.
+            if (result.error?.code === -32601) {
+                return c.json(result, 404);
+            }
+        }
         return c.json(result);
     });
 
@@ -381,19 +534,35 @@ export function createTransportHandlers(
         access: SpaceAccess,
     ): Promise<JsonRpcResponse> {
         switch (req.method) {
-            case "initialize":
+            // Modern discovery: supported versions, capabilities and identity in
+            // one call. Answered regardless of the requested revision so clients
+            // can use it as an era probe.
+            case "server/discover":
                 return jsonRpcResult(req.id, {
-                    protocolVersion: MCP_PROTOCOL_VERSION,
-                    capabilities: {
-                        tools: { listChanged: false },
-                        prompts: { listChanged: false },
-                    },
-                    serverInfo: {
-                        name: "backlog-mcp-server",
-                        version: "0.1.0",
-                    },
+                    resultType: "complete",
+                    supportedVersions: SUPPORTED_PROTOCOL_VERSIONS,
+                    capabilities: SERVER_CAPABILITIES,
+                    instructions: SERVER_INSTRUCTIONS,
+                    ttlMs: DISCOVER_TTL_MS,
+                    cacheScope: "public",
+                    _meta: { [META_SERVER_INFO]: SERVER_INFO },
+                });
+
+            // Legacy handshake. Echo the revision the client asked for when we
+            // support it, otherwise name the newest legacy revision we speak —
+            // legacy clients have no way to fall forward.
+            case "initialize": {
+                const requested = (req.params as { protocolVersion?: string } | undefined)?.protocolVersion;
+                const negotiated = requested && LEGACY_PROTOCOL_VERSIONS.includes(requested)
+                    ? requested
+                    : LEGACY_PROTOCOL_VERSIONS[0];
+                return jsonRpcResult(req.id, {
+                    protocolVersion: negotiated,
+                    capabilities: SERVER_CAPABILITIES,
+                    serverInfo: SERVER_INFO,
                     instructions: SERVER_INSTRUCTIONS,
                 });
+            }
 
             case "notifications/initialized":
                 return jsonRpcResult(req.id, {});

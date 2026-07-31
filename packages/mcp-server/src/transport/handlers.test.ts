@@ -335,3 +335,188 @@ describe("MCP transport — space access control", () => {
         expect(res.result.content[0].text).toContain("読み取り専用");
     });
 });
+
+/** POST /mcp with explicit control over headers and body (protocol-version tests). */
+async function rawRequest(
+    app: Awaited<ReturnType<typeof createMcpApp>>,
+    body: Record<string, unknown>,
+    headers: Record<string, string> = {},
+) {
+    const accessToken = await makeAccessToken();
+    const res = await app.request("/mcp", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            ...headers,
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...body }),
+    });
+    return { status: res.status, body: (await res.json()) as Record<string, any> };
+}
+
+const MODERN = "2026-07-28";
+
+describe("MCP transport — protocol version negotiation", () => {
+    it("echoes the legacy version requested by the client", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        for (const version of ["2025-03-26", "2025-06-18", "2025-11-25"]) {
+            const res = await jsonRpcRequest(app, "initialize", {
+                protocolVersion: version,
+                capabilities: {},
+                clientInfo: { name: "test", version: "1.0" },
+            });
+            expect(res.result.protocolVersion).toBe(version);
+        }
+    });
+
+    it("falls back to the newest legacy version for an unknown initialize version", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await jsonRpcRequest(app, "initialize", {
+            protocolVersion: "1900-01-01",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+        });
+        expect(res.result.protocolVersion).toBe("2025-11-25");
+    });
+
+    it("rejects an unsupported protocol version with UnsupportedProtocolVersionError", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            { method: "tools/list", params: {} },
+            { "MCP-Protocol-Version": "1900-01-01", "Mcp-Method": "tools/list" },
+        );
+        expect(status).toBe(400);
+        expect(body.error.code).toBe(-32022);
+        expect(body.error.data.supported).toContain(MODERN);
+        expect(body.error.data.requested).toBe("1900-01-01");
+    });
+
+    it("rejects a header/_meta protocol version mismatch with HeaderMismatch", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            {
+                method: "tools/list",
+                params: { _meta: { "io.modelcontextprotocol/protocolVersion": MODERN } },
+            },
+            { "MCP-Protocol-Version": "2025-11-25", "Mcp-Method": "tools/list" },
+        );
+        expect(status).toBe(400);
+        expect(body.error.code).toBe(-32020);
+    });
+
+    it("rejects an Mcp-Method header that does not match the body", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            { method: "tools/list", params: {} },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "prompts/list" },
+        );
+        expect(status).toBe(400);
+        expect(body.error.code).toBe(-32020);
+    });
+
+    it("rejects an Mcp-Name header that does not match the body", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            { method: "prompts/get", params: { name: "unknown-prompt" } },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "prompts/get", "Mcp-Name": "other" },
+        );
+        expect(status).toBe(400);
+        expect(body.error.code).toBe(-32020);
+    });
+
+    it("accepts a base64-encoded Mcp-Name matching the body", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const encoded = `=?base64?${btoa("unknown-prompt")}?=`;
+        const { status, body } = await rawRequest(
+            app,
+            { method: "prompts/get", params: { name: "unknown-prompt" } },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "prompts/get", "Mcp-Name": encoded },
+        );
+        // Header validation passed, so the request reached dispatch (which then
+        // rejects the unknown prompt name with -32602, not a header error).
+        expect(status).toBe(200);
+        expect(body.error.code).toBe(-32602);
+    });
+
+    it("returns 404 with -32601 for an unknown method on a modern request", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            { method: "resources/list", params: {} },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "resources/list" },
+        );
+        expect(status).toBe(404);
+        expect(body.error.code).toBe(-32601);
+    });
+});
+
+describe("MCP transport — server/discover", () => {
+    it("advertises supported versions, capabilities and identity", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(
+            app,
+            {
+                method: "server/discover",
+                params: { _meta: { "io.modelcontextprotocol/protocolVersion": MODERN } },
+            },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "server/discover" },
+        );
+        expect(status).toBe(200);
+        expect(body.result.resultType).toBe("complete");
+        expect(body.result.supportedVersions).toContain(MODERN);
+        expect(body.result.supportedVersions).toContain("2025-03-26");
+        expect(body.result.capabilities.tools).toBeDefined();
+        expect(body.result.instructions).toContain("Prefer local CLI");
+        expect(body.result._meta["io.modelcontextprotocol/serverInfo"].name).toBe("backlog-mcp-server");
+        expect(body.result.cacheScope).toBe("public");
+        expect(body.result.ttlMs).toBeGreaterThan(0);
+    });
+
+    it("is reachable without a protocol version declaration", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { status, body } = await rawRequest(app, { method: "server/discover" });
+        expect(status).toBe(200);
+        expect(body.result.supportedVersions).toContain(MODERN);
+    });
+});
+
+describe("MCP transport — modern result envelope", () => {
+    it("adds resultType, cache hints and serverInfo to modern list results", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const { body } = await rawRequest(
+            app,
+            { method: "tools/list", params: {} },
+            { "MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/list" },
+        );
+        expect(body.result.resultType).toBe("complete");
+        expect(body.result.ttlMs).toBeGreaterThan(0);
+        expect(body.result.cacheScope).toBe("private");
+        expect(body.result._meta["io.modelcontextprotocol/serverInfo"].name).toBe("backlog-mcp-server");
+        expect(body.result.tools.length).toBeGreaterThan(0);
+    });
+
+    it("leaves legacy results untouched", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await jsonRpcRequest(app, "tools/list");
+        expect(res.result.resultType).toBeUndefined();
+        expect(res.result.ttlMs).toBeUndefined();
+        expect(res.result._meta).toBeUndefined();
+    });
+});

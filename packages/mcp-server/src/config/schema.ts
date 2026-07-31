@@ -19,6 +19,13 @@ export const LoggingConfigSchema = z.object({
     output: z.boolean().default(false),
 });
 
+/** Client ID Metadata Documents (MCP 2026-07-28 client registration). */
+export const CimdConfigSchema = z.object({
+    enabled: z.boolean().default(true),
+    /** Full-string regex patterns of permitted metadata hosts. Empty = any public host. */
+    allowed_hosts: z.array(z.string()).default([]),
+});
+
 export const McpServerConfigSchema = z.object({
     // Optional explicit OAuth issuer. When omitted, the base URL is derived from
     // the request host at runtime (see resolveBaseUrl).
@@ -33,11 +40,18 @@ export const McpServerConfigSchema = z.object({
     default_spaces: z.array(z.string()).default([]),
     audit: AuditConfigSchema.optional(),
     logging: LoggingConfigSchema.optional(),
+    cimd: CimdConfigSchema.optional(),
 });
 
 export type McpServerConfig = z.output<typeof McpServerConfigSchema>;
 export type SpacePattern = z.output<typeof SpacePatternSchema>;
 export type ScriptConfig = z.output<typeof ScriptConfigSchema>;
+export type CimdConfig = z.output<typeof CimdConfigSchema>;
+
+/** CIMD is on by default; config only narrows it (disable / host allow-list). */
+export function cimdEnabled(config: McpServerConfig): boolean {
+    return config.cimd?.enabled !== false;
+}
 
 export function parseConfig(json: string): McpServerConfig {
     return McpServerConfigSchema.parse(JSON.parse(json));
