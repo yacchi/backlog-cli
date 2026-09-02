@@ -58,7 +58,8 @@ export const config: RelayConfigInput = {
   // テナント設定（オプション）
   // tenants: [
   //   {
-  //     allowed_domain: "your-space.backlog.jp",
+  //     name: "your-org",
+  //     default_space: "your-space.backlog.jp",
   //     info_ttl: 600,
   //     passphrase_hash: "$2a$12$...",
   //   },

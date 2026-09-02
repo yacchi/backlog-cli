@@ -59,13 +59,16 @@ export default {
   ): Promise<Response> {
     const config = parseConfig(env);
     const auditLogger = createCloudflareAuditLogger();
+    const serverJwks = config.jwks;
 
     const app = createRelayApp({
       config,
       auditLogger,
       verifyPassphrase,
-      createBundle,
-      generateProvisionToken: generateProvisioningToken,
+      createBundle: (tenant, domain, relayUrl, issuedBy) =>
+        createBundle(tenant, domain, relayUrl, serverJwks, issuedBy),
+      generateProvisionToken: (tenant, domain, relayUrl, issuedBy) =>
+        generateProvisioningToken(tenant, domain, relayUrl, serverJwks, issuedBy),
       // Note: portalAssets not available in Cloudflare Workers
       // Portal SPA should be hosted separately (e.g., Cloudflare Pages)
     });

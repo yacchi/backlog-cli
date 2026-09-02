@@ -13,7 +13,7 @@
     "lint": "eslint src/ scripts/",
     "lint:typecheck": "tsc",
     "lint:fix": "eslint src/ scripts/ --fix",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
   "dependencies": {

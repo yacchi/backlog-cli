@@ -49,3 +49,11 @@ verification_targets.txt
 
 # Markdown migration workspace
 backlog-markdown-migrate/
+
+# ローカル作業用スクラッチ（設計プランは docs/plans/ を使う）
+/plan.md
+/plans/
+/user.log
+
+# ビルド済み CLI バイナリ
+/packages/backlog/backlog
