@@ -21,24 +21,54 @@ interface Props {
     onApiError: (status: number, data: { error?: string }) => boolean;
 }
 
-const ACTION_OPTIONS = [
-    { value: "", label: "すべて" },
-    { value: "portal_verify", label: "パスフレーズ検証" },
-    { value: "portal_download", label: "バンドルダウンロード" },
-    { value: "portal_provision", label: "プロビジョニング" },
-    { value: "portal_oauth_start", label: "OAuth開始" },
-    { value: "portal_oauth_login", label: "OAuthログイン" },
-    { value: "portal_logout", label: "ログアウト" },
-    { value: "auth_start", label: "CLI認証開始" },
-    { value: "auth_callback", label: "CLI認証コールバック" },
-    { value: "token_exchange", label: "トークン交換" },
-    { value: "token_refresh", label: "トークン更新" },
-    { value: "admin_passphrase_view", label: "パスフレーズ閲覧" },
-    { value: "admin_passphrase_set", label: "パスフレーズ設定" },
-    { value: "admin_passphrase_generate", label: "パスフレーズ生成" },
-    { value: "admin_passphrase_clear", label: "パスフレーズ削除" },
-    { value: "admin_audit_query", label: "監査ログ照会" },
+const ACTION_GROUPS = [
+    {
+        label: "CLI",
+        options: [
+            { value: "auth_start", label: "CLI認証開始" },
+            { value: "auth_callback", label: "CLI認証コールバック" },
+            { value: "token_exchange", label: "CLIトークン交換" },
+            { value: "token_refresh", label: "CLIトークン更新" },
+        ],
+    },
+    {
+        label: "MCP",
+        options: [
+            { value: "mcp_dcr", label: "MCPクライアント登録" },
+            { value: "mcp_client_resolve", label: "MCPクライアント解決失敗" },
+            { value: "mcp_authorize", label: "MCP認可開始" },
+            { value: "mcp_callback", label: "MCP認証コールバック" },
+            { value: "mcp_complete", label: "MCP認可完了" },
+            { value: "mcp_token_exchange", label: "MCPトークン交換" },
+            { value: "mcp_token_refresh", label: "MCPトークン更新" },
+            { value: "mcp_tool_call", label: "MCPツール呼び出し" },
+            { value: "mcp_download", label: "MCPファイルダウンロード" },
+        ],
+    },
+    {
+        label: "ポータル",
+        options: [
+            { value: "portal_verify", label: "パスフレーズ検証" },
+            { value: "portal_download", label: "バンドルダウンロード" },
+            { value: "portal_provision", label: "プロビジョニング" },
+            { value: "portal_oauth_start", label: "OAuth開始" },
+            { value: "portal_oauth_login", label: "OAuthログイン" },
+            { value: "portal_logout", label: "ログアウト" },
+        ],
+    },
+    {
+        label: "管理",
+        options: [
+            { value: "admin_passphrase_view", label: "パスフレーズ閲覧" },
+            { value: "admin_passphrase_set", label: "パスフレーズ設定" },
+            { value: "admin_passphrase_generate", label: "パスフレーズ生成" },
+            { value: "admin_passphrase_clear", label: "パスフレーズ削除" },
+            { value: "admin_audit_query", label: "監査ログ照会" },
+        ],
+    },
 ];
+
+const ALL_ACTION_OPTIONS = ACTION_GROUPS.flatMap((g) => g.options);
 
 const RESULT_OPTIONS = [
     { value: "", label: "すべて" },
@@ -57,7 +87,7 @@ function formatTimestamp(ts: string): string {
 }
 
 function formatAction(action: string): string {
-    const found = ACTION_OPTIONS.find((o) => o.value === action);
+    const found = ALL_ACTION_OPTIONS.find((o) => o.value === action);
     return found ? found.label : action;
 }
 
@@ -133,8 +163,13 @@ export default function AuditLogViewer({ tenantName, onApiError }: Props) {
                         onChange={(e) => setAction(e.target.value)}
                         className="w-full rounded-xl border border-outline/60 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     >
-                        {ACTION_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
+                        <option value="">すべて</option>
+                        {ACTION_GROUPS.map((g) => (
+                            <optgroup key={g.label} label={g.label}>
+                                {g.options.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                            </optgroup>
                         ))}
                     </select>
                 </div>

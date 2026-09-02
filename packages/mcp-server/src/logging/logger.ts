@@ -120,7 +120,7 @@ export function logToolCall(
             entry.output_bytes = outputBytes;
 
             const audit = auditEvent({
-                action: "tool_call",
+                action: "mcp_tool_call",
                 result: result.error ? "error" : "success",
                 tool: opts.tool,
                 duration_ms,

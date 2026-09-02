@@ -132,6 +132,41 @@ MRTR / tasks 拡張 / `subscriptions/listen` / Roots / Sampling / MCP Logging �
 クライアントはコードを交換する前に、記録した issuer と一致するか検証できる（mix-up 攻撃対策）。
 AS メタデータでは `authorization_response_iss_parameter_supported: true` として広告する。
 
+### PKCE と認可コードのバインディング（下流：MCP クライアント ↔ 本サーバー）
+
+本サーバーは MCP クライアントに対する認可サーバー (AS) として PKCE (S256) を必須とする。
+`/mcp/authorize` は `code_challenge` が無ければ `invalid_request` を返し、`S256` 以外の
+`code_challenge_method` を拒否する。
+
+発行する認可コード（JWS）には以下を埋め込み、`/mcp/token` で全て照合する
+（`verifyCodeBinding()`）。単一スペースの `/mcp/authorize/callback` と複数スペースの
+`/mcp/authorize/complete` の双方で同じクレームを載せる。
+
+| クレーム | 照合内容 |
+|---|---|
+| `code_challenge` / `code_challenge_method` | `base64url(SHA-256(code_verifier))` と定数時間比較 |
+| `client_id` | リクエストの `client_id` と一致すること |
+| `redirect_uri` | リクエストの `redirect_uri` と一致すること |
+
+`code_challenge` を持たないコードは**ダウングレードさせず拒否する**（`invalid_grant`）。
+認可コードの寿命は 300 秒なので、デプロイ跨ぎで旧形式のコードを受理する必要はない。
+
+未対応: 認可コードの単回利用強制。ステートレス設計のため `jti` と使用済みストアが必要で、
+現状は有効期間（300 秒）内の再利用を防げない。
+
+### 上流（本サーバー ↔ Backlog 認可サーバー）で PKCE を使わない理由
+
+Backlog の OAuth 2.0 は PKCE に対応していないため、上流では `code_challenge` を送らず、
+`client_secret` を用いた認可コード交換を中継サーバー経由で行う（`docs/design/oauth-relay-server.md`）。
+この制約は下流の PKCE とは独立しており、下流の PKCE 必須化に影響しない。
+
+Backlog が将来 PKCE に対応した場合のトレードオフ:
+
+- 利点: 中継サーバーが `client_secret` を保持・行使する必要がなくなり、共有中継サーバーを
+  立てる際の「中継側でトークンを使われる」リスクが消える
+- 欠点: 監査機能（アクセストークンでユーザー情報を取得して監査ログに残す、
+  `audit.collect_user_info`）はトークンが中継を通らなくなるため成立しない
+
 ## セットアップ手順
 
 ### 前提条件

@@ -403,7 +403,7 @@ export function createTransportHandlers(
             const payload = JSON.parse(plain) as { at: string; exp: number };
 
             if (payload.exp < Math.floor(Date.now() / 1000)) {
-                logger.warn(auditEvent({ action: "download", result: "error", tenant: sp, apiPath, error: "token_expired" }));
+                logger.warn(auditEvent({ action: "mcp_download", result: "error", tenant: sp, apiPath, error: "token_expired" }));
                 return c.text("Token expired", 403);
             }
 
@@ -413,12 +413,12 @@ export function createTransportHandlers(
             });
 
             if (!upstream.ok) {
-                logger.error(auditEvent({ action: "download", result: "error", tenant: sp, apiPath, error: `upstream_${upstream.status}`, duration_ms: Date.now() - start }));
+                logger.error(auditEvent({ action: "mcp_download", result: "error", tenant: sp, apiPath, error: `upstream_${upstream.status}`, duration_ms: Date.now() - start }));
                 return c.text(`Upstream error: ${upstream.status}`, upstream.status as 400);
             }
 
             const contentLength = upstream.headers.get("Content-Length");
-            logger.info(auditEvent({ action: "download", result: "success", tenant: sp, apiPath, status: upstream.status, content_length: contentLength, duration_ms: Date.now() - start }));
+            logger.info(auditEvent({ action: "mcp_download", result: "success", tenant: sp, apiPath, status: upstream.status, content_length: contentLength, duration_ms: Date.now() - start }));
 
             const headers = new Headers();
             const ct = upstream.headers.get("Content-Type");
@@ -430,10 +430,10 @@ export function createTransportHandlers(
             return new Response(upstream.body, { status: 200, headers });
         } catch (err) {
             if (err instanceof DecryptError) {
-                logger.warn(auditEvent({ action: "download", result: "error", tenant: sp, apiPath, error: "decrypt_error", duration_ms: Date.now() - start }));
+                logger.warn(auditEvent({ action: "mcp_download", result: "error", tenant: sp, apiPath, error: "decrypt_error", duration_ms: Date.now() - start }));
                 return c.text("Invalid token", 403);
             }
-            logger.error(auditEvent({ action: "download", result: "error", tenant: sp, apiPath, error: (err as Error).message, duration_ms: Date.now() - start }));
+            logger.error(auditEvent({ action: "mcp_download", result: "error", tenant: sp, apiPath, error: (err as Error).message, duration_ms: Date.now() - start }));
             return c.text("Internal error", 500);
         }
     });

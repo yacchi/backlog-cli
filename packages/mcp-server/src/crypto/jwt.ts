@@ -44,12 +44,27 @@ export function getSpaceEntry(token: TokenPayload, spaceDomain: string): SpaceEn
     return token[spaceKey(spaceDomain)] as SpaceEntry | undefined;
 }
 
+/**
+ * 既存エントリへマージする。認可コードのように同一スペースへ at と rt の
+ * 両方を載せる呼び出しがあるため、代入で上書きしてはならない。
+ */
+function mergeSpaceEntry(
+    payload: Record<string, unknown>,
+    spaceDomain: string,
+    patch: Partial<SpaceAccessEntry & SpaceRefreshEntry>,
+): void {
+    const key = spaceKey(spaceDomain);
+    const current = payload[key];
+    const base = (current && typeof current === "object") ? current as Record<string, unknown> : {};
+    payload[key] = { ...base, ...patch };
+}
+
 export function setSpaceAccess(payload: Record<string, unknown>, spaceDomain: string, at: string, exp: number): void {
-    payload[spaceKey(spaceDomain)] = { at, exp } as SpaceAccessEntry;
+    mergeSpaceEntry(payload, spaceDomain, { at, exp });
 }
 
 export function setSpaceRefresh(payload: Record<string, unknown>, spaceDomain: string, rt: string): void {
-    payload[spaceKey(spaceDomain)] = { rt } as SpaceRefreshEntry;
+    mergeSpaceEntry(payload, spaceDomain, { rt });
 }
 
 export function listSpaceEntries(token: TokenPayload): Array<[string, SpaceEntry]> {
@@ -183,13 +198,37 @@ export async function verifyToken(
     if (token.spaces && !listSpaceEntries(token).length) {
         for (const s of token.spaces) {
             const normSpace = s.space.includes(".") ? s.space : `${s.space}.${(s as any).domain || ""}`;
+            // at/rt は同一エントリに共存し得るため両方を移送する
+            // （片方だけ拾うと code 交換／リフレッシュで rt が失われ再認証になる）
+            const entry: Record<string, unknown> = {};
             if (s.bl_access_token) {
-                token[spaceKey(normSpace)] = { at: s.bl_access_token, exp: s.bl_expires_at } satisfies SpaceAccessEntry;
-            } else if (s.bl_refresh_token) {
-                token[spaceKey(normSpace)] = { rt: s.bl_refresh_token } satisfies SpaceRefreshEntry;
+                entry.at = s.bl_access_token;
+                entry.exp = s.bl_expires_at ?? (token.iat + 3600);
+            }
+            if (s.bl_refresh_token) {
+                entry.rt = s.bl_refresh_token;
+            }
+            if (Object.keys(entry).length) {
+                token[spaceKey(normSpace)] = entry as unknown as SpaceEntry;
             }
         }
         delete token.spaces;
+    }
+
+    // Migrate Gen 1 top-level bl_access_token/bl_refresh_token → space:* entry
+    if (!listSpaceEntries(token).length && token.space && (token.bl_access_token || token.bl_refresh_token)) {
+        const entry: Record<string, unknown> = {};
+        if (token.bl_access_token) {
+            entry.at = token.bl_access_token;
+            entry.exp = token.bl_expires_at ?? (token.iat + 3600);
+        }
+        if (token.bl_refresh_token) {
+            entry.rt = token.bl_refresh_token;
+        }
+        token[spaceKey(token.space)] = entry;
+        delete token.bl_access_token;
+        delete token.bl_refresh_token;
+        delete token.bl_expires_at;
     }
 
     return token;
