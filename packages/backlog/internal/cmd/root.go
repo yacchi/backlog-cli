@@ -23,10 +23,13 @@ import (
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/priority"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/profile"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/project"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/ratelimit"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/repo"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/resolution"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/space"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/star"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/status"
+	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/team"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/user"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/watching"
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/cmd/wiki"
@@ -197,10 +200,13 @@ func init() {
 	rootCmd.AddCommand(priority.PriorityCmd)
 	rootCmd.AddCommand(profile.ProfileCmd)
 	rootCmd.AddCommand(project.ProjectCmd)
+	rootCmd.AddCommand(ratelimit.RateLimitCmd)
 	rootCmd.AddCommand(repo.RepoCmd)
 	rootCmd.AddCommand(resolution.ResolutionCmd)
 	rootCmd.AddCommand(space.SpaceCmd)
+	rootCmd.AddCommand(star.StarCmd)
 	rootCmd.AddCommand(status.StatusCmd)
+	rootCmd.AddCommand(team.TeamCmd)
 	rootCmd.AddCommand(user.UserCmd)
 	rootCmd.AddCommand(watching.WatchingCmd)
 	rootCmd.AddCommand(wiki.WikiCmd)
