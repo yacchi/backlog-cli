@@ -160,6 +160,30 @@ Backlog の OAuth 2.0 は PKCE に対応していないため、上流では `co
 `client_secret` を用いた認可コード交換を中継サーバー経由で行う（`docs/design/oauth-relay-server.md`）。
 この制約は下流の PKCE とは独立しており、下流の PKCE 必須化に影響しない。
 
+#### 非対応の実測根拠（2026-09-02 時点）
+
+Backlog は AS メタデータを公開していないため（`/.well-known/oauth-authorization-server`
+等はいずれも 404）、実際にエンドポイントを叩いて確認した。authorize エンドポイントは
+ログイン前に一切パラメーター検証をせず（不正な `code_challenge_method` でも同じ 303 を返す）
+判定材料にならないため、トークンエンドポイント `POST /api/v2/oauth2/token` で測定した。
+
+| プローブ | 結果 | 判定 |
+|---|---|---|
+| `client_secret` なし / `code_verifier` なし | `401 invalid_client` | — |
+| `client_secret` なし / `code_verifier` あり | `401 invalid_client`（上と完全同一） | `code_verifier` は `client_secret` を代替しない＝public client 非対応 |
+| `client_secret` あり / `code_verifier` なし | `400 invalid_grant` | 基準 |
+| `client_secret` あり / 正常形式の `code_verifier`（48 文字） | `400 invalid_grant`（同一） | — |
+| `client_secret` あり / 5 文字の `code_verifier` | `400 invalid_grant`（同一） | RFC 7636 の 43〜128 文字制約を検証していない |
+| `client_secret` あり / 不正文字を含む `code_verifier` | `400 invalid_grant`（同一） | unreserved 文字の制約も検証していない |
+
+`error_description` はいずれも `"Authorized information is not found by the code"` で、
+コード検索の段階で停止しており `code_verifier` に到達していない。形式違反を弾かない
+ことから、RFC 準拠の検証ロジックは存在しないと判断した。
+
+再確認する場合は bogus な `code` で上記 6 パターンを投げ直せばよい（承認操作は不要。
+`invalid_client` と `invalid_grant` の切り替わりで client 認証の要否が分かる）。
+`code_verifier` の有無・形式でレスポンスが変わるようになっていれば、対応した可能性がある。
+
 Backlog が将来 PKCE に対応した場合のトレードオフ:
 
 - 利点: 中継サーバーが `client_secret` を保持・行使する必要がなくなり、共有中継サーバーを
