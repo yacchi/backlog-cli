@@ -73,7 +73,16 @@ Use these MCP tools only when:
 
 ## CLI Reference (backlog_help)
 
-Whether using the local CLI or MCP tools, call \`backlog_help\` to look up command syntax and flags. The \`backlog\` CLI follows GitHub CLI (gh) conventions — subcommand structure, \`--json\` output, and flag patterns are similar. If you know gh, you can apply the same patterns to \`backlog\`.`;
+Whether using the local CLI or MCP tools, call \`backlog_help\` to look up command syntax and flags. The \`backlog\` CLI follows GitHub CLI (gh) conventions — subcommand structure, \`--json\` output, and flag patterns are similar. If you know gh, you can apply the same patterns to \`backlog\`.
+
+## Recently added capabilities (2026)
+
+Related issues: use \`backlog issue related\` or \`backlog issue view --related\`.
+Three-level issue hierarchy, including grandchild issues: use \`backlog issue create --parent\`.
+API capacity: use \`backlog rate-limit\`.
+Stars: use \`backlog star\`.
+Teams: use \`backlog team\`.
+Call \`backlog_help <command>\` for any of these before first use; its per-command help explains semantics not covered here.`;
 
 const FILES_SCHEMA = {
     type: "array" as const,

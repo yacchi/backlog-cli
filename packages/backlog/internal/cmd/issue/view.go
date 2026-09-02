@@ -26,27 +26,40 @@ var viewCmd = &cobra.Command{
 If project is configured, you can omit the project prefix:
   backlog issue view 123       # equivalent to PROJ-123 when project=PROJ
 
-Examples:
-  backlog issue view PROJ-123
-  backlog issue view 123       # uses configured project
-  backlog issue view PROJ-123 -c             # show comments (default: 20)
-  backlog issue view PROJ-123 -c=50          # show 50 comments
-  backlog issue view PROJ-123 -c=all         # show all comments
-  backlog issue view PROJ-123 --comments=all # long form
-  backlog issue view PROJ-123 --summary
-  backlog issue view PROJ-123 -c --comments-order asc    # oldest first
-  backlog issue view PROJ-123 -c=all --comments-since 12345  # comments after ID 12345
-  backlog issue view PROJ-123 --related      # also show related ("see also") issues
-
-Note: -c accepts an optional value. Use '=' to pass a value: -c=50, -c=all.
-      -c without a value shows the default number of comments (20).
+-c accepts an optional value. Use '=' to pass a value: -c=50, -c=all.
+-c without a value shows the default number of comments (20).
 
 --related fetches this issue's linked "RELATES" issues with one extra API
 call and prints them as an additional "Related issues" section (or under a
 "relatedIssues" key in --output json). It is the cheap way to see an issue's
 neighborhood in a single command instead of separately running
 "backlog issue related <issue>". Without the flag, "issue view" makes exactly
-the same API calls as before.`,
+the same API calls as before.
+
+Examples:
+  # View an issue by its full key
+  backlog issue view PROJ-123
+
+  # Omit the project prefix when a project is configured
+  backlog issue view 123
+
+  # Show the default number of comments (20)
+  backlog issue view PROJ-123 -c
+
+  # Show a specific number of comments
+  backlog issue view PROJ-123 -c=50
+
+  # Show every comment, oldest first
+  backlog issue view PROJ-123 -c=all --comments-order asc
+
+  # Show only comments posted after a known comment ID
+  backlog issue view PROJ-123 -c=all --comments-since 12345
+
+  # Also show related ("see also") issues in the same call
+  backlog issue view PROJ-123 --related
+
+  # Fetch the issue plus its related issues as JSON, for scripting/agent consumption
+  backlog issue view PROJ-123 --related --output json --jq '.relatedIssues'`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runView,
 }

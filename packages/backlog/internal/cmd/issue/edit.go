@@ -21,15 +21,16 @@ var editCmd = &cobra.Command{
 	Long: `Edit an existing issue.
 
 Backlog issues can be nested up to three levels: parent -> child ->
-grandchild ("孫課題"). The grandchild level shipped on 2026-08-18 and is
-only available on Premium and Platinum plans; on other plans the Backlog
-API rejects giving a parent to an issue whose own parent is already set
-(that combination would create a grandchild). Use --parent to set or
-change an issue's parent at any time (not only at creation, see 'backlog
-issue create --parent'), and --remove-parent to detach it. --parent and
---remove-parent cannot be combined. This is different from 'backlog issue
-list --parent', which FILTERS existing issues by their parent rather than
-setting one.
+grandchild ("孫課題"). Whether the third (grandchild) level is allowed
+depends on the project's own settings: a project must have subtasking
+enabled, and the grandchild level enabled on top of that. If grandchild
+nesting is not enabled for the project, the Backlog API rejects giving a
+parent to an issue whose own parent is already set (that combination
+would create a grandchild). Use --parent to set or change an issue's
+parent at any time (not only at creation, see 'backlog issue create
+--parent'), and --remove-parent to detach it. --parent and --remove-parent
+cannot be combined. This is different from 'backlog issue list --parent',
+which FILTERS existing issues by their parent rather than setting one.
 
 Examples:
   # Update title and body

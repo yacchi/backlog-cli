@@ -18,6 +18,9 @@ var viewCmd = &cobra.Command{
 	Example: `  # View a team by ID
   backlog team view 5
 
+  # Find the team ID first, then view it
+  backlog team list --output json --jq '.[] | select(.name=="Backend") | .id'
+
   # Get just the member display names as JSON, for scripting
   backlog team view 5 --output json --jq '.members[].name'`,
 	Args: cobra.ExactArgs(1),

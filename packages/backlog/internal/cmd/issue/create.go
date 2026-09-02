@@ -28,14 +28,16 @@ interactively prompt for the required information. When standard input is
 not a terminal, provide --title, --type, and --priority.
 
 Backlog issues can be nested up to three levels: parent -> child ->
-grandchild ("孫課題"). The grandchild level shipped on 2026-08-18 and is
-only available on Premium and Platinum plans; on other plans the Backlog
-API rejects giving a parent to an issue whose own parent is already set
-(that combination would create a grandchild), so a --parent value that
-looks valid can still be rejected by the server depending on the space's
-plan. Use --parent here to CREATE this issue as a child (or grandchild) of
-an existing one; this is different from 'backlog issue list --parent',
-which FILTERS existing issues by their parent rather than setting one.
+grandchild ("孫課題"). Whether the third (grandchild) level is allowed
+depends on the project's own settings: a project must have subtasking
+enabled, and the grandchild level enabled on top of that. If grandchild
+nesting is not enabled for the project, the Backlog API rejects giving a
+parent to an issue whose own parent is already set (that combination
+would create a grandchild), so a --parent value that looks valid can
+still be rejected by the server depending on the project's configuration.
+Use --parent here to CREATE this issue as a child (or grandchild) of an
+existing one; this is different from 'backlog issue list --parent', which
+FILTERS existing issues by their parent rather than setting one.
 
 Examples:
   # Interactive mode

@@ -17,6 +17,9 @@ comments, wiki pages, and pull requests.
 	Example: `  # Count your own received stars
   backlog star count
 
+  # Count another user's received stars, by their userId string
+  backlog star count alice
+
   # Count another user's received stars as a raw number, for scripting
   backlog star count bob --output json --jq '.count'`,
 	Args: cobra.MaximumNArgs(1),
