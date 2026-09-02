@@ -20,6 +20,12 @@ type Handler interface {
 	//
 	// POST /documents/{documentId}/tags
 	AddDocumentTags(ctx context.Context, req OptAddDocumentTagsReq, params AddDocumentTagsParams) ([]DocumentTag, error)
+	// AddRelatedIssue implements addRelatedIssue operation.
+	//
+	// Add related issue.
+	//
+	// POST /issues/{issueIdOrKey}/relatedIssues
+	AddRelatedIssue(ctx context.Context, req OptAddRelatedIssueReq, params AddRelatedIssueParams) (*RelatedIssue, error)
 	// AttachFileToWiki implements attachFileToWiki operation.
 	//
 	// Add attachments to wiki.
@@ -80,6 +86,12 @@ type Handler interface {
 	//
 	// DELETE /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}
 	DeletePullRequestAttachments(ctx context.Context, params DeletePullRequestAttachmentsParams) (*Attachment, error)
+	// DeleteRelatedIssue implements deleteRelatedIssue operation.
+	//
+	// Delete related issue.
+	//
+	// DELETE /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}
+	DeleteRelatedIssue(ctx context.Context, params DeleteRelatedIssueParams) (*RelatedIssue, error)
 	// DeleteWiki implements deleteWiki operation.
 	//
 	// Delete wiki.
@@ -260,6 +272,12 @@ type Handler interface {
 	//
 	// GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count
 	GetPullRequestsCount(ctx context.Context, params GetPullRequestsCountParams) (*GetPullRequestsCountOK, error)
+	// GetRelatedIssueList implements getRelatedIssueList operation.
+	//
+	// Get related issue list.
+	//
+	// GET /issues/{issueIdOrKey}/relatedIssues
+	GetRelatedIssueList(ctx context.Context, params GetRelatedIssueListParams) ([]RelatedIssue, error)
 	// GetRepositories implements getRepositories operation.
 	//
 	// Get git repositories.

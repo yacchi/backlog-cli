@@ -8,6 +8,7 @@ type OperationName = string
 const (
 	AddCommentOperation                      OperationName = "AddComment"
 	AddDocumentTagsOperation                 OperationName = "AddDocumentTags"
+	AddRelatedIssueOperation                 OperationName = "AddRelatedIssue"
 	AttachFileToWikiOperation                OperationName = "AttachFileToWiki"
 	CreateCategoryOperation                  OperationName = "CreateCategory"
 	CreateDocumentOperation                  OperationName = "CreateDocument"
@@ -18,6 +19,7 @@ const (
 	DeleteIssueOperation                     OperationName = "DeleteIssue"
 	DeleteIssueAttachmentOperation           OperationName = "DeleteIssueAttachment"
 	DeletePullRequestAttachmentsOperation    OperationName = "DeletePullRequestAttachments"
+	DeleteRelatedIssueOperation              OperationName = "DeleteRelatedIssue"
 	DeleteWikiOperation                      OperationName = "DeleteWiki"
 	DownloadDocumentAttachmentOperation      OperationName = "DownloadDocumentAttachment"
 	GetCategoriesOperation                   OperationName = "GetCategories"
@@ -48,6 +50,7 @@ const (
 	GetPullRequestOperation                  OperationName = "GetPullRequest"
 	GetPullRequestsOperation                 OperationName = "GetPullRequests"
 	GetPullRequestsCountOperation            OperationName = "GetPullRequestsCount"
+	GetRelatedIssueListOperation             OperationName = "GetRelatedIssueList"
 	GetRepositoriesOperation                 OperationName = "GetRepositories"
 	GetResolutionsOperation                  OperationName = "GetResolutions"
 	GetSpaceOperation                        OperationName = "GetSpace"

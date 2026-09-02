@@ -109,6 +109,36 @@ func encodeAddDocumentTagsRequest(
 	return nil
 }
 
+func encodeAddRelatedIssueRequest(
+	req OptAddRelatedIssueReq,
+	r *http.Request,
+) error {
+	const contentType = "application/x-www-form-urlencoded"
+	if !req.Set {
+		// Keep request with empty body if value is not set.
+		return nil
+	}
+	request := req.Value
+
+	q := uri.NewFormEncoder(map[string]string{})
+	{
+		// Encode "relatedIssueId" form field.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "relatedIssueId",
+			Style:   uri.QueryStyleForm,
+			Explode: true,
+		}
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			return e.EncodeValue(conv.IntToString(request.RelatedIssueId))
+		}); err != nil {
+			return errors.Wrap(err, "encode query")
+		}
+	}
+	encoded := q.Values().Encode()
+	ht.SetBody(r, strings.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeAttachFileToWikiRequest(
 	req OptAttachFileToWikiReq,
 	r *http.Request,
