@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
+	"strconv"
 
 	"github.com/yacchi/backlog-cli/packages/backlog/internal/gen/backlog"
 )
@@ -359,10 +361,25 @@ type UpdateIssueInput struct {
 	IssueTypeID    *int
 	Comment        *string
 	AttachmentIDs  []int
+	// ParentIssueID sets the issue's parent (孫課題を含む3階層の親子付け).
+	// nil means "leave the parent untouched". RemoveParent takes priority
+	// over ParentIssueID when both are set by a caller (callers should
+	// reject that combination themselves; see internal/cmd/issue/edit.go).
+	ParentIssueID *int
+	// RemoveParent clears the issue's parent. The ogen-generated
+	// UpdateIssueReq has no parentIssueId field (openapi.yaml's
+	// updateIssue schema does not declare it), so setting ParentIssueID or
+	// RemoveParent routes this call through the hand-written thin-client
+	// (PatchForm) instead of the generated client.
+	RemoveParent bool
 }
 
 // UpdateIssue は課題を更新する
 func (c *Client) UpdateIssue(ctx context.Context, issueIDOrKey string, input *UpdateIssueInput) (*backlog.Issue, error) {
+	if input.ParentIssueID != nil || input.RemoveParent {
+		return c.updateIssueWithParent(ctx, issueIDOrKey, input)
+	}
+
 	req := backlog.UpdateIssueReq{}
 
 	if input.Summary != nil {
@@ -419,6 +436,91 @@ func (c *Client) UpdateIssue(ctx context.Context, issueIDOrKey string, input *Up
 	c.invalidateIssueCache(issueIDOrKey)
 
 	return result, nil
+}
+
+// updateIssueWithParent は parentIssueId を含む課題更新を行う。
+// ogen生成コード（internal/gen/backlog）の UpdateIssueReq には parentIssueId
+// フィールドが存在しない（openapi.yaml の updateIssue スキーマが未定義のため）ので、
+// このパスは internal/api の手書きシンクライアント（PatchForm）を使い、
+// PATCH /issues/{issueIdOrKey} に対して他のフィールドと同じフォームエンコーディングで
+// リクエストを送る。フィールド名は ogen が生成するエンコーダ
+// （oas_request_encoders_gen.go の encodeUpdateIssueRequest）と揃えてあり、
+// parentIssueId 以外のフィールドの挙動は既存の ogen 経由のパスと変わらない。
+func (c *Client) updateIssueWithParent(ctx context.Context, issueIDOrKey string, input *UpdateIssueInput) (*backlog.Issue, error) {
+	data := url.Values{}
+
+	if input.Summary != nil {
+		data.Set("summary", *input.Summary)
+	}
+	if input.Description != nil {
+		data.Set("description", *input.Description)
+	}
+	if input.StatusID != nil {
+		data.Set("statusId", strconv.Itoa(*input.StatusID))
+	}
+	if input.ResolutionID != nil {
+		data.Set("resolutionId", strconv.Itoa(*input.ResolutionID))
+	}
+	if input.PriorityID != nil {
+		data.Set("priorityId", strconv.Itoa(*input.PriorityID))
+	}
+	if input.IssueTypeID != nil {
+		data.Set("issueTypeId", strconv.Itoa(*input.IssueTypeID))
+	}
+	if input.StartDate != nil {
+		data.Set("startDate", *input.StartDate)
+	}
+	if input.DueDate != nil {
+		data.Set("dueDate", *input.DueDate)
+	}
+	if input.EstimatedHours != nil {
+		data.Set("estimatedHours", strconv.FormatFloat(*input.EstimatedHours, 'f', -1, 64))
+	}
+	if input.ActualHours != nil {
+		data.Set("actualHours", strconv.FormatFloat(*input.ActualHours, 'f', -1, 64))
+	}
+	if input.AssigneeID != nil {
+		data.Set("assigneeId", strconv.Itoa(*input.AssigneeID))
+	}
+	if input.Comment != nil {
+		data.Set("comment", *input.Comment)
+	}
+	for _, id := range input.CategoryIDs {
+		data.Add("categoryId[]", strconv.Itoa(id))
+	}
+	for _, id := range input.VersionIDs {
+		data.Add("versionId[]", strconv.Itoa(id))
+	}
+	for _, id := range input.MilestoneIDs {
+		data.Add("milestoneId[]", strconv.Itoa(id))
+	}
+	for _, id := range input.AttachmentIDs {
+		data.Add("attachmentId[]", strconv.Itoa(id))
+	}
+
+	// 親課題の設定・解除。RemoveParent は「親課題なし」を明示するため、
+	// --remove-milestone が空配列を送って解除するのと同じ考え方で、
+	// parentIssueId に空文字列をセットして親課題を解除する。
+	if input.RemoveParent {
+		data.Set("parentIssueId", "")
+	} else if input.ParentIssueID != nil {
+		data.Set("parentIssueId", strconv.Itoa(*input.ParentIssueID))
+	}
+
+	resp, err := c.PatchForm(ctx, fmt.Sprintf("/issues/%s", issueIDOrKey), data)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var result backlog.Issue
+	if err := DecodeResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	c.invalidateIssueCache(issueIDOrKey)
+
+	return &result, nil
 }
 
 // DeleteIssue は課題を削除する

@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,17 @@ var editCmd = &cobra.Command{
 	Use:   "edit <issue-key>",
 	Short: "Edit an issue",
 	Long: `Edit an existing issue.
+
+Backlog issues can be nested up to three levels: parent -> child ->
+grandchild ("孫課題"). The grandchild level shipped on 2026-08-18 and is
+only available on Premium and Platinum plans; on other plans the Backlog
+API rejects giving a parent to an issue whose own parent is already set
+(that combination would create a grandchild). Use --parent to set or
+change an issue's parent at any time (not only at creation, see 'backlog
+issue create --parent'), and --remove-parent to detach it. --parent and
+--remove-parent cannot be combined. This is different from 'backlog issue
+list --parent', which FILTERS existing issues by their parent rather than
+setting one.
 
 Examples:
   # Update title and body
@@ -44,7 +56,16 @@ Examples:
   backlog issue edit PROJ-123 --prepend "> Updated 2024-01-01"
 
   # Safe body replacement with conflict detection
-  backlog issue edit PROJ-123 --body "New body" --safe`,
+  backlog issue edit PROJ-123 --body "New body" --safe
+
+  # Move PROJ-123 under PROJ-1 (make it a child, or grandchild if PROJ-1 already has a parent)
+  backlog issue edit PROJ-123 --parent PROJ-1
+
+  # Detach PROJ-123 from its parent
+  backlog issue edit PROJ-123 --remove-parent
+
+  # Set the parent and read back the new parentIssueId
+  backlog issue edit PROJ-123 --parent PROJ-1 --output json --jq .parentIssueId`,
 	Args: cobra.ExactArgs(1),
 	RunE: runEdit,
 }
@@ -69,6 +90,8 @@ var (
 	editPatchFile        string
 	editAppend           string
 	editPrepend          string
+	editParent           string
+	editRemoveParent     bool
 )
 
 func init() {
@@ -91,10 +114,27 @@ func init() {
 	editCmd.Flags().StringVar(&editPatchFile, "patch-file", "", "Read patch JSON from file (use \"-\" for stdin)")
 	editCmd.Flags().StringVar(&editAppend, "append", "", "Text to append to description")
 	editCmd.Flags().StringVar(&editPrepend, "prepend", "", "Text to prepend to description")
+	editCmd.Flags().StringVar(&editParent, "parent", "", "Parent issue ID or key (e.g. PROJ-123 or 12345) to set as this issue's parent")
+	editCmd.Flags().BoolVar(&editRemoveParent, "remove-parent", false, "Remove this issue's parent (cannot be combined with --parent)")
+}
+
+// validateEditParentFlags rejects the mutually exclusive --parent /
+// --remove-parent combination before any API call, per the contract:
+// "--parent and --remove-parent together is a usage error: fail before any
+// API call with a message naming both flags."
+func validateEditParentFlags() error {
+	if editParent != "" && editRemoveParent {
+		return fmt.Errorf("cannot use --parent and --remove-parent together")
+	}
+	return nil
 }
 
 func runEdit(c *cobra.Command, args []string) error {
 	issueKey := args[0]
+
+	if err := validateEditParentFlags(); err != nil {
+		return err
+	}
 
 	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
@@ -154,6 +194,21 @@ func runEdit(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve assignee: %w", err)
 		}
 		input.AssigneeID = &assigneeID
+		hasUpdate = true
+	}
+
+	// 親課題（孫課題を含む3階層の親子付け）
+	if editRemoveParent {
+		input.RemoveParent = true
+		hasUpdate = true
+	} else if editParent != "" {
+		parentID, err := resolveParentIssueID(ctx, func(ctx context.Context, value string) ([]int, error) {
+			return cmdutil.ResolveIssueIDs(ctx, client, value)
+		}, editParent)
+		if err != nil {
+			return err
+		}
+		input.ParentIssueID = &parentID
 		hasUpdate = true
 	}
 
@@ -265,6 +320,10 @@ func runEdit(c *cobra.Command, args []string) error {
 func runEditWithPatch(c *cobra.Command, args []string) error {
 	issueKey := args[0]
 
+	if err := validateEditParentFlags(); err != nil {
+		return err
+	}
+
 	client, cfg, err := cmdutil.GetAPIClient(c)
 	if err != nil {
 		return err
@@ -316,7 +375,8 @@ func runEditWithPatch(c *cobra.Command, args []string) error {
 	hasOtherUpdates := editTitle != "" || editStatusID > 0 || editPriority > 0 ||
 		editDueDate != "" || editComment != "" || editAssignee != "" ||
 		editMilestones != "" || editCategories != "" || editAddCategories != "" ||
-		editRemoveCategories != "" || editRemoveMilestone || len(editAttachFiles) > 0
+		editRemoveCategories != "" || editRemoveMilestone || len(editAttachFiles) > 0 ||
+		editParent != "" || editRemoveParent
 	if hasOtherUpdates {
 		input := &api.UpdateIssueInput{}
 		_, projectKey := cmdutil.ResolveIssueKey(issueKey, cmdutil.GetCurrentProject(cfg))
@@ -365,6 +425,17 @@ func runEditWithPatch(c *cobra.Command, args []string) error {
 				return err
 			}
 			input.AttachmentIDs = attachmentIDs
+		}
+		if editRemoveParent {
+			input.RemoveParent = true
+		} else if editParent != "" {
+			parentID, err := resolveParentIssueID(ctx, func(ctx context.Context, value string) ([]int, error) {
+				return cmdutil.ResolveIssueIDs(ctx, client, value)
+			}, editParent)
+			if err != nil {
+				return err
+			}
+			input.ParentIssueID = &parentID
 		}
 
 		issue, err = client.UpdateIssue(ctx, resolvedKey, input)
