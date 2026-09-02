@@ -36,9 +36,17 @@ Examples:
   backlog issue view PROJ-123 --summary
   backlog issue view PROJ-123 -c --comments-order asc    # oldest first
   backlog issue view PROJ-123 -c=all --comments-since 12345  # comments after ID 12345
+  backlog issue view PROJ-123 --related      # also show related ("see also") issues
 
 Note: -c accepts an optional value. Use '=' to pass a value: -c=50, -c=all.
-      -c without a value shows the default number of comments (20).`,
+      -c without a value shows the default number of comments (20).
+
+--related fetches this issue's linked "RELATES" issues with one extra API
+call and prints them as an additional "Related issues" section (or under a
+"relatedIssues" key in --output json). It is the cheap way to see an issue's
+neighborhood in a single command instead of separately running
+"backlog issue related <issue>". Without the flag, "issue view" makes exactly
+the same API calls as before.`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runView,
 }
@@ -56,6 +64,7 @@ var (
 	viewMarkdownCache       bool
 	viewCommentsOrder       string
 	viewCommentsSince       int
+	viewRelated             bool
 )
 
 func init() {
@@ -72,6 +81,7 @@ func init() {
 	viewCmd.Flags().BoolVar(&viewMarkdownCache, "markdown-cache", false, "Cache markdown conversion analysis data")
 	viewCmd.Flags().StringVar(&viewCommentsOrder, "comments-order", "desc", "Comment sort order: asc or desc")
 	viewCmd.Flags().IntVar(&viewCommentsSince, "comments-since", 0, "Show comments after this comment ID")
+	viewCmd.Flags().BoolVar(&viewRelated, "related", false, "Also show related (\"see also\") issues (costs one extra API call)")
 }
 
 func runView(c *cobra.Command, args []string) error {
@@ -155,13 +165,22 @@ func runView(c *cobra.Command, args []string) error {
 		comments, _ = client.GetComments(ctx, issueKey, opts)
 	}
 
+	// 関連課題取得（--related が指定された場合のみ、追加で1回APIを呼ぶ）
+	var relatedIssues []api.RelatedIssue
+	if viewRelated {
+		relatedIssues, err = client.GetRelatedIssues(ctx, issueKey)
+		if err != nil {
+			return fmt.Errorf("failed to get related issues: %w", err)
+		}
+	}
+
 	// 出力
 	switch profile.Output {
 	case "json":
 		if viewBrief {
 			return outputBriefJSON(issue, profile)
 		}
-		return outputIssueJSON(issue, comments, showComments, profile)
+		return outputIssueJSON(issue, comments, showComments, relatedIssues, profile)
 	default:
 		if viewBrief {
 			return renderIssueBrief(issue, profile)
@@ -172,7 +191,7 @@ func runView(c *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to resolve cache dir: %w", cacheErr)
 		}
 		projectKey := cmdutil.GetCurrentProject(cfg)
-		return renderIssueDetail(issue, comments, showComments, profile, display, cfg, projectKey, markdownOpts, c.OutOrStdout())
+		return renderIssueDetail(issue, comments, showComments, relatedIssues, profile, display, cfg, projectKey, markdownOpts, c.OutOrStdout())
 	}
 }
 
@@ -240,24 +259,27 @@ func outputBriefJSON(issue *backlog.Issue, profile *config.ResolvedProfile) erro
 	return cmdutil.OutputJSONFromProfile(brief, profile.JSONFields, profile.JQ, profile.Template)
 }
 
-// IssueWithComments is a wrapper for issue with comments for JSON output
+// IssueWithComments is a wrapper for issue with comments (and, when --related
+// is set, related issues) for JSON output
 type IssueWithComments struct {
-	Issue    *backlog.Issue `json:"issue"`
-	Comments []api.Comment  `json:"comments,omitempty"`
+	Issue         *backlog.Issue     `json:"issue"`
+	Comments      []api.Comment      `json:"comments,omitempty"`
+	RelatedIssues []api.RelatedIssue `json:"relatedIssues,omitempty"`
 }
 
-// outputIssueJSON outputs issue with optional comments as JSON
-func outputIssueJSON(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile) error {
-	if showComments {
+// outputIssueJSON outputs issue with optional comments and related issues as JSON
+func outputIssueJSON(issue *backlog.Issue, comments []api.Comment, showComments bool, relatedIssues []api.RelatedIssue, profile *config.ResolvedProfile) error {
+	if showComments || relatedIssues != nil {
 		return cmdutil.OutputJSONFromProfile(IssueWithComments{
-			Issue:    issue,
-			Comments: comments,
+			Issue:         issue,
+			Comments:      comments,
+			RelatedIssues: relatedIssues,
 		}, profile.JSONFields, profile.JQ, profile.Template)
 	}
 	return cmdutil.OutputJSONFromProfile(issue, profile.JSONFields, profile.JQ, profile.Template)
 }
 
-func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, profile *config.ResolvedProfile, display *config.ResolvedDisplay, cfg *config.Store, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
+func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComments bool, relatedIssues []api.RelatedIssue, profile *config.ResolvedProfile, display *config.ResolvedDisplay, cfg *config.Store, projectKey string, markdownOpts cmdutil.MarkdownViewOptions, out io.Writer) error {
 	// フラグの調整: summary-with-comments が指定されたら summary も有効にする
 	if viewSummaryWithComments {
 		viewSummary = true
@@ -447,6 +469,19 @@ func renderIssueDetail(issue *backlog.Issue, comments []api.Comment, showComment
 				content = rendered
 			}
 			fmt.Println(content)
+		}
+	}
+
+	// 関連課題
+	if relatedIssues != nil {
+		fmt.Println()
+		fmt.Println(ui.Bold("Related issues"))
+		fmt.Println(strings.Repeat("─", 60))
+		if len(relatedIssues) == 0 {
+			fmt.Println(ui.Gray("(none)"))
+		}
+		for _, r := range relatedIssues {
+			fmt.Printf("%s  %s  %s\n", relatedIssueKey(r), relatedIssueStatus(r), relatedIssueSummary(r))
 		}
 	}
 
