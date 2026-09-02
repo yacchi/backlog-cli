@@ -73,5 +73,8 @@ export const config: RelayConfig = {
   //   // default_spaces: ["your-space.backlog.jp"],
   //   // audit: { collect_user_info: true },
   //   // logging: { input: false, output: false },
+  //   // Client ID Metadata Documents (有効が既定)。allowed_hosts は完全一致の
+  //   // 正規表現で、指定すると許可したホストの文書のみ取得する。
+  //   // cimd: { enabled: true, allowed_hosts: ["claude\\.ai"] },
   // },
 };

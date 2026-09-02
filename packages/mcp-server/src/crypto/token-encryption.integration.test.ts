@@ -2,12 +2,16 @@ import { describe, it, expect } from "vitest";
 import { createMcpApp } from "../index.js";
 import { loadSigningKeys, sign, verify, spaceKey } from "./jwt.js";
 import { seal, open } from "./secret.js";
+import { s256Challenge } from "../oauth/handlers.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
 
 const SPACE = "mycompany.backlog.jp";
 const RAW_AT = "RAW-BACKLOG-ACCESS-TOKEN";
 const RAW_RT = "RAW-BACKLOG-REFRESH-TOKEN";
+const VERIFIER = "test-code-verifier-0123456789-abcdefghijklmnopqrstuv";
+const CLIENT_ID = "test-client-id-jwt";
+const REDIRECT_URI = "https://client.example.com/cb";
 
 async function makeJwks(): Promise<string> {
     const { privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
@@ -39,6 +43,10 @@ async function makeSealedCode(jwks: string): Promise<string> {
                 exp: now + 3600,
             },
             space: SPACE,
+            code_challenge: await s256Challenge(VERIFIER),
+            code_challenge_method: "S256",
+            client_id: CLIENT_ID,
+            redirect_uri: REDIRECT_URI,
             iat: now,
             exp: now + 300,
         },
@@ -56,7 +64,13 @@ describe("token encryption — code exchange", () => {
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ grant_type: "authorization_code", code }),
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: VERIFIER,
+                client_id: CLIENT_ID,
+                redirect_uri: REDIRECT_URI,
+            }),
         });
         expect(res.status).toBe(200);
         const body = await res.json();
@@ -101,6 +115,10 @@ describe("token encryption — code exchange", () => {
                     exp: now + 3600,
                 },
                 space: SPACE,
+                code_challenge: await s256Challenge(VERIFIER),
+                code_challenge_method: "S256",
+                client_id: CLIENT_ID,
+                redirect_uri: REDIRECT_URI,
                 iat: now,
                 exp: now + 300,
             },
@@ -111,7 +129,13 @@ describe("token encryption — code exchange", () => {
         const res = await app.request("/mcp/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ grant_type: "authorization_code", code }),
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: VERIFIER,
+                client_id: CLIENT_ID,
+                redirect_uri: REDIRECT_URI,
+            }),
         });
         const body = await res.json();
         const accessPayload = await verify(body.access_token, serverKeys.verifyKeys);

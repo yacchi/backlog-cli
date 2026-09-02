@@ -5,7 +5,13 @@ import {
     sign,
     verify,
     loadSigningKeys,
+    spaceKey,
+    setSpaceAccess,
+    setSpaceRefresh,
+    listSpaceEntries,
     type TokenPayload,
+    type SpaceAccessEntry,
+    type SpaceRefreshEntry,
 } from "./jwt.js";
 import { exportJWK, generateKeyPair } from "jose";
 
@@ -23,19 +29,22 @@ describe("JWT sign/verify", () => {
         const keys = await loadSigningKeys(jwksJson);
         const now = Math.floor(Date.now() / 1000);
 
-        const payload: TokenPayload = {
-            bl_access_token: "backlog-access-token-xyz",
-            bl_expires_at: now + 3600,
-            space: "mycompany.backlog.jp",
+        const space = "mycompany.backlog.jp";
+        const payload: Record<string, unknown> = {
+            space,
             iat: now,
             exp: now + 3600,
         };
+        setSpaceAccess(payload, space, "backlog-access-token-xyz", now + 3600);
 
-        const jwt = await signToken(payload, keys.signingKey, keys.signingKid);
+        const jwt = await sign(payload, keys.signingKey, keys.signingKid);
         const verified = await verifyToken(jwt, keys.verifyKeys);
 
-        expect(verified.bl_access_token).toBe("backlog-access-token-xyz");
-        expect(verified.space).toBe("mycompany.backlog.jp");
+        const entries = listSpaceEntries(verified);
+        expect(entries).toHaveLength(1);
+        expect(entries[0][0]).toBe(space);
+        expect((entries[0][1] as SpaceAccessEntry).at).toBe("backlog-access-token-xyz");
+        expect(verified.space).toBe(space);
     });
 
     it("sign → verify roundtrip for refresh token (no exp)", async () => {
@@ -43,17 +52,148 @@ describe("JWT sign/verify", () => {
         const keys = await loadSigningKeys(jwksJson);
         const now = Math.floor(Date.now() / 1000);
 
+        const space = "mycompany.backlog.jp";
+        const payload: Record<string, unknown> = {
+            space,
+            iat: now,
+        };
+        setSpaceRefresh(payload, space, "backlog-refresh-token-abc");
+
+        const jwt = await sign(payload, keys.signingKey, keys.signingKid);
+        const verified = await verifyToken(jwt, keys.verifyKeys);
+
+        const entries = listSpaceEntries(verified);
+        expect(entries).toHaveLength(1);
+        expect((entries[0][1] as SpaceRefreshEntry).rt).toBe("backlog-refresh-token-abc");
+        expect(verified.exp).toBeUndefined();
+    });
+
+    it("verifyToken normalizes Gen 1 bl_access_token to space:* entry", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const keys = await loadSigningKeys(jwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
         const payload: TokenPayload = {
-            bl_refresh_token: "backlog-refresh-token-abc",
-            space: "mycompany.backlog.jp",
+            bl_access_token: "legacy-at",
+            bl_expires_at: now + 3600,
+            space: "legacy.backlog.jp",
+            iat: now,
+            exp: now + 3600,
+        };
+
+        const jwt = await signToken(payload, keys.signingKey, keys.signingKid);
+        const verified = await verifyToken(jwt, keys.verifyKeys);
+
+        expect(verified.bl_access_token).toBeUndefined();
+        const entries = listSpaceEntries(verified);
+        expect(entries).toHaveLength(1);
+        expect(entries[0][0]).toBe("legacy.backlog.jp");
+        expect((entries[0][1] as SpaceAccessEntry).at).toBe("legacy-at");
+    });
+
+    it("setSpaceAccess and setSpaceRefresh merge into one entry", async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const space = "mycompany.backlog.jp";
+        const payload: Record<string, unknown> = { space, iat: now };
+
+        setSpaceAccess(payload, space, "at-1", now + 3600);
+        setSpaceRefresh(payload, space, "rt-1");
+
+        const entry = payload[spaceKey(space)] as SpaceAccessEntry & SpaceRefreshEntry;
+        expect(entry.at).toBe("at-1");
+        expect(entry.exp).toBe(now + 3600);
+        expect(entry.rt).toBe("rt-1");
+
+        // 逆順でも同じ結果になること
+        const reversed: Record<string, unknown> = { space, iat: now };
+        setSpaceRefresh(reversed, space, "rt-2");
+        setSpaceAccess(reversed, space, "at-2", now + 60);
+        const rev = reversed[spaceKey(space)] as SpaceAccessEntry & SpaceRefreshEntry;
+        expect(rev.at).toBe("at-2");
+        expect(rev.rt).toBe("rt-2");
+        expect(rev.exp).toBe(now + 60);
+    });
+
+    it("verifyToken normalizes Gen 1 bl_refresh_token to space:* entry", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const keys = await loadSigningKeys(jwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const payload: TokenPayload = {
+            bl_refresh_token: "legacy-rt",
+            space: "legacy.backlog.jp",
             iat: now,
         };
 
         const jwt = await signToken(payload, keys.signingKey, keys.signingKid);
         const verified = await verifyToken(jwt, keys.verifyKeys);
 
-        expect(verified.bl_refresh_token).toBe("backlog-refresh-token-abc");
-        expect(verified.exp).toBeUndefined();
+        expect(verified.bl_refresh_token).toBeUndefined();
+        const entries = listSpaceEntries(verified);
+        expect(entries).toHaveLength(1);
+        expect((entries[0][1] as SpaceRefreshEntry).rt).toBe("legacy-rt");
+    });
+
+    it("verifyToken keeps both at and rt when migrating legacy spaces array", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const keys = await loadSigningKeys(jwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const payload: TokenPayload = {
+            spaces: [
+                {
+                    space: "one.backlog.jp",
+                    bl_access_token: "at-one",
+                    bl_refresh_token: "rt-one",
+                    bl_expires_at: now + 3600,
+                },
+                {
+                    space: "two.backlog.jp",
+                    bl_access_token: "at-two",
+                    bl_refresh_token: "rt-two",
+                    bl_expires_at: now + 1800,
+                },
+            ],
+            space: "one.backlog.jp",
+            iat: now,
+        };
+
+        const jwt = await signToken(payload, keys.signingKey, keys.signingKid);
+        const verified = await verifyToken(jwt, keys.verifyKeys);
+
+        expect(verified.spaces).toBeUndefined();
+        const entries = new Map(listSpaceEntries(verified));
+        expect(entries.size).toBe(2);
+        for (const [domain, at, rt, exp] of [
+            ["one.backlog.jp", "at-one", "rt-one", now + 3600],
+            ["two.backlog.jp", "at-two", "rt-two", now + 1800],
+        ] as const) {
+            const entry = entries.get(domain) as SpaceAccessEntry & SpaceRefreshEntry;
+            expect(entry.at).toBe(at);
+            expect(entry.rt).toBe(rt);
+            expect(entry.exp).toBe(exp);
+        }
+    });
+
+    it("verifyToken migrates legacy spaces array with refresh token only", async () => {
+        const { jwksJson } = await makeTestJWKS();
+        const keys = await loadSigningKeys(jwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const payload: TokenPayload = {
+            spaces: [{ space: "only.backlog.jp", bl_refresh_token: "rt-only" } as never],
+            space: "only.backlog.jp",
+            iat: now,
+        };
+
+        const jwt = await signToken(payload, keys.signingKey, keys.signingKid);
+        const verified = await verifyToken(jwt, keys.verifyKeys);
+
+        const entries = listSpaceEntries(verified);
+        expect(entries).toHaveLength(1);
+        const entry = entries[0][1] as SpaceAccessEntry & SpaceRefreshEntry;
+        expect(entry.rt).toBe("rt-only");
+        expect(entry.at).toBeUndefined();
     });
 
     it("verify fails with wrong key", async () => {

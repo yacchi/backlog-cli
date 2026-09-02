@@ -161,6 +161,7 @@ export function buildMcpConfig(
     default_spaces: rawConfig.mcp_default_spaces ?? [],
     audit: rawConfig.mcp_audit,
     logging: rawConfig.mcp_logging,
+    cimd: rawConfig.mcp_cimd,
   };
   if (baseUrl) {
     mcpConfigObj.base_url = baseUrl;
@@ -314,6 +315,9 @@ export async function createUnifiedApp(
         "Authorization",
         "Accept",
         "MCP-Protocol-Version",
+        // Mirrored on every modern (MCP 2026-07-28) POST.
+        "Mcp-Method",
+        "Mcp-Name",
       ],
       exposeHeaders: ["WWW-Authenticate"],
     }),

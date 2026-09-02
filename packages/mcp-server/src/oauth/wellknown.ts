@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { McpServerConfig } from "../config/schema.js";
+import { cimdEnabled } from "../config/schema.js";
 import { resolveBaseUrl } from "../base-url.js";
 
 export function createWellKnownHandlers(config: McpServerConfig): Hono {
@@ -24,7 +25,11 @@ export function createWellKnownHandlers(config: McpServerConfig): Hono {
             issuer: baseUrl,
             authorization_endpoint: `${baseUrl}/mcp/authorize`,
             token_endpoint: `${baseUrl}/mcp/token`,
+            // Preferred since MCP 2026-07-28; DCR stays advertised for clients
+            // that do not implement Client ID Metadata Documents yet.
+            client_id_metadata_document_supported: cimdEnabled(config),
             registration_endpoint: `${baseUrl}/mcp/register`,
+            authorization_response_iss_parameter_supported: true,
             scopes_supported: ["backlog"],
             response_types_supported: ["code"],
             grant_types_supported: ["authorization_code", "refresh_token"],

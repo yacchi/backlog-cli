@@ -1,10 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { createMcpApp } from "../index.js";
-import { verify, loadSigningKeys } from "../crypto/jwt.js";
+import { s256Challenge } from "./handlers.js";
+import { verify, loadSigningKeys, sign, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
 
 let testJwksJson: string;
+
+const VERIFIER = "test-code-verifier-0123456789-abcdefghijklmnopqrstuv";
+const CLIENT_ID = "test-client-id-jwt";
+const REDIRECT_URI = "https://client.example.com/cb";
+
+/** PKCE / client binding claims that /mcp/authorize puts into every code. */
+async function codeBinding(): Promise<Record<string, unknown>> {
+    return {
+        code_challenge: await s256Challenge(VERIFIER),
+        code_challenge_method: "S256",
+        client_id: CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+    };
+}
 
 async function initTestKeys() {
     if (testJwksJson) return;
@@ -59,6 +74,109 @@ describe("Well-known endpoints", () => {
         );
         expect(body.code_challenge_methods_supported).toContain("S256");
         expect(body.token_endpoint_auth_methods_supported).toContain("none");
+    });
+
+    it("advertises CIMD support and the iss parameter", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/.well-known/oauth-authorization-server");
+        const body = await res.json();
+        expect(body.client_id_metadata_document_supported).toBe(true);
+        expect(body.authorization_response_iss_parameter_supported).toBe(true);
+        // DCR stays available for clients that do not implement CIMD yet.
+        expect(body.registration_endpoint).toBeTruthy();
+    });
+
+    it("reports CIMD as unsupported when disabled", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig({ cimd: { enabled: false, allowed_hosts: [] } }),
+        });
+        const res = await app.request("/.well-known/oauth-authorization-server");
+        expect((await res.json()).client_id_metadata_document_supported).toBe(false);
+    });
+});
+
+describe("GET /mcp/authorize with a Client ID Metadata Document", () => {
+    const CLIENT_ID = "https://app.example.com/oauth/client.json";
+
+    function authorizeParams(overrides?: Record<string, string>): URLSearchParams {
+        return new URLSearchParams({
+            client_id: CLIENT_ID,
+            redirect_uri: "https://app.example.com/cb",
+            response_type: "code",
+            state: "cimd-state",
+            code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            code_challenge_method: "S256",
+            scope: "backlog:mycompany.backlog.jp",
+            ...overrides,
+        });
+    }
+
+    function stubResolver(metadata: Record<string, unknown>) {
+        return {
+            resolve: async () => metadata as never,
+        };
+    }
+
+    it("accepts a URL client_id whose document lists the redirect_uri", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/cb"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain("mycompany.backlog.jp");
+    });
+
+    it("rejects a redirect_uri absent from the document", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/other"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_redirect_uri");
+    });
+
+    it("rejects a URL client_id when the document cannot be resolved", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig(),
+            clientMetadataResolver: {
+                resolve: async () => {
+                    throw new Error("fetch failed");
+                },
+            },
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_client");
+    });
+
+    it("rejects a URL client_id when CIMD is disabled", async () => {
+        await initTestKeys();
+        const app = await createMcpApp({
+            config: makeConfig({ cimd: { enabled: false, allowed_hosts: [] } }),
+            clientMetadataResolver: stubResolver({
+                client_id: CLIENT_ID,
+                client_name: "Example MCP Client",
+                redirect_uris: ["https://app.example.com/cb"],
+            }),
+        });
+        const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_client");
     });
 });
 
@@ -273,6 +391,277 @@ describe("POST /mcp/token", () => {
         expect((await res.json()).error).toBe("invalid_request");
     });
 
+    it("exchanges a single-space code that carries both at and rt", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        // /mcp/authorize の単一スペースフローと同じ手順でコードを組み立てる。
+        // setSpaceAccess → setSpaceRefresh の順で同一キーへ書くため、
+        // 上書き実装だと at/exp が失われ exp が NaN になって 500 になる。
+        const codePayload: Record<string, unknown> = {
+            space,
+            ...(await codeBinding()),
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({
+            config: makeConfig({ audit: { collect_user_info: false } }),
+        });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: VERIFIER,
+                client_id: CLIENT_ID,
+                redirect_uri: REDIRECT_URI,
+            }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(Number.isFinite(body.expires_in)).toBe(true);
+        expect(body.expires_in).toBeGreaterThan(0);
+
+        const accessPayload = await verify(body.access_token, keys.verifyKeys);
+        expect((accessPayload[spaceKey(space)] as { at: string }).at).toBe("sealed-at");
+        expect(Number.isFinite(accessPayload.exp as number)).toBe(true);
+
+        const refreshPayload = await verify(body.refresh_token, keys.verifyKeys);
+        expect((refreshPayload[spaceKey(space)] as { rt: string }).rt).toBe("sealed-rt");
+    });
+
+    it("rejects a code exchange without code_verifier (PKCE)", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const codePayload: Record<string, unknown> = {
+            space,
+            ...(await codeBinding()),
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ grant_type: "authorization_code", code, client_id: CLIENT_ID }),
+        });
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toBe("invalid_grant");
+        expect(body.error_description).toContain("code_verifier");
+    });
+
+    it("rejects a code exchange with a wrong code_verifier", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const codePayload: Record<string, unknown> = {
+            space,
+            ...(await codeBinding()),
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: "an-entirely-different-verifier-0123456789abcdef",
+                client_id: CLIENT_ID,
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_grant");
+    });
+
+    it("rejects a code that carries no PKCE challenge at all", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        // 旧サーバーが発行した PKCE 非バインドの code。ダウングレードさせず拒否する。
+        const codePayload: Record<string, unknown> = { space, iat: now, exp: now + 300 };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ grant_type: "authorization_code", code, code_verifier: VERIFIER }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_grant");
+    });
+
+    it("rejects a code redeemed by a different client_id", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const codePayload: Record<string, unknown> = {
+            space,
+            ...(await codeBinding()),
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: VERIFIER,
+                client_id: "someone-elses-client-id",
+            }),
+        });
+        expect(res.status).toBe(400);
+        const body = await res.json();
+        expect(body.error).toBe("invalid_grant");
+        expect(body.error_description).toContain("client_id");
+    });
+
+    it("rejects a code redeemed against a different redirect_uri", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const codePayload: Record<string, unknown> = {
+            space,
+            ...(await codeBinding()),
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, space, "sealed-at", now + 3600);
+        setSpaceRefresh(codePayload, space, "sealed-rt");
+        const code = await sign(codePayload, keys.signingKey, keys.signingKid);
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                grant_type: "authorization_code",
+                code,
+                code_verifier: VERIFIER,
+                client_id: CLIENT_ID,
+                redirect_uri: "https://attacker.example.com/cb",
+            }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error_description).toContain("redirect_uri");
+    });
+
+    it("rejects a code whose space entry is missing rt", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const code = await sign(
+            {
+                [spaceKey(space)]: { at: "sealed-at", exp: now + 3600 },
+                space,
+                ...(await codeBinding()),
+                iat: now,
+                exp: now + 300,
+            },
+            keys.signingKey,
+            keys.signingKid,
+        );
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ grant_type: "authorization_code", code }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_grant");
+    });
+
+    it("rejects a code whose space entry has a non-numeric exp", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const code = await sign(
+            {
+                [spaceKey(space)]: { at: "sealed-at", rt: "sealed-rt", exp: "soon" },
+                space,
+                ...(await codeBinding()),
+                iat: now,
+                exp: now + 300,
+            },
+            keys.signingKey,
+            keys.signingKid,
+        );
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ grant_type: "authorization_code", code }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_grant");
+    });
+
+    it("rejects a refresh token whose space entry is missing rt", async () => {
+        await initTestKeys();
+        const space = "mycompany.backlog.jp";
+        const keys = await loadSigningKeys(testJwksJson);
+        const now = Math.floor(Date.now() / 1000);
+
+        const refreshToken = await sign(
+            { [spaceKey(space)]: { at: "sealed-at", exp: now + 3600 }, space, iat: now },
+            keys.signingKey,
+            keys.signingKid,
+        );
+
+        const app = await createMcpApp({ config: makeConfig() });
+        const res = await app.request("/mcp/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ grant_type: "refresh_token", refresh_token: refreshToken }),
+        });
+        expect(res.status).toBe(400);
+        expect((await res.json()).error).toBe("invalid_grant");
+    });
+
     it("accepts application/x-www-form-urlencoded", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
@@ -412,6 +801,31 @@ describe("space cookie session binding", () => {
         expect(loc).toBeTruthy();
         expect(loc).toContain("code=");
         expect(loc).toContain("state=state-A");
+    });
+
+    // RFC 9207 (MCP SEP-2468): the authorization response must identify the
+    // issuer so clients can detect mix-up attacks before redeeming the code.
+    it("complete: authorization response carries the iss parameter", async () => {
+        await initTestKeys();
+        const { sessionFingerprint } = await import("./handlers.js");
+        const app = await createMcpApp({ config: makeConfig() });
+
+        const session = await getAuthorizeSession(app, "state-iss");
+        const sid = await sessionFingerprint(session);
+        const space = "mycompany.backlog.jp";
+        const cookie = await craftSpaceCookie(space, sid);
+
+        const res = await app.request("/mcp/authorize/complete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Cookie: `${cookie.name}=${cookie.value}`,
+            },
+            body: new URLSearchParams({ session, spaces: space }).toString(),
+        });
+        expect(res.status).toBe(302);
+        const loc = new URL(res.headers.get("location")!);
+        expect(loc.searchParams.get("iss")).toBe("https://mcp.example.com");
     });
 });
 

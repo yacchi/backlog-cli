@@ -1,9 +1,10 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { McpServerConfig } from "../config/schema.js";
-import { matchSpacePattern } from "../config/schema.js";
+import { matchSpacePattern, cimdEnabled } from "../config/schema.js";
+import { isClientIdUrl, createClientMetadataResolver, type ClientMetadataResolver } from "./cimd.js";
 import { resolveBaseUrl } from "../base-url.js";
-import { sign, verify, signToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
+import { sign, verify, verifyToken, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import type { SpaceToken, SigningKeys } from "../crypto/jwt.js";
 import { seal, open } from "../crypto/secret.js";
 import { Logger, LOGGER_CONTEXT_KEY, auditEvent } from "../logging/logger.js";
@@ -26,6 +27,8 @@ export interface TokenExchange {
 export interface OAuthHandlerOptions {
     tokenExchange?: TokenExchange;
     callbackPath?: string;
+    /** Override the CIMD resolver (tests inject a stub fetch through this). */
+    clientMetadataResolver?: ClientMetadataResolver;
 }
 
 const SCOPE_PATTERN = /^backlog:(.+)$/;
@@ -34,6 +37,70 @@ const COOKIE_MAX_AGE = 300;
 
 function base64url(input: string): string {
     return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * PKCE S256 challenge for a verifier: base64url(SHA-256(ascii(verifier))).
+ */
+export async function s256Challenge(verifier: string): Promise<string> {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+    const bytes = new Uint8Array(digest);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return base64url(bin);
+}
+
+/** Length-independent comparison so a mismatch does not leak position. */
+function constantTimeEquals(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
+/**
+ * Verify the PKCE code_verifier against the challenge carried by the code, and
+ * confirm the code is being redeemed by the client and redirect_uri it was
+ * issued to. Returns an error description, or null when the code is bound
+ * correctly.
+ *
+ * `code_challenge` is mandatory at /mcp/authorize, so every code this server
+ * issues carries one. A code without it is rejected rather than downgraded.
+ */
+async function verifyCodeBinding(
+    codePayload: Record<string, unknown>,
+    req: TokenRequest,
+): Promise<string | null> {
+    const challenge = codePayload.code_challenge;
+    if (typeof challenge !== "string" || !challenge) {
+        return "Code is not bound to a PKCE challenge";
+    }
+    const method = typeof codePayload.code_challenge_method === "string"
+        ? codePayload.code_challenge_method
+        : "S256";
+    if (method !== "S256") {
+        return "Only S256 code_challenge_method is supported";
+    }
+    if (!req.code_verifier) {
+        return "code_verifier is required (PKCE)";
+    }
+    if (!constantTimeEquals(await s256Challenge(req.code_verifier), challenge)) {
+        return "code_verifier does not match code_challenge";
+    }
+
+    // Bind the code to the client and redirect_uri it was issued for.
+    const boundClientId = codePayload.client_id;
+    if (typeof boundClientId === "string" && req.client_id && req.client_id !== boundClientId) {
+        return "client_id does not match the authorization code";
+    }
+    const boundRedirectUri = codePayload.redirect_uri;
+    if (typeof boundRedirectUri === "string" && req.redirect_uri && req.redirect_uri !== boundRedirectUri) {
+        return "redirect_uri does not match the authorization code";
+    }
+
+    return null;
 }
 
 /**
@@ -108,6 +175,36 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         open(value, (kid) => encKeys.get(kid), { sp: domain, use });
 
     const tokenExchange = options?.tokenExchange;
+
+    // Client ID Metadata Documents: `client_id` is an https URL serving the
+    // client's metadata, resolved on demand instead of being registered.
+    const useCimd = cimdEnabled(config);
+    const clientMetadata = options?.clientMetadataResolver
+        ?? createClientMetadataResolver({ allowedHosts: config.cimd?.allowed_hosts ?? [] });
+
+    /**
+     * Resolve a client_id into its registered metadata: a CIMD URL is fetched
+     * and validated, anything else is verified as a stateless-DCR JWS.
+     */
+    async function resolveClient(clientId: string): Promise<ClientIdPayload> {
+        if (isClientIdUrl(clientId)) {
+            if (!useCimd) {
+                throw new Error("Client ID Metadata Documents are disabled on this server");
+            }
+            const metadata = await clientMetadata.resolve(clientId);
+            return {
+                redirect_uris: metadata.redirect_uris,
+                client_name: metadata.client_name,
+                iat: 0,
+            };
+        }
+        const raw = await verifyClientId(clientId, verifyKeys);
+        return {
+            redirect_uris: raw.redirect_uris ?? [],
+            client_name: raw.client_name,
+            iat: raw.iat,
+        };
+    }
 
     // Path appended to the resolved base URL to form the Backlog redirect_uri.
     // base_url is derived per-request (resolveBaseUrl); authorize and callback
@@ -224,7 +321,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         };
 
         getLogger(c).info(auditEvent({
-            action: "dcr",
+            action: "mcp_dcr",
             result: "success",
             client_id: clientId,
             client_payload: clientPayload,
@@ -286,13 +383,14 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         let clientPayload: ClientIdPayload;
         try {
-            const raw = await verifyClientId(clientId, verifyKeys);
-            clientPayload = {
-                redirect_uris: raw.redirect_uris ?? [],
-                client_name: raw.client_name,
-                iat: raw.iat,
-            };
-        } catch {
+            clientPayload = await resolveClient(clientId);
+        } catch (err) {
+            getLogger(c).warn(auditEvent({
+                action: "mcp_client_resolve",
+                result: "error",
+                client_id: clientId,
+                error: (err as Error).message,
+            }));
             return jsonError(c, 400, "invalid_client", "Invalid client_id");
         }
 
@@ -336,7 +434,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         );
 
         getLogger(c).info(auditEvent({
-            action: "authorize",
+            action: "mcp_authorize",
             result: "success",
             space: requiredSpaces[0].space,
             clientName: clientPayload.client_name,
@@ -476,7 +574,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             });
 
             getLogger(c).info(auditEvent({
-                action: "callback",
+                action: "mcp_callback",
                 result: "success",
                 space: authorizeState.space,
             }));
@@ -485,23 +583,25 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             return c.html(popupSuccessPage(authorizeState.space));
         }
 
-        // Legacy single-space flow (no popup flag)
-        const mcpCode = await signToken(
-            {
-                bl_access_token: await sealValue(authorizeState.space, "at", backlogTokens.access_token),
-                bl_refresh_token: await sealValue(authorizeState.space, "rt", backlogTokens.refresh_token),
-                bl_expires_at: now + backlogTokens.expires_in,
-                space: authorizeState.space,
-                iat: now,
-                exp: now + 300,
-            },
-            signingKey,
-            signingKid,
-        );
+        // Single-space flow (no popup flag)
+        const codePayload: Record<string, unknown> = {
+            space: authorizeState.space,
+            // PKCE / client binding — verified at /mcp/token
+            code_challenge: authorizeState.code_challenge,
+            code_challenge_method: authorizeState.code_challenge_method,
+            client_id: authorizeState.client_id,
+            redirect_uri: authorizeState.redirect_uri,
+            iat: now,
+            exp: now + 300,
+        };
+        setSpaceAccess(codePayload, authorizeState.space, await sealValue(authorizeState.space, "at", backlogTokens.access_token), now + backlogTokens.expires_in);
+        setSpaceRefresh(codePayload, authorizeState.space, await sealValue(authorizeState.space, "rt", backlogTokens.refresh_token));
+        const mcpCode = await sign(codePayload, signingKey, signingKid);
 
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
         redirectUrl.searchParams.set("state", authorizeState.state);
+        redirectUrl.searchParams.set("iss", resolveBaseUrl(c, config.base_url));
 
         c.header("Cache-Control", "no-store");
         return c.redirect(redirectUrl.toString(), 302);
@@ -597,6 +697,11 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
             {
                 ...codePayloadEntries,
                 space: primary.space,
+                // PKCE / client binding — verified at /mcp/token
+                code_challenge: authorizeState.code_challenge,
+                code_challenge_method: authorizeState.code_challenge_method,
+                client_id: authorizeState.client_id,
+                redirect_uri: authorizeState.redirect_uri,
                 iat: now,
                 exp: now + 300,
             },
@@ -616,7 +721,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         }
 
         getLogger(c).info(auditEvent({
-            action: "complete",
+            action: "mcp_complete",
             result: "success",
             space: authorizeState.space,
             spaces: spaceHosts,
@@ -625,6 +730,7 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
         const redirectUrl = new URL(authorizeState.redirect_uri);
         redirectUrl.searchParams.set("code", mcpCode);
         redirectUrl.searchParams.set("state", authorizeState.state);
+        redirectUrl.searchParams.set("iss", resolveBaseUrl(c, config.base_url));
 
         c.header("Cache-Control", "no-store");
         return c.redirect(redirectUrl.toString(), 302);
@@ -679,152 +785,119 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         let codePayload: Record<string, unknown>;
         try {
-            codePayload = await verify(req.code, verifyKeys);
+            codePayload = await verifyToken(req.code, verifyKeys) as unknown as Record<string, unknown>;
         } catch {
             return jsonError(c, 400, "invalid_grant", "Invalid or expired code");
         }
 
         const now = Math.floor(Date.now() / 1000);
 
-        // Extract space entries from code payload (new "space:*" format or legacy "spaces" array)
-        // verifyToken already normalizes legacy formats, but codePayload is raw verify() output
         type CodeSpaceEntry = { at: string; rt: string; exp: number };
         const codeSpaces: Array<[string, CodeSpaceEntry]> = [];
 
-        // New format: "space:example.backlog.jp" keys
         for (const [key, value] of Object.entries(codePayload)) {
-            if (key.startsWith("space:")) {
-                const domain = key.slice("space:".length);
-                codeSpaces.push([domain, value as CodeSpaceEntry]);
+            if (!key.startsWith("space:")) continue;
+            const domain = key.slice("space:".length);
+            // 用途別の検証。access token / refresh token など別用途の JWT を
+            // code として渡された場合に 500 ではなく invalid_grant で落とす。
+            if (!domain.includes(".")) {
+                return jsonError(c, 400, "invalid_grant", "Malformed code");
             }
+            const e = value as Partial<CodeSpaceEntry> | null;
+            if (
+                !e || typeof e !== "object"
+                || typeof e.at !== "string" || typeof e.rt !== "string"
+                || typeof e.exp !== "number" || !Number.isFinite(e.exp)
+            ) {
+                return jsonError(c, 400, "invalid_grant", "Malformed code");
+            }
+            codeSpaces.push([domain, e as CodeSpaceEntry]);
         }
 
-        // Legacy format: "spaces" array
         if (codeSpaces.length === 0) {
-            const legacySpaces = codePayload.spaces as SpaceToken[] | undefined;
-            if (legacySpaces) {
-                for (const s of legacySpaces) {
-                    codeSpaces.push([s.space, { at: s.bl_access_token, rt: s.bl_refresh_token, exp: s.bl_expires_at }]);
-                }
-            }
+            return jsonError(c, 400, "invalid_grant", "Malformed code");
         }
 
-        // Extract clientName from client_id JWT
+        const bindingError = await verifyCodeBinding(codePayload, req);
+        if (bindingError) {
+            getLogger(c).warn(auditEvent({
+                action: "mcp_token_exchange",
+                result: "error",
+                space: codePayload.space as string | undefined,
+                error: bindingError,
+            }));
+            return jsonError(c, 400, "invalid_grant", bindingError);
+        }
+
+        // Client name is audit metadata only — a client_id we cannot resolve
+        // must not fail the exchange.
         let clientName: string | undefined;
         if (req.client_id) {
             try {
-                const clientPayload = await verifyClientId(req.client_id, verifyKeys);
-                clientName = clientPayload.client_name;
-            } catch { /* ignore invalid client_id */ }
+                clientName = (await resolveClient(req.client_id)).client_name;
+            } catch { /* ignore unresolvable client_id */ }
         }
 
         const collectUserInfo = config.audit?.collect_user_info !== false;
 
-        if (codeSpaces.length > 0) {
-            const primarySpace = codePayload.space as string || codeSpaces[0][0];
-            const minExpires = Math.min(...codeSpaces.map(([, e]) => e.exp));
-            const expiresIn = Math.max(minExpires - now, 60);
+        const primarySpace = codePayload.space as string || codeSpaces[0][0];
+        const minExpires = Math.min(...codeSpaces.map(([, e]) => e.exp));
+        const expiresIn = Math.max(minExpires - now, 60);
 
-            const accessEntries: Record<string, unknown> = {};
-            const refreshEntries: Record<string, unknown> = {};
-            for (const [domain, e] of codeSpaces) {
-                setSpaceAccess(accessEntries, domain, e.at, e.exp);
-                setSpaceRefresh(refreshEntries, domain, e.rt);
-            }
-
-            // Fetch user email from Backlog API (audit enabled)
-            let userEmail: string | undefined;
-            if (collectUserInfo) {
-                const primaryEntry = codeSpaces.find(([d]) => d === primarySpace) || codeSpaces[0];
-                if (primaryEntry) {
-                    try {
-                        const rawAt = await openValue(primaryEntry[0], "at", primaryEntry[1].at);
-                        const user = await fetchCurrentUser(primaryEntry[0], rawAt);
-                        userEmail = user?.mailAddress;
-                    } catch { /* ignore */ }
-                }
-            }
-
-            const tokenMeta: Record<string, unknown> = {};
-            if (userEmail) tokenMeta.userEmail = userEmail;
-            if (clientName) tokenMeta.clientName = clientName;
-
-            const accessTokenJwt = await sign(
-                {
-                    ...accessEntries,
-                    ...tokenMeta,
-                    space: primarySpace,
-                    iat: now,
-                    exp: now + expiresIn,
-                },
-                signingKey,
-                signingKid,
-            );
-
-            const refreshTokenJwt = await sign(
-                {
-                    ...refreshEntries,
-                    ...tokenMeta,
-                    space: primarySpace,
-                    iat: now,
-                },
-                signingKey,
-                signingKid,
-            );
-
-            getLogger(c).info(auditEvent({
-                action: "token_exchange",
-                result: "success",
-                space: primarySpace,
-                spaces: codeSpaces.map(([d]) => d),
-                userEmail,
-                clientName,
-            }));
-
-            return c.json({
-                access_token: accessTokenJwt,
-                token_type: "Bearer",
-                expires_in: expiresIn,
-                refresh_token: refreshTokenJwt,
-            });
+        const accessEntries: Record<string, unknown> = {};
+        const refreshEntries: Record<string, unknown> = {};
+        for (const [domain, e] of codeSpaces) {
+            setSpaceAccess(accessEntries, domain, e.at, e.exp);
+            setSpaceRefresh(refreshEntries, domain, e.rt);
         }
 
-        // Legacy single-space code (no spaces array, no space:* keys)
-        const bl_access_token = codePayload.bl_access_token as string;
-        const bl_refresh_token = codePayload.bl_refresh_token as string;
-        if (!bl_access_token || !bl_refresh_token) {
-            return jsonError(c, 400, "invalid_grant", "Malformed code");
-        }
-
-        const bl_expires_at = (codePayload.bl_expires_at as number) ?? now + 3600;
-        const expiresIn = Math.max(bl_expires_at - now, 60);
-
-        let space = codePayload.space as string;
-        if (space && !space.includes(".") && (codePayload as any).domain) {
-            space = `${space}.${(codePayload as any).domain}`;
-        }
-
-        // Fetch user email for legacy path
-        let legacyUserEmail: string | undefined;
+        let userEmail: string | undefined;
         if (collectUserInfo) {
-            try {
-                const rawAt = await openValue(space, "at", bl_access_token);
-                const user = await fetchCurrentUser(space, rawAt);
-                legacyUserEmail = user?.mailAddress;
-            } catch { /* ignore */ }
+            const primaryEntry = codeSpaces.find(([d]) => d === primarySpace) || codeSpaces[0];
+            if (primaryEntry) {
+                try {
+                    const rawAt = await openValue(primaryEntry[0], "at", primaryEntry[1].at);
+                    const user = await fetchCurrentUser(primaryEntry[0], rawAt);
+                    userEmail = user?.mailAddress;
+                } catch { /* ignore */ }
+            }
         }
 
-        const legacyMeta: Record<string, unknown> = {};
-        if (legacyUserEmail) legacyMeta.userEmail = legacyUserEmail;
-        if (clientName) legacyMeta.clientName = clientName;
+        const tokenMeta: Record<string, unknown> = {};
+        if (userEmail) tokenMeta.userEmail = userEmail;
+        if (clientName) tokenMeta.clientName = clientName;
 
-        const accessPayload: Record<string, unknown> = { ...legacyMeta, space, iat: now, exp: now + expiresIn };
-        setSpaceAccess(accessPayload, space, bl_access_token, bl_expires_at);
-        const accessTokenJwt = await sign(accessPayload, signingKey, signingKid);
+        const accessTokenJwt = await sign(
+            {
+                ...accessEntries,
+                ...tokenMeta,
+                space: primarySpace,
+                iat: now,
+                exp: now + expiresIn,
+            },
+            signingKey,
+            signingKid,
+        );
 
-        const refreshPayload: Record<string, unknown> = { ...legacyMeta, space, iat: now };
-        setSpaceRefresh(refreshPayload, space, bl_refresh_token);
-        const refreshTokenJwt = await sign(refreshPayload, signingKey, signingKid);
+        const refreshTokenJwt = await sign(
+            {
+                ...refreshEntries,
+                ...tokenMeta,
+                space: primarySpace,
+                iat: now,
+            },
+            signingKey,
+            signingKid,
+        );
+
+        getLogger(c).info(auditEvent({
+            action: "mcp_token_exchange",
+            result: "success",
+            space: primarySpace,
+            spaces: codeSpaces.map(([d]) => d),
+            userEmail,
+            clientName,
+        }));
 
         return c.json({
             access_token: accessTokenJwt,
@@ -849,201 +922,118 @@ export function createOAuthHandlers(config: McpServerConfig, keys: SigningKeys, 
 
         let refreshPayload: Record<string, unknown>;
         try {
-            refreshPayload = await verify(req.refresh_token, verifyKeys);
+            refreshPayload = await verifyToken(req.refresh_token, verifyKeys) as unknown as Record<string, unknown>;
         } catch {
             return jsonError(c, 400, "invalid_grant", "Invalid refresh token");
         }
 
-        // Extract refresh entries from payload (new "space:*" format or legacy "spaces" array)
         type RefreshEntry = { domain: string; rt: string };
         const refreshEntries: RefreshEntry[] = [];
 
         for (const [key, value] of Object.entries(refreshPayload)) {
-            if (key.startsWith("space:")) {
-                const domain = key.slice("space:".length);
-                const entry = value as { rt?: string };
-                if (entry.rt) {
-                    refreshEntries.push({ domain, rt: entry.rt });
-                }
+            if (!key.startsWith("space:")) continue;
+            const domain = key.slice("space:".length);
+            const entry = value as { rt?: unknown } | null;
+            if (!domain.includes(".") || !entry || typeof entry !== "object" || typeof entry.rt !== "string") {
+                continue;
             }
+            refreshEntries.push({ domain, rt: entry.rt });
         }
 
-        // Legacy format
         if (refreshEntries.length === 0) {
-            const legacySpaces = refreshPayload.spaces as SpaceToken[] | undefined;
-            if (legacySpaces) {
-                for (const s of legacySpaces) {
-                    if (s.bl_refresh_token) {
-                        refreshEntries.push({ domain: s.space, rt: s.bl_refresh_token });
-                    }
-                }
-            }
-        }
-
-        // Carry forward clientName from previous token
-        const prevClientName = refreshPayload.clientName as string | undefined;
-        const collectUserInfo = config.audit?.collect_user_info !== false;
-
-        if (refreshEntries.length > 0) {
-            const accessEntries: Record<string, unknown> = {};
-            const newRefreshEntries: Record<string, unknown> = {};
-            const expirations: number[] = [];
-            let freshUserEmail: string | undefined;
-
-            const primarySpace = refreshPayload.space as string || refreshEntries[0].domain;
-
-            for (const entry of refreshEntries) {
-                let rt: string;
-                try {
-                    rt = await openValue(entry.domain, "rt", entry.rt);
-                } catch {
-                    return jsonError(
-                        c,
-                        400,
-                        "invalid_grant",
-                        `Stale refresh token for ${entry.domain}. Re-authentication required.`,
-                    );
-                }
-                let tokens: TokenResponse;
-                try {
-                    tokens = await doRefreshToken(entry.domain, rt);
-                } catch {
-                    return jsonError(
-                        c,
-                        400,
-                        "invalid_grant",
-                        `Token refresh failed for ${entry.domain}. Re-authentication required.`,
-                    );
-                }
-
-                // Fetch user email from primary space's fresh access token
-                if (collectUserInfo && !freshUserEmail && entry.domain === primarySpace) {
-                    const user = await fetchCurrentUser(entry.domain, tokens.access_token);
-                    freshUserEmail = user?.mailAddress;
-                }
-
-                const now = Math.floor(Date.now() / 1000);
-                const expiresAt = now + tokens.expires_in;
-                setSpaceAccess(accessEntries, entry.domain, await sealValue(entry.domain, "at", tokens.access_token), expiresAt);
-                setSpaceRefresh(newRefreshEntries, entry.domain, await sealValue(entry.domain, "rt", tokens.refresh_token));
-                expirations.push(expiresAt);
-            }
-
-            if (Object.keys(accessEntries).length === 0) {
-                return jsonError(c, 400, "invalid_grant", "No refreshable tokens");
-            }
-
-            const now = Math.floor(Date.now() / 1000);
-            const minExpires = Math.min(...expirations);
-            const expiresIn = Math.max(minExpires - now, 60);
-
-            const refreshMeta: Record<string, unknown> = {};
-            if (freshUserEmail) refreshMeta.userEmail = freshUserEmail;
-            if (prevClientName) refreshMeta.clientName = prevClientName;
-
-            const accessTokenJwt = await sign(
-                {
-                    ...accessEntries,
-                    ...refreshMeta,
-                    space: primarySpace,
-                    iat: now,
-                    exp: now + expiresIn,
-                },
-                signingKey,
-                signingKid,
-            );
-
-            const refreshTokenJwt = await sign(
-                {
-                    ...newRefreshEntries,
-                    ...refreshMeta,
-                    space: primarySpace,
-                    iat: now,
-                },
-                signingKey,
-                signingKid,
-            );
-
-            getLogger(c).info(auditEvent({
-                action: "token_refresh",
-                result: "success",
-                space: primarySpace,
-                spaces: refreshEntries.map((e) => e.domain),
-                userEmail: freshUserEmail,
-                clientName: prevClientName,
-            }));
-
-            return c.json({
-                access_token: accessTokenJwt,
-                token_type: "Bearer",
-                expires_in: expiresIn,
-                refresh_token: refreshTokenJwt,
-            });
-        }
-
-        // Legacy single-space refresh (no space:* keys, no spaces array)
-        const bl_refresh_token = refreshPayload.bl_refresh_token as string;
-        if (!bl_refresh_token) {
             return jsonError(c, 400, "invalid_grant", "Malformed refresh token");
         }
 
-        let space = refreshPayload.space as string;
-        if (space && !space.includes(".") && (refreshPayload as any).domain) {
-            space = `${space}.${(refreshPayload as any).domain}`;
-        }
+        const prevClientName = refreshPayload.clientName as string | undefined;
+        const collectUserInfo = config.audit?.collect_user_info !== false;
 
-        let rt: string;
-        try {
-            rt = await openValue(space, "rt", bl_refresh_token);
-        } catch {
-            return jsonError(c, 400, "invalid_grant", "Stale refresh token. Re-authentication required.");
-        }
+        const accessEntries: Record<string, unknown> = {};
+        const newRefreshEntries: Record<string, unknown> = {};
+        const expirations: number[] = [];
+        let freshUserEmail: string | undefined;
 
-        let backlogTokens: TokenResponse;
-        try {
-            backlogTokens = await doRefreshToken(space, rt);
-        } catch (err) {
-            return jsonError(
-                c,
-                502,
-                "upstream_error",
-                (err as Error).message,
-            );
+        const primarySpace = refreshPayload.space as string || refreshEntries[0].domain;
+
+        for (const entry of refreshEntries) {
+            let rt: string;
+            try {
+                rt = await openValue(entry.domain, "rt", entry.rt);
+            } catch {
+                return jsonError(
+                    c,
+                    400,
+                    "invalid_grant",
+                    `Stale refresh token for ${entry.domain}. Re-authentication required.`,
+                );
+            }
+            let tokens: TokenResponse;
+            try {
+                tokens = await doRefreshToken(entry.domain, rt);
+            } catch {
+                return jsonError(
+                    c,
+                    400,
+                    "invalid_grant",
+                    `Token refresh failed for ${entry.domain}. Re-authentication required.`,
+                );
+            }
+
+            if (collectUserInfo && !freshUserEmail && entry.domain === primarySpace) {
+                const user = await fetchCurrentUser(entry.domain, tokens.access_token);
+                freshUserEmail = user?.mailAddress;
+            }
+
+            const now = Math.floor(Date.now() / 1000);
+            const expiresAt = now + tokens.expires_in;
+            setSpaceAccess(accessEntries, entry.domain, await sealValue(entry.domain, "at", tokens.access_token), expiresAt);
+            setSpaceRefresh(newRefreshEntries, entry.domain, await sealValue(entry.domain, "rt", tokens.refresh_token));
+            expirations.push(expiresAt);
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const expiresAt = now + backlogTokens.expires_in;
+        const minExpires = Math.min(...expirations);
+        const expiresIn = Math.max(minExpires - now, 60);
 
-        let legacyRefreshEmail: string | undefined;
-        if (collectUserInfo) {
-            const user = await fetchCurrentUser(space, backlogTokens.access_token);
-            legacyRefreshEmail = user?.mailAddress;
-        }
+        const refreshMeta: Record<string, unknown> = {};
+        if (freshUserEmail) refreshMeta.userEmail = freshUserEmail;
+        if (prevClientName) refreshMeta.clientName = prevClientName;
 
-        const legacyRefreshMeta: Record<string, unknown> = {};
-        if (legacyRefreshEmail) legacyRefreshMeta.userEmail = legacyRefreshEmail;
-        if (prevClientName) legacyRefreshMeta.clientName = prevClientName;
+        const accessTokenJwt = await sign(
+            {
+                ...accessEntries,
+                ...refreshMeta,
+                space: primarySpace,
+                iat: now,
+                exp: now + expiresIn,
+            },
+            signingKey,
+            signingKid,
+        );
 
-        const newAccessPayload: Record<string, unknown> = { ...legacyRefreshMeta, space, iat: now, exp: expiresAt };
-        setSpaceAccess(newAccessPayload, space, await sealValue(space, "at", backlogTokens.access_token), expiresAt);
-        const accessTokenJwt = await sign(newAccessPayload, signingKey, signingKid);
-
-        const newRefreshPayload: Record<string, unknown> = { ...legacyRefreshMeta, space, iat: now };
-        setSpaceRefresh(newRefreshPayload, space, await sealValue(space, "rt", backlogTokens.refresh_token));
-        const refreshTokenJwt = await sign(newRefreshPayload, signingKey, signingKid);
+        const refreshTokenJwt = await sign(
+            {
+                ...newRefreshEntries,
+                ...refreshMeta,
+                space: primarySpace,
+                iat: now,
+            },
+            signingKey,
+            signingKid,
+        );
 
         getLogger(c).info(auditEvent({
-            action: "token_refresh",
+            action: "mcp_token_refresh",
             result: "success",
-            space,
-            userEmail: legacyRefreshEmail,
+            space: primarySpace,
+            spaces: refreshEntries.map((e) => e.domain),
+            userEmail: freshUserEmail,
             clientName: prevClientName,
         }));
 
         return c.json({
             access_token: accessTokenJwt,
             token_type: "Bearer",
-            expires_in: backlogTokens.expires_in,
+            expires_in: expiresIn,
             refresh_token: refreshTokenJwt,
         });
     }
