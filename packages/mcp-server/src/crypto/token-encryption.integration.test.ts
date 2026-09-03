@@ -5,6 +5,12 @@ import { seal, open } from "./secret.js";
 import { s256Challenge } from "../oauth/handlers.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
+import { readJson } from "../test-support/http.js";
+
+interface TokenResponse {
+    access_token: string;
+    refresh_token: string;
+}
 
 const SPACE = "mycompany.backlog.jp";
 const RAW_AT = "RAW-BACKLOG-ACCESS-TOKEN";
@@ -73,7 +79,7 @@ describe("token encryption — code exchange", () => {
             }),
         });
         expect(res.status).toBe(200);
-        const body = await res.json();
+        const body = await readJson<TokenResponse>(res);
 
         // The raw Backlog tokens must never appear in the issued JWTs.
         expect(body.access_token).not.toContain(RAW_AT);
@@ -137,7 +143,7 @@ describe("token encryption — code exchange", () => {
                 redirect_uri: REDIRECT_URI,
             }),
         });
-        const body = await res.json();
+        const body = await readJson<TokenResponse>(res);
         const accessPayload = await verify(body.access_token, serverKeys.verifyKeys);
         const sealedAt = (accessPayload[spaceKey(SPACE)] as { at: string }).at;
         await expect(
