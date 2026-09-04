@@ -23,8 +23,8 @@ components:
           scopes: {}
     ApiKey:
       type: apiKey
-      in: query
-      name: apiKey
+      in: header
+      name: Backlog-API-Key
   schemas:
     User:
       type: object
@@ -336,6 +336,47 @@ components:
           $ref: '#/components/schemas/User'
         resourceAlreadyRead:
           type: boolean
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+        project:
+          allOf:
+          - $ref: '#/components/schemas/Project'
+          nullable: true
+        type:
+          type: integer
+        content:
+          allOf:
+          - $ref: '#/components/schemas/ActivityContent'
+          nullable: true
+        createdUser:
+          $ref: '#/components/schemas/User'
+        created:
+          type: string
+    ActivityContent:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        key_id:
+          type: integer
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+    RecentlyViewedIssue:
+      type: object
+      properties:
+        issue:
+          $ref: '#/components/schemas/Issue'
+        updated:
+          type: string
     Wiki:
       type: object
       properties:
@@ -918,7 +959,7 @@ paths:
                   description: 課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。
                 description:
                   type: string
-                  description: 課題の詳細
+                  description: 課題の詳細。 メンション記法 が使えます。
                 startDate:
                   type: string
                   description: 課題の開始日 (yyyy-MM-dd)
@@ -1056,8 +1097,8 @@ paths:
         in: query
         schema:
           type: integer
-        description: '親子課題の条件。指定が無い場合は0が使われます。 0: すべて 1: 子課題以外の課題 2: 子課題 3: 親課題でも子課題でもない課題
-          4: 親課題'
+        description: '親子課題の条件。指定が無い場合は0が使われます。 0: すべて 1: 子課題以外 2: 2階層または3階層 3: 階層なし
+          4: 子課題あり 5: 3階層目 6: 2階層目 7: 最上位 8: 3階層以外 9: 最上位（3階層）以外 10:'
       - name: attachment
         in: query
         schema:
@@ -1153,6 +1194,14 @@ paths:
         schema:
           type: string
         description: 検索キーワード
+      - name: expand[]
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+        description: '拡張フィールドの指定。 childIssueSummary : 直下の子課題の総件数（ total ）および完了件数（
+          closed ）を  childIssueSummary  オブジェクトとしてレスポンスに含めます。省略時はレスポンスに'
       responses:
         '200':
           description: Successful response
@@ -1385,7 +1434,7 @@ paths:
                   description: 課題の親課題のID。 課題のIDは 課題情報の取得 から取得できます。
                 description:
                   type: string
-                  description: 課題の詳細
+                  description: 課題の詳細。 メンション記法 が使えます。
                 statusId:
                   type: integer
                   description: 課題の状態のID。 状態のIDは プロジェクトの状態一覧の取得 から取得できます。
@@ -1440,7 +1489,7 @@ paths:
                   description: 添付ファイル送信 が返すID
                 comment:
                   type: string
-                  description: コメント
+                  description: コメント。 メンション記法 が使えます。
       responses:
         '200':
           description: Successful response
@@ -1587,7 +1636,7 @@ paths:
               properties:
                 content(必須):
                   type: string
-                  description: コメントの本文
+                  description: コメントの本文。 メンション記法 が使えます。
                 notifiedUserId(複数指定可):
                   type: array
                   items:
@@ -1696,7 +1745,7 @@ paths:
               properties:
                 content:
                   type: string
-                  description: コメントの本文
+                  description: コメントの本文。 メンション記法 が使えます。
       responses:
         '200':
           description: Successful response
@@ -1772,6 +1821,78 @@ paths:
         required: true
         schema:
           type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/relatedIssues:
+    get:
+      operationId: getListOfRelatedIssues
+      summary: 関連課題一覧の取得
+      description: "課題に設定されている関連課題の一覧を取得します。 \nレスポンスの各課題には、通常の課題情報に加えて関連の種類を示す type\
+        \ フィールドが含まれます（現在は常に RELATES です）。 \n課題のIDと課題キーは 課題一覧の取得 から取得できます。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+    post:
+      operationId: addRelatedIssue
+      summary: 関連課題の追加
+      description: "課題に関連課題を追加します。 \n targetIssueId には、実行者が参照できる課題のみ指定できます。 \n1つの課題に追加できる関連課題は50件までです。\
+        \ \nすでに関連付けられている課題や課題自身を指定した場合はエラーにならず、現在の課題情報がそのまま返されます。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                targetIssueId:
+                  type: integer
+                  description: 関連付ける課題のID。 課題のIDは 課題情報の取得 から取得できます。
+              required:
+              - targetIssueId
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: {}
+  /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}:
+    delete:
+      operationId: removeRelatedIssue
+      summary: 関連課題の削除
+      description: "課題から関連課題の関連付けを解除します。 \n関連付けが存在しない場合はエラーになります。"
+      parameters:
+      - name: issueIdOrKey
+        in: path
+        required: true
+        schema:
+          type: string
+        description: 以下のいずれかを指定します。 課題のID 課題キー 課題のIDと課題キーは 課題一覧の取得 から取得できます。
+      - name: relatedIssueId
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: 関連付けを解除する課題のID。 関連課題のIDは 関連課題一覧の取得 から取得できます。
       responses:
         '200':
           description: Successful response
@@ -1994,12 +2115,18 @@ paths:
                 subtaskingEnabled:
                   type: boolean
                   description: 親子課題を使用するかどうか
+                grandchildIssueEnabled:
+                  type: boolean
+                  description: 親子課題に3階層目を使用するかどうか subtaskingEnabled  が  true  の場合のみ有効です。
                 projectLeaderCanEditProjectLeader:
                   type: boolean
                   description: プロジェクト管理者も他のプロジェクト管理者を指定可能にする
                 useWiki:
                   type: boolean
                   description: Wikiを使用するかどうか
+                useDocument:
+                  type: boolean
+                  description: ドキュメントを使用するかどうか
                 useFileSharing:
                   type: boolean
                   description: 共有ファイルを使用するかどうか
@@ -2080,12 +2207,18 @@ paths:
                 subtaskingEnabled:
                   type: boolean
                   description: 親子課題を使用するかどうか
+                grandchildIssueEnabled:
+                  type: boolean
+                  description: 親子課題に3階層目を使用するかどうか subtaskingEnabled  が  true  の場合のみ有効です。
                 projectLeaderCanEditProjectLeader:
                   type: boolean
                   description: プロジェクト管理者も他のプロジェクト管理者を指定可能にする
                 useWiki:
                   type: boolean
                   description: Wikiを使用するかどうか
+                useDocument:
+                  type: boolean
+                  description: ドキュメントを使用するかどうか
                 useFileSharing:
                   type: boolean
                   description: 共有ファイルを使用するかどうか
@@ -2151,7 +2284,7 @@ paths:
           type: array
           items:
             type: integer
-        description: type(1-26)
+        description: type(1-49)
       - name: minId
         in: query
         schema:
@@ -2797,7 +2930,7 @@ paths:
                   description: プルリクエストの件名
                 description(必須):
                   type: string
-                  description: プルリクエストの詳細
+                  description: プルリクエストの詳細。 メンション記法 が使えます。
                 base(必須):
                   type: string
                   description: マージ先のブランチ名
@@ -2956,7 +3089,7 @@ paths:
                   description: プルリクエストの件名
                 description:
                   type: string
-                  description: プルリクエストの詳細
+                  description: プルリクエストの詳細。 メンション記法 が使えます。
                 issueId:
                   type: integer
                   description: 関連課題のID
@@ -2970,7 +3103,7 @@ paths:
                   description: プルリクエストの登録の通知を受け取るユーザーのID
                 comment:
                   type: string
-                  description: コメント
+                  description: コメント。 メンション記法 が使えます。
       responses:
         '200':
           description: Successful response
@@ -3159,7 +3292,7 @@ paths:
               properties:
                 content(必須):
                   type: string
-                  description: コメントの本文
+                  description: コメントの本文。 メンション記法 が使えます。
                 attachmentId(複数指定可):
                   type: array
                   items:
@@ -3246,7 +3379,7 @@ paths:
               properties:
                 content:
                   type: string
-                  description: コメントの本文
+                  description: コメントの本文。 メンション記法 が使えます。
       responses:
         '200':
           description: Successful response
@@ -3814,14 +3947,16 @@ paths:
     get:
       operationId: getListOfWebhooks
       summary: Webhook一覧の取得
-      description: Webhookの一覧を取得します。
+      description: "プロジェクトに登録されているWebhookの一覧を取得します。 \nWebhookを利用すると、プロジェクトで発生したイベントを指定したURLに通知できます。\
+        \ \n対象のプロジェクトは プロジェクト一覧の取得 から取得できます。"
       parameters:
       - name: projectIdOrKey
         in: path
         required: true
         schema:
           type: string
-        description: プロジェクトのID または プロジェクトキー
+        description: 以下のいずれかを指定します。 プロジェクトのID プロジェクトキー プロジェクトのIDとプロジェクトキーは プロジェクト一覧の取得
+          から取得できます。
       responses:
         '200':
           description: Successful response
@@ -3831,14 +3966,16 @@ paths:
     post:
       operationId: addWebhook
       summary: Webhookの追加
-      description: Webhookを追加します。
+      description: "プロジェクトにWebhookを追加します。 \nWebhookを追加すると、プロジェクトで発生したイベントを hookUrl\
+        \ で指定したURLに通知できます。 \n対象のプロジェクトは プロジェクト一覧の取得 から取得できます。"
       parameters:
       - name: projectIdOrKey
         in: path
         required: true
         schema:
           type: string
-        description: プロジェクトのID または プロジェクトキー
+        description: 以下のいずれかを指定します。 プロジェクトのID プロジェクトキー プロジェクトのIDとプロジェクトキーは プロジェクト一覧の取得
+          から取得できます。
       requestBody:
         content:
           application/x-www-form-urlencoded:
@@ -3847,21 +3984,25 @@ paths:
               properties:
                 name:
                   type: string
-                  description: 名前
+                  description: Webhookの名前
                 description:
                   type: string
-                  description: 詳細
+                  description: Webhookの説明
                 hookUrl:
                   type: string
-                  description: hook URL
+                  description: イベントの通知先のURL
                 allEvent:
                   type: boolean
-                  description: 全てのイベントを通知
-                activityTypeIds(複数指定可):
+                  description: 全てのイベントを通知するかどうか
+                activityTypeIds:
                   type: array
                   items:
                     type: integer
                   description: 通知するイベントのID
+              required:
+              - name
+              - hookUrl
+              - allEvent
       responses:
         '200':
           description: Successful response
@@ -3872,20 +4013,21 @@ paths:
     get:
       operationId: getWebhook
       summary: Webhookの取得
-      description: Webhookの情報を取得します。
+      description: "プロジェクトに登録されているWebhookの情報を取得します。 \nWebhookは、 Webhook一覧の取得 から取得できます。"
       parameters:
       - name: projectIdOrKey
         in: path
         required: true
         schema:
           type: string
-        description: プロジェクトのID または プロジェクトキー
+        description: 以下のいずれかを指定します。 プロジェクトのID プロジェクトキー プロジェクトのIDとプロジェクトキーは プロジェクト一覧の取得
+          から取得できます。
       - name: webhookId
         in: path
         required: true
         schema:
           type: string
-        description: WebhookのID
+        description: WebhookのID。 WebhookのIDは Webhook一覧の取得 から取得できます。
       responses:
         '200':
           description: Successful response
@@ -3895,20 +4037,22 @@ paths:
     patch:
       operationId: updateWebhook
       summary: Webhookの更新
-      description: Webhookの情報を更新します。
+      description: "プロジェクトに登録されているWebhookの設定を更新します。リクエストパラメーターで指定した項目のみが更新されます。 \n\
+        更新したいWebhookは Webhook一覧の取得 から取得できます。"
       parameters:
       - name: projectIdOrKey
         in: path
         required: true
         schema:
           type: string
-        description: プロジェクトのID または プロジェクトキー
+        description: 以下のいずれかを指定します。 プロジェクトのID プロジェクトキー プロジェクトのIDとプロジェクトキーは プロジェクト一覧の取得
+          から取得できます。
       - name: webhookId
         in: path
         required: true
         schema:
           type: string
-        description: WebhookのID
+        description: WebhookのID。 WebhookのIDは Webhook一覧の取得 から取得できます。
       requestBody:
         content:
           application/x-www-form-urlencoded:
@@ -3917,17 +4061,17 @@ paths:
               properties:
                 name:
                   type: string
-                  description: 名前
+                  description: Webhookの名前
                 description:
                   type: string
-                  description: 詳細
+                  description: Webhookの説明
                 hookUrl:
                   type: string
-                  description: hook URL
+                  description: イベントの通知先のURL
                 allEvent:
                   type: boolean
-                  description: 全てのイベントを通知
-                activityTypeIds(複数指定可):
+                  description: 全てのイベントを通知するかどうか
+                activityTypeIds:
                   type: array
                   items:
                     type: integer
@@ -3941,20 +4085,21 @@ paths:
     delete:
       operationId: deleteWebhook
       summary: Webhookの削除
-      description: Webhookを削除します。
+      description: "プロジェクトに登録されているWebhookを削除します。 \n削除したいWebhookは Webhook一覧の取得 から取得できます。"
       parameters:
       - name: projectIdOrKey
         in: path
         required: true
         schema:
           type: string
-        description: プロジェクトのID または プロジェクトキー
+        description: 以下のいずれかを指定します。 プロジェクトのID プロジェクトキー プロジェクトのIDとプロジェクトキーは プロジェクト一覧の取得
+          から取得できます。
       - name: webhookId
         in: path
         required: true
         schema:
           type: string
-        description: WebhookのID
+        description: WebhookのID。 WebhookのIDは Webhook一覧の取得 から取得できます。
       responses:
         '200':
           description: Successful response
@@ -4006,7 +4151,7 @@ paths:
           type: array
           items:
             type: integer
-        description: type(1-26)
+        description: type(1-49)
       - name: minId
         in: query
         schema:
@@ -4184,85 +4329,11 @@ paths:
           content:
             application/json:
               schema: {}
-    post:
-      operationId: addTeam
-      summary: チームの追加
-      description: "チームを追加します。\n 新プラン のスペースではこのAPIを利用できません。"
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                name(必須):
-                  type: string
-                  description: グループ名
-                members(複数指定可):
-                  type: array
-                  items:
-                    type: integer
-                  description: グループに含めるユーザーID
-              required:
-              - name(必須)
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
   /teams/{teamId}:
     get:
       operationId: getTeam
       summary: チーム情報の取得
       description: チームの情報を取得します。
-      parameters:
-      - name: teamId
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: チームのID
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
-    patch:
-      operationId: updateTeam
-      summary: チーム情報の更新
-      description: "チームの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。"
-      parameters:
-      - name: teamId
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: チームのID
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  description: チーム名
-                members(複数指定可):
-                  type: array
-                  items:
-                    type: integer
-                  description: チームに含めるユーザーID
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
-    delete:
-      operationId: deleteTeam
-      summary: チームの削除
-      description: "チームを削除します。\n 新プラン のスペースではこのAPIを利用できません。"
       parameters:
       - name: teamId
         in: path
@@ -4301,44 +4372,6 @@ paths:
       description: スペースのユーザーの一覧を取得します。
       responses:
         '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
-    post:
-      operationId: addUser
-      summary: ユーザーの追加
-      description: "スペースに新しいユーザーを追加します。\nプロジェクト管理者は管理者権限のユーザを追加することは出来ません。\n 新プラン\
-        \ のスペースではこのAPIを利用できません。"
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                userId(必須):
-                  type: string
-                  description: ユーザID
-                password(必須):
-                  type: string
-                  description: パスワード
-                name(必須):
-                  type: string
-                  description: ハンドルネーム
-                mailAddress(必須):
-                  type: string
-                  description: メールアドレス
-                roleType(必須):
-                  type: integer
-                  description: 管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)
-              required:
-              - userId(必須)
-              - password(必須)
-              - name(必須)
-              - mailAddress(必須)
-              - roleType(必須)
-      responses:
-        '201':
           description: Successful response
           content:
             application/json:
@@ -4486,58 +4519,6 @@ paths:
         schema:
           type: integer
         description: ユーザーのID
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
-    patch:
-      operationId: updateUser
-      summary: ユーザーの更新
-      description: "ユーザーの情報を更新します。\n 新プラン のスペースではこのAPIを利用できません。"
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: 更新するユーザーのID
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                password:
-                  type: string
-                  description: パスワード
-                name:
-                  type: string
-                  description: ハンドルネーム
-                mailAddress:
-                  type: string
-                  description: メールアドレス
-                roleType:
-                  type: integer
-                  description: 管理者(1) 一般ユーザー(2) レポーター(3) ビューワー(4) ゲストレポーター(5) ゲストビューワー(6)
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: {}
-    delete:
-      operationId: deleteUser
-      summary: ユーザーの削除
-      description: "ユーザーをスペースから削除します。\n 新プラン のスペースではこのAPIを利用できません。"
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: 削除するユーザーのID
       responses:
         '200':
           description: Successful response

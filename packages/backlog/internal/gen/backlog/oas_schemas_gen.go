@@ -163,6 +163,20 @@ func (s *AddDocumentTagsReq) SetTagNames(val []string) {
 	s.TagNames = val
 }
 
+type AddRelatedIssueReq struct {
+	RelatedIssueId int `json:"relatedIssueId"`
+}
+
+// GetRelatedIssueId returns the value of RelatedIssueId.
+func (s *AddRelatedIssueReq) GetRelatedIssueId() int {
+	return s.RelatedIssueId
+}
+
+// SetRelatedIssueId sets the value of RelatedIssueId.
+func (s *AddRelatedIssueReq) SetRelatedIssueId(val int) {
+	s.RelatedIssueId = val
+}
+
 type ApiKey struct {
 	APIKey string
 	Roles  []string
@@ -2020,6 +2034,52 @@ func (o OptAddDocumentTagsReq) Get() (v AddDocumentTagsReq, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptAddDocumentTagsReq) Or(d AddDocumentTagsReq) AddDocumentTagsReq {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptAddRelatedIssueReq returns new OptAddRelatedIssueReq with value set to v.
+func NewOptAddRelatedIssueReq(v AddRelatedIssueReq) OptAddRelatedIssueReq {
+	return OptAddRelatedIssueReq{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptAddRelatedIssueReq is optional AddRelatedIssueReq.
+type OptAddRelatedIssueReq struct {
+	Value AddRelatedIssueReq
+	Set   bool
+}
+
+// IsSet returns true if OptAddRelatedIssueReq was set.
+func (o OptAddRelatedIssueReq) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptAddRelatedIssueReq) Reset() {
+	var v AddRelatedIssueReq
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptAddRelatedIssueReq) SetTo(v AddRelatedIssueReq) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptAddRelatedIssueReq) Get() (v AddRelatedIssueReq, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptAddRelatedIssueReq) Or(d AddRelatedIssueReq) AddRelatedIssueReq {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -4017,6 +4077,308 @@ func (s *RecentlyViewedIssue) SetIssue(val OptIssue) {
 // SetUpdated sets the value of Updated.
 func (s *RecentlyViewedIssue) SetUpdated(val OptString) {
 	s.Updated = val
+}
+
+// Merged schema.
+// Ref: #/components/schemas/RelatedIssue
+type RelatedIssue struct {
+	ID             OptInt           `json:"id"`
+	ProjectId      OptInt           `json:"projectId"`
+	IssueKey       OptString        `json:"issueKey"`
+	KeyId          OptInt           `json:"keyId"`
+	IssueType      OptIssueType     `json:"issueType"`
+	Summary        OptString        `json:"summary"`
+	Description    OptString        `json:"description"`
+	Resolution     OptNilResolution `json:"resolution"`
+	Priority       OptPriority      `json:"priority"`
+	Status         OptStatus        `json:"status"`
+	Assignee       OptNilUser       `json:"assignee"`
+	Category       []Category       `json:"category"`
+	Versions       []Version        `json:"versions"`
+	Milestone      []Version        `json:"milestone"`
+	StartDate      OptNilString     `json:"startDate"`
+	DueDate        OptNilString     `json:"dueDate"`
+	EstimatedHours OptNilFloat64    `json:"estimatedHours"`
+	ActualHours    OptNilFloat64    `json:"actualHours"`
+	ParentIssueId  OptNilInt        `json:"parentIssueId"`
+	CreatedUser    OptUser          `json:"createdUser"`
+	Created        OptString        `json:"created"`
+	UpdatedUser    OptUser          `json:"updatedUser"`
+	Updated        OptString        `json:"updated"`
+	Attachments    []Attachment     `json:"attachments"`
+	SharedFiles    []SharedFile     `json:"sharedFiles"`
+	Stars          []Star           `json:"stars"`
+	Type           OptString        `json:"type"`
+}
+
+// GetID returns the value of ID.
+func (s *RelatedIssue) GetID() OptInt {
+	return s.ID
+}
+
+// GetProjectId returns the value of ProjectId.
+func (s *RelatedIssue) GetProjectId() OptInt {
+	return s.ProjectId
+}
+
+// GetIssueKey returns the value of IssueKey.
+func (s *RelatedIssue) GetIssueKey() OptString {
+	return s.IssueKey
+}
+
+// GetKeyId returns the value of KeyId.
+func (s *RelatedIssue) GetKeyId() OptInt {
+	return s.KeyId
+}
+
+// GetIssueType returns the value of IssueType.
+func (s *RelatedIssue) GetIssueType() OptIssueType {
+	return s.IssueType
+}
+
+// GetSummary returns the value of Summary.
+func (s *RelatedIssue) GetSummary() OptString {
+	return s.Summary
+}
+
+// GetDescription returns the value of Description.
+func (s *RelatedIssue) GetDescription() OptString {
+	return s.Description
+}
+
+// GetResolution returns the value of Resolution.
+func (s *RelatedIssue) GetResolution() OptNilResolution {
+	return s.Resolution
+}
+
+// GetPriority returns the value of Priority.
+func (s *RelatedIssue) GetPriority() OptPriority {
+	return s.Priority
+}
+
+// GetStatus returns the value of Status.
+func (s *RelatedIssue) GetStatus() OptStatus {
+	return s.Status
+}
+
+// GetAssignee returns the value of Assignee.
+func (s *RelatedIssue) GetAssignee() OptNilUser {
+	return s.Assignee
+}
+
+// GetCategory returns the value of Category.
+func (s *RelatedIssue) GetCategory() []Category {
+	return s.Category
+}
+
+// GetVersions returns the value of Versions.
+func (s *RelatedIssue) GetVersions() []Version {
+	return s.Versions
+}
+
+// GetMilestone returns the value of Milestone.
+func (s *RelatedIssue) GetMilestone() []Version {
+	return s.Milestone
+}
+
+// GetStartDate returns the value of StartDate.
+func (s *RelatedIssue) GetStartDate() OptNilString {
+	return s.StartDate
+}
+
+// GetDueDate returns the value of DueDate.
+func (s *RelatedIssue) GetDueDate() OptNilString {
+	return s.DueDate
+}
+
+// GetEstimatedHours returns the value of EstimatedHours.
+func (s *RelatedIssue) GetEstimatedHours() OptNilFloat64 {
+	return s.EstimatedHours
+}
+
+// GetActualHours returns the value of ActualHours.
+func (s *RelatedIssue) GetActualHours() OptNilFloat64 {
+	return s.ActualHours
+}
+
+// GetParentIssueId returns the value of ParentIssueId.
+func (s *RelatedIssue) GetParentIssueId() OptNilInt {
+	return s.ParentIssueId
+}
+
+// GetCreatedUser returns the value of CreatedUser.
+func (s *RelatedIssue) GetCreatedUser() OptUser {
+	return s.CreatedUser
+}
+
+// GetCreated returns the value of Created.
+func (s *RelatedIssue) GetCreated() OptString {
+	return s.Created
+}
+
+// GetUpdatedUser returns the value of UpdatedUser.
+func (s *RelatedIssue) GetUpdatedUser() OptUser {
+	return s.UpdatedUser
+}
+
+// GetUpdated returns the value of Updated.
+func (s *RelatedIssue) GetUpdated() OptString {
+	return s.Updated
+}
+
+// GetAttachments returns the value of Attachments.
+func (s *RelatedIssue) GetAttachments() []Attachment {
+	return s.Attachments
+}
+
+// GetSharedFiles returns the value of SharedFiles.
+func (s *RelatedIssue) GetSharedFiles() []SharedFile {
+	return s.SharedFiles
+}
+
+// GetStars returns the value of Stars.
+func (s *RelatedIssue) GetStars() []Star {
+	return s.Stars
+}
+
+// GetType returns the value of Type.
+func (s *RelatedIssue) GetType() OptString {
+	return s.Type
+}
+
+// SetID sets the value of ID.
+func (s *RelatedIssue) SetID(val OptInt) {
+	s.ID = val
+}
+
+// SetProjectId sets the value of ProjectId.
+func (s *RelatedIssue) SetProjectId(val OptInt) {
+	s.ProjectId = val
+}
+
+// SetIssueKey sets the value of IssueKey.
+func (s *RelatedIssue) SetIssueKey(val OptString) {
+	s.IssueKey = val
+}
+
+// SetKeyId sets the value of KeyId.
+func (s *RelatedIssue) SetKeyId(val OptInt) {
+	s.KeyId = val
+}
+
+// SetIssueType sets the value of IssueType.
+func (s *RelatedIssue) SetIssueType(val OptIssueType) {
+	s.IssueType = val
+}
+
+// SetSummary sets the value of Summary.
+func (s *RelatedIssue) SetSummary(val OptString) {
+	s.Summary = val
+}
+
+// SetDescription sets the value of Description.
+func (s *RelatedIssue) SetDescription(val OptString) {
+	s.Description = val
+}
+
+// SetResolution sets the value of Resolution.
+func (s *RelatedIssue) SetResolution(val OptNilResolution) {
+	s.Resolution = val
+}
+
+// SetPriority sets the value of Priority.
+func (s *RelatedIssue) SetPriority(val OptPriority) {
+	s.Priority = val
+}
+
+// SetStatus sets the value of Status.
+func (s *RelatedIssue) SetStatus(val OptStatus) {
+	s.Status = val
+}
+
+// SetAssignee sets the value of Assignee.
+func (s *RelatedIssue) SetAssignee(val OptNilUser) {
+	s.Assignee = val
+}
+
+// SetCategory sets the value of Category.
+func (s *RelatedIssue) SetCategory(val []Category) {
+	s.Category = val
+}
+
+// SetVersions sets the value of Versions.
+func (s *RelatedIssue) SetVersions(val []Version) {
+	s.Versions = val
+}
+
+// SetMilestone sets the value of Milestone.
+func (s *RelatedIssue) SetMilestone(val []Version) {
+	s.Milestone = val
+}
+
+// SetStartDate sets the value of StartDate.
+func (s *RelatedIssue) SetStartDate(val OptNilString) {
+	s.StartDate = val
+}
+
+// SetDueDate sets the value of DueDate.
+func (s *RelatedIssue) SetDueDate(val OptNilString) {
+	s.DueDate = val
+}
+
+// SetEstimatedHours sets the value of EstimatedHours.
+func (s *RelatedIssue) SetEstimatedHours(val OptNilFloat64) {
+	s.EstimatedHours = val
+}
+
+// SetActualHours sets the value of ActualHours.
+func (s *RelatedIssue) SetActualHours(val OptNilFloat64) {
+	s.ActualHours = val
+}
+
+// SetParentIssueId sets the value of ParentIssueId.
+func (s *RelatedIssue) SetParentIssueId(val OptNilInt) {
+	s.ParentIssueId = val
+}
+
+// SetCreatedUser sets the value of CreatedUser.
+func (s *RelatedIssue) SetCreatedUser(val OptUser) {
+	s.CreatedUser = val
+}
+
+// SetCreated sets the value of Created.
+func (s *RelatedIssue) SetCreated(val OptString) {
+	s.Created = val
+}
+
+// SetUpdatedUser sets the value of UpdatedUser.
+func (s *RelatedIssue) SetUpdatedUser(val OptUser) {
+	s.UpdatedUser = val
+}
+
+// SetUpdated sets the value of Updated.
+func (s *RelatedIssue) SetUpdated(val OptString) {
+	s.Updated = val
+}
+
+// SetAttachments sets the value of Attachments.
+func (s *RelatedIssue) SetAttachments(val []Attachment) {
+	s.Attachments = val
+}
+
+// SetSharedFiles sets the value of SharedFiles.
+func (s *RelatedIssue) SetSharedFiles(val []SharedFile) {
+	s.SharedFiles = val
+}
+
+// SetStars sets the value of Stars.
+func (s *RelatedIssue) SetStars(val []Star) {
+	s.Stars = val
+}
+
+// SetType sets the value of Type.
+func (s *RelatedIssue) SetType(val OptString) {
+	s.Type = val
 }
 
 type RemoveDocumentTagsReq struct {

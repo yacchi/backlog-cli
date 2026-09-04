@@ -5105,6 +5105,577 @@ func (s *RecentlyViewedIssue) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *RelatedIssue) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *RelatedIssue) encodeFields(e *jx.Encoder) {
+	{
+		if s.ID.Set {
+			e.FieldStart("id")
+			s.ID.Encode(e)
+		}
+	}
+	{
+		if s.ProjectId.Set {
+			e.FieldStart("projectId")
+			s.ProjectId.Encode(e)
+		}
+	}
+	{
+		if s.IssueKey.Set {
+			e.FieldStart("issueKey")
+			s.IssueKey.Encode(e)
+		}
+	}
+	{
+		if s.KeyId.Set {
+			e.FieldStart("keyId")
+			s.KeyId.Encode(e)
+		}
+	}
+	{
+		if s.IssueType.Set {
+			e.FieldStart("issueType")
+			s.IssueType.Encode(e)
+		}
+	}
+	{
+		if s.Summary.Set {
+			e.FieldStart("summary")
+			s.Summary.Encode(e)
+		}
+	}
+	{
+		if s.Description.Set {
+			e.FieldStart("description")
+			s.Description.Encode(e)
+		}
+	}
+	{
+		if s.Resolution.Set {
+			e.FieldStart("resolution")
+			s.Resolution.Encode(e)
+		}
+	}
+	{
+		if s.Priority.Set {
+			e.FieldStart("priority")
+			s.Priority.Encode(e)
+		}
+	}
+	{
+		if s.Status.Set {
+			e.FieldStart("status")
+			s.Status.Encode(e)
+		}
+	}
+	{
+		if s.Assignee.Set {
+			e.FieldStart("assignee")
+			s.Assignee.Encode(e)
+		}
+	}
+	{
+		if s.Category != nil {
+			e.FieldStart("category")
+			e.ArrStart()
+			for _, elem := range s.Category {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Versions != nil {
+			e.FieldStart("versions")
+			e.ArrStart()
+			for _, elem := range s.Versions {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Milestone != nil {
+			e.FieldStart("milestone")
+			e.ArrStart()
+			for _, elem := range s.Milestone {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.StartDate.Set {
+			e.FieldStart("startDate")
+			s.StartDate.Encode(e)
+		}
+	}
+	{
+		if s.DueDate.Set {
+			e.FieldStart("dueDate")
+			s.DueDate.Encode(e)
+		}
+	}
+	{
+		if s.EstimatedHours.Set {
+			e.FieldStart("estimatedHours")
+			s.EstimatedHours.Encode(e)
+		}
+	}
+	{
+		if s.ActualHours.Set {
+			e.FieldStart("actualHours")
+			s.ActualHours.Encode(e)
+		}
+	}
+	{
+		if s.ParentIssueId.Set {
+			e.FieldStart("parentIssueId")
+			s.ParentIssueId.Encode(e)
+		}
+	}
+	{
+		if s.CreatedUser.Set {
+			e.FieldStart("createdUser")
+			s.CreatedUser.Encode(e)
+		}
+	}
+	{
+		if s.Created.Set {
+			e.FieldStart("created")
+			s.Created.Encode(e)
+		}
+	}
+	{
+		if s.UpdatedUser.Set {
+			e.FieldStart("updatedUser")
+			s.UpdatedUser.Encode(e)
+		}
+	}
+	{
+		if s.Updated.Set {
+			e.FieldStart("updated")
+			s.Updated.Encode(e)
+		}
+	}
+	{
+		if s.Attachments != nil {
+			e.FieldStart("attachments")
+			e.ArrStart()
+			for _, elem := range s.Attachments {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.SharedFiles != nil {
+			e.FieldStart("sharedFiles")
+			e.ArrStart()
+			for _, elem := range s.SharedFiles {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Stars != nil {
+			e.FieldStart("stars")
+			e.ArrStart()
+			for _, elem := range s.Stars {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Type.Set {
+			e.FieldStart("type")
+			s.Type.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfRelatedIssue = [27]string{
+	0:  "id",
+	1:  "projectId",
+	2:  "issueKey",
+	3:  "keyId",
+	4:  "issueType",
+	5:  "summary",
+	6:  "description",
+	7:  "resolution",
+	8:  "priority",
+	9:  "status",
+	10: "assignee",
+	11: "category",
+	12: "versions",
+	13: "milestone",
+	14: "startDate",
+	15: "dueDate",
+	16: "estimatedHours",
+	17: "actualHours",
+	18: "parentIssueId",
+	19: "createdUser",
+	20: "created",
+	21: "updatedUser",
+	22: "updated",
+	23: "attachments",
+	24: "sharedFiles",
+	25: "stars",
+	26: "type",
+}
+
+// Decode decodes RelatedIssue from json.
+func (s *RelatedIssue) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode RelatedIssue to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "id":
+			if err := func() error {
+				s.ID.Reset()
+				if err := s.ID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"id\"")
+			}
+		case "projectId":
+			if err := func() error {
+				s.ProjectId.Reset()
+				if err := s.ProjectId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"projectId\"")
+			}
+		case "issueKey":
+			if err := func() error {
+				s.IssueKey.Reset()
+				if err := s.IssueKey.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"issueKey\"")
+			}
+		case "keyId":
+			if err := func() error {
+				s.KeyId.Reset()
+				if err := s.KeyId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"keyId\"")
+			}
+		case "issueType":
+			if err := func() error {
+				s.IssueType.Reset()
+				if err := s.IssueType.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"issueType\"")
+			}
+		case "summary":
+			if err := func() error {
+				s.Summary.Reset()
+				if err := s.Summary.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"summary\"")
+			}
+		case "description":
+			if err := func() error {
+				s.Description.Reset()
+				if err := s.Description.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"description\"")
+			}
+		case "resolution":
+			if err := func() error {
+				s.Resolution.Reset()
+				if err := s.Resolution.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"resolution\"")
+			}
+		case "priority":
+			if err := func() error {
+				s.Priority.Reset()
+				if err := s.Priority.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"priority\"")
+			}
+		case "status":
+			if err := func() error {
+				s.Status.Reset()
+				if err := s.Status.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"status\"")
+			}
+		case "assignee":
+			if err := func() error {
+				s.Assignee.Reset()
+				if err := s.Assignee.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"assignee\"")
+			}
+		case "category":
+			if err := func() error {
+				s.Category = make([]Category, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem Category
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Category = append(s.Category, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"category\"")
+			}
+		case "versions":
+			if err := func() error {
+				s.Versions = make([]Version, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem Version
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Versions = append(s.Versions, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"versions\"")
+			}
+		case "milestone":
+			if err := func() error {
+				s.Milestone = make([]Version, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem Version
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Milestone = append(s.Milestone, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"milestone\"")
+			}
+		case "startDate":
+			if err := func() error {
+				s.StartDate.Reset()
+				if err := s.StartDate.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"startDate\"")
+			}
+		case "dueDate":
+			if err := func() error {
+				s.DueDate.Reset()
+				if err := s.DueDate.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"dueDate\"")
+			}
+		case "estimatedHours":
+			if err := func() error {
+				s.EstimatedHours.Reset()
+				if err := s.EstimatedHours.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"estimatedHours\"")
+			}
+		case "actualHours":
+			if err := func() error {
+				s.ActualHours.Reset()
+				if err := s.ActualHours.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"actualHours\"")
+			}
+		case "parentIssueId":
+			if err := func() error {
+				s.ParentIssueId.Reset()
+				if err := s.ParentIssueId.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parentIssueId\"")
+			}
+		case "createdUser":
+			if err := func() error {
+				s.CreatedUser.Reset()
+				if err := s.CreatedUser.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"createdUser\"")
+			}
+		case "created":
+			if err := func() error {
+				s.Created.Reset()
+				if err := s.Created.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"created\"")
+			}
+		case "updatedUser":
+			if err := func() error {
+				s.UpdatedUser.Reset()
+				if err := s.UpdatedUser.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updatedUser\"")
+			}
+		case "updated":
+			if err := func() error {
+				s.Updated.Reset()
+				if err := s.Updated.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"updated\"")
+			}
+		case "attachments":
+			if err := func() error {
+				s.Attachments = make([]Attachment, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem Attachment
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Attachments = append(s.Attachments, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"attachments\"")
+			}
+		case "sharedFiles":
+			if err := func() error {
+				s.SharedFiles = make([]SharedFile, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem SharedFile
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.SharedFiles = append(s.SharedFiles, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"sharedFiles\"")
+			}
+		case "stars":
+			if err := func() error {
+				s.Stars = make([]Star, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem Star
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Stars = append(s.Stars, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"stars\"")
+			}
+		case "type":
+			if err := func() error {
+				s.Type.Reset()
+				if err := s.Type.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"type\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode RelatedIssue")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *RelatedIssue) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *RelatedIssue) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *Repository) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)

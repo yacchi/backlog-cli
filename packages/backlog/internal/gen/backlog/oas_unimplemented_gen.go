@@ -31,6 +31,15 @@ func (UnimplementedHandler) AddDocumentTags(ctx context.Context, req OptAddDocum
 	return r, ht.ErrNotImplemented
 }
 
+// AddRelatedIssue implements addRelatedIssue operation.
+//
+// Add related issue.
+//
+// POST /issues/{issueIdOrKey}/relatedIssues
+func (UnimplementedHandler) AddRelatedIssue(ctx context.Context, req OptAddRelatedIssueReq, params AddRelatedIssueParams) (r *RelatedIssue, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // AttachFileToWiki implements attachFileToWiki operation.
 //
 // Add attachments to wiki.
@@ -118,6 +127,15 @@ func (UnimplementedHandler) DeleteIssueAttachment(ctx context.Context, params De
 //
 // DELETE /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}
 func (UnimplementedHandler) DeletePullRequestAttachments(ctx context.Context, params DeletePullRequestAttachmentsParams) (r *Attachment, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DeleteRelatedIssue implements deleteRelatedIssue operation.
+//
+// Delete related issue.
+//
+// DELETE /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}
+func (UnimplementedHandler) DeleteRelatedIssue(ctx context.Context, params DeleteRelatedIssueParams) (r *RelatedIssue, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -388,6 +406,15 @@ func (UnimplementedHandler) GetPullRequests(ctx context.Context, params GetPullR
 //
 // GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count
 func (UnimplementedHandler) GetPullRequestsCount(ctx context.Context, params GetPullRequestsCountParams) (r *GetPullRequestsCountOK, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// GetRelatedIssueList implements getRelatedIssueList operation.
+//
+// Get related issue list.
+//
+// GET /issues/{issueIdOrKey}/relatedIssues
+func (UnimplementedHandler) GetRelatedIssueList(ctx context.Context, params GetRelatedIssueListParams) (r []RelatedIssue, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

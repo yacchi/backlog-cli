@@ -4,14 +4,71 @@ import { loadSigningKeys, signToken } from "../crypto/jwt.js";
 import { seal } from "../crypto/secret.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
-import type { TokenPayload } from "../crypto/jwt.js";
+import { readJson } from "../test-support/http.js";
+
+/**
+ * Loose shape of a JSON-RPC response body as read back in these tests.
+ * `result` and `error` are both typed as always-present so call sites don't
+ * need `!` on every access — at runtime only one of the two is ever set,
+ * and each test only ever reads the one that applies to its scenario.
+ */
+interface JsonRpcTestResponse<T = Record<string, unknown>> {
+    result: T;
+    error: {
+        code: number;
+        message: string;
+        data: { supported?: string[]; requested?: string };
+    };
+}
+
+interface InitializeResult {
+    protocolVersion: string;
+    serverInfo: { name: string };
+    capabilities: { tools?: unknown; prompts?: unknown };
+    instructions: string;
+}
+
+interface ToolsListResult {
+    tools: Array<{ name: string }>;
+}
+
+interface PromptsListResult {
+    prompts: Array<{ name: string }>;
+}
+
+interface PromptsGetResult {
+    messages: Array<{ content: { text: string } }>;
+}
+
+interface ToolCallResult {
+    content: Array<{ text: string }>;
+    isError?: boolean;
+}
+
+interface DiscoverResult {
+    resultType: string;
+    supportedVersions: string[];
+    capabilities: { tools?: unknown };
+    instructions: string;
+    _meta: Record<string, { name: string }>;
+    cacheScope: string;
+    ttlMs: number;
+}
+
+interface ModernListResult {
+    resultType: string;
+    ttlMs: number;
+    cacheScope: string;
+    _meta: Record<string, { name: string }>;
+    tools: unknown[];
+}
 
 let testJwksJson: string;
 let testKid: string;
 
 async function initTestKeys() {
     if (testJwksJson) return;
-    const { publicKey, privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
+    const { privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
     const privJwk = await exportJWK(privateKey);
     testKid = "test-key-1";
     const jwks = { keys: [{ ...privJwk, kid: testKid, kty: "OKP", crv: "Ed25519" }] };
@@ -54,12 +111,12 @@ async function makeAccessToken(): Promise<string> {
     );
 }
 
-async function jsonRpcRequest(
+async function jsonRpcRequest<T = Record<string, unknown>>(
     app: Awaited<ReturnType<typeof createMcpApp>>,
     method: string,
     params?: Record<string, unknown>,
     token?: string,
-) {
+): Promise<JsonRpcTestResponse<T>> {
     const accessToken = token ?? (await makeAccessToken());
     const res = await app.request("/mcp", {
         method: "POST",
@@ -74,14 +131,14 @@ async function jsonRpcRequest(
             params,
         }),
     });
-    return res.json();
+    return readJson<JsonRpcTestResponse<T>>(res);
 }
 
 describe("MCP transport — initialize", () => {
     it("returns server info and capabilities", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "initialize", {
+        const res = await jsonRpcRequest<InitializeResult>(app, "initialize", {
             protocolVersion: "2025-03-26",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
@@ -95,7 +152,7 @@ describe("MCP transport — initialize", () => {
     it("includes instructions in initialize", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "initialize", {
+        const res = await jsonRpcRequest<InitializeResult>(app, "initialize", {
             protocolVersion: "2025-03-26",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
@@ -109,7 +166,7 @@ describe("MCP transport — tools/list", () => {
     it("lists query and mutation tools (no script tools without sandbox)", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "tools/list");
+        const res = await jsonRpcRequest<ToolsListResult>(app, "tools/list");
         const tools = res.result.tools;
         const names = tools.map((t: { name: string }) => t.name);
         expect(names).toContain("backlog_help");
@@ -195,7 +252,7 @@ describe("MCP transport — prompts", () => {
     it("lists prompts", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "prompts/list");
+        const res = await jsonRpcRequest<PromptsListResult>(app, "prompts/list");
         expect(res.result.prompts).toHaveLength(1);
         expect(res.result.prompts[0].name).toBe("backlog-cli-reference");
     });
@@ -203,7 +260,7 @@ describe("MCP transport — prompts", () => {
     it("gets prompt content", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "prompts/get", {
+        const res = await jsonRpcRequest<PromptsGetResult>(app, "prompts/get", {
             name: "backlog-cli-reference",
         });
         expect(res.result.messages).toHaveLength(1);
@@ -225,7 +282,7 @@ describe("MCP transport — tools/call backlog_help", () => {
     it("returns full CLI reference without command arg", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "tools/call", {
+        const res = await jsonRpcRequest<ToolCallResult>(app, "tools/call", {
             name: "backlog_help",
             arguments: {},
         });
@@ -237,7 +294,7 @@ describe("MCP transport — tools/call backlog_help", () => {
     it("returns filtered section for specific command", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "tools/call", {
+        const res = await jsonRpcRequest<ToolCallResult>(app, "tools/call", {
             name: "backlog_help",
             arguments: { command: "issue" },
         });
@@ -248,7 +305,7 @@ describe("MCP transport — tools/call backlog_help", () => {
     it("falls back to full reference for unknown command", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "tools/call", {
+        const res = await jsonRpcRequest<ToolCallResult>(app, "tools/call", {
             name: "backlog_help",
             arguments: { command: "nonexistent_command" },
         });
@@ -311,7 +368,7 @@ describe("MCP transport — space access control", () => {
             keys.signingKey,
             keys.signingKid,
         );
-        const res = await jsonRpcRequest(app, "tools/call", {
+        const res = await jsonRpcRequest<ToolCallResult>(app, "tools/call", {
             name: "backlog_query",
             arguments: { args: "issue list -p ALL", space: "rogue.backlog.jp" },
         }, token);
@@ -327,7 +384,7 @@ describe("MCP transport — space access control", () => {
             { pattern: "mycompany\\.backlog\\.jp", writable: false },
         ];
         const app = await createMcpApp({ config });
-        const res = await jsonRpcRequest(app, "tools/call", {
+        const res = await jsonRpcRequest<ToolCallResult>(app, "tools/call", {
             name: "backlog_mutate",
             arguments: { args: "issue create -p PROJ -t test" },
         });
@@ -337,11 +394,11 @@ describe("MCP transport — space access control", () => {
 });
 
 /** POST /mcp with explicit control over headers and body (protocol-version tests). */
-async function rawRequest(
+async function rawRequest<T = Record<string, unknown>>(
     app: Awaited<ReturnType<typeof createMcpApp>>,
     body: Record<string, unknown>,
     headers: Record<string, string> = {},
-) {
+): Promise<{ status: number; body: JsonRpcTestResponse<T> }> {
     const accessToken = await makeAccessToken();
     const res = await app.request("/mcp", {
         method: "POST",
@@ -352,7 +409,7 @@ async function rawRequest(
         },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...body }),
     });
-    return { status: res.status, body: (await res.json()) as Record<string, any> };
+    return { status: res.status, body: await readJson<JsonRpcTestResponse<T>>(res) };
 }
 
 const MODERN = "2026-07-28";
@@ -362,7 +419,7 @@ describe("MCP transport — protocol version negotiation", () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
         for (const version of ["2025-03-26", "2025-06-18", "2025-11-25"]) {
-            const res = await jsonRpcRequest(app, "initialize", {
+            const res = await jsonRpcRequest<InitializeResult>(app, "initialize", {
                 protocolVersion: version,
                 capabilities: {},
                 clientInfo: { name: "test", version: "1.0" },
@@ -374,7 +431,7 @@ describe("MCP transport — protocol version negotiation", () => {
     it("falls back to the newest legacy version for an unknown initialize version", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const res = await jsonRpcRequest(app, "initialize", {
+        const res = await jsonRpcRequest<InitializeResult>(app, "initialize", {
             protocolVersion: "1900-01-01",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
@@ -467,7 +524,7 @@ describe("MCP transport — server/discover", () => {
     it("advertises supported versions, capabilities and identity", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const { status, body } = await rawRequest(
+        const { status, body } = await rawRequest<DiscoverResult>(
             app,
             {
                 method: "server/discover",
@@ -489,7 +546,7 @@ describe("MCP transport — server/discover", () => {
     it("is reachable without a protocol version declaration", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const { status, body } = await rawRequest(app, { method: "server/discover" });
+        const { status, body } = await rawRequest<DiscoverResult>(app, { method: "server/discover" });
         expect(status).toBe(200);
         expect(body.result.supportedVersions).toContain(MODERN);
     });
@@ -499,7 +556,7 @@ describe("MCP transport — modern result envelope", () => {
     it("adds resultType, cache hints and serverInfo to modern list results", async () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
-        const { body } = await rawRequest(
+        const { body } = await rawRequest<ModernListResult>(
             app,
             { method: "tools/list", params: {} },
             { "MCP-Protocol-Version": MODERN, "Mcp-Method": "tools/list" },

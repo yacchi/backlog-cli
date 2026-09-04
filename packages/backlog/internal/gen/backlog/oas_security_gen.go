@@ -37,6 +37,7 @@ func findAuthorization(h http.Header, prefix string) (string, bool) {
 var operationRolesApiKey = map[string][]string{
 	AddCommentOperation:                      []string{},
 	AddDocumentTagsOperation:                 []string{},
+	AddRelatedIssueOperation:                 []string{},
 	AttachFileToWikiOperation:                []string{},
 	CreateCategoryOperation:                  []string{},
 	CreateDocumentOperation:                  []string{},
@@ -47,6 +48,7 @@ var operationRolesApiKey = map[string][]string{
 	DeleteIssueOperation:                     []string{},
 	DeleteIssueAttachmentOperation:           []string{},
 	DeletePullRequestAttachmentsOperation:    []string{},
+	DeleteRelatedIssueOperation:              []string{},
 	DeleteWikiOperation:                      []string{},
 	DownloadDocumentAttachmentOperation:      []string{},
 	GetCategoriesOperation:                   []string{},
@@ -77,6 +79,7 @@ var operationRolesApiKey = map[string][]string{
 	GetPullRequestOperation:                  []string{},
 	GetPullRequestsOperation:                 []string{},
 	GetPullRequestsCountOperation:            []string{},
+	GetRelatedIssueListOperation:             []string{},
 	GetRepositoriesOperation:                 []string{},
 	GetResolutionsOperation:                  []string{},
 	GetSpaceOperation:                        []string{},
@@ -101,12 +104,11 @@ var operationRolesApiKey = map[string][]string{
 
 func (s *Server) securityApiKey(ctx context.Context, operationName OperationName, req *http.Request) (context.Context, bool, error) {
 	var t ApiKey
-	const parameterName = "apiKey"
-	q := req.URL.Query()
-	if !q.Has(parameterName) {
+	const parameterName = "Backlog-API-Key"
+	value := req.Header.Get(parameterName)
+	if value == "" {
 		return ctx, false, nil
 	}
-	value := q.Get(parameterName)
 	t.APIKey = value
 	t.Roles = operationRolesApiKey[operationName]
 	rctx, err := s.sec.HandleApiKey(ctx, operationName, t)
@@ -121,6 +123,7 @@ func (s *Server) securityApiKey(ctx context.Context, operationName OperationName
 var oauth2ScopesOAuth2 = map[string][]string{
 	AddCommentOperation:                      []string{},
 	AddDocumentTagsOperation:                 []string{},
+	AddRelatedIssueOperation:                 []string{},
 	AttachFileToWikiOperation:                []string{},
 	CreateCategoryOperation:                  []string{},
 	CreateDocumentOperation:                  []string{},
@@ -131,6 +134,7 @@ var oauth2ScopesOAuth2 = map[string][]string{
 	DeleteIssueOperation:                     []string{},
 	DeleteIssueAttachmentOperation:           []string{},
 	DeletePullRequestAttachmentsOperation:    []string{},
+	DeleteRelatedIssueOperation:              []string{},
 	DeleteWikiOperation:                      []string{},
 	DownloadDocumentAttachmentOperation:      []string{},
 	GetCategoriesOperation:                   []string{},
@@ -161,6 +165,7 @@ var oauth2ScopesOAuth2 = map[string][]string{
 	GetPullRequestOperation:                  []string{},
 	GetPullRequestsOperation:                 []string{},
 	GetPullRequestsCountOperation:            []string{},
+	GetRelatedIssueListOperation:             []string{},
 	GetRepositoriesOperation:                 []string{},
 	GetResolutionsOperation:                  []string{},
 	GetSpaceOperation:                        []string{},
@@ -213,9 +218,7 @@ func (s *Client) securityApiKey(ctx context.Context, operationName OperationName
 	if err != nil {
 		return errors.Wrap(err, "security source \"ApiKey\"")
 	}
-	q := req.URL.Query()
-	q.Set("apiKey", t.APIKey)
-	req.URL.RawQuery = q.Encode()
+	req.Header.Set("Backlog-API-Key", t.APIKey)
 	return nil
 }
 func (s *Client) securityOAuth2(ctx context.Context, operationName OperationName, req *http.Request) error {

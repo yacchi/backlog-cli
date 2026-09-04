@@ -3,7 +3,6 @@ import {
     signToken,
     verifyToken,
     sign,
-    verify,
     loadSigningKeys,
     spaceKey,
     setSpaceAccess,
@@ -16,7 +15,7 @@ import {
 import { exportJWK, generateKeyPair } from "jose";
 
 async function makeTestJWKS(): Promise<{ jwksJson: string; kid: string }> {
-    const { publicKey, privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
+    const { privateKey } = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
     const privJwk = await exportJWK(privateKey);
     const kid = "test-key-1";
     const jwks = { keys: [{ ...privJwk, kid, kty: "OKP", crv: "Ed25519" }] };

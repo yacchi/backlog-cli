@@ -505,6 +505,65 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 							}
 
+						case 'r': // Prefix: "relatedIssues"
+
+							if l := len("relatedIssues"); len(elem) >= l && elem[0:l] == "relatedIssues" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch r.Method {
+								case "GET":
+									s.handleGetRelatedIssueListRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								case "POST":
+									s.handleAddRelatedIssueRequest([1]string{
+										args[0],
+									}, elemIsEscaped, w, r)
+								default:
+									s.notAllowed(w, r, "GET,POST")
+								}
+
+								return
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "relatedIssueId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "DELETE":
+										s.handleDeleteRelatedIssueRequest([2]string{
+											args[0],
+											args[1],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, "DELETE")
+									}
+
+									return
+								}
+
+							}
+
 						case 's': // Prefix: "sharedFiles"
 
 							if l := len("sharedFiles"); len(elem) >= l && elem[0:l] == "sharedFiles" {
@@ -2058,6 +2117,75 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 										r.operationID = "updateComment"
 										r.operationGroup = ""
 										r.pathPattern = "/issues/{issueIdOrKey}/comments/{commentId}"
+										r.args = args
+										r.count = 2
+										return r, true
+									default:
+										return
+									}
+								}
+
+							}
+
+						case 'r': // Prefix: "relatedIssues"
+
+							if l := len("relatedIssues"); len(elem) >= l && elem[0:l] == "relatedIssues" {
+								elem = elem[l:]
+							} else {
+								break
+							}
+
+							if len(elem) == 0 {
+								switch method {
+								case "GET":
+									r.name = GetRelatedIssueListOperation
+									r.summary = "Get related issue list"
+									r.operationID = "getRelatedIssueList"
+									r.operationGroup = ""
+									r.pathPattern = "/issues/{issueIdOrKey}/relatedIssues"
+									r.args = args
+									r.count = 1
+									return r, true
+								case "POST":
+									r.name = AddRelatedIssueOperation
+									r.summary = "Add related issue"
+									r.operationID = "addRelatedIssue"
+									r.operationGroup = ""
+									r.pathPattern = "/issues/{issueIdOrKey}/relatedIssues"
+									r.args = args
+									r.count = 1
+									return r, true
+								default:
+									return
+								}
+							}
+							switch elem[0] {
+							case '/': // Prefix: "/"
+
+								if l := len("/"); len(elem) >= l && elem[0:l] == "/" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								// Param: "relatedIssueId"
+								// Leaf parameter, slashes are prohibited
+								idx := strings.IndexByte(elem, '/')
+								if idx >= 0 {
+									break
+								}
+								args[1] = elem
+								elem = ""
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "DELETE":
+										r.name = DeleteRelatedIssueOperation
+										r.summary = "Delete related issue"
+										r.operationID = "deleteRelatedIssue"
+										r.operationGroup = ""
+										r.pathPattern = "/issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}"
 										r.args = args
 										r.count = 2
 										return r, true

@@ -144,6 +144,71 @@ func decodeAddDocumentTagsParams(args [1]string, argsEscaped bool, r *http.Reque
 	return params, nil
 }
 
+// AddRelatedIssueParams is parameters of addRelatedIssue operation.
+type AddRelatedIssueParams struct {
+	IssueIdOrKey string
+}
+
+func unpackAddRelatedIssueParams(packed middleware.Parameters) (params AddRelatedIssueParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeAddRelatedIssueParams(args [1]string, argsEscaped bool, r *http.Request) (params AddRelatedIssueParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // AttachFileToWikiParams is parameters of attachFileToWiki operation.
 type AttachFileToWikiParams struct {
 	WikiId int
@@ -857,6 +922,124 @@ func decodeDeletePullRequestAttachmentsParams(args [4]string, argsEscaped bool, 
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "attachmentId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DeleteRelatedIssueParams is parameters of deleteRelatedIssue operation.
+type DeleteRelatedIssueParams struct {
+	IssueIdOrKey   string
+	RelatedIssueId int
+}
+
+func unpackDeleteRelatedIssueParams(packed middleware.Parameters) (params DeleteRelatedIssueParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "relatedIssueId",
+			In:   "path",
+		}
+		params.RelatedIssueId = packed[key].(int)
+	}
+	return params
+}
+
+func decodeDeleteRelatedIssueParams(args [2]string, argsEscaped bool, r *http.Request) (params DeleteRelatedIssueParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: relatedIssueId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "relatedIssueId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToInt(val)
+				if err != nil {
+					return err
+				}
+
+				params.RelatedIssueId = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "relatedIssueId",
 			In:   "path",
 			Err:  err,
 		}
@@ -6605,6 +6788,71 @@ func decodeGetPullRequestsCountParams(args [2]string, argsEscaped bool, r *http.
 		return params, &ogenerrors.DecodeParamError{
 			Name: "statusId[]",
 			In:   "query",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// GetRelatedIssueListParams is parameters of getRelatedIssueList operation.
+type GetRelatedIssueListParams struct {
+	IssueIdOrKey string
+}
+
+func unpackGetRelatedIssueListParams(packed middleware.Parameters) (params GetRelatedIssueListParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "issueIdOrKey",
+			In:   "path",
+		}
+		params.IssueIdOrKey = packed[key].(string)
+	}
+	return params
+}
+
+func decodeGetRelatedIssueListParams(args [1]string, argsEscaped bool, r *http.Request) (params GetRelatedIssueListParams, _ error) {
+	// Decode path: issueIdOrKey.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "issueIdOrKey",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.IssueIdOrKey = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "issueIdOrKey",
+			In:   "path",
 			Err:  err,
 		}
 	}

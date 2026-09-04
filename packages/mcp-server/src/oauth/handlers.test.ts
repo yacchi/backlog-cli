@@ -4,6 +4,20 @@ import { s256Challenge } from "./handlers.js";
 import { verify, loadSigningKeys, sign, spaceKey, setSpaceAccess, setSpaceRefresh } from "../crypto/jwt.js";
 import { generateKeyPair, exportJWK } from "jose";
 import type { McpServerConfig } from "../config/schema.js";
+import { readJson } from "../test-support/http.js";
+
+interface ClientRegistrationResponse {
+    client_id: string;
+    client_name?: string;
+    redirect_uris?: string[];
+    token_endpoint_auth_method?: string;
+}
+
+interface TokenResponse {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+}
 
 let testJwksJson: string;
 
@@ -49,7 +63,7 @@ describe("Well-known endpoints", () => {
         const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/.well-known/oauth-protected-resource");
         expect(res.status).toBe(200);
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.resource).toBe("https://mcp.example.com/mcp");
         expect(body.authorization_servers).toEqual(["https://mcp.example.com"]);
     });
@@ -61,7 +75,7 @@ describe("Well-known endpoints", () => {
             "/.well-known/oauth-authorization-server",
         );
         expect(res.status).toBe(200);
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.issuer).toBe("https://mcp.example.com");
         expect(body.authorization_endpoint).toBe(
             "https://mcp.example.com/mcp/authorize",
@@ -80,7 +94,7 @@ describe("Well-known endpoints", () => {
         await initTestKeys();
         const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/.well-known/oauth-authorization-server");
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.client_id_metadata_document_supported).toBe(true);
         expect(body.authorization_response_iss_parameter_supported).toBe(true);
         // DCR stays available for clients that do not implement CIMD yet.
@@ -93,7 +107,7 @@ describe("Well-known endpoints", () => {
             config: makeConfig({ cimd: { enabled: false, allowed_hosts: [] } }),
         });
         const res = await app.request("/.well-known/oauth-authorization-server");
-        expect((await res.json()).client_id_metadata_document_supported).toBe(false);
+        expect((await readJson(res)).client_id_metadata_document_supported).toBe(false);
     });
 });
 
@@ -146,7 +160,7 @@ describe("GET /mcp/authorize with a Client ID Metadata Document", () => {
         });
         const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_redirect_uri");
+        expect((await readJson(res)).error).toBe("invalid_redirect_uri");
     });
 
     it("rejects a URL client_id when the document cannot be resolved", async () => {
@@ -161,7 +175,7 @@ describe("GET /mcp/authorize with a Client ID Metadata Document", () => {
         });
         const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_client");
+        expect((await readJson(res)).error).toBe("invalid_client");
     });
 
     it("rejects a URL client_id when CIMD is disabled", async () => {
@@ -176,7 +190,7 @@ describe("GET /mcp/authorize with a Client ID Metadata Document", () => {
         });
         const res = await app.request(`/mcp/authorize?${authorizeParams()}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_client");
+        expect((await readJson(res)).error).toBe("invalid_client");
     });
 });
 
@@ -193,7 +207,7 @@ describe("POST /mcp/register (DCR)", () => {
             }),
         });
         expect(res.status).toBe(201);
-        const body = await res.json();
+        const body = await readJson<ClientRegistrationResponse>(res);
         expect(body.client_id).toBeTruthy();
         expect(body.redirect_uris).toEqual([
             "https://claude.ai/oauth/callback",
@@ -217,7 +231,7 @@ describe("POST /mcp/register (DCR)", () => {
             body: JSON.stringify({ client_name: "Test" }),
         });
         expect(res.status).toBe(400);
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.error).toBe("invalid_client_metadata");
     });
 
@@ -232,7 +246,7 @@ describe("POST /mcp/register (DCR)", () => {
             }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_redirect_uri");
+        expect((await readJson(res)).error).toBe("invalid_redirect_uri");
     });
 });
 
@@ -257,7 +271,7 @@ describe("GET /mcp/authorize", () => {
         });
         const res = await app.request(`/mcp/authorize?${params}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("unsupported_response_type");
+        expect((await readJson(res)).error).toBe("unsupported_response_type");
     });
 
     it("rejects missing code_challenge", async () => {
@@ -270,7 +284,7 @@ describe("GET /mcp/authorize", () => {
                 redirect_uris: ["https://example.com/cb"],
             }),
         });
-        const { client_id } = await regRes.json();
+        const { client_id } = await readJson<ClientRegistrationResponse>(regRes);
 
         const params = new URLSearchParams({
             client_id,
@@ -280,7 +294,7 @@ describe("GET /mcp/authorize", () => {
         });
         const res = await app.request(`/mcp/authorize?${params}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_request");
+        expect((await readJson(res)).error).toBe("invalid_request");
     });
 
     it("renders auth page with valid params and scope", async () => {
@@ -293,7 +307,7 @@ describe("GET /mcp/authorize", () => {
                 redirect_uris: ["https://example.com/cb"],
             }),
         });
-        const { client_id } = await regRes.json();
+        const { client_id } = await readJson<ClientRegistrationResponse>(regRes);
 
         const params = new URLSearchParams({
             client_id,
@@ -322,7 +336,7 @@ describe("GET /mcp/authorize", () => {
                 redirect_uris: ["https://example.com/cb"],
             }),
         });
-        const { client_id } = await regRes.json();
+        const { client_id } = await readJson<ClientRegistrationResponse>(regRes);
 
         const params = new URLSearchParams({
             client_id,
@@ -335,7 +349,7 @@ describe("GET /mcp/authorize", () => {
         });
         const res = await app.request(`/mcp/authorize?${params}`);
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_redirect_uri");
+        expect((await readJson(res)).error).toBe("invalid_redirect_uri");
     });
 });
 
@@ -349,7 +363,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "client_credentials" }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("unsupported_grant_type");
+        expect((await readJson(res)).error).toBe("unsupported_grant_type");
     });
 
     it("rejects missing code in authorization_code grant", async () => {
@@ -361,7 +375,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "authorization_code" }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_request");
+        expect((await readJson(res)).error).toBe("invalid_request");
     });
 
     it("rejects invalid code", async () => {
@@ -376,7 +390,7 @@ describe("POST /mcp/token", () => {
             }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("rejects missing refresh_token in refresh_token grant", async () => {
@@ -388,7 +402,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "refresh_token" }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_request");
+        expect((await readJson(res)).error).toBe("invalid_request");
     });
 
     it("exchanges a single-space code that carries both at and rt", async () => {
@@ -426,7 +440,7 @@ describe("POST /mcp/token", () => {
         });
 
         expect(res.status).toBe(200);
-        const body = await res.json();
+        const body = await readJson<TokenResponse>(res);
         expect(Number.isFinite(body.expires_in)).toBe(true);
         expect(body.expires_in).toBeGreaterThan(0);
 
@@ -461,7 +475,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "authorization_code", code, client_id: CLIENT_ID }),
         });
         expect(res.status).toBe(400);
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.error).toBe("invalid_grant");
         expect(body.error_description).toContain("code_verifier");
     });
@@ -494,7 +508,7 @@ describe("POST /mcp/token", () => {
             }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("rejects a code that carries no PKCE challenge at all", async () => {
@@ -516,7 +530,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "authorization_code", code, code_verifier: VERIFIER }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("rejects a code redeemed by a different client_id", async () => {
@@ -547,7 +561,7 @@ describe("POST /mcp/token", () => {
             }),
         });
         expect(res.status).toBe(400);
-        const body = await res.json();
+        const body = await readJson(res);
         expect(body.error).toBe("invalid_grant");
         expect(body.error_description).toContain("client_id");
     });
@@ -581,7 +595,7 @@ describe("POST /mcp/token", () => {
             }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error_description).toContain("redirect_uri");
+        expect((await readJson(res)).error_description).toContain("redirect_uri");
     });
 
     it("rejects a code whose space entry is missing rt", async () => {
@@ -609,7 +623,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "authorization_code", code }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("rejects a code whose space entry has a non-numeric exp", async () => {
@@ -637,7 +651,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "authorization_code", code }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("rejects a refresh token whose space entry is missing rt", async () => {
@@ -659,7 +673,7 @@ describe("POST /mcp/token", () => {
             body: JSON.stringify({ grant_type: "refresh_token", refresh_token: refreshToken }),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_grant");
+        expect((await readJson(res)).error).toBe("invalid_grant");
     });
 
     it("accepts application/x-www-form-urlencoded", async () => {
@@ -675,7 +689,7 @@ describe("POST /mcp/token", () => {
             }).toString(),
         });
         expect(res.status).toBe(400);
-        expect((await res.json()).error).toBe("invalid_request");
+        expect((await readJson(res)).error).toBe("invalid_request");
     });
 });
 
@@ -685,7 +699,7 @@ describe("GET /health", () => {
         const app = await createMcpApp({ config: makeConfig() });
         const res = await app.request("/health");
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ status: "ok" });
+        expect(await readJson(res)).toEqual({ status: "ok" });
     });
 });
 
@@ -696,7 +710,7 @@ describe("space cookie session binding", () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ redirect_uris: ["https://example.com/cb"] }),
         });
-        const { client_id } = (await regRes.json()) as { client_id: string };
+        const { client_id } = (await readJson(regRes)) as { client_id: string };
         const params = new URLSearchParams({
             client_id,
             redirect_uri: "https://example.com/cb",

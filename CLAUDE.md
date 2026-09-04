@@ -123,16 +123,20 @@ backlog.jp と backlog.com の両方に対応。中継サーバーで複数の C
 
 ### 6. Backlog API クライアント実装
 
-**必須ルール**: Backlog API を呼び出す際は、以下の手順に従う。
+Backlog API クライアントは、リソースの性質に応じて 2 つの実装方式を使い分ける。
 
-1. **OpenAPI 定義を追加**: `docs/api/openapi.yaml` にエンドポイントを定義
-2. **ogen で生成**: **必ず `make generate` を実行**してクライアントコードを生成（直接 ogen コマンドを叩かない）
-3. **生成クライアントを使用**: `internal/gen/backlog/` の生成コードを `internal/api/` でラップ
+- **ogen 生成クライアント**: issue / project / document などのコアリソースは
+  `docs/api/openapi.yaml` にエンドポイントを追加し、**必ず `make generate`** を実行して
+  `internal/gen/backlog/` の生成コードを `internal/api/` から利用する。直接 ogen を実行したり、
+  生成コードを編集したりしない。
+- **手書き thin client**: watching / notification / rate-limit / star / team などの周辺リソースは、
+  `*api.Client` の `Get` / `Post` / `PostForm` / `Patch` / `Delete` などの共通メソッドを
+  `internal/api/` から利用する。これらは軽量な単純エンドポイントで、既存の API ラッパーと
+  レスポンス処理を再利用できるため、この方式を使う。
 
-**禁止事項**:
-- `http.NewRequest` 等を使った直接的な HTTP リクエストの実装
-- ogen 生成コードをバイパスする API 呼び出し
-- `make generate` 以外の方法で ogen を実行すること
+新しいエンドポイントは、コアリソースの厳密な型安全性・生成コードとの一貫性が必要なら ogen、
+周辺リソースの単純な入出力で生成スキーマの恩恵が小さいなら thin client を選ぶ。どちらの方式でも
+`http.NewRequest` 等によるコマンドからの直接 HTTP リクエストは実装しない。
 
 **ディレクトリ構成**:
 ```

@@ -40,6 +40,12 @@ type Invoker interface {
 	//
 	// POST /documents/{documentId}/tags
 	AddDocumentTags(ctx context.Context, request OptAddDocumentTagsReq, params AddDocumentTagsParams) ([]DocumentTag, error)
+	// AddRelatedIssue invokes addRelatedIssue operation.
+	//
+	// Add related issue.
+	//
+	// POST /issues/{issueIdOrKey}/relatedIssues
+	AddRelatedIssue(ctx context.Context, request OptAddRelatedIssueReq, params AddRelatedIssueParams) (*RelatedIssue, error)
 	// AttachFileToWiki invokes attachFileToWiki operation.
 	//
 	// Add attachments to wiki.
@@ -100,6 +106,12 @@ type Invoker interface {
 	//
 	// DELETE /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/{number}/attachments/{attachmentId}
 	DeletePullRequestAttachments(ctx context.Context, params DeletePullRequestAttachmentsParams) (*Attachment, error)
+	// DeleteRelatedIssue invokes deleteRelatedIssue operation.
+	//
+	// Delete related issue.
+	//
+	// DELETE /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}
+	DeleteRelatedIssue(ctx context.Context, params DeleteRelatedIssueParams) (*RelatedIssue, error)
 	// DeleteWiki invokes deleteWiki operation.
 	//
 	// Delete wiki.
@@ -280,6 +292,12 @@ type Invoker interface {
 	//
 	// GET /projects/{projectIdOrKey}/git/repositories/{repoIdOrName}/pullRequests/count
 	GetPullRequestsCount(ctx context.Context, params GetPullRequestsCountParams) (*GetPullRequestsCountOK, error)
+	// GetRelatedIssueList invokes getRelatedIssueList operation.
+	//
+	// Get related issue list.
+	//
+	// GET /issues/{issueIdOrKey}/relatedIssues
+	GetRelatedIssueList(ctx context.Context, params GetRelatedIssueListParams) ([]RelatedIssue, error)
 	// GetRepositories invokes getRepositories operation.
 	//
 	// Get git repositories.
@@ -720,6 +738,146 @@ func (c *Client) sendAddDocumentTags(ctx context.Context, request OptAddDocument
 
 	stage = "DecodeResponse"
 	result, err := decodeAddDocumentTagsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// AddRelatedIssue invokes addRelatedIssue operation.
+//
+// Add related issue.
+//
+// POST /issues/{issueIdOrKey}/relatedIssues
+func (c *Client) AddRelatedIssue(ctx context.Context, request OptAddRelatedIssueReq, params AddRelatedIssueParams) (*RelatedIssue, error) {
+	res, err := c.sendAddRelatedIssue(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendAddRelatedIssue(ctx context.Context, request OptAddRelatedIssueReq, params AddRelatedIssueParams) (res *RelatedIssue, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("addRelatedIssue"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/issues/{issueIdOrKey}/relatedIssues"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, AddRelatedIssueOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/issues/"
+	{
+		// Encode "issueIdOrKey" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "issueIdOrKey",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.IssueIdOrKey))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/relatedIssues"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeAddRelatedIssueRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:OAuth2"
+			switch err := c.securityOAuth2(ctx, AddRelatedIssueOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"OAuth2\"")
+			}
+		}
+		{
+			stage = "Security:ApiKey"
+			switch err := c.securityApiKey(ctx, AddRelatedIssueOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ApiKey\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	stage = "DecodeResponse"
+	result, err := decodeAddRelatedIssueResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -2138,6 +2296,161 @@ func (c *Client) sendDeletePullRequestAttachments(ctx context.Context, params De
 
 	stage = "DecodeResponse"
 	result, err := decodeDeletePullRequestAttachmentsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// DeleteRelatedIssue invokes deleteRelatedIssue operation.
+//
+// Delete related issue.
+//
+// DELETE /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}
+func (c *Client) DeleteRelatedIssue(ctx context.Context, params DeleteRelatedIssueParams) (*RelatedIssue, error) {
+	res, err := c.sendDeleteRelatedIssue(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendDeleteRelatedIssue(ctx context.Context, params DeleteRelatedIssueParams) (res *RelatedIssue, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("deleteRelatedIssue"),
+		semconv.HTTPRequestMethodKey.String("DELETE"),
+		semconv.URLTemplateKey.String("/issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, DeleteRelatedIssueOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [4]string
+	pathParts[0] = "/issues/"
+	{
+		// Encode "issueIdOrKey" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "issueIdOrKey",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.IssueIdOrKey))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/relatedIssues/"
+	{
+		// Encode "relatedIssueId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "relatedIssueId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.IntToString(params.RelatedIssueId))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:OAuth2"
+			switch err := c.securityOAuth2(ctx, DeleteRelatedIssueOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"OAuth2\"")
+			}
+		}
+		{
+			stage = "Security:ApiKey"
+			switch err := c.securityApiKey(ctx, DeleteRelatedIssueOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ApiKey\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	stage = "DecodeResponse"
+	result, err := decodeDeleteRelatedIssueResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -7798,6 +8111,143 @@ func (c *Client) sendGetPullRequestsCount(ctx context.Context, params GetPullReq
 
 	stage = "DecodeResponse"
 	result, err := decodeGetPullRequestsCountResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetRelatedIssueList invokes getRelatedIssueList operation.
+//
+// Get related issue list.
+//
+// GET /issues/{issueIdOrKey}/relatedIssues
+func (c *Client) GetRelatedIssueList(ctx context.Context, params GetRelatedIssueListParams) ([]RelatedIssue, error) {
+	res, err := c.sendGetRelatedIssueList(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendGetRelatedIssueList(ctx context.Context, params GetRelatedIssueListParams) (res []RelatedIssue, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getRelatedIssueList"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/issues/{issueIdOrKey}/relatedIssues"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetRelatedIssueListOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/issues/"
+	{
+		// Encode "issueIdOrKey" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "issueIdOrKey",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.IssueIdOrKey))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/relatedIssues"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:OAuth2"
+			switch err := c.securityOAuth2(ctx, GetRelatedIssueListOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"OAuth2\"")
+			}
+		}
+		{
+			stage = "Security:ApiKey"
+			switch err := c.securityApiKey(ctx, GetRelatedIssueListOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ApiKey\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetRelatedIssueListResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

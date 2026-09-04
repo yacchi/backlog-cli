@@ -356,10 +356,6 @@ func (c *Client) Request(ctx context.Context, method, path string, query url.Val
 	if query == nil {
 		query = url.Values{}
 	}
-	// API Key認証の場合はクエリパラメータに追加
-	if c.apiKey != "" {
-		query.Set("apiKey", c.apiKey)
-	}
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
@@ -378,6 +374,10 @@ func (c *Client) Request(ctx context.Context, method, path string, query url.Val
 		return nil, err
 	}
 
+	// API Key認証の場合はヘッダーに設定
+	if c.apiKey != "" {
+		req.Header.Set("Backlog-API-Key", c.apiKey)
+	}
 	// OAuth認証の場合のみAuthorizationヘッダーを設定
 	if c.apiKey == "" && c.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)
@@ -408,17 +408,17 @@ func (c *Client) PostForm(ctx context.Context, path string, data url.Values) (*h
 		}
 	}
 
-	// API Key認証の場合はURLにapiKeyを追加
 	requestURL := c.baseURL() + path
-	if c.apiKey != "" {
-		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
-	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", requestURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
+	// API Key認証の場合はヘッダーに設定
+	if c.apiKey != "" {
+		req.Header.Set("Backlog-API-Key", c.apiKey)
+	}
 	// OAuth認証の場合のみAuthorizationヘッダーを設定
 	if c.apiKey == "" && c.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)
@@ -437,17 +437,17 @@ func (c *Client) PatchForm(ctx context.Context, path string, data url.Values) (*
 		}
 	}
 
-	// API Key認証の場合はURLにapiKeyを追加
 	requestURL := c.baseURL() + path
-	if c.apiKey != "" {
-		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
-	}
 
 	req, err := http.NewRequestWithContext(ctx, "PATCH", requestURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
+	// API Key認証の場合はヘッダーに設定
+	if c.apiKey != "" {
+		req.Header.Set("Backlog-API-Key", c.apiKey)
+	}
 	// OAuth認証の場合のみAuthorizationヘッダーを設定
 	if c.apiKey == "" && c.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)
@@ -483,10 +483,6 @@ func (c *Client) RawRequest(ctx context.Context, method, path string, query url.
 	if query == nil {
 		query = url.Values{}
 	}
-	// API Key認証の場合はクエリパラメータに追加
-	if c.apiKey != "" {
-		query.Set("apiKey", c.apiKey)
-	}
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
@@ -496,6 +492,10 @@ func (c *Client) RawRequest(ctx context.Context, method, path string, query url.
 		return nil, err
 	}
 
+	// API Key認証の場合はヘッダーに設定
+	if c.apiKey != "" {
+		req.Header.Set("Backlog-API-Key", c.apiKey)
+	}
 	// OAuth認証の場合のみAuthorizationヘッダーを設定
 	if c.apiKey == "" && c.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)
@@ -516,17 +516,17 @@ func (c *Client) DeleteWithForm(ctx context.Context, path string, data url.Value
 		}
 	}
 
-	// API Key認証の場合はURLにapiKeyを追加
 	requestURL := c.baseURL() + path
-	if c.apiKey != "" {
-		requestURL += "?apiKey=" + url.QueryEscape(c.apiKey)
-	}
 
 	req, err := http.NewRequestWithContext(ctx, "DELETE", requestURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
+	// API Key認証の場合はヘッダーに設定
+	if c.apiKey != "" {
+		req.Header.Set("Backlog-API-Key", c.apiKey)
+	}
 	// OAuth認証の場合のみAuthorizationヘッダーを設定
 	if c.apiKey == "" && c.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.accessToken)

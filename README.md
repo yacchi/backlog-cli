@@ -346,6 +346,9 @@ backlog issue list
 # 課題の詳細を表示
 backlog issue view ISSUE-123
 
+# 課題と関連課題をまとめて表示
+backlog issue view ISSUE-123 --related
+
 # 新しい課題を作成
 backlog issue create
 
@@ -402,10 +405,17 @@ OAuth 認証完了後のブラウザタブを自動で閉じたい場合は、Ta
 |-----------------------|------------|
 | `issue list`          | 課題一覧を表示    |
 | `issue view <KEY>`    | 課題の詳細を表示   |
+| `issue view <KEY> --related` | 課題と関連課題を表示 |
+| `issue related <KEY>` | 関連課題を表示   |
+| `issue related add <KEY> <RELATED>` | 関連課題を追加 |
+| `issue related remove <KEY> <RELATED>` | 関連課題を削除 |
 | `issue create`        | 新しい課題を作成   |
 | `issue edit <KEY>`    | 課題を編集      |
 | `issue close <KEY>`   | 課題をクローズ    |
 | `issue comment <KEY>` | コメントを追加・編集 |
+
+`issue create --parent` は課題を親課題の子として作成します。`--parent` を使って親・子・孫の
+3 階層で課題を分解できます。`issue edit --parent` で親を変更し、`--remove-parent` で解除できます。
 
 #### コメントの編集
 
@@ -602,6 +612,10 @@ Unsafe ルールを適用するには、設定から該当ルールを削除し�
 
 | コマンド         | 説明              |
 |--------------|-----------------|
+| `rate-limit` | Backlog API のレート制限状況を表示 |
+| `star`       | 課題・コメント・Wiki・プルリクエストのスターを管理 |
+| `team list`  | Backlog のチーム一覧を表示 |
+| `team view <ID>` | Backlog のチーム詳細を表示 |
 | `serve`      | OAuth 中継サーバーを起動 |
 | `version`    | バージョン情報を表示      |
 | `completion` | シェル補完スクリプトを生成   |

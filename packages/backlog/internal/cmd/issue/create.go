@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,18 @@ Without the title or body text supplied through flags, the command will
 interactively prompt for the required information. When standard input is
 not a terminal, provide --title, --type, and --priority.
 
+Backlog issues can be nested up to three levels: parent -> child ->
+grandchild ("孫課題"). Whether the third (grandchild) level is allowed
+depends on the project's own settings: a project must have subtasking
+enabled, and the grandchild level enabled on top of that. If grandchild
+nesting is not enabled for the project, the Backlog API rejects giving a
+parent to an issue whose own parent is already set (that combination
+would create a grandchild), so a --parent value that looks valid can
+still be rejected by the server depending on the project's configuration.
+Use --parent here to CREATE this issue as a child (or grandchild) of an
+existing one; this is different from 'backlog issue list --parent', which
+FILTERS existing issues by their parent rather than setting one.
+
 Examples:
   # Interactive mode
   backlog issue create
@@ -43,7 +56,13 @@ Examples:
   backlog issue create --title "Bug" --editor
 
   # Assign to yourself
-  backlog issue create -t "Task" -a @me`,
+  backlog issue create -t "Task" -a @me
+
+  # Create a child issue under PROJ-1 (--parent accepts an issue key or numeric ID)
+  backlog issue create --title "Sub-task" --type Task --priority 3 --parent PROJ-1
+
+  # Create a child issue and get its numeric ID back for further scripting
+  backlog issue create --title "Sub-task" --type Task --priority 3 --parent PROJ-1 --output json --jq .id`,
 	RunE: runCreate,
 }
 
@@ -58,6 +77,7 @@ var (
 	createEditor      bool
 	createMilestones  string
 	createCategories  string
+	createParent      string
 	createAttachFiles []string
 )
 
@@ -78,6 +98,7 @@ func init() {
 	createCmd.Flags().BoolVarP(&createEditor, "editor", "e", false, "Open editor to write the body")
 	createCmd.Flags().StringVarP(&createMilestones, "milestone", "m", "", "Milestone IDs or names (comma-separated)")
 	createCmd.Flags().StringVar(&createCategories, "category", "", "Category IDs or names (comma-separated)")
+	createCmd.Flags().StringVar(&createParent, "parent", "", "Parent issue ID or key (e.g. PROJ-123 or 12345) to create this issue as a child (or grandchild) of")
 	createCmd.Flags().StringArrayVar(&createAttachFiles, "attach", nil, "Attach local file(s) by path (can be specified multiple times)")
 }
 
@@ -251,6 +272,17 @@ func runCreate(c *cobra.Command, args []string) error {
 		input.CategoryIDs = categoryIDs
 	}
 
+	// 親課題（孫課題を含む3階層の親子付け）
+	if createParent != "" {
+		parentID, err := resolveParentIssueID(ctx, func(ctx context.Context, value string) ([]int, error) {
+			return cmdutil.ResolveIssueIDs(ctx, client, value)
+		}, createParent)
+		if err != nil {
+			return err
+		}
+		input.ParentIssueID = parentID
+	}
+
 	// 添付ファイルのアップロード
 	if len(createAttachFiles) > 0 {
 		attachmentIDs, err := cmdutil.UploadFiles(ctx, client, createAttachFiles)
@@ -326,6 +358,26 @@ func validateNonInteractiveCreateFlags(state createPromptState, issueTypes []api
 
 	lines = append(lines, "", "Run 'backlog issue create --help' for usage.")
 	return errors.New(strings.Join(lines, "\n"))
+}
+
+// resolveParentIssueID resolves a --parent flag value (an issue key such as
+// "PROJ-123" or a numeric issue ID) to a numeric issue ID using resolve,
+// which is normally cmdutil.ResolveIssueIDs bound to a live API client.
+// Taking the resolver as a function value keeps this logic unit-testable
+// without a live client. An empty value resolves to 0 (no parent), which
+// callers must treat as "field not set" — never emit parentIssueId=0.
+func resolveParentIssueID(ctx context.Context, resolve func(ctx context.Context, value string) ([]int, error), value string) (int, error) {
+	if value == "" {
+		return 0, nil
+	}
+	ids, err := resolve(ctx, value)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve parent issue %q: %w", value, err)
+	}
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("failed to resolve parent issue %q", value)
+	}
+	return ids[0], nil
 }
 
 func joinCreateFlags(flags []string) string {

@@ -24,8 +24,8 @@ components:
           scopes: {}
     ApiKey:
       type: apiKey
-      in: query
-      name: apiKey
+      in: header
+      name: Backlog-API-Key
 
   schemas:
     User:
@@ -300,6 +300,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Star'
+
+    RelatedIssue:
+      allOf:
+        - $ref: '#/components/schemas/Issue'
+        - type: object
+          properties:
+            type:
+              type: string
 
     Comment:
       type: object
@@ -1778,6 +1786,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Comment'
+
+  /issues/{issueIdOrKey}/relatedIssues:
+    get:
+      operationId: getRelatedIssueList
+      summary: Get related issue list
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RelatedIssue'
+    post:
+      operationId: addRelatedIssue
+      summary: Add related issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - relatedIssueId
+              properties:
+                relatedIssueId:
+                  type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelatedIssue'
+
+  /issues/{issueIdOrKey}/relatedIssues/{relatedIssueId}:
+    delete:
+      operationId: deleteRelatedIssue
+      summary: Delete related issue
+      parameters:
+        - name: issueIdOrKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: relatedIssueId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelatedIssue'
 
   /wikis:
     get:
